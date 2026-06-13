@@ -2,7 +2,7 @@
 """
 缓存文章归档 + 信号提取 + 溯源统计 一键脚本
 """
-import json, os, re, hashlib
+import json, os, re, hashlib, subprocess, sys
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -163,7 +163,11 @@ def main():
     
     # 手动调用索引
     os.chdir(str(SCRIPT_DIR.parent))
-    ret = os.system(f"/usr/bin/python3 {SCRIPT_DIR}/knowledge_base.py index 2>&1")
+    ret = subprocess.run(
+        [sys.executable, str(SCRIPT_DIR / "knowledge_base.py"), "index"],
+        capture_output=True,
+        text=True
+    ).returncode
     if ret != 0:
         print("  ⚠️ 索引可能未完整执行，继续处理信号...")
     
@@ -212,7 +216,11 @@ def main():
         
         # 步骤4：溯源统计
         print("\n📈 步骤4：信号溯源分析...")
-        ret = os.system(f"/usr/bin/python3 {SCRIPT_DIR}/knowledge_base.py trace --days 60 2>&1")
+        ret = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "knowledge_base.py"), "trace", "--days", "60"],
+            capture_output=True,
+            text=True
+        )
     else:
         print("\n  📭 未能提取到有效信号")
     
