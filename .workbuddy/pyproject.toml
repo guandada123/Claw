@@ -1,0 +1,38 @@
+[project]
+name = "claw"
+version = "1.2.0"
+description = "A股投顾自动化助手 — 模拟交易 + 回测 + AI分析 + 飞书推送"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["lib", "scripts"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests that hit real APIs (deselect with '-m \"not integration\"')",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+check_untyped_defs = true
+no_implicit_optional = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["scripts.*", "lib.*"]
+disallow_untyped_defs = false
+warn_unused_ignores = true
+
+[tool.coverage.run]
+source = ["scripts", "lib"]
+omit = ["tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+fail_under = 50
+show_missing = true
+skip_empty = true

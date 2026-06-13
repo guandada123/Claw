@@ -1,0 +1,35 @@
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = [
+    # Error detection
+    "E",       # pycodestyle errors
+    "W",       # pycodestyle warnings
+    "F",       # Pyflakes (unused imports, undefined names, etc.)
+    "B",       # flake8-bugbear (common bugs)
+    "S",       # flake8-bandit (security)
+    "SIM",     # flake8-simplify (code simplification)
+    # Code quality
+    "I",       # isort (import order)
+    "N",       # pep8-naming
+    "UP",      # pyupgrade (modern syntax)
+    "C4",      # flake8-comprehensions
+    "T20",     # flake8-print (prevent debug prints)
+    "EM",      # flake8-errmsg (exception message style)
+    "PL",      # pylint rules
+    "TRY",     # tryceratops (exception handling)
+    "ARG",     # flake8-unused-arguments
+    "PIE",     # flake8-pie (misc lint rules)
+]
+# 渐进式修复：先忽略部分当前无法全部修复的规则
+ignore = [
+    "E501",    # line too long (逐步修复)
+    "ANN101",  # missing type annotation for self
+    "ANN102",  # missing type annotation for cls
+    "ARG001",  # unused function argument
+]
+
+[lint.per-file-ignores]
+"scripts/*.py" = ["T201"]  # 允许脚本中使用 print
+"__init__.py" = ["F401"]   # 允许 __init__ 中的未使用导入

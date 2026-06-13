@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>皖通高速·锦富技术·天娱数科 投资分析报告 - 2026-05-31</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #f5f6fa;
+    --card: #ffffff;
+    --text: #1f2937;
+    --text-sec: #6b7280;
+    --border: #e5e7eb;
+    --buy: #10b981;
+    --sell: #ef4444;
+    --hold: #f59e0b;
+    --blue: #3b82f6;
+    --purple: #8b5cf6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "PingFang SC", "Noto Sans SC", sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px; background: var(--bg); color: var(--text); line-height: 1.6; }
+  h1 { font-size: 28px; margin-bottom: 4px; }
+  h2 { font-size: 20px; margin-bottom: 12px; }
+  .subtitle { color: var(--text-sec); font-size: 14px; margin-bottom: 24px; }
+  .card { background: var(--card); border-radius: 14px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .card h2 { display: flex; align-items: center; gap: 8px; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; color: #fff; }
+  .badge-buy { background: var(--buy); }
+  .badge-sell { background: var(--sell); }
+  .badge-hold { background: var(--hold); }
+  .badge-blue { background: var(--blue); }
+  .badge-purple { background: var(--purple); }
+
+  /* Decision Cards */
+  .decision-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .decision-card { border-radius: 16px; padding: 24px; color: #fff; position: relative; overflow: hidden; }
+  .decision-card::after { content: ''; position: absolute; top: -30px; right: -30px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.08); }
+  .dc-wantong { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+  .dc-jinfo { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); }
+  .dc-tianyu { background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); }
+  .dc-action { font-size: 42px; font-weight: 800; letter-spacing: 2px; margin-bottom: 4px; text-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .dc-name { font-size: 16px; opacity: 0.9; margin-bottom: 16px; }
+  .dc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dc-item { background: rgba(255,255,255,0.15); padding: 8px 12px; border-radius: 8px; }
+  .dc-label { font-size: 11px; opacity: 0.8; }
+  .dc-val { font-size: 16px; font-weight: 700; }
+
+  /* Chart containers */
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .chart-full { margin-bottom: 20px; }
+  canvas { max-height: 380px; }
+
+  /* Summary table */
+  .summary-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .summary-table th { background: #f8f9fb; padding: 10px 12px; text-align: left; border-bottom: 2px solid var(--border); font-weight: 600; }
+  .summary-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .summary-table tr:hover { background: #f0f4ff; }
+
+  /* Collapsible details */
+  .detail-section { margin-top: 16px; }
+  .detail-toggle { background: none; border: 1px solid var(--border); padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; color: var(--text); transition: background 0.2s; }
+  .detail-toggle:hover { background: #f0f4ff; }
+  .detail-toggle .arrow { transition: transform 0.2s; }
+  .detail-toggle.open .arrow { transform: rotate(180deg); }
+  .detail-content { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+  .detail-content.open { max-height: 2000px; }
+  .detail-inner { padding: 12px 0; font-size: 14px; line-height: 1.8; }
+  .detail-inner p { margin-bottom: 8px; }
+  .tag-up { color: var(--buy); font-weight: 600; }
+  .tag-down { color: var(--sell); font-weight: 600; }
+
+  /* Catalyst & Risk Lists */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .list-card { padding: 16px; border-radius: 10px; }
+  .list-card.catalyst { background: #ecfdf5; border-left: 4px solid var(--buy); }
+  .list-card.risk { background: #fef2f2; border-left: 4px solid var(--sell); }
+  .list-card h3 { font-size: 15px; margin-bottom: 8px; }
+  .list-card li { font-size: 13px; margin-bottom: 6px; line-height: 1.5; }
+
+  /* Disclaimer */
+  .disclaimer { color: var(--text-sec); font-size: 12px; padding: 16px 0; border-top: 1px solid var(--border); margin-top: 24px; line-height: 1.8; }
+
+  @media (max-width: 768px) {
+    .decision-grid { grid-template-columns: 1fr; }
+    .chart-row { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<h1>三票联合投资分析报告</h1>
+<p class="subtitle">皖通高速 (600012) · 锦富技术 (300128) · 天娱数科 (002354) &nbsp;|&nbsp; 分析日期：2026-05-31 &nbsp;|&nbsp; 数据来源：NeoData 金融数据服务</p>
+
+<!-- ==================== 1. Decision Cards ==================== -->
+<div class="decision-grid">
+  <!-- 皖通高速 -->
+  <div class="decision-card dc-wantong">
+    <div class="dc-action">HOLD</div>
+    <div class="dc-name">皖通高速 600012 · 等回调买入</div>
+    <div class="dc-grid">
+      <div class="dc-item"><div class="dc-label">入场价</div><div class="dc-val">16.00-16.30</div></div>
+      <div class="dc-item"><div class="dc-label">目标价</div><div class="dc-val">17.30-17.50</div></div>
+      <div class="dc-item"><div class="dc-label">止损价</div><div class="dc-val">15.50</div></div>
+      <div class="dc-item"><div class="dc-label">建议仓位</div><div class="dc-val">25%</div></div>
+    </div>
+  </div>
+  <!-- 锦富技术 -->
+  <div class="decision-card dc-jinfo">
+    <div class="dc-action">SELL</div>
+    <div class="dc-name">锦富技术 300128 · 坚决不买</div>
+    <div class="dc-grid">
+      <div class="dc-item"><div class="dc-label">入场价</div><div class="dc-val">—</div></div>
+      <div class="dc-item"><div class="dc-label">目标价</div><div class="dc-val">—</div></div>
+      <div class="dc-item"><div class="dc-label">止损价</div><div class="dc-val">—</div></div>
+      <div class="dc-item"><div class="dc-label">建议仓位</div><div class="dc-val">0%</div></div>
+    </div>
+  </div>
+  <!-- 天娱数科 -->
+  <div class="decision-card dc-tianyu">
+    <div class="dc-action">HOLD</div>
+    <div class="dc-name">天娱数科 002354 · 等回调买入</div>
+    <div class="dc-grid">
+      <div class="dc-item"><div class="dc-label">入场价</div><div class="dc-val">6.50-6.80</div></div>
+      <div class="dc-item"><div class="dc-label">目标价</div><div class="dc-val">7.80-8.20</div></div>
+      <div class="dc-item"><div class="dc-label">止损价</div><div class="dc-val">5.80</div></div>
+      <div class="dc-item"><div class="dc-label">建议仓位</div><div class="dc-val">15%</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 2. Radar Chart ==================== -->
+<div class="card">
+  <h2>📊 综合评分雷达图 <span class="badge badge-blue">五维评估</span></h2>
+  <canvas id="radarChart"></canvas>
+</div>
+
+<!-- ==================== 3. Price Charts ==================== -->
+<div class="chart-row">
+  <div class="card">
+    <h2>📈 皖通高速 近60日走势</h2>
+    <canvas id="priceWantong"></canvas>
+  </div>
+  <div class="card">
+    <h2>📈 天娱数科 近60日走势</h2>
+    <canvas id="priceTianyu"></canvas>
+  </div>
+</div>
+<div class="card chart-full">
+  <h2>📈 锦富技术 近60日走势（仅供回避参考）</h2>
+  <canvas id="priceJinfo"></canvas>
+</div>
+
+<!-- ==================== 4. Bull vs Bear ==================== -->
+<div class="card">
+  <h2>⚖️ 多空论点对比 <span class="badge badge-purple">辩论权重</span></h2>
+  <canvas id="bullBearChart"></canvas>
+</div>
+
+<!-- ==================== 5. Risk Triangle ==================== -->
+<div class="card">
+  <h2>📋 风险评估三角 <span class="badge badge-purple">三方辩论</span></h2>
+  <canvas id="riskRadar"></canvas>
+</div>
+
+<!-- ==================== 6. Detail Sections ==================== -->
+<div class="card">
+  <h2>📝 详细分析摘要</h2>
+
+  <!-- 皖通高速 Detail -->
+  <div class="detail-section">
+    <button class="detail-toggle" onclick="toggleDetail(this)">
+      🛣️ 皖通高速（600012）— HOLD 等回调买入
+      <span class="arrow">▼</span>
+    </button>
+    <div class="detail-content">
+      <div class="detail-inner">
+        <p><strong>核心结论：</strong>好公司坏时机。均线完全多头排列+MACD红柱放大+布林突破上轨，技术趋势强劲；通行费+13.36%、ROE 14%、股息率3.62%、经营现金流35.39亿，基本面扎实。但KDJ J=106.91严重超买+主力净流出425万+量比0.92缩量上攻，短期追高风险极大。9家机构目标价仅+5.59%上行空间，风险收益比不匹配。</p>
+        <p><strong>操作策略：</strong>分批建仓——回调至16.30建仓10%，跌至16.00加仓10%，Q2数据改善确认后加至25%。止损15.50。</p>
+        <p><strong>关键风险：</strong>①Q1营收-44.22%（核心业务增长vs多元化业务塌方需区分）；②负债率39%→53%+财务费用+253%，可能侵蚀分红能力；③北向减持+主力净流出，资金面不配合。</p>
+        <p><strong>关键催化：</strong>①港股6/30除权除息驱动红利资金提前布局；②低利率环境持续（10年国债1.75%），3.62%股息率利差超180BP；③筹码集中（股东户数-12.98%）。</p>
+        <p><strong>四维评分：</strong>技术面7.5 / 基本面7.5 / 新闻面6.5 / 情绪面5.0 / 风险面5.5</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 锦富技术 Detail -->
+  <div class="detail-section">
+    <button class="detail-toggle" onclick="toggleDetail(this)">
+      ⚠️ 锦富技术（300128）— SELL 坚决不买
+      <span class="arrow">▼</span>
+    </button>
+    <div class="detail-content">
+      <div class="detail-inner">
+        <p><strong>核心结论：</strong>商业模式根本性缺陷。连续4年亏损、毛利率仅5.82%（增长不赚钱）、负债率85.91%接近资不抵债、经营现金流连续3年为负、PB 14-20倍估值严重脱离基本面。天马化工4月扭亏+车载+132%是边际亮点，但杯水车薪，无法改变系统性危机。</p>
+        <p><strong>操作策略：</strong>0仓位。如已持有，利用任何技术反弹减仓/清仓。重新审视条件极苛刻：毛利率连续2季>15%、负债率降至60%以下、经营现金流转正且持续2季度。</p>
+        <p><strong>关键风险：</strong>①退市风险——若2026年继续亏损可能触发*ST；②债务违约——85.91%负债率下流动性危机一触即发；③信披违规维权持续+股东拟减持3%；④主力高位净流出1.59亿，融资5日降5.38%。</p>
+        <p><strong>四维评分：</strong>技术面5.0 / 基本面2.0 / 新闻面5.0 / 情绪面4.0 / 风险面9.0</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 天娱数科 Detail -->
+  <div class="detail-section">
+    <button class="detail-toggle" onclick="toggleDetail(this)">
+      🤖 天娱数科（002354）— HOLD 等回调买入
+      <span class="arrow">▼</span>
+    </button>
+    <div class="detail-content">
+      <div class="detail-inner">
+        <p><strong>核心结论：</strong>AI赛道稀缺的业绩拐点标的。Q1净利+476%确认拐点方向，6家机构预测2026年净利+284%；海外AI SaaS收入+568%在A股具有稀缺性；三重政策利好（AI+能源行动方案+智能体实施意见+设备更新扩容）共振。但短期过热：换手率14.71%极高、超大单出逃1700万、高管减持+限售解禁460万股。</p>
+        <p><strong>操作策略：</strong>分批建仓——回调至6.80或以下建仓8%，跌至6.30加仓7%。止损5.80（商誉减值公告无条件清仓）。若AI政策持续催化+主力持续流入，可在6.50-6.80直接分2日建仓8%。</p>
+        <p><strong>关键风险：</strong>①商誉4.995亿/净资产36.32%——一旦减值可能跌停；②Q4季节性亏损大（2025Q4单季亏9155万），盈利稳定性不足；③高管减持+460万股解禁=双重抛压；④AI板块月末高位调整。</p>
+        <p><strong>关键催化：</strong>①Q2业绩继续正增长确认拐点；②AI新政策出台；③海外大单签约；④中报验证窗口（7-8月）。</p>
+        <p><strong>四维评分：</strong>技术面6.5 / 基本面5.0 / 新闻面7.5 / 情绪面6.5 / 风险面6.0</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debate Summary -->
+  <div class="detail-section">
+    <button class="detail-toggle" onclick="toggleDetail(this)">
+      ⚔️ 多空辩论核心交锋
+      <span class="arrow">▼</span>
+    </button>
+    <div class="detail-content">
+      <div class="detail-inner">
+        <p><strong>皖通高速：</strong>多头认为低利率+高股息+垄断护城河是时代性机会，应立即建仓；空头指出KDJ严重超买+Q1营收-44%+负债率飙升+仅5.59%上行空间，追高风险远大于收益。<strong>裁决：</strong>空头在时机上更有道理，等回调至16.00-16.30再入场。</p>
+        <p><strong>锦富技术：</strong>多头认为KDJ超卖+主力逆势吸筹+化工拐点=困境反转期权；空头指出5.82%毛利率=增长不赚钱、85.91%负债率=生存危机、PB 14-20倍=估值黑洞。<strong>裁决：</strong>空头完胜，0仓位。</p>
+        <p><strong>天娱数科：</strong>多头认为AI+业绩拐点+政策三重共振不应等20%回调；空头指出商誉5亿悬顶+换手率14.71%+超大单出逃=主力出货信号。<strong>裁决：</strong>采纳激进方的节奏判断（等20%回调不现实）+保守方的商誉止损纪律，入场区间上修至6.50-6.80。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Catalysts & Risks -->
+<div class="two-col">
+  <div class="list-card catalyst">
+    <h3>✅ 关键催化剂</h3>
+    <ul>
+      <li><strong>皖通：</strong>港股6/30除权除息，红利资金提前布局</li>
+      <li><strong>皖通：</strong>低利率环境持续（10年国债1.75%），3.62%股息率利差超180BP</li>
+      <li><strong>天娱：</strong>Q2业绩验证窗口（7-8月），若延续Q1高增长将确认拐点</li>
+      <li><strong>天娱：</strong>AI+能源政策持续加码，公司直接受益</li>
+      <li><strong>天娱：</strong>海外AI SaaS商业化加速，马来西亚合作仅是起点</li>
+    </ul>
+  </div>
+  <div class="list-card risk">
+    <h3>⚠️ 关键风险事件</h3>
+    <ul>
+      <li><strong>皖通：</strong>Q2营收若延续-44%下滑，分红率可能被迫下调</li>
+      <li><strong>皖通：</strong>负债率持续攀升+财务费用暴增，侵蚀分红能力</li>
+      <li><strong>天娱：</strong>商誉4.995亿/净资产36%——减值公告=无条件清仓</li>
+      <li><strong>天娱：</strong>460万股限售解禁+高管减持形成双重抛压</li>
+      <li><strong>天娱：</strong>AI板块高位调整可能引发估值回归</li>
+      <li><strong>锦富：</strong>退市风险+债务违约风险真实存在（0仓位）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Portfolio Risk Rules -->
+<div class="card" style="margin-top:16px;">
+  <h2>🛡️ 组合风控规则</h2>
+  <table class="summary-table">
+    <thead>
+      <tr><th>规则</th><th>触发条件</th><th>执行动作</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>总仓位上限</td><td>皖通25% + 天娱15% = 40%</td><td>锦富0%，预留60%现金</td></tr>
+      <tr><td>单票止损</td><td>皖通跌破15.50 / 天娱跌破5.80</td><td>无条件止损，不留过夜</td></tr>
+      <tr><td>商誉红线</td><td>天娱发布商誉减值公告</td><td>无条件清仓，不管价位</td></tr>
+      <tr><td>组合回撤控制</td><td>组合总市值回撤超8%</td><td>全面减仓至20%以下</td></tr>
+      <tr><td>时间止损</td><td>建仓后10日未按预期运行</td><td>减半仓重新评估</td></tr>
+      <tr><td>黑天鹅应急</td><td>大盘单日跌>3%</td><td>所有持仓减半，等企稳再评估</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Disclaimer -->
+<div class="disclaimer">
+  ⚠️ <strong>免责声明：</strong>本报告由 AI 基于公开信息整理生成，仅供参考，不构成任何投资建议或个股推荐。投资有风险，决策需谨慎。数据来源：NeoData 金融数据服务。报告生成日期：2026年5月31日。天娱数科正确代码为002354.SZ（非300863.SZ，后者为卡倍亿）。
+</div>
+
+<script>
+// ===== Helper: Toggle Detail =====
+function toggleDetail(btn) {
+  btn.classList.toggle('open');
+  const content = btn.nextElementSibling;
+  content.classList.toggle('open');
+}
+
+// ===== Color Palette =====
+const C = {
+  wantong: { main: '#f59e0b', light: 'rgba(245,158,11,0.15)', line: '#f59e0b', sma20: '#8b5cf6', sma60: '#6366f1' },
+  jinfo:   { main: '#ef4444', light: 'rgba(239,68,68,0.15)', line: '#ef4444', sma20: '#8b5cf6', sma60: '#6366f1' },
+  tianyu:  { main: '#f97316', light: 'rgba(249,115,22,0.15)', line: '#f97316', sma20: '#8b5cf6', sma60: '#6366f1' }
+};
+
+// ===== 60-day Approximate Price Data =====
+// 皖通高速: Current 16.83, 60-day gain ~15.35%
+const wantongPrices = [14.59,14.62,14.65,14.60,14.58,14.63,14.70,14.68,14.72,14.78,14.75,14.80,14.85,14.82,14.88,14.92,14.90,14.95,15.00,14.98,15.05,15.10,15.08,15.12,15.18,15.22,15.20,15.25,15.30,15.28,15.32,15.38,15.35,15.40,15.42,15.48,15.50,15.55,15.52,15.58,15.60,15.63,15.68,15.65,15.72,15.78,15.82,15.85,15.90,15.88,15.95,16.02,16.08,16.15,16.22,16.30,16.38,16.42,16.50,16.83];
+// 锦富技术: Current 7.79, V-shape to 8.78 then pullback
+const jinfoPrices = [6.45,6.50,6.42,6.35,5.90,5.69,5.75,5.82,5.95,6.08,6.20,6.35,6.50,6.62,6.78,6.95,7.10,7.25,7.40,7.55,7.68,7.82,7.95,8.10,8.25,8.40,8.55,8.65,8.78,8.70,8.60,8.48,8.35,8.20,8.05,7.95,7.88,7.80,7.72,7.65,7.58,7.52,7.48,7.55,7.60,7.68,7.72,7.80,7.75,7.70,7.65,7.72,7.80,7.85,7.90,7.95,7.88,7.82,7.79];
+// 天娱数科: Current 7.15, rally to 7.49 then consolidation
+const tianyuPrices = [5.40,5.45,5.50,5.48,5.55,5.60,5.58,5.65,5.72,5.80,5.85,5.90,5.95,6.00,6.08,6.15,6.22,6.30,6.38,6.45,6.52,6.60,6.68,6.75,6.82,6.90,6.98,7.05,7.12,7.20,7.30,7.42,7.49,7.45,7.38,7.30,7.25,7.18,7.22,7.15,7.08,7.12,7.18,7.25,7.30,7.22,7.10,7.05,7.12,7.18,7.08,7.00,7.05,7.12,7.20,7.28,7.35,7.25,7.15];
+
+function calcSMA(data, period) {
+  return data.map((_, i) => {
+    if (i < period - 1) return null;
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += data[j];
+    return +(sum / period).toFixed(2);
+  });
+}
+
+const labels60 = Array.from({length: 60}, (_, i) => `D${i+1}`);
+
+// ===== 2. Radar Chart =====
+new Chart(document.getElementById('radarChart'), {
+  type: 'radar',
+  data: {
+    labels: ['技术面', '基本面', '新闻面', '情绪面', '风险面'],
+    datasets: [
+      { label: '皖通高速', data: [7.5, 7.5, 6.5, 5.0, 5.5], borderColor: C.wantong.main, backgroundColor: C.wantong.light, borderWidth: 2, pointRadius: 4 },
+      { label: '锦富技术', data: [5.0, 2.0, 5.0, 4.0, 9.0], borderColor: C.jinfo.main, backgroundColor: C.jinfo.light, borderWidth: 2, pointRadius: 4 },
+      { label: '天娱数科', data: [6.5, 5.0, 7.5, 6.5, 6.0], borderColor: C.tianyu.main, backgroundColor: C.tianyu.light, borderWidth: 2, pointRadius: 4 }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: { r: { min: 0, max: 10, ticks: { stepSize: 2 }, pointLabels: { font: { size: 13 } } } },
+    plugins: { legend: { position: 'bottom' } }
+  }
+});
+
+// ===== 3. Price Charts =====
+function makePriceChart(canvasId, prices, config) {
+  const sma20 = calcSMA(prices, 20);
+  const sma60 = calcSMA(prices, 60);
+  new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: labels60,
+      datasets: [
+        { label: '收盘价', data: prices, borderColor: config.line, backgroundColor: config.light, borderWidth: 2, fill: true, pointRadius: 0, tension: 0.3 },
+        { label: 'SMA20', data: sma20, borderColor: C.wantong.sma20, borderWidth: 1.5, borderDash: [4,3], pointRadius: 0, tension: 0.3 },
+        { label: 'SMA60', data: sma60, borderColor: C.wantong.sma60, borderWidth: 1.5, borderDash: [6,3], pointRadius: 0, tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { position: 'bottom' },
+        annotation: {}
+      },
+      scales: { x: { display: true, ticks: { maxTicksLimit: 8 } }, y: { position: 'right' } }
+    }
+  });
+}
+makePriceChart('priceWantong', wantongPrices, C.wantong);
+makePriceChart('priceJinfo', jinfoPrices, C.jinfo);
+makePriceChart('priceTianyu', tianyuPrices, C.tianyu);
+
+// ===== 4. Bull vs Bear Chart =====
+const bbLabels = [
+  '红利溢价/低利率', '垄断护城河', '技术趋势加速', '机构看多', '股息现金流',
+  '超买回调', '营收塌方', '杠杆飙升', '上行空间有限', '资金出逃',
+  'AI业绩拐点', '政策三重共振', '出海稀缺性', '主力持续流入', '安全垫(28%负债)',
+  '商誉悬顶', '超高换手率', '全年仍亏', '解禁+减持', 'AI退潮风险'
+];
+const bbBull = [9,8,7,6,8, 0,0,0,0,0, 9,8,7,8,7, 0,0,0,0,0];
+const bbBear = [0,0,0,0,0, 9,8,8,7,6, 0,0,0,0,0, 9,8,7,7,6];
+const bbColors = [
+  ...Array(5).fill('rgba(245,158,11,0.7)'),  // 皖通 bull
+  ...Array(5).fill('rgba(245,158,11,0.4)'),  // 皖通 bear (lighter)
+  ...Array(5).fill('rgba(249,115,22,0.7)'),  // 天娱 bull
+  ...Array(5).fill('rgba(249,115,22,0.4)')   // 天娱 bear
+];
+
+new Chart(document.getElementById('bullBearChart'), {
+  type: 'bar',
+  data: {
+    labels: bbLabels,
+    datasets: [
+      { label: '多头论点权重', data: bbBull, backgroundColor: bbColors.map((c,i) => i < 10 ? 'rgba(16,185,129,0.7)' : 'rgba(249,115,22,0.7)'), borderWidth: 0 },
+      { label: '空头论点权重', data: bbBear, backgroundColor: bbColors.map((c,i) => i < 10 ? 'rgba(245,158,11,0.5)' : 'rgba(239,68,68,0.5)'), borderWidth: 0 }
+    ]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { position: 'bottom' } },
+    scales: { x: { max: 10, title: { display: true, text: '权重 (1-10)' } } }
+  }
+});
+
+// ===== 5. Risk Assessment Radar =====
+new Chart(document.getElementById('riskRadar'), {
+  type: 'radar',
+  data: {
+    labels: ['皖通高速', '锦富技术', '天娱数科'],
+    datasets: [
+      { label: '激进派', data: [3.5, 8.0, 6.0], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', borderWidth: 2, pointRadius: 5, pointBackgroundColor: '#10b981' },
+      { label: '保守派', data: [6.5, 9.5, 8.0], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 2, pointRadius: 5, pointBackgroundColor: '#ef4444' },
+      { label: '中性派', data: [5.5, 8.5, 6.5], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 2, pointRadius: 5, pointBackgroundColor: '#3b82f6' }
+    ]
+  },
+  options: {
+    responsive: true,
+    scales: { r: { min: 0, max: 10, ticks: { stepSize: 2 }, pointLabels: { font: { size: 14 } } } },
+    plugins: { legend: { position: 'bottom' },
+      title: { display: true, text: '数值越高=风险越大', font: { size: 13 }, color: '#6b7280' }
+    }
+  }
+});
+</script>
+
+</body>
+</html>

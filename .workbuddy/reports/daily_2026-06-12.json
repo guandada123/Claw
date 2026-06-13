@@ -1,0 +1,107 @@
+{
+  "period": "daily",
+  "period_start": "2026-06-11",
+  "period_end": "2026-06-12",
+  "total_days": 1,
+  "trading_days_with_data": 1,
+  "generated_at": "2026-06-12 15:25:39",
+  "summary": {
+    "total_asset": 27740.14,
+    "cash": 13438.14,
+    "total_pnl": -2259.86,
+    "total_pnl_pct": -7.53,
+    "realized_pnl": -1190.86,
+    "unrealized_pnl": -1069.0,
+    "max_drawdown_pct": 0.0,
+    "up_days": 0,
+    "down_days": 1,
+    "flat_days": 0,
+    "daily_win_rate": 0.0,
+    "avg_daily_return_pct": -1.59,
+    "best_day": {
+      "date": "2026-06-11",
+      "total_asset": 28152.0,
+      "cash": 596.0,
+      "daily_return_pct": -1.59,
+      "cumulative_pnl": -1848.0,
+      "cumulative_pnl_pct": -6.16,
+      "position_count": 2,
+      "buy_count": 0,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    "worst_day": {
+      "date": "2026-06-11",
+      "total_asset": 28152.0,
+      "cash": 596.0,
+      "daily_return_pct": -1.59,
+      "cumulative_pnl": -1848.0,
+      "cumulative_pnl_pct": -6.16,
+      "position_count": 2,
+      "buy_count": 0,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    "trade_count": 1,
+    "buy_count": 0,
+    "sell_count": 1,
+    "win_count": 0,
+    "lose_count": 1,
+    "trade_win_rate": 0.0,
+    "avg_win": 0,
+    "avg_loss": -1190.86,
+    "profit_factor": 0.0
+  },
+  "positions": [
+    {
+      "code": "002049",
+      "name": "紫光国微",
+      "shares": 200,
+      "avg_cost": 76.855,
+      "current_price": 71.51,
+      "market_value": 14302.0,
+      "unrealized_pnl": -1069.0
+    }
+  ],
+  "daily_detail": [
+    {
+      "date": "2026-06-11",
+      "total_asset": 28152.0,
+      "cash": 596.0,
+      "daily_return_pct": -1.59,
+      "cumulative_pnl": -1848.0,
+      "cumulative_pnl_pct": -6.16,
+      "position_count": 2,
+      "buy_count": 0,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    }
+  ],
+  "recent_trades": [
+    {
+      "id": "S0003",
+      "type": "SELL",
+      "code": "600460",
+      "name": "士兰微",
+      "shares": 400,
+      "price": 32.15,
+      "commission": 5.0,
+      "stamp_tax": 12.86,
+      "net_proceeds": 12842.14,
+      "realized_pnl": -1190.86,
+      "pnl_pct": -8.49,
+      "reason": "触发固定止损线 -8.36% (止损线 -8%)",
+      "time": "2026-06-12 15:11:58",
+      "date": "2026-06-12"
+    }
+  ]
+}

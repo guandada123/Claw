@@ -1,0 +1,120 @@
+{
+  "quote": {
+    "name": "五 粮 液",
+    "code": "000858",
+    "price": 81.08,
+    "prev_close": 81.1,
+    "open": 81.5,
+    "volume": 219364,
+    "high": 82.42,
+    "low": 81.03,
+    "change_pct": -0.02,
+    "pe": 24.98,
+    "total_value": 3147.21
+  },
+  "experts": {
+    "价值投资专家": {
+      "expert_name": "价值投资专家",
+      "conclusion": "持有",
+      "score": 5,
+      "reason": "PE=25.0，估值合理，建议持有",
+      "key_points": [
+        "PE=25.0，估值合理",
+        "总市值3147亿，中盘股",
+        "当前价81.08元"
+      ]
+    },
+    "技术分析专家": {
+      "expert_name": "技术分析专家",
+      "conclusion": "持有",
+      "score": 5,
+      "reason": "涨跌-0.02%，震荡观望，建议持有",
+      "key_points": [
+        "涨跌-0.02%，横盘震荡",
+        "日内下跌（开81.50→收81.08），空头占优",
+        "振幅1.72%，最高82.42，最低81.03",
+        "支撑位：81.08，阻力位：81.10"
+      ],
+      "support_price": 77.03,
+      "resistance_price": 85.16
+    },
+    "宏观经济专家": {
+      "expert_name": "宏观经济专家",
+      "conclusion": "持有",
+      "score": 5,
+      "reason": "宏观数据需通过 macro-monitor 获取，当前基于行业估值给出中性判断，建议持有",
+      "key_points": [
+        "宏观经济环境需结合最新GDP/CPI/PMI数据判断",
+        "政策面：关注央行货币政策和行业监管动态",
+        "行业估值：PE=25.0，需横向对比同行业均值",
+        "国际市场：关注美联储利率政策和地缘风险"
+      ]
+    },
+    "资金面专家": {
+      "expert_name": "资金面专家",
+      "conclusion": "持有",
+      "score": 6,
+      "reason": "成交额17.79亿，交投活跃，主力流出，建议持有",
+      "key_points": [
+        "成交额17.79亿，交投正常",
+        "总市值3147亿，流动性充裕"
+      ]
+    },
+    "市场情绪专家": {
+      "expert_name": "市场情绪专家",
+      "conclusion": "持有",
+      "score": 5,
+      "reason": "涨跌-0.02%，市场情绪悲观，建议持有",
+      "key_points": [
+        "日跌幅-0.02%，市场情绪中性偏弱",
+        "五 粮 液当前价81.08元，无明显炒作迹象",
+        "建议关注同板块其他个股涨跌情况，判断是否为板块性行情"
+      ]
+    }
+  },
+  "final_summary": {
+    "symbol": "000858",
+    "name": "五 粮 液",
+    "expert_conclusions": [
+      {
+        "expert_name": "价值投资专家",
+        "conclusion": "持有",
+        "score": 5,
+        "reason": "PE=25.0，估值合理，建议持有"
+      },
+      {
+        "expert_name": "技术分析专家",
+        "conclusion": "持有",
+        "score": 5,
+        "reason": "涨跌-0.02%，震荡观望，建议持有"
+      },
+      {
+        "expert_name": "宏观经济专家",
+        "conclusion": "持有",
+        "score": 5,
+        "reason": "宏观数据需通过 macro-monitor 获取，当前基于行业估值给出中性判断，建议持有"
+      },
+      {
+        "expert_name": "资金面专家",
+        "conclusion": "持有",
+        "score": 6,
+        "reason": "成交额17.79亿，交投活跃，主力流出，建议持有"
+      },
+      {
+        "expert_name": "市场情绪专家",
+        "conclusion": "持有",
+        "score": 5,
+        "reason": "涨跌-0.02%，市场情绪悲观，建议持有"
+      }
+    ],
+    "buy_signals": 0,
+    "sell_signals": 0,
+    "hold_signals": 5,
+    "final_conclusion": "持有",
+    "avg_score": 5.2,
+    "suggest_buy_price": 77.03,
+    "suggest_sell_price": 105.4,
+    "suggest_stop_loss": 74.59,
+    "analyzed_at": "2026-06-07T01:48:16.275084"
+  }
+}

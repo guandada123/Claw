@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模拟炒股仪表盘</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+.header{background:linear-gradient(135deg,#1e293b,#0f172a);padding:20px 30px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center}
+.header h1{font-size:22px;color:#f8fafc}
+.header .refresh{background:#3b82f6;border:none;color:#fff;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px}
+.header .refresh:hover{background:#2563eb}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:20px 30px}
+.card{background:#1e293b;border-radius:10px;padding:18px;border:1px solid #334155}
+.card h3{font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.card .value{font-size:26px;font-weight:700}
+.card .sub{font-size:12px;color:#64748b;margin-top:4px}
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:16px;padding:0 30px 20px}
+.chart-card{background:#1e293b;border-radius:10px;padding:20px;border:1px solid #334155}
+.chart-card h3{font-size:14px;color:#94a3b8;margin-bottom:12px}
+.chart-card canvas{max-height:300px}
+.table-card{background:#1e293b;border-radius:10px;padding:20px;border:1px solid #334155;margin:0 30px 20px}
+.table-card h3{font-size:14px;color:#94a3b8;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 12px;border-bottom:1px solid #334155;color:#64748b;font-weight:500}
+td{padding:8px 12px;border-bottom:1px solid #1e293b}
+tr:hover td{background:#0f172a}
+.green{color:#22c55e}
+.red{color:#ef4444}
+.yellow{color:#f59e0b}
+.loading{text-align:center;padding:40px;color:#64748b}
+.error{text-align:center;padding:40px;color:#ef4444}
+.position-row{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.position-row .bar{flex:1;height:6px;border-radius:3px;background:#334155;overflow:hidden}
+.position-row .bar .fill{height:100%;border-radius:3px;background:#3b82f6}
+.gauge-container{display:flex;justify-content:center;align-items:center;padding:10px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📈 模拟炒股仪表盘</h1>
+  <button class="refresh" onclick="loadData()">🔄 刷新数据</button>
+</div>
+
+<div id="content">
+  <div class="loading">正在加载数据...</div>
+</div>
+
+<script>
+const BASE = '.';
+let charts = {};
+
+async function loadData() {
+  try {
+    const [pfResp, dlResp, slResp] = await Promise.allSettled([
+      fetch(`${BASE}/data/simulation/portfolio.json`).then(r => r.json()),
+      fetch(`${BASE}/data/simulation/decision_log.json`).then(r => r.json()).catch(() => []),
+      fetch(`${BASE}/data/simulation/strategy_library.json`).then(r => r.json()).catch(() => null)
+    ]);
+    const portfolio = pfResp.status === 'fulfilled' ? pfResp.value : null;
+    const decisions = dlResp.status === 'fulfilled' ? dlResp.value : [];
+    const strategyLib = slResp.status === 'fulfilled' ? slResp.value : null;
+    
+    if (!portfolio) {
+      showError('无法加载持仓数据。请在 .workbuddy 目录下运行: python3 -m http.server 8080');
+      return;
+    }
+    render(portfolio, decisions, strategyLib);
+  } catch (e) {
+    showError('数据加载失败: ' + e.message);
+  }
+}
+
+function showError(msg) {
+  document.getElementById('content').innerHTML = `<div class="error">${msg}</div>`;
+}
+
+function render(pf, decisions, strategyLib) {
+  const cash = pf.cash || 0;
+  const positions = pf.positions || {};
+  const txns = pf.transactions || [];
+  const snapshots = pf.daily_snapshot || {};
+  
+  // Calculate totals
+  let stockValue = 0;
+  let unrealizedPnl = 0;
+  for (const [code, pos] of Object.entries(positions)) {
+    const val = pos.shares * (pos.current_price || pos.avg_cost);
+    stockValue += val;
+    unrealizedPnl += val - (pos.total_cost || 0);
+  }
+  const totalAsset = cash + stockValue;
+  const totalPnl = totalAsset - (pf.config?.initial_capital || 30000);
+  const totalPnlPct = (totalPnl / (pf.config?.initial_capital || 30000)) * 100;
+  
+  // Win rate
+  const sellTxns = txns.filter(t => t.type === 'SELL');
+  const wins = sellTxns.filter(t => t.realized_pnl > 0).length;
+  const winRate = sellTxns.length > 0 ? (wins / sellTxns.length * 100) : 0;
+  const realizedPnl = sellTxns.reduce((s, t) => s + (t.realized_pnl || 0), 0);
+  
+  // Score from strategy lib
+  const patterns = strategyLib?.high_win_rate_patterns?.length || 0;
+  const avoids = strategyLib?.loss_patterns_to_avoid?.length || 0;
+  
+  const html = `
+    <div class="grid">
+      <div class="card">
+        <h3>💰 总资产</h3>
+        <div class="value ${totalPnl >= 0 ? 'green' : 'red'}">¥${totalAsset.toLocaleString()}</div>
+        <div class="sub">累计 ${totalPnl >= 0 ? '+' : ''}${totalPnlPct.toFixed(2)}% | 现金 ¥${cash.toLocaleString()}</div>
+      </div>
+      <div class="card">
+        <h3>📈 持仓市值</h3>
+        <div class="value">¥${stockValue.toLocaleString()}</div>
+        <div class="sub">${Object.keys(positions).length} 只 | 浮动 ${unrealizedPnl >= 0 ? '+' : ''}¥${unrealizedPnl.toFixed(2)}</div>
+      </div>
+      <div class="card">
+        <h3>🏆 胜率</h3>
+        <div class="value">${winRate.toFixed(1)}%</div>
+        <div class="sub">${wins}赢 ${sellTxns.length - wins}输 | 已实现 ¥${realizedPnl.toFixed(2)}</div>
+      </div>
+      <div class="card">
+        <h3>📚 策略库</h3>
+        <div class="value">${patterns + avoids}</div>
+        <div class="sub">${patterns}条高胜率模式 | ${avoids}条避坑规则</div>
+      </div>
+    </div>
+    
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>📊 资产走势</h3>
+        <canvas id="assetChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>🥧 持仓分配</h3>
+        <canvas id="positionPie"></canvas>
+      </div>
+    </div>
+    
+    <div class="table-card">
+      <h3>📋 持仓详情</h3>
+      <table>
+        <tr><th>代码</th><th>名称</th><th>持仓</th><th>成本</th><th>现价</th><th>市值</th><th>盈亏</th></tr>
+        ${Object.entries(positions).map(([code, pos]) => {
+          const price = pos.current_price || pos.avg_cost;
+          const mktVal = pos.shares * price;
+          const pnl = mktVal - (pos.total_cost || 0);
+          const pnlPct = pos.total_cost ? (pnl / pos.total_cost * 100) : 0;
+          return `<tr>
+            <td>${code}</td><td>${pos.name || '-'}</td>
+            <td>${pos.shares}股</td>
+            <td>¥${pos.avg_cost?.toFixed(2)}</td>
+            <td>¥${price?.toFixed(2)}</td>
+            <td>¥${mktVal.toFixed(0)}</td>
+            <td class="${pnl >= 0 ? 'green' : 'red'}">${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="7" style="text-align:center;color:#64748b">暂无持仓</td></tr>'}
+      </table>
+    </div>
+    
+    ${decisions.length > 0 ? `
+    <div class="table-card">
+      <h3>💡 最近决策记录 (decision_log.json)</h3>
+      <table>
+        <tr><th>时间</th><th>股票</th><th>操作</th><th>评分</th><th>风控</th><th>结果</th><th>质量</th></tr>
+        ${[...decisions].reverse().slice(0, 10).map(d => {
+          const score = d.scores?.total || 0;
+          const risk = d.risk_check?.conclusion || '-';
+          const result = d.result || '待更新';
+          const quality = d.review_note || '-';
+          return `<tr>
+            <td style="font-size:12px">${(d.timestamp || '').substring(5, 16)}</td>
+            <td>${d.name || d.symbol}</td>
+            <td>${d.action === 'buy' ? '🟢买入' : d.action === 'sell' ? '🔴卖出' : d.action}</td>
+            <td>${score.toFixed(1)}</td>
+            <td class="${risk === '通过' ? 'green' : 'yellow'}">${risk}</td>
+            <td style="font-size:12px">${result}</td>
+            <td style="font-size:12px">${quality}</td>
+          </tr>`;
+        }).join('')}
+      </table>
+    </div>` : ''}
+  `;
+  
+  document.getElementById('content').innerHTML = html;
+  
+  // Destroy old charts
+  Object.values(charts).forEach(c => c.destroy());
+  charts = {};
+  
+  // Asset trend chart
+  const dates = Object.keys(snapshots).sort();
+  const values = dates.map(d => snapshots[d].total_asset);
+  
+  if (dates.length > 0) {
+    const ctx = document.getElementById('assetChart').getContext('2d');
+    charts.asset = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: dates.map(d => d.substring(5)),
+        datasets: [{
+          label: '总资产',
+          data: values,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
+          y: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => '¥' + v.toLocaleString() }, grid: { color: '#1e293b' } }
+        }
+      }
+    });
+  }
+  
+  // Position pie
+  const labels = [];
+  const data = [];
+  for (const [code, pos] of Object.entries(positions)) {
+    labels.push(`${pos.name || code} (${code})`);
+    data.push(pos.shares * (pos.current_price || pos.avg_cost));
+  }
+  if (cash > 0) { labels.push('现金'); data.push(cash); }
+  
+  if (data.length > 0) {
+    const ctx2 = document.getElementById('positionPie').getContext('2d');
+    charts.pie = new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: data,
+          backgroundColor: ['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#64748b'],
+          borderColor: '#1e293b',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, padding: 10 } }
+        }
+      }
+    });
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>

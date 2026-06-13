@@ -1,0 +1,124 @@
+{
+  "period": "daily",
+  "period_start": "2026-06-04",
+  "period_end": "2026-06-05",
+  "total_days": 1,
+  "trading_days_with_data": 1,
+  "generated_at": "2026-06-05 20:36:34",
+  "summary": {
+    "total_asset": 29204.0,
+    "cash": 596.0,
+    "total_pnl": -796.0,
+    "total_pnl_pct": -2.65,
+    "realized_pnl": 0,
+    "unrealized_pnl": -796.0,
+    "max_drawdown_pct": 0.0,
+    "up_days": 0,
+    "down_days": 1,
+    "flat_days": 0,
+    "daily_win_rate": 0.0,
+    "avg_daily_return_pct": -2.65,
+    "best_day": {
+      "date": "2026-06-05",
+      "total_asset": 29204.0,
+      "cash": 596.0,
+      "daily_return_pct": -2.65,
+      "cumulative_pnl": -796.0,
+      "cumulative_pnl_pct": -2.65,
+      "position_count": 2,
+      "buy_count": 2,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    "worst_day": {
+      "date": "2026-06-05",
+      "total_asset": 29204.0,
+      "cash": 596.0,
+      "daily_return_pct": -2.65,
+      "cumulative_pnl": -796.0,
+      "cumulative_pnl_pct": -2.65,
+      "position_count": 2,
+      "buy_count": 2,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    "trade_count": 2,
+    "buy_count": 2,
+    "sell_count": 0,
+    "win_count": 0,
+    "lose_count": 0,
+    "trade_win_rate": 0,
+    "avg_win": 0,
+    "avg_loss": 0,
+    "profit_factor": 0
+  },
+  "positions": [
+    {
+      "code": "002049",
+      "name": "紫光国微",
+      "shares": 200,
+      "avg_cost": 76.855,
+      "current_price": 75.14,
+      "market_value": 15028.0,
+      "unrealized_pnl": -343.0
+    },
+    {
+      "code": "600460",
+      "name": "士兰微",
+      "shares": 400,
+      "avg_cost": 35.0825,
+      "current_price": 33.95,
+      "market_value": 13580.0,
+      "unrealized_pnl": -453.0
+    }
+  ],
+  "daily_detail": [
+    {
+      "date": "2026-06-05",
+      "total_asset": 29204.0,
+      "cash": 596.0,
+      "daily_return_pct": -2.65,
+      "cumulative_pnl": -796.0,
+      "cumulative_pnl_pct": -2.65,
+      "position_count": 2,
+      "buy_count": 2,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    }
+  ],
+  "recent_trades": [
+    {
+      "id": "B0001",
+      "type": "BUY",
+      "code": "002049",
+      "name": "紫光国微",
+      "shares": 200,
+      "price": 76.83,
+      "commission": 5.0,
+      "total": 15371.0,
+      "time": "2026-06-05 12:55:18",
+      "date": "2026-06-05"
+    },
+    {
+      "id": "B0002",
+      "type": "BUY",
+      "code": "600460",
+      "name": "士兰微",
+      "shares": 400,
+      "price": 35.07,
+      "commission": 5.0,
+      "total": 14033.0,
+      "time": "2026-06-05 12:57:19",
+      "date": "2026-06-05"
+    }
+  ]
+}

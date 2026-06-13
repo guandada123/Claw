@@ -1,0 +1,61 @@
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = [
+    # Error detection
+    "E",       # pycodestyle errors
+    "W",       # pycodestyle warnings
+    "F",       # Pyflakes (unused imports, undefined names, etc.)
+    "B",       # flake8-bugbear (common bugs)
+    "S",       # flake8-bandit (security)
+    "SIM",     # flake8-simplify (code simplification)
+    # Code quality
+    "I",       # isort (import order)
+    "N",       # pep8-naming
+    "UP",      # pyupgrade (modern syntax)
+    "C4",      # flake8-comprehensions
+    "T20",     # flake8-print (prevent debug prints)
+    "EM",      # flake8-errmsg (exception message style)
+    "PL",      # pylint rules
+    "TRY",     # tryceratops (exception handling)
+    "ARG",     # flake8-unused-arguments
+    "PIE",     # flake8-pie (misc lint rules)
+]
+# 渐进式修复：先忽略无法批量修复的规则（逐步收紧）
+ignore = [
+    "E501",    # line too long
+    "ARG001",  # unused function argument
+    "ARG002",  # unused method argument
+    # 重构类（需大规模改动）
+    "PLC0415", # import-outside-top-level (条件导入)
+    "PLR0912", # too-many-branches
+    "PLR0913", # too-many-arguments
+    "PLR0915", # too-many-statements
+    "PLW1510", # subprocess-run-without-check
+    "PLW0108", # unnecessary-lambda
+    # 风格/低优先级
+    "TRY300",  # try-consider-else
+    "TRY400",  # error-instead-of-exception
+    "EM101",   # raw-string-in-exception
+    "EM102",   # f-string-in-exception
+    "N806",    # non-lowercase-variable (数据常量)
+    "B007",    # unused-loop-control-variable
+    "B905",    # zip-without-explicit-strict
+    # CLI 脚本安全规则（subprocess 合法使用）
+    "S603",    # subprocess-without-shell-equals-true
+    "S607",    # start-process-with-partial-path
+    # CLI 脚本安全规则（subprocess 合法使用）
+    "S603",    # subprocess-without-shell-equals-true
+    "S607",    # start-process-with-partial-path
+    # 暂时抑制（待逐步修复）
+    "F841",    # unused-variable (部分为调试/模板变量)
+    "PLR0911", # too-many-return-statements
+    "TRY003",  # raise-vanilla-args
+]
+
+[lint.per-file-ignores]
+".workbuddy/scripts/*.py" = ["T201", "S310", "PLR2004", "S108", "S112", "S110", "S306", "S602", "S324", "E402", "F401", "E741", "F823"]
+"scripts/*.py" = ["T201"]
+"__init__.py" = ["F401"]
+".workbuddy/lib/*.py" = ["PLR2004", "F401", "E741", "F823"]

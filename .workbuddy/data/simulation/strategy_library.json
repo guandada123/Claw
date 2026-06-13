@@ -1,0 +1,67 @@
+{
+  "version": "1.1",
+  "created_at": "2026-06-06",
+  "updated_at": "2026-06-12",
+  "updated_by": "weekly-summary-W23",
+  "description": "策略库 — 从 decision_log.json 中沉淀的高质量决策特征和避坑规则，每周由周报 automation 自动更新",
+  "high_win_rate_patterns": [],
+  "loss_patterns_to_avoid": [
+    {
+      "id": "L001",
+      "name": "单行业高集中度建仓",
+      "severity": "critical",
+      "description": "W23 两只持仓均为半导体（紫光国微+士兰微），行业集中度100%，在半导体板块走弱时亏损被放大，双杀风险极高",
+      "rule": "建仓时单行业占比不得超过60%，优先跨行业分散（半导体/消费/机械/金融等）",
+      "evidence": "2026-06-05~12 半导体双持：士兰微-8.49%止损，紫光国微-6.95%浮亏，总亏损-7.53%"
+    },
+    {
+      "id": "L002",
+      "name": "同日密集建仓+子弹打光",
+      "severity": "high",
+      "description": "W23 两只买入均为06-05同一天，建仓后仅剩¥596现金（2%），无法补仓或调仓，缺乏应对能力",
+      "rule": "建仓后至少保留15-20%现金（¥4,500-¥6,000），允许分批建仓，间隔至少1个交易日观察走势",
+      "evidence": "W23建仓后现金仅¥596，后续无任何操作空间直到止损"
+    },
+    {
+      "id": "L003",
+      "name": "弱势板块追高买入",
+      "severity": "high",
+      "description": "06-05建仓时半导体板块已在调整中，两笔买入均为当日相对高位，缺乏等待回踩确认的耐心",
+      "rule": "板块指数连续2日收阴时不新增建仓；买入须在个股回踩5日线或支撑位确认后执行",
+      "evidence": "紫光国微76.83建仓→71.51(-6.95%)，士兰微35.07建仓→32.15(-8.49%)"
+    }
+  ],
+  "sector_rotation_notes": [
+    {
+      "date": "2026-06-12",
+      "note": "半导体板块持续走弱4个交易日，IDM和设计端均承压，仅半导体材料相对走强。需等待板块企稳信号再考虑半导体方向"
+    }
+  ],
+  "risk_control_rules": {
+    "max_position_pct": 50,
+    "max_sector_pct": 60,
+    "market_freeze_threshold": -3.0,
+    "stop_loss_warn_threshold": 3.0,
+    "min_cash_after_build": 15,
+    "max_same_day_buys": 1,
+    "sector_downtrend_hold_days": 2,
+    "new_rule_20260612": "单日最多新开1只仓位；建仓后保留≥15%现金；板块连续阴线≥2日不新开；行业集中度≤60%"
+  },
+  "scoring_thresholds": {
+    "buy_min_score": 7.0,
+    "watch_min_score": 5.0
+  },
+  "weekly_performance": {
+    "W23": {
+      "week_return": -7.53,
+      "win_rate": 0,
+      "trades": 3,
+      "key_lessons": [
+        "禁止单行业100%集中度建仓",
+        "建仓后必须保留15%+现金",
+        "板块弱势时不同日双开",
+        "止损规则正确执行，风控纪律合格"
+      ]
+    }
+  }
+}

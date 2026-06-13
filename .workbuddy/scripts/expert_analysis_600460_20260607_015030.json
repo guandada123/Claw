@@ -1,0 +1,121 @@
+{
+  "quote": {
+    "name": "士兰微",
+    "code": "600460",
+    "price": 33.95,
+    "prev_close": 35.32,
+    "open": 34.7,
+    "volume": 939263,
+    "high": 35.44,
+    "low": 33.68,
+    "change_pct": -3.88,
+    "pe": 123.13,
+    "total_value": 564.95
+  },
+  "experts": {
+    "价值投资专家": {
+      "expert_name": "价值投资专家",
+      "conclusion": "卖出",
+      "score": 2,
+      "reason": "PE=123.1，高估，建议卖出",
+      "key_points": [
+        "PE=123.1，处于高估区间（>30）",
+        "总市值565亿，中盘股",
+        "当前价33.95元"
+      ]
+    },
+    "技术分析专家": {
+      "expert_name": "技术分析专家",
+      "conclusion": "卖出",
+      "score": 3,
+      "reason": "涨跌-3.88%，弱势看空，建议卖出",
+      "key_points": [
+        "跌幅-3.88%，大幅下跌",
+        "日内下跌（开34.70→收33.95），空头占优",
+        "振幅5.23%，最高35.44，最低33.68",
+        "支撑位：33.95，阻力位：35.32"
+      ],
+      "support_price": 32.25,
+      "resistance_price": 37.09
+    },
+    "宏观经济专家": {
+      "expert_name": "宏观经济专家",
+      "conclusion": "持有",
+      "score": 5,
+      "reason": "宏观数据需通过 macro-monitor 获取，当前基于行业估值给出中性判断，建议持有",
+      "key_points": [
+        "宏观经济环境需结合最新GDP/CPI/PMI数据判断",
+        "政策面：关注央行货币政策和行业监管动态",
+        "行业估值：PE=123.1，需横向对比同行业均值",
+        "国际市场：关注美联储利率政策和地缘风险"
+      ]
+    },
+    "资金面专家": {
+      "expert_name": "资金面专家",
+      "conclusion": "卖出",
+      "score": 5,
+      "reason": "成交额31.89亿，交投活跃，主力流出，建议卖出",
+      "key_points": [
+        "成交额31.89亿，交投正常",
+        "放量下跌，主力资金流出迹象",
+        "总市值565亿，中等流动性"
+      ]
+    },
+    "市场情绪专家": {
+      "expert_name": "市场情绪专家",
+      "conclusion": "卖出",
+      "score": 4,
+      "reason": "涨跌-3.88%，市场情绪悲观，建议卖出",
+      "key_points": [
+        "日跌幅-3.88%，市场情绪偏悲观",
+        "士兰微当前价33.95元，热点炒作可能性高",
+        "建议关注同板块其他个股涨跌情况，判断是否为板块性行情"
+      ]
+    }
+  },
+  "final_summary": {
+    "symbol": "600460",
+    "name": "士兰微",
+    "expert_conclusions": [
+      {
+        "expert_name": "价值投资专家",
+        "conclusion": "卖出",
+        "score": 2,
+        "reason": "PE=123.1，高估，建议卖出"
+      },
+      {
+        "expert_name": "技术分析专家",
+        "conclusion": "卖出",
+        "score": 3,
+        "reason": "涨跌-3.88%，弱势看空，建议卖出"
+      },
+      {
+        "expert_name": "宏观经济专家",
+        "conclusion": "持有",
+        "score": 5,
+        "reason": "宏观数据需通过 macro-monitor 获取，当前基于行业估值给出中性判断，建议持有"
+      },
+      {
+        "expert_name": "资金面专家",
+        "conclusion": "卖出",
+        "score": 5,
+        "reason": "成交额31.89亿，交投活跃，主力流出，建议卖出"
+      },
+      {
+        "expert_name": "市场情绪专家",
+        "conclusion": "卖出",
+        "score": 4,
+        "reason": "涨跌-3.88%，市场情绪悲观，建议卖出"
+      }
+    ],
+    "buy_signals": 0,
+    "sell_signals": 4,
+    "hold_signals": 1,
+    "final_conclusion": "卖出",
+    "avg_score": 3.8,
+    "suggest_buy_price": 32.25,
+    "suggest_sell_price": 44.14,
+    "suggest_stop_loss": 31.23,
+    "analyzed_at": "2026-06-07T01:50:30.387657"
+  }
+}

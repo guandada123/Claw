@@ -1,0 +1,31 @@
+{
+  "symbol": "600519",
+  "strategy": {
+    "buy_price": 95.0,
+    "sell_price": 130.0,
+    "stop_loss_price": 92.0,
+    "take_profit_price": 130.0,
+    "holding_period": "3-6个月",
+    "position_size": 0.3,
+    "risk_level": "medium"
+  },
+  "analysis": {
+    "fundamental": {
+      "score": 7,
+      "reason": "基本面分析：需进一步研究"
+    },
+    "technical": {
+      "score": 6,
+      "reason": "技术面分析：处于震荡区间"
+    },
+    "capital_flow": {
+      "score": 6,
+      "reason": "资金面分析：主力资金流向不明"
+    },
+    "news": {
+      "score": 5,
+      "reason": "消息面分析：无重大消息"
+    }
+  },
+  "generated_at": "2026-06-07T01:50:15.077211"
+}

@@ -1,0 +1,31 @@
+{
+  "goal": "制定一个年化8%的15年投资策略",
+  "goal_params": {
+    "target_return": 0.08,
+    "investment_horizon": 15,
+    "risk_tolerance": "medium",
+    "goal_text": "制定一个年化8%的15年投资策略"
+  },
+  "asset_allocation": {
+    "allocation": {
+      "stock": 0.6,
+      "bond": 0.25,
+      "cash": 0.1,
+      "gold": 0.05
+    },
+    "reason": "根据投资期限15年、风险容忍度medium，采用现代投资组合理论优化配置"
+  },
+  "backtest_result": {
+    "annual_return": 0.075,
+    "volatility": 0.0375,
+    "sharpe_ratio": 1.95,
+    "max_drawdown": -0.0225,
+    "win_rate": 0.57
+  },
+  "risk_analysis": {
+    "value_at_risk": -0.0338,
+    "expected_shortfall": -0.027,
+    "risk_level": "low"
+  },
+  "generated_at": "2026-06-07T01:42:59.119480"
+}

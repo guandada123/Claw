@@ -1,0 +1,33 @@
+{
+  "holdings": [
+    {
+      "code": "600884",
+      "name": "杉杉股份",
+      "cost_price": 15.03,
+      "quantity": 200,
+      "current_price": 13.62,
+      "stop_loss_price": 13.50,
+      "target_price": null,
+      "reason": "成本价10%止损线",
+      "last_updated": "2026-06-04 11:33"
+    },
+    {
+      "code": "002354",
+      "name": "天娱数科",
+      "cost_price": 6.73,
+      "quantity": 200,
+      "current_price": 6.03,
+      "stop_loss_price": 6.00,
+      "target_price": null,
+      "reason": "成本价10%止损线",
+      "last_updated": "2026-06-04 11:33"
+    }
+  ],
+  "account": {
+    "total_assets": 15780,
+    "available_cash": 11780,
+    "position_ratio": "25%",
+    "last_updated": "2026-06-04 11:33"
+  },
+  "notes": "数据来源：飞书群消息 (2026-06-04 11:33)。止损预警自动化会定时检查持仓，若触发止损价则推送预警。"
+}

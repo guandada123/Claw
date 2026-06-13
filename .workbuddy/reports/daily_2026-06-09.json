@@ -1,0 +1,99 @@
+{
+  "period": "daily",
+  "period_start": "2026-06-08",
+  "period_end": "2026-06-09",
+  "total_days": 1,
+  "trading_days_with_data": 1,
+  "generated_at": "2026-06-09 15:28:59",
+  "summary": {
+    "total_asset": 29000.0,
+    "cash": 596.0,
+    "total_pnl": -1000.0,
+    "total_pnl_pct": -3.33,
+    "realized_pnl": 0,
+    "unrealized_pnl": -1000.0,
+    "max_drawdown_pct": 0.0,
+    "up_days": 0,
+    "down_days": 1,
+    "flat_days": 0,
+    "daily_win_rate": 0.0,
+    "avg_daily_return_pct": -6.03,
+    "best_day": {
+      "date": "2026-06-08",
+      "total_asset": 27444.0,
+      "cash": 596.0,
+      "daily_return_pct": -6.03,
+      "cumulative_pnl": -2556.0,
+      "cumulative_pnl_pct": -8.52,
+      "position_count": 2,
+      "buy_count": 0,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    "worst_day": {
+      "date": "2026-06-08",
+      "total_asset": 27444.0,
+      "cash": 596.0,
+      "daily_return_pct": -6.03,
+      "cumulative_pnl": -2556.0,
+      "cumulative_pnl_pct": -8.52,
+      "position_count": 2,
+      "buy_count": 0,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    "trade_count": 0,
+    "buy_count": 0,
+    "sell_count": 0,
+    "win_count": 0,
+    "lose_count": 0,
+    "trade_win_rate": 0,
+    "avg_win": 0,
+    "avg_loss": 0,
+    "profit_factor": 0
+  },
+  "positions": [
+    {
+      "code": "002049",
+      "name": "紫光国微",
+      "shares": 200,
+      "avg_cost": 76.855,
+      "current_price": 73.5,
+      "market_value": 14700.0,
+      "unrealized_pnl": -671.0
+    },
+    {
+      "code": "600460",
+      "name": "士兰微",
+      "shares": 400,
+      "avg_cost": 35.0825,
+      "current_price": 34.26,
+      "market_value": 13704.0,
+      "unrealized_pnl": -329.0
+    }
+  ],
+  "daily_detail": [
+    {
+      "date": "2026-06-08",
+      "total_asset": 27444.0,
+      "cash": 596.0,
+      "daily_return_pct": -6.03,
+      "cumulative_pnl": -2556.0,
+      "cumulative_pnl_pct": -8.52,
+      "position_count": 2,
+      "buy_count": 0,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    }
+  ],
+  "recent_trades": []
+}

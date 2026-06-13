@@ -1,0 +1,324 @@
+{
+  "total_count": 32,
+  "healthy_count": 24,
+  "warning_count": 8,
+  "critical_count": 0,
+  "by_category": {
+    "投顾操盘": [
+      {
+        "name": "📈【投顾操盘】半年回顾",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📈【投顾操盘】季度回顾",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📈【投顾操盘】年度回顾",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📈【投顾操盘】智能选股",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T08:53:09.967000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "📈【投顾操盘】月度总结",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📈【投顾操盘】每周总结",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📈【投顾操盘】每日复盘",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T15:28:11.557000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "📈【投顾操盘】盘中监控",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T17:03:35.034000",
+        "issues": [],
+        "run_count_24h": 5,
+        "running": false
+      }
+    ],
+    "炒股助理": [
+      {
+        "name": "用户持仓自动刷新",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T15:46:14.234000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "🇺🇸【美股监控】收盘回顾",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T04:34:00.691000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "🇺🇸【美股监控】盘前分析",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-11T20:59:38.748000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "💬【炒股助理】盘中问答",
+        "status": "PAUSED",
+        "health": "🟡",
+        "last_run": "2026-06-12T07:32:32.667000",
+        "issues": [
+          "已暂停"
+        ],
+        "run_count_24h": 5,
+        "running": false
+      },
+      {
+        "name": "📊【炒股助理】下周前瞻",
+        "status": "ACTIVE",
+        "health": "🟡",
+        "last_run": "2026-06-07T20:05:04.824000",
+        "issues": [
+          "117h未运行"
+        ],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📊【炒股助理】公众号投资早报（安全版）",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T07:53:21.105000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "📊【炒股助理】宏观数据周报",
+        "status": "ACTIVE",
+        "health": "🟡",
+        "last_run": "2026-06-06T10:02:47.011000",
+        "issues": [
+          "151h未运行"
+        ],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📊【炒股助理】收盘回顾",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T15:17:42.370000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "📊【炒股助理】盘中综合监控",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T16:57:54.656000",
+        "issues": [],
+        "run_count_24h": 5,
+        "running": false
+      },
+      {
+        "name": "📊【炒股助理】盘前分析",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T08:23:26.757000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "📊【炒股助理】股票池技术体检",
+        "status": "ACTIVE",
+        "health": "🟡",
+        "last_run": "2026-06-06T12:08:19.610000",
+        "issues": [
+          "149h未运行"
+        ],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📊【炒股助理】财报预警",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T08:20:54.227000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "📊【知识库】公众号信号溯源（v4.0）",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "🚫【已停用】微信读书早报（封号风险，已改用安全数据源）",
+        "status": "PAUSED",
+        "health": "🟡",
+        "last_run": "2026-06-12T07:28:15.368000",
+        "issues": [
+          "已暂停"
+        ],
+        "run_count_24h": 1,
+        "running": false
+      }
+    ],
+    "美股监控": [
+      {
+        "name": "🇺🇸【美股监控】盘中监控",
+        "status": "PAUSED",
+        "health": "🟡",
+        "last_run": "2026-06-11T21:58:31.305000",
+        "issues": [
+          "已暂停"
+        ],
+        "run_count_24h": 1,
+        "running": false
+      }
+    ],
+    "系统维护": [
+      {
+        "name": "📇【系统维护】记忆索引重建（每周）",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-09T02:57:47.081000",
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📚【知识库】文章归档索引（v4.0）",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-11T21:55:24.190000",
+        "issues": [],
+        "run_count_24h": 1,
+        "running": false
+      },
+      {
+        "name": "📝【系统维护】定期梳理全局记忆",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "📝【系统维护】每周记忆自动维护",
+        "status": "ACTIVE",
+        "health": "🟡",
+        "last_run": "2026-06-07T11:05:54.063000",
+        "issues": [
+          "126h未运行"
+        ],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "🧹【系统维护】每周工作空间健康报告",
+        "status": "ACTIVE",
+        "health": "🟡",
+        "last_run": "2026-06-07T10:04:49.299000",
+        "issues": [
+          "127h未运行"
+        ],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "🧹【系统维护】每周工作空间清理",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-09T02:03:11.760000",
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "🧹【系统维护】每月深度审计",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      },
+      {
+        "name": "🧹【系统维护】记忆健康检查（每周日）",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false
+      }
+    ],
+    "桥接监控": [
+      {
+        "name": "Marvis Bridge Monitor v3",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-06-12T17:32:49.254000",
+        "issues": [],
+        "run_count_24h": 5,
+        "running": false
+      }
+    ],
+    "其他": []
+  },
+  "generated_at": "2026-06-12T17:38:19.529712"
+}
