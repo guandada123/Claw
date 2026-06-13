@@ -1,0 +1,83 @@
+name: Claw CI
+
+on:
+  pull_request:
+    paths: [".workbuddy/**"]
+  push:
+    branches: [main]
+    paths: [".workbuddy/**"]
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Ruff lint
+        run: ruff check .workbuddy/ --config ruff.toml
+      - name: Ruff format check
+        run: ruff format --check .workbuddy/ --config ruff.toml
+
+  type-check:
+    name: Type Check (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install mypy
+        run: pip install mypy
+      - name: Type check
+        run: |
+          cd .workbuddy
+          mypy scripts/ lib/ \
+            --ignore-missing-imports \
+            --check-untyped-defs \
+            --warn-return-any \
+            --warn-redundant-casts || echo "::warning::mypy 发现类型提示问题（非阻塞）"
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+      - name: Run tests with coverage
+        run: |
+          cd .workbuddy && python -m pytest tests/ -v --tb=short \
+            --cov=scripts --cov=lib \
+            --cov-report=term-missing \
+            --cov-fail-under=50
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install scanners
+        run: pip install bandit safety
+      - name: Bandit security scan
+        run: bandit -r .workbuddy/scripts/ .workbuddy/lib/ -ll --skip B101
+      - name: Check for private keys
+        run: |
+          if grep -rn "PRIVATE KEY" .workbuddy/scripts/ .workbuddy/lib/ 2>/dev/null; then
+            echo "::error::Private key detected in source code"
+            exit 1
+          fi
+          echo "No private keys found"
