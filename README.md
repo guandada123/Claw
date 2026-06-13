@@ -1,5 +1,8 @@
 # Claw — A股投顾自动化助手
 
+[![Claw CI](https://github.com/guandada123/Claw/actions/workflows/claw-ci.yml/badge.svg)](https://github.com/guandada123/Claw/actions/workflows/claw-ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)]()
+
 自动化 A 股投资分析与模拟交易系统，集成微信读书信息源、AKShare/通达信行情、多策略回测与飞书推送。
 
 ## 功能模块
