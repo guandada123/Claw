@@ -15,7 +15,9 @@
 
 import json
 import logging
+import ssl
 import sys
+import urllib.error
 import urllib.request
 from datetime import date, timedelta
 
@@ -23,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 API_BASE = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 HEADERS = {"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"}
+_SSL_CONTEXT = ssl.create_default_context()
 
 
 def fetch_kline(symbol: str, start_date: str, end_date: str, period: str = "daily") -> list:
@@ -41,7 +44,7 @@ def fetch_kline(symbol: str, start_date: str, end_date: str, period: str = "dail
 
     req = urllib.request.Request(url, headers=HEADERS)
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, context=_SSL_CONTEXT, timeout=10) as resp:
             data = json.loads(resp.read().decode())
 
         if data.get("data") and data["data"].get("klines"):

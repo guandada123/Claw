@@ -6,7 +6,9 @@
 """
 
 import re
+import ssl
 import sys
+import urllib.error
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +20,8 @@ from error_handler import atomic_write_json
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = PROJECT_DIR / "scripts"
 DATA_DIR = PROJECT_DIR / "data"
+
+_SSL_CONTEXT = ssl.create_default_context()
 
 EXPERT_NAMES_ZH = [
     "价值投资专家",
@@ -41,7 +45,7 @@ def fetch_tencent_quote(symbol: str) -> dict | None:
     url = f"https://qt.gtimg.cn/q={code}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, context=_SSL_CONTEXT, timeout=10) as resp:
             raw = resp.read().decode("gbk", errors="replace")
 
         # 解析：v_sh600519="name~code~price~..."

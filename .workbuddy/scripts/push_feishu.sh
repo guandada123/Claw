@@ -4,7 +4,12 @@
 
 TITLE="$1"
 CONTENT="$2"
-CHAT_ID="oc_9ee5303497f5e0e71666b610d6bdc346"
+CHAT_ID="${FEISHU_CHAT_ID:-}"
+
+if [ -z "$CHAT_ID" ]; then
+    echo "错误: 环境变量 FEISHU_CHAT_ID 未设置"
+    exit 1
+fi
 
 if [ -z "$TITLE" ] && [ -z "$CONTENT" ]; then
     echo "用法: bash push_feishu.sh '标题' '正文'"

@@ -12,6 +12,7 @@ star_signal_adapter.py — star_signal.py 与现有项目的适配层
 """
 
 import json
+import ssl
 
 # 确保可以导入同目录下的 star_signal
 import sys
@@ -21,6 +22,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
+_SSL_CONTEXT = ssl.create_default_context()
 
 from star_signal import (
     SignalStrength,
@@ -49,7 +51,7 @@ def fetch_kline_df(code: str, market: str = None, days: int = 200) -> pd.DataFra
     )
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
 
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    with urllib.request.urlopen(req, context=_SSL_CONTEXT, timeout=10) as resp:
         data = json.loads(resp.read())
 
     klines = data.get("data", {}).get(f"{prefix}{code}", {}).get("qfqday", [])

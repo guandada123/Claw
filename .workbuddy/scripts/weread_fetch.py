@@ -19,7 +19,7 @@ from error_handler import atomic_write_json
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.expanduser("~/.workbuddy/auth/weread_browser_state.json")
 OUTPUT_DIR = os.path.expanduser("~/.workbuddy/auth/weread_profile")
-AB = "/Users/guan/.workbuddy/binaries/node/versions/22.22.2/bin/agent-browser"
+AB = str(Path.home() / ".workbuddy" / "binaries" / "node" / "versions" / "22.22.2" / "bin" / "agent-browser")
 
 TARGETS = {
     "投资明见": "MP_WXS_2394724034",

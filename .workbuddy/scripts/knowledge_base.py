@@ -37,10 +37,11 @@ from pathlib import Path
 from error_handler import atomic_write_json
 
 # --- 路径配置 ---
-ARCHIVE_DIR = Path("/Users/guan/WorkBuddy/Claw/archive/articles")
-DB_DIR = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/data")
-REPORTS_DIR = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/data/reports")
-REPORTS_ANALYSIS_DIR = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/reports")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+ARCHIVE_DIR = PROJECT_ROOT / "archive" / "articles"
+DB_DIR = PROJECT_ROOT / ".workbuddy" / "data"
+REPORTS_DIR = PROJECT_ROOT / ".workbuddy" / "data" / "reports"
+REPORTS_ANALYSIS_DIR = PROJECT_ROOT / ".workbuddy" / "reports"
 SIGNALS_FILE = DB_DIR / "article_signals.json"
 VECTOR_DB_DIR = Path.home() / ".workbuddy" / "cache" / "knowledge_vectors"
 

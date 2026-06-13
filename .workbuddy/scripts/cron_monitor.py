@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import urllib.request
 from datetime import date, datetime, time
 from pathlib import Path
 
@@ -20,7 +21,10 @@ PORTFOLIO_FILE = PROJECT_DIR / "data" / "simulation" / "portfolio.json"
 REPORTS_DIR = PROJECT_DIR / "reports"
 WATCH_FILE = PROJECT_DIR / "data" / "simulation" / "watchlist.json"
 
-FEISHU_USER_ID = "oc_9ee5303497f5e0e71666b610d6bdc346"  # 群聊（已迁移到自动化系统，本脚本仅作备份）
+FEISHU_USER_ID = os.getenv("FEISHU_CHAT_ID", "")
+
+if __name__ == "__main__" and not FEISHU_USER_ID:
+    print("[ERROR] 环境变量 FEISHU_CHAT_ID 未设置，无法发送飞书通知", file=sys.stderr)
 
 INITIAL_CAPITAL = 30000
 STOP_LOSS = -0.08
@@ -38,9 +42,12 @@ except ImportError:
 def fetch_quote(code: str) -> dict:
     """用腾讯财经 API 获取实时行情"""
     url = f"https://qt.gtimg.cn/q={code}"
-    cmd = f"curl -s '{url}' | iconv -f gbk -t utf-8 2>/dev/null || curl -s '{url}'"
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
-    data_str = result.stdout.strip()
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data_str = resp.read().decode("gbk", errors="replace")
+    except Exception as e:
+        return {"error": f"请求失败 {code}: {e}"}
     if not data_str or '="' not in data_str:
         return {"error": f"No data for {code}"}
     try:

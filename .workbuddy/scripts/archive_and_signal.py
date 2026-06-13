@@ -7,10 +7,11 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 CACHE_DIR = Path.home() / ".workbuddy" / "cache" / "wx_articles"
-ARCHIVE_DIR = Path("/Users/guan/WorkBuddy/Claw/archive/articles")
-SIGNALS_FILE = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/data/article_signals.json")
-SCRIPT_DIR = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/scripts")
-ARCHIVE_STATS_FILE = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/data/archive_stats.json")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+ARCHIVE_DIR = PROJECT_ROOT / "archive" / "articles"
+SIGNALS_FILE = PROJECT_ROOT / ".workbuddy" / "data" / "article_signals.json"
+SCRIPT_DIR = Path(__file__).resolve().parent
+ARCHIVE_STATS_FILE = PROJECT_ROOT / ".workbuddy" / "data" / "archive_stats.json"
 
 # 已知的A股股票名称 → 代码映射（常用推荐股）
 STOCK_MAP = {

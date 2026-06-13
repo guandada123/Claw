@@ -24,6 +24,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
+# 加载 Claw 公共库
+sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+from errors import ConfigError
+
 # --- 配置 ---
 AUTH_FILE = Path.home() / ".workbuddy" / "auth" / "we_mp_rss.json"
 TOKEN_FILE = Path.home() / ".workbuddy" / "cache" / "wx_rss_token.json"
@@ -31,14 +35,22 @@ CACHE_DIR = Path.home() / ".workbuddy" / "cache" / "wx_rss"
 
 
 def _load_auth():
-    if AUTH_FILE.exists():
-        creds = json.loads(AUTH_FILE.read_text())
-        return (
-            creds.get("base_url", "http://localhost:18001"),
-            creds.get("username", "admin"),
-            creds.get("password", "admin@123"),
+    if not AUTH_FILE.exists():
+        raise ConfigError(
+            f"认证文件不存在: {AUTH_FILE}。请创建该文件，包含 base_url、username、password 字段。"
         )
-    return "http://localhost:18001", "admin", "admin@123"
+    creds = json.loads(AUTH_FILE.read_text())
+    username = creds.get("username")
+    password = creds.get("password")
+    if not username or not password:
+        raise ConfigError(
+            f"认证文件 {AUTH_FILE} 中缺少 username 或 password 字段。"
+        )
+    return (
+        creds.get("base_url", "http://localhost:18001"),
+        username,
+        password,
+    )
 
 
 BASE_URL, WX_USER, WX_PASS = _load_auth()
@@ -283,7 +295,7 @@ def cmd_sync(args):
 def main():
     parser = argparse.ArgumentParser(
         description="we-mp-rss API 客户端 v4.0",
-        epilog="认证: OAuth2 Token (自动从 admin/admin@123 登录)",
+        epilog="认证: OAuth2 Token (凭据从 AUTH_FILE 读取)",
     )
 
     sub = parser.add_subparsers(dest="command")

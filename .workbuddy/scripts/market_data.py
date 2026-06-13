@@ -8,6 +8,7 @@
 """
 
 import json
+import ssl
 import sys
 import urllib.error
 import urllib.request
@@ -18,6 +19,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0",
     "Referer": "https://data.eastmoney.com/",
 }
+_SSL_CONTEXT = ssl.create_default_context()
 
 # Cache disabled — use stdout-based caching by calling script only when needed
 # Data is fresh on each call (EastMoney API is fast enough)
@@ -27,10 +29,16 @@ def _fetch(url: str, timeout: int = 10) -> dict:
     """通用 HTTP GET with JSON 解析"""
     req = urllib.request.Request(url, headers=HEADERS)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, context=_SSL_CONTEXT, timeout=timeout) as resp:
             return json.loads(resp.read().decode())
-    except Exception as e:
-        return {"error": str(e)}
+    except urllib.error.HTTPError as e:
+        return {"error": f"HTTP error {e.code}: {e.reason}"}
+    except urllib.error.URLError as e:
+        return {"error": f"URL error: {e.reason}"}
+    except json.JSONDecodeError as e:
+        return {"error": f"JSON decode error: {e}"}
+    except TimeoutError:
+        return {"error": f"请求超时 ({timeout}s)"}
 
 
 # ══════════════════════════════════════════════════

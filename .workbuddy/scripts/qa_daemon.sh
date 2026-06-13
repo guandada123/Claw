@@ -8,7 +8,7 @@ set -e
 
 QA_DIR="/tmp/qa_incoming"
 PID_FILE="/tmp/qa_daemon.pid"
-GROUP_ID="oc_9ee5303497f5e0e71666b610d6bdc346"
+GROUP_ID="${FEISHU_CHAT_ID:-}"
 
 # --------------- helpers ---------------
 get_timeout() {

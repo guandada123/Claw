@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 import json
 import re
 
-SIGNALS_FILE = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/data/article_signals.json")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+SIGNALS_FILE = PROJECT_ROOT / ".workbuddy" / "data" / "article_signals.json"
 
 def parse_chinese_date(s: str) -> Optional[datetime]:
     """解析中文明细日期"""
