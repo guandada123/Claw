@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claw"
+version = "2.0.0"
+description = "A股投资辅助系统 — 模拟交易/实盘/策略生成/知识库"
+requires-python = ">=3.11"
+dependencies = [
+    "akshare>=1.16.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.5",
+    "mypy>=1.0",
+    "bandit>=1.7",
+]
+
+[tool.pytest.ini_options]
+testpaths = [".workbuddy/tests"]
+pythonpath = [".workbuddy"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = ["E501"]  # line too long (handled by formatter)
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_return_any = true
+warn_redundant_casts = true
+
+[tool.bandit]
+exclude_dirs = [".workbuddy/tests"]
+
+[tool.coverage.run]
+source = [".workbuddy/scripts", ".workbuddy/lib"]
+
+[tool.coverage.report]
+fail_under = 50
