@@ -57,6 +57,7 @@ def _load_asset_allocations() -> dict:
         config_path = DATA_DIR / "asset_allocations.json"
         if config_path.exists():
             import json
+
             return json.loads(config_path.read_text(encoding="utf-8"))
     except Exception:
         pass

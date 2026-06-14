@@ -43,9 +43,7 @@ def _load_auth():
     username = creds.get("username")
     password = creds.get("password")
     if not username or not password:
-        raise ConfigError(
-            f"认证文件 {AUTH_FILE} 中缺少 username 或 password 字段。"
-        )
+        raise ConfigError(f"认证文件 {AUTH_FILE} 中缺少 username 或 password 字段。")
     return (
         creds.get("base_url", "http://localhost:18001"),
         username,

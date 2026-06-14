@@ -49,8 +49,15 @@ def save_portfolio(data: dict) -> None:
 def get_quotes_via_tdx(codes: list[str]) -> dict[str, dict]:
     """通过通达信 MCP 获取实时行情."""
     try:
-        import httpx
+        import httpx  # noqa: F811
+    except ImportError:
+        print("[TDX] httpx 未安装，跳过通达信")
+        return {}
+    except Exception as e:
+        print(f"[TDX] 导入异常: {e}")
+        return {}
 
+    try:
         resp = httpx.post(
             "http://localhost:8300/mcp/get_quotes",
             json={

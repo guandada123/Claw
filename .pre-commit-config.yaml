@@ -26,6 +26,20 @@ repos:
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
 
+  # Python: mypy (type check) — 渐进式，非阻塞
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        args:
+          - --ignore-missing-imports
+          - --explicit-package-bases
+        additional_dependencies:
+          - types-PyYAML
+          - types-requests
+        files: ^\.workbuddy/(scripts|lib)/.*\.py$
+        pass_filenames: false
+
   # Conventional Commits 格式校验
   - repo: local
     hooks:

@@ -15,9 +15,9 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
-UTC = timezone.utc
+UTC = UTC
 from pathlib import Path
 from typing import Any, Optional, TypeVar
 
@@ -78,7 +78,7 @@ def safe_call(
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            last_exc: Optional[Exception] = None
+            last_exc: Exception | None = None
 
             for attempt in range(max_retries + 1):
                 try:
@@ -135,8 +135,8 @@ class AtomicJSONWriter:
     def __init__(
         self,
         filepath: Path,
-        schema: Optional[dict] = None,
-        backup_dir: Optional[Path] = None,
+        schema: dict | None = None,
+        backup_dir: Path | None = None,
         max_backups: int = 10,
     ):
         self.filepath = Path(filepath)

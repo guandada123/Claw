@@ -13,8 +13,8 @@
 
 import fcntl
 import json
-import sys
 import logging
+import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -29,6 +29,7 @@ logging.basicConfig(
     stream=sys.stderr,
 )
 logger = logging.getLogger("sim_trade")
+
 
 # 文件锁上下文管理器 — 跨进程并发保护 portfolio.json
 class PortfolioLock:
@@ -48,6 +49,7 @@ class PortfolioLock:
             fcntl.flock(self._fd, fcntl.LOCK_UN)
             self._fd.close()
             self._fd = None
+
 
 DATA_DIR = Path(__file__).parent.parent / "data" / "simulation"
 PORTFOLIO_FILE = DATA_DIR / "portfolio.json"
