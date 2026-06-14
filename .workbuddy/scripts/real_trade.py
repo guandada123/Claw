@@ -5,6 +5,7 @@
 """
 
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -15,10 +16,28 @@ import requests
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from error_handler import atomic_write_json
 
-# MiniQMT API配置（根据实际安装情况修改）
+# ── 密钥强制从环境变量读取 ──────────────────────
+# MiniQMT API 配置 — 不再接受空字符串默认值
+_EMPTY_PLACEHOLDER = "your_miniqmt_api_key"
+
+
+def _require_env(key: str) -> str:
+    """读取环境变量，空值或占位符时报错退出"""
+    val = os.environ.get(key, "")
+    if not val or val == _EMPTY_PLACEHOLDER:
+        print(
+            f"❌ 缺少环境变量 {key}，请在 .env 中设置后重新运行。\n"
+            f"   示例: {key}=<你的MiniQMT密钥>\n"
+            f"   (dry_run=True 时不会实际调用API，但仍需设置占位值)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return val
+
+
 API_BASE_URL = "http://127.0.0.1:8888"  # MiniQMT API地址（默认）
-API_KEY = ""  # 从MiniQMT客户端获取
-API_SECRET = ""  # 从MiniQMT客户端获取
+API_KEY = _require_env("MINIQMT_API_KEY")
+API_SECRET = _require_env("MINIQMT_API_SECRET")
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_DIR / "data" / "user"
