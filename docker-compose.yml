@@ -21,3 +21,9 @@ services:
       - PYTHONUNBUFFERED=1
       - TZ=Asia/Shanghai
     restart: "no"  # 按需执行，不自动重启
+    healthcheck:
+      test: ["CMD", "python3", ".workbuddy/scripts/heartbeat.py", "--check"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

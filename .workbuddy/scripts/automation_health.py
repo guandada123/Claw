@@ -2,17 +2,26 @@
 """
 自动化健康检查脚本
 扫描所有自动化任务，检查运行状态、产出时间、异常情况
-输出: JSON 摘要
+输出: JSON 摘要 + 可选飞书告警
+
+用法:
+    python3 automation_health.py           # 终端输出 + 写 JSON
+    python3 automation_health.py --json    # JSON only
+    python3 automation_health.py --alert   # 异常时飞书告警
 """
 
+import argparse
 import json
+import os
 import sqlite3
 import sys
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 
 DB_PATH = Path.home() / ".workbuddy" / "workbuddy.db"
 DATA_DIR = Path(__file__).parent.parent / "data"
+FEISHU_WEBHOOK = os.getenv("FEISHU_WEBHOOK", "")
 
 
 def get_automations() -> list:
@@ -215,8 +224,99 @@ def generate_report(summary: dict) -> str:
     return "\n".join(lines)
 
 
+def send_feishu_alert(summary: dict) -> bool:
+    """发送飞书告警消息"""
+    if not FEISHU_WEBHOOK:
+        print("⚠️ FEISHU_WEBHOOK 未配置，跳过告警", file=sys.stderr)
+        return False
+
+    total = summary["total_count"]
+    h = summary["healthy_count"]
+    w = summary["warning_count"]
+    c = summary["critical_count"]
+
+    # 仅异常时发送
+    if w == 0 and c == 0:
+        print("✅ 所有自动化健康，跳过告警")
+        return True
+
+    # 构造飞书富文本消息卡片
+    issue_lines = []
+    for cat, items in summary["by_category"].items():
+        bad = [i for i in items if i["health"] in ("🟡", "🔴")]
+        if not bad:
+            continue
+        for item in bad:
+            tag = "🔴" if item["health"] == "🔴" else "🟡"
+            issue_lines.append(
+                f"{tag} **{item['name']}**\n"
+                f"　{', '.join(item['issues'])}"
+            )
+
+    issues_text = "\n".join(issue_lines[:15])  # 最多 15 条
+    if len(issue_lines) > 15:
+        issues_text += f"\n... 及其他 {len(issue_lines) - 15} 条异常"
+
+    payload = {
+        "msg_type": "interactive",
+        "card": {
+            "header": {
+                "title": {"tag": "plain_text", "content": "⚙️ Claw 自动化健康告警"},
+                "template": "red" if c > 0 else "yellow",
+            },
+            "elements": [
+                {
+                    "tag": "markdown",
+                    "content": (
+                        f"**扫描时间**: {summary.get('generated_at', 'N/A')}\n"
+                        f"**总计**: {total} | 🟢{h} 🟡{w} 🔴{c}"
+                    ),
+                },
+                {"tag": "hr"},
+                {
+                    "tag": "markdown",
+                    "content": issues_text if issues_text else "无异常",
+                },
+                {
+                    "tag": "note",
+                    "elements": [
+                        {
+                            "tag": "plain_text",
+                            "content": "Claw automation_health.py 自动巡检",
+                        }
+                    ],
+                },
+            ],
+        },
+    }
+
+    try:
+        req = urllib.request.Request(
+            FEISHU_WEBHOOK,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            if result.get("code") == 0:
+                print("✅ 飞书告警已发送")
+                return True
+            else:
+                print(f"❌ 飞书返回错误: {result}", file=sys.stderr)
+                return False
+    except Exception as e:
+        print(f"❌ 飞书请求失败: {e}", file=sys.stderr)
+        return False
+
+
 def main():
-    print(f"[{datetime.now()}] 自动化健康扫描...")
+    parser = argparse.ArgumentParser(description="Claw 自动化健康检查")
+    parser.add_argument("--json", action="store_true", help="仅输出 JSON")
+    parser.add_argument("--alert", action="store_true", help="异常时飞书告警")
+    args = parser.parse_args()
+
+    if not args.json:
+        print(f"[{datetime.now()}] 自动化健康扫描...")
 
     automations = get_automations()
     if not automations:
@@ -257,10 +357,16 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2, default=str)
 
-    # 生成报告
-    report = generate_report(summary)
-    print(report)
-    print(f"\n详细数据 → {output_path}")
+    if args.json:
+        print(json.dumps(summary, ensure_ascii=False, indent=2, default=str))
+    else:
+        report = generate_report(summary)
+        print(report)
+        print(f"\n详细数据 → {output_path}")
+
+    # 飞书告警
+    if args.alert:
+        send_feishu_alert(summary)
 
     return 0 if critical == 0 else 1
 
