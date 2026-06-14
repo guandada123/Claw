@@ -11,14 +11,43 @@
 5. 添加自动止损止盈检查函数
 """
 
+import fcntl
 import json
 import sys
+import logging
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # 加载 Claw 公共库
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from error_handler import atomic_write_json
+
+# 配置日志（stderr，避免污染 stdout JSON 输出）
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] [%(levelname)s] %(message)s",
+    stream=sys.stderr,
+)
+logger = logging.getLogger("sim_trade")
+
+# 文件锁上下文管理器 — 跨进程并发保护 portfolio.json
+class PortfolioLock:
+    """对 PORTFOLIO_FILE 的文件锁，防止并发读写竞态"""
+
+    _fd = None
+
+    def __enter__(self):
+        PORTFOLIO_FILE.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = str(PORTFOLIO_FILE) + ".lock"
+        self._fd = open(lock_path, "w")
+        fcntl.flock(self._fd, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *args):
+        if self._fd:
+            fcntl.flock(self._fd, fcntl.LOCK_UN)
+            self._fd.close()
+            self._fd = None
 
 DATA_DIR = Path(__file__).parent.parent / "data" / "simulation"
 PORTFOLIO_FILE = DATA_DIR / "portfolio.json"
@@ -65,8 +94,20 @@ def today_str() -> str:
 
 
 def load_portfolio() -> dict:
-    if PORTFOLIO_FILE.exists():
-        return json.loads(PORTFOLIO_FILE.read_text())
+    with PortfolioLock():
+        if PORTFOLIO_FILE.exists():
+            return json.loads(PORTFOLIO_FILE.read_text())
+        return _empty_portfolio()
+
+
+def save_portfolio(pf: dict):
+    pf["config"]["updated_at"] = now()
+    with PortfolioLock():
+        PORTFOLIO_FILE.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_json(PORTFOLIO_FILE, pf)
+
+
+def _empty_portfolio() -> dict:
     return {
         "config": {
             "initial_capital": INITIAL_CAPITAL,
@@ -79,12 +120,6 @@ def load_portfolio() -> dict:
         "daily_snapshot": {},
         "dividends": [],
     }
-
-
-def save_portfolio(pf: dict):
-    pf["config"]["updated_at"] = now()
-    PORTFOLIO_FILE.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_json(PORTFOLIO_FILE, pf)
 
 
 def check_restricted(code: str) -> str | None:
@@ -171,9 +206,7 @@ def check_stop_loss(pf: dict, code: str) -> dict:
                     "priority": "high",
                 }
         except Exception:
-            import sys
-
-            print("[sim_trade] AI止损计算失败，降级到固定止损", file=sys.stderr)
+            logger.warning("AI止损计算失败，降级到固定止损")
 
     # 2. 固定止损：-8%（降级方案 / ATR不可用时的主方案）
     if pnl_pct <= -STOP_LOSS_PCT * 100:
@@ -425,9 +458,7 @@ def cmd_sell(code: str, shares: int, price: float, reason: str = ""):
             if match:
                 pos["take_profit_level"] = int(match.group(1))
         except Exception:
-            import sys
-
-            sys.stderr.write(f"[sim_trade] 止盈级别解析失败，保持原值: {reason}\n")
+            logger.warning("止盈级别解析失败，保持原值: %s", reason)
 
     # 清仓则删除持仓记录
     if pos["shares"] == 0:
