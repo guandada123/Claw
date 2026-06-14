@@ -186,11 +186,10 @@ def check_stop_loss(pf: dict, code: str) -> dict:
     avg_cost = pos["avg_cost"]
     highest_price = pos.get("highest_price", avg_cost)
 
-    # 更新最高价
+    # 更新最高价（仅更新内存，统一由 auto_check_all_positions 调用方保存）
     if current_price > highest_price:
         pos["highest_price"] = current_price
         highest_price = current_price
-        save_portfolio(pf)
 
     pnl_pct = (current_price - avg_cost) / avg_cost * 100
 
@@ -481,6 +480,7 @@ def cmd_auto_check():
     """
     pf = load_portfolio()
     suggestions = auto_check_all_positions(pf)
+    save_portfolio(pf)  # 持久化 check_stop_loss 中的 highest_price 更新
 
     if not suggestions:
         return {
