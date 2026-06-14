@@ -1,0 +1,26 @@
+{
+  "_description": "资产配置比例方案 — 按投资期限与风险容忍度分组。默认基于现代投资组合理论(MPT)简化模型。",
+  "plans": {
+    "long_term": {
+      "min_horizon_years": 10,
+      "label": "长期投资 (≥10年)",
+      "low": { "stock": 0.40, "bond": 0.40, "cash": 0.10, "gold": 0.10 },
+      "medium": { "stock": 0.60, "bond": 0.25, "cash": 0.10, "gold": 0.05 },
+      "high": { "stock": 0.80, "bond": 0.10, "cash": 0.05, "gold": 0.05 }
+    },
+    "mid_term": {
+      "min_horizon_years": 5,
+      "label": "中期投资 (5-9年)",
+      "low": { "stock": 0.30, "bond": 0.50, "cash": 0.15, "gold": 0.05 },
+      "medium": { "stock": 0.50, "bond": 0.35, "cash": 0.10, "gold": 0.05 },
+      "high": { "stock": 0.70, "bond": 0.15, "cash": 0.10, "gold": 0.05 }
+    },
+    "short_term": {
+      "min_horizon_years": 0,
+      "label": "短期投资 (<5年)",
+      "low": { "stock": 0.10, "bond": 0.60, "cash": 0.25, "gold": 0.05 },
+      "medium": { "stock": 0.25, "bond": 0.45, "cash": 0.20, "gold": 0.10 },
+      "high": { "stock": 0.40, "bond": 0.30, "cash": 0.20, "gold": 0.10 }
+    }
+  }
+}

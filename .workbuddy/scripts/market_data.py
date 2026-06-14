@@ -8,8 +8,10 @@
 """
 
 import json
+import re
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import date, datetime
@@ -21,12 +23,20 @@ HEADERS = {
 }
 _SSL_CONTEXT = ssl.create_default_context()
 
-# Cache disabled — use stdout-based caching by calling script only when needed
-# Data is fresh on each call (EastMoney API is fast enough)
+# ── TTL 缓存层（60s 默认过期，减少同进程内重复 API 调用）──
+_CACHE_TTL = 60  # 秒
+_cache: dict[str, tuple[float, dict]] = {}  # {cache_key: (expiry_ts, data)}
+
+_TS_PARAM_RE = re.compile(r"[&?]_=\d+")
 
 
-def _fetch(url: str, timeout: int = 10) -> dict:
-    """通用 HTTP GET with JSON 解析"""
+def _cache_key(url: str) -> str:
+    """去掉 URL 中每次变化的 _= 时间戳参数，使缓存可命中"""
+    return _TS_PARAM_RE.sub("", url)
+
+
+def _fetch_raw(url: str, timeout: int = 10) -> dict:
+    """通用 HTTP GET with JSON 解析（无缓存，直接请求）"""
     req = urllib.request.Request(url, headers=HEADERS)
     try:
         with urllib.request.urlopen(req, context=_SSL_CONTEXT, timeout=timeout) as resp:
@@ -39,6 +49,20 @@ def _fetch(url: str, timeout: int = 10) -> dict:
         return {"error": f"JSON decode error: {e}"}
     except TimeoutError:
         return {"error": f"请求超时 ({timeout}s)"}
+
+
+def _fetch(url: str, timeout: int = 10, cache_ttl: int = _CACHE_TTL) -> dict:
+    """带 TTL 缓存的 HTTP GET — 相同 API 调用 60s 内复用结果"""
+    key = _cache_key(url)
+    now = time.time()
+    if key in _cache:
+        expiry, data = _cache[key]
+        if now < expiry:
+            # 返回浅拷贝，防止调用方修改缓存
+            return data.copy() if isinstance(data, dict) else data
+    result = _fetch_raw(url, timeout)
+    _cache[key] = (now + cache_ttl, result)
+    return result
 
 
 # ══════════════════════════════════════════════════

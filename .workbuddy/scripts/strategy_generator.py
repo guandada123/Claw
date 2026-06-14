@@ -51,41 +51,64 @@ def parse_investment_goal(goal: str) -> dict:
     return result
 
 
+def _load_asset_allocations() -> dict:
+    """加载外部资产配置方案（data/asset_allocations.json），失败时返回内置兜底"""
+    try:
+        config_path = DATA_DIR / "asset_allocations.json"
+        if config_path.exists():
+            import json
+            return json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    # 内置兜底（与原硬编码逻辑一致）
+    return {
+        "plans": {
+            "long_term": {
+                "min_horizon_years": 10,
+                "low": {"stock": 0.40, "bond": 0.40, "cash": 0.10, "gold": 0.10},
+                "medium": {"stock": 0.60, "bond": 0.25, "cash": 0.10, "gold": 0.05},
+                "high": {"stock": 0.80, "bond": 0.10, "cash": 0.05, "gold": 0.05},
+            },
+            "mid_term": {
+                "min_horizon_years": 5,
+                "low": {"stock": 0.30, "bond": 0.50, "cash": 0.15, "gold": 0.05},
+                "medium": {"stock": 0.50, "bond": 0.35, "cash": 0.10, "gold": 0.05},
+                "high": {"stock": 0.70, "bond": 0.15, "cash": 0.10, "gold": 0.05},
+            },
+            "short_term": {
+                "min_horizon_years": 0,
+                "low": {"stock": 0.10, "bond": 0.60, "cash": 0.25, "gold": 0.05},
+                "medium": {"stock": 0.25, "bond": 0.45, "cash": 0.20, "gold": 0.10},
+                "high": {"stock": 0.40, "bond": 0.30, "cash": 0.20, "gold": 0.10},
+            },
+        }
+    }
+
+
 def generate_asset_allocation(goal_params: dict) -> dict:
     """
     根据投资目标生成资产配置方案
-    使用简化版现代投资组合理论
+    配置来源：data/asset_allocations.json（可自由调整比例），内置硬编码兜底
     """
     horizon = goal_params["investment_horizon"]
     risk = goal_params["risk_tolerance"]
 
-    # 根据投资期限和风险容忍度，生成资产配置方案
-    if horizon >= 10:
-        # 长期投资：股票占比高
-        if risk == "low":
-            allocation = {"stock": 0.40, "bond": 0.40, "cash": 0.10, "gold": 0.10}
-        elif risk == "high":
-            allocation = {"stock": 0.80, "bond": 0.10, "cash": 0.05, "gold": 0.05}
-        else:  # medium
-            allocation = {"stock": 0.60, "bond": 0.25, "cash": 0.10, "gold": 0.05}
-    elif horizon >= 5:
-        # 中期投资
-        if risk == "low":
-            allocation = {"stock": 0.30, "bond": 0.50, "cash": 0.15, "gold": 0.05}
-        elif risk == "high":
-            allocation = {"stock": 0.70, "bond": 0.15, "cash": 0.10, "gold": 0.05}
-        else:
-            allocation = {"stock": 0.50, "bond": 0.35, "cash": 0.10, "gold": 0.05}
-    # 短期投资：债券和现金占比高
-    elif risk == "low":
-        allocation = {"stock": 0.10, "bond": 0.60, "cash": 0.25, "gold": 0.05}
-    elif risk == "high":
-        allocation = {"stock": 0.40, "bond": 0.30, "cash": 0.20, "gold": 0.10}
+    config = _load_asset_allocations()
+    plans = config["plans"]
+
+    # 匹配投资期限分组
+    if horizon >= plans["long_term"]["min_horizon_years"]:
+        plan = plans["long_term"]
+    elif horizon >= plans["mid_term"]["min_horizon_years"]:
+        plan = plans["mid_term"]
     else:
-        allocation = {"stock": 0.25, "bond": 0.45, "cash": 0.20, "gold": 0.10}
+        plan = plans["short_term"]
+
+    # 匹配风险容忍度（兜底为 medium）
+    allocation = plan.get(risk, plan["medium"])
 
     return {
-        "allocation": allocation,
+        "allocation": dict(allocation),
         "reason": f"根据投资期限{horizon}年、风险容忍度{risk}，采用现代投资组合理论优化配置",
     }
 
