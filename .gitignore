@@ -31,7 +31,16 @@ logs/*.log
 .workbuddy/logs/
 .workbuddy/.coverage
 
+# 密钥（本地使用，不上传 GitHub）
+scripts/secrets.py
+
 # 临时
 tmp/
 temp/
 output/
+
+# 飞书认证二维码（自动生成，无需跟踪）
+lark-auth-qr*.png
+
+# 自动生成的 git 状态日志
+.workbuddy/memory/git_status_log_*.md
