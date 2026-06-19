@@ -7,7 +7,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^(\.workbuddy/(automations|memory|data|reports|templates|docs)/|archive/)
       - id: end-of-file-fixer
+        exclude: ^(\.workbuddy/(automations|memory|data|reports|templates|docs)/|archive/)
       - id: check-yaml
         args: [--allow-multiple-documents]
       - id: check-toml
@@ -21,7 +23,7 @@ repos:
         args: [--fix=lf]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.0
+    rev: v0.15.17
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --config, ruff.toml]
