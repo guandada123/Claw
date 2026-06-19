@@ -1,6 +1,7 @@
 """
 错误处理基础设施测试
 """
+
 import pytest
 
 
@@ -21,8 +22,13 @@ class TestClawErrors:
         )
 
         errors = [
-            DataError, DataCorruptionError, DataValidationError,
-            NetworkError, ConfigError, StrategyError, NonRetryableError,
+            DataError,
+            DataCorruptionError,
+            DataValidationError,
+            NetworkError,
+            ConfigError,
+            StrategyError,
+            NonRetryableError,
         ]
 
         for err_cls in errors:
@@ -54,7 +60,8 @@ class TestSafeCall:
 
     def test_retry_on_network_error(self):
         """网络异常触发重试。"""
-        from error_handler import safe_call, NetworkError
+        from error_handler import NetworkError, safe_call
+
         call_count = [0]
 
         @safe_call(max_retries=2, retry_delay=0.01)
@@ -70,7 +77,8 @@ class TestSafeCall:
 
     def test_non_retryable_immediate_raise(self):
         """NonRetryableError 不重试，直接抛出。"""
-        from error_handler import safe_call, NonRetryableError
+        from error_handler import NonRetryableError, safe_call
+
         call_count = [0]
 
         @safe_call(max_retries=3, retry_delay=0.01)
@@ -84,10 +92,9 @@ class TestSafeCall:
 
     def test_exhausted_returns_fallback(self):
         """重试耗尽后返回 fallback_value。"""
-        from error_handler import safe_call, NetworkError
+        from error_handler import NetworkError, safe_call
 
-        @safe_call(max_retries=1, retry_delay=0.01,
-                   fallback_value="default", reraise=False)
+        @safe_call(max_retries=1, retry_delay=0.01, fallback_value="default", reraise=False)
         def always_fails():
             raise NetworkError("永续失败")
 
@@ -123,7 +130,7 @@ class TestAtomicReadWrite:
 
     def test_roundtrip(self, temp_dir, sample_portfolio):
         """写入→读取往返完整保留数据。"""
-        from error_handler import atomic_write_json, atomic_read_json
+        from error_handler import atomic_read_json, atomic_write_json
 
         f = temp_dir / "roundtrip.json"
         atomic_write_json(f, sample_portfolio)
@@ -133,4 +140,5 @@ class TestAtomicReadWrite:
     def test_read_nonexistent(self, temp_dir):
         """不存在的文件返回空字典。"""
         from error_handler import atomic_read_json
+
         assert atomic_read_json(temp_dir / "noexist.json") == {}
