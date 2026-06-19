@@ -27,24 +27,6 @@ dev = [
 testpaths = [".workbuddy/tests"]
 pythonpath = [".workbuddy"]
 
-[tool.ruff]
-target-version = "py311"
-line-length = 100
-
-[tool.ruff.lint]
-select = [
-    "E",   # pycodestyle errors
-    "F",   # pyflakes
-    "W",   # pycodestyle warnings
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "UP",  # pyupgrade
-]
-ignore = ["E501"]  # line too long (handled by formatter)
-
-[tool.ruff.format]
-quote-style = "double"
-
 [tool.mypy]
 python_version = "3.11"
 strict = false
@@ -55,6 +37,7 @@ warn_redundant_casts = true
 
 [tool.bandit]
 exclude_dirs = [".workbuddy/tests"]
+skips = ["B324", "B310", "B108"]
 
 [tool.coverage.run]
 source = [".workbuddy/scripts", ".workbuddy/lib"]

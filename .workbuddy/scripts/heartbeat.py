@@ -11,7 +11,6 @@
 
 import argparse
 import json
-import os
 import sqlite3
 import sys
 from datetime import datetime
@@ -70,8 +69,11 @@ def main():
             json.dump(heartbeat_data, f, ensure_ascii=False, indent=2)
 
     if args.json:
-        print(json.dumps({"healthy": healthy, "dependencies": deps, "checked_at": now},
-                         ensure_ascii=False))
+        print(
+            json.dumps(
+                {"healthy": healthy, "dependencies": deps, "checked_at": now}, ensure_ascii=False
+            )
+        )
     else:
         status = "✅" if healthy else "❌"
         print(f"{status} Claw heartbeat | {now}")
