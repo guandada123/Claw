@@ -95,3 +95,5 @@ jobs:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
         # 使用 gitleaks 默认配置
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
