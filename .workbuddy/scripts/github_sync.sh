@@ -1,8 +1,8 @@
 #!/bin/bash
 # GitHub 自动备份 — 将模拟炒股数据推送到 GitHub 仓库
-# 
+#
 # 用法: ./scripts/github_sync.sh [commit_message]
-# 
+#
 # 首次使用：
 #   1. 在 GitHub 创建一个私有仓库（如 claw-simulation）
 #   2. 在项目目录执行：
