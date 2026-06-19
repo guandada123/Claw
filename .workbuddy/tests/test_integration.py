@@ -6,9 +6,8 @@ Claw 集成测试 — 端到端流程验证
 import json
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,6 +18,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 # ═══════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════
+
 
 @pytest.fixture
 def mock_kline_response():
@@ -38,7 +38,11 @@ def mock_kline_response():
 def empty_portfolio(tmp_path):
     """空的模拟持仓文件"""
     pf = {
-        "config": {"initial_capital": 30000.0, "created_at": "2025-01-01", "updated_at": "2025-01-01 00:00:00"},
+        "config": {
+            "initial_capital": 30000.0,
+            "created_at": "2025-01-01",
+            "updated_at": "2025-01-01 00:00:00",
+        },
         "cash": 30000.0,
         "positions": {},
         "transactions": [],
@@ -54,7 +58,11 @@ def empty_portfolio(tmp_path):
 def portfolio_with_position(tmp_path):
     """带有一只持仓的模拟文件"""
     pf = {
-        "config": {"initial_capital": 30000.0, "created_at": "2025-01-01", "updated_at": "2025-01-10 10:00:00"},
+        "config": {
+            "initial_capital": 30000.0,
+            "created_at": "2025-01-01",
+            "updated_at": "2025-01-10 10:00:00",
+        },
         "cash": 17000.0,
         "positions": {
             "600519": {
@@ -68,7 +76,14 @@ def portfolio_with_position(tmp_path):
             }
         },
         "transactions": [
-            {"date": "2025-01-05", "code": "600519", "type": "BUY", "price": 130.0, "shares": 100, "amount": 13000.0}
+            {
+                "date": "2025-01-05",
+                "code": "600519",
+                "type": "BUY",
+                "price": 130.0,
+                "shares": 100,
+                "amount": 13000.0,
+            }
         ],
         "daily_snapshot": {"2025-01-05": {"value": 30000.0}},
         "dividends": [],
@@ -82,6 +97,7 @@ def portfolio_with_position(tmp_path):
 # Integration: backtest CLI 端到端
 # ═══════════════════════════════════════
 
+
 class TestBacktestCLI:
     """测试 backtest.py 作为 CLI 工具的完整流程"""
 
@@ -89,7 +105,10 @@ class TestBacktestCLI:
         """无参数运行应输出用法说明"""
         result = subprocess.run(
             [sys.executable, str(SCRIPTS_DIR / "backtest.py")],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         output = json.loads(result.stdout)
         assert output["ok"] is False
@@ -100,7 +119,10 @@ class TestBacktestCLI:
         """无效策略名应报错"""
         result = subprocess.run(
             [sys.executable, str(SCRIPTS_DIR / "backtest.py"), "invalid", "600519"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         output = json.loads(result.stdout)
         assert output["ok"] is False
@@ -158,12 +180,14 @@ class TestBacktestCLI:
 # Integration: sim_trade 完整买卖流程
 # ═══════════════════════════════════════
 
+
 class TestSimTradeWorkflow:
     """测试模拟交易的完整生命周期"""
 
     def test_check_restricted_integration(self):
         """板块限制完整验证"""
         from sim_trade import check_restricted
+
         # 所有允许的代码
         allowed = ["600519", "601398", "000001", "002594", "000858"]
         for code in allowed:
@@ -177,7 +201,7 @@ class TestSimTradeWorkflow:
 
     def test_buy_commission_calculation(self):
         """买入佣金计算（含最低佣金兜底）"""
-        from sim_trade import calc_commission, calc_stamp_tax, COMMISSION_RATE, MIN_COMMISSION
+        from sim_trade import COMMISSION_RATE, MIN_COMMISSION, calc_commission, calc_stamp_tax
 
         # 大金额：佣金 > 最低线
         assert calc_commission(100000) == pytest.approx(100000 * COMMISSION_RATE)
@@ -219,7 +243,7 @@ class TestSimTradeWorkflow:
             cost = buy_price * shares  # 13000
             commission = sim_trade.calc_commission(cost)
 
-            pf["cash"] -= (cost + commission)
+            pf["cash"] -= cost + commission
             pf["positions"]["600519"] = {
                 "shares": shares,
                 "avg_cost": buy_price,
@@ -228,10 +252,16 @@ class TestSimTradeWorkflow:
                 "buy_date": "2025-01-05",
                 "take_profit_level": 0,
             }
-            pf["transactions"].append({
-                "date": "2025-01-05", "code": "600519", "type": "BUY",
-                "price": buy_price, "shares": shares, "amount": cost,
-            })
+            pf["transactions"].append(
+                {
+                    "date": "2025-01-05",
+                    "code": "600519",
+                    "type": "BUY",
+                    "price": buy_price,
+                    "shares": shares,
+                    "amount": cost,
+                }
+            )
             sim_trade.save_portfolio(pf)
 
             # Step 3: 验证持仓
@@ -246,19 +276,27 @@ class TestSimTradeWorkflow:
             stamp_tax = sim_trade.calc_stamp_tax(sell_amount, is_sell=True)
             sell_commission = sim_trade.calc_commission(sell_amount)
 
-            pf["cash"] += (sell_amount - stamp_tax - sell_commission)
+            pf["cash"] += sell_amount - stamp_tax - sell_commission
             del pf["positions"]["600519"]
-            pf["transactions"].append({
-                "date": "2025-01-15", "code": "600519", "type": "SELL",
-                "price": sell_price, "shares": shares, "amount": sell_amount,
-            })
+            pf["transactions"].append(
+                {
+                    "date": "2025-01-15",
+                    "code": "600519",
+                    "type": "SELL",
+                    "price": sell_price,
+                    "shares": shares,
+                    "amount": sell_amount,
+                }
+            )
             sim_trade.save_portfolio(pf)
 
             # Step 5: 验证收益
             pf = sim_trade.load_portfolio()
             assert len(pf["positions"]) == 0
             # 收益 = (150-130) * 100 - 佣金*2 - 印花税
-            expected_profit = (sell_price - buy_price) * shares - commission - sell_commission - stamp_tax
+            expected_profit = (
+                (sell_price - buy_price) * shares - commission - sell_commission - stamp_tax
+            )
             assert pf["cash"] == pytest.approx(30000.0 + expected_profit, abs=1.0)
             assert pf["cash"] > 30000.0  # 确保盈利
 

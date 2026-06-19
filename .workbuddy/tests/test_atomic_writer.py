@@ -1,11 +1,10 @@
 """
 原子写入 AtomicJSONWriter 核心测试
 """
+
 import json
 import threading
 import time
-
-import pytest
 
 
 class TestAtomicWriteBasics:
@@ -20,6 +19,7 @@ class TestAtomicWriteBasics:
     def test_write_to_missing_directory(self, temp_dir):
         """自动创建目标目录。"""
         from error_handler import AtomicJSONWriter
+
         deep_path = temp_dir / "a" / "b" / "c" / "data.json"
         deep_path.parent.mkdir(parents=True, exist_ok=True)  # 这是用户的责任
         writer = AtomicJSONWriter(deep_path)
@@ -29,6 +29,7 @@ class TestAtomicWriteBasics:
     def test_read_nonexistent_file_returns_empty(self, temp_dir):
         """读取不存在的文件返回空字典。"""
         from error_handler import AtomicJSONWriter
+
         writer = AtomicJSONWriter(temp_dir / "nonexistent.json")
         result = writer.read()
         assert result == {}
@@ -53,6 +54,7 @@ class TestBackup:
     def test_max_backups_enforced(self, temp_dir):
         """超过 max_backups 时自动清理旧备份。"""
         from error_handler import AtomicJSONWriter
+
         writer = AtomicJSONWriter(temp_dir / "test.json", max_backups=3)
 
         for i in range(10):
@@ -64,6 +66,7 @@ class TestBackup:
     def test_no_backup_when_disabled(self, temp_dir):
         """max_backups=0 时不创建备份。"""
         from error_handler import AtomicJSONWriter
+
         writer = AtomicJSONWriter(temp_dir / "test.json", max_backups=0)
         writer.write({"a": 1})
         writer.write({"a": 2})
@@ -89,6 +92,7 @@ class TestDataIntegrity:
     def test_write_then_crash_simulated(self, temp_dir):
         """模拟系统崩溃后原始文件完整。"""
         from error_handler import AtomicJSONWriter
+
         writer = AtomicJSONWriter(temp_dir / "crash.json")
 
         writer.write({"key": "value_before_crash"})
@@ -131,6 +135,7 @@ class TestConcurrency:
     def test_concurrent_write_safety(self, temp_dir):
         """并发写入后文件仍然可读且有效。"""
         from error_handler import AtomicJSONWriter
+
         writer = AtomicJSONWriter(temp_dir / "concurrent.json")
         errors = []
 
