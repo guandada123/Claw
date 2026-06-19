@@ -248,10 +248,7 @@ def send_feishu_alert(summary: dict) -> bool:
             continue
         for item in bad:
             tag = "🔴" if item["health"] == "🔴" else "🟡"
-            issue_lines.append(
-                f"{tag} **{item['name']}**\n"
-                f"　{', '.join(item['issues'])}"
-            )
+            issue_lines.append(f"{tag} **{item['name']}**\n　{', '.join(item['issues'])}")
 
     issues_text = "\n".join(issue_lines[:15])  # 最多 15 条
     if len(issue_lines) > 15:

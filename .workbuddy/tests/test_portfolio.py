@@ -6,11 +6,9 @@
     2. 金额计算正确
     3. 交易记录格式一致
 """
-import json
+
 import sys
 from pathlib import Path
-
-import pytest
 
 # 加脚本目录到 path
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
@@ -49,7 +47,8 @@ class TestPortfolioIntegrity:
 
     def test_roundtrip_via_atomic_writer(self, temp_dir, sample_portfolio):
         """通过原子写入后的持仓数据往返完整。"""
-        from error_handler import atomic_write_json, atomic_read_json
+        from error_handler import atomic_read_json, atomic_write_json
+
         f = temp_dir / "pf.json"
         atomic_write_json(f, sample_portfolio)
         result = atomic_read_json(f)
@@ -62,16 +61,17 @@ class TestRealPortfolioLoading:
     def test_sim_portfolio_loadable(self):
         """模拟持仓文件可以被正确加载。"""
         import sim_trade
+
         pf = sim_trade.load_portfolio()
         assert "cash" in pf
         assert "positions" in pf
-        assert isinstance(pf["cash"], (int, float))
+        assert isinstance(pf["cash"], int | float)
         assert isinstance(pf["positions"], dict)
 
     def test_sim_portfolio_save_load_roundtrip(self, temp_dir):
         """写入后立即可读且数据一致。"""
         import sim_trade
-        from error_handler import atomic_write_json, atomic_read_json
+        from error_handler import atomic_read_json, atomic_write_json
 
         pf = sim_trade.load_portfolio()
         backup = temp_dir / "pf_backup.json"
