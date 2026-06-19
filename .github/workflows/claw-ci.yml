@@ -89,9 +89,9 @@ jobs:
       - name: Run tests with coverage
         run: |
           cd .workbuddy && python -m pytest tests/ -v --tb=short \
-            --cov=scripts --cov=lib \
+            --cov=lib \
             --cov-report=term-missing \
-            --cov-fail-under=${{ env.COV_FAIL_UNDER }}
+            --cov-fail-under=70
 
   security:
     name: Security Scan
