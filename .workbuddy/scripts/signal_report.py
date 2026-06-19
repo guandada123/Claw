@@ -5,7 +5,6 @@ import json
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SIGNALS_FILE = PROJECT_ROOT / ".workbuddy" / "data" / "article_signals.json"
@@ -79,7 +78,7 @@ def main():
     print("📊 公众号信号溯源报告")
     print(f"   生成时间: {now.strftime('%Y-%m-%d %H:%M')}")
     print(f"   信号总量: {len(signals)} 条")
-    print(f"   来源公众号: {len(set(s['account'] for s in signals))} 个")
+    print(f"   来源公众号: {len({s['account'] for s in signals})} 个")
     stock_set = set()
     for s in signals:
         stock_set.add(f"{s['stock_name']}({s['stock_code']})")

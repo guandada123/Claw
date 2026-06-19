@@ -8,7 +8,7 @@ mass_update_automations.py — 批量更新 WorkBuddy 自动化模型分配
 
 用法：
   python mass_update_automations.py [--dry-run] [--apply]
-  
+
   --dry-run   预览变更（默认模式，不实际修改）
   --apply     实际执行变更（需要 WorkBuddy environment）
 

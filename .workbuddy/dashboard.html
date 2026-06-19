@@ -62,7 +62,7 @@ async function loadData() {
     const portfolio = pfResp.status === 'fulfilled' ? pfResp.value : null;
     const decisions = dlResp.status === 'fulfilled' ? dlResp.value : [];
     const strategyLib = slResp.status === 'fulfilled' ? slResp.value : null;
-    
+
     if (!portfolio) {
       showError('无法加载持仓数据。请在 .workbuddy 目录下运行: python3 -m http.server 8080');
       return;
@@ -82,7 +82,7 @@ function render(pf, decisions, strategyLib) {
   const positions = pf.positions || {};
   const txns = pf.transactions || [];
   const snapshots = pf.daily_snapshot || {};
-  
+
   // Calculate totals
   let stockValue = 0;
   let unrealizedPnl = 0;
@@ -94,17 +94,17 @@ function render(pf, decisions, strategyLib) {
   const totalAsset = cash + stockValue;
   const totalPnl = totalAsset - (pf.config?.initial_capital || 30000);
   const totalPnlPct = (totalPnl / (pf.config?.initial_capital || 30000)) * 100;
-  
+
   // Win rate
   const sellTxns = txns.filter(t => t.type === 'SELL');
   const wins = sellTxns.filter(t => t.realized_pnl > 0).length;
   const winRate = sellTxns.length > 0 ? (wins / sellTxns.length * 100) : 0;
   const realizedPnl = sellTxns.reduce((s, t) => s + (t.realized_pnl || 0), 0);
-  
+
   // Score from strategy lib
   const patterns = strategyLib?.high_win_rate_patterns?.length || 0;
   const avoids = strategyLib?.loss_patterns_to_avoid?.length || 0;
-  
+
   const html = `
     <div class="grid">
       <div class="card">
@@ -128,7 +128,7 @@ function render(pf, decisions, strategyLib) {
         <div class="sub">${patterns}条高胜率模式 | ${avoids}条避坑规则</div>
       </div>
     </div>
-    
+
     <div class="charts-row">
       <div class="chart-card">
         <h3>📊 资产走势</h3>
@@ -139,7 +139,7 @@ function render(pf, decisions, strategyLib) {
         <canvas id="positionPie"></canvas>
       </div>
     </div>
-    
+
     <div class="table-card">
       <h3>📋 持仓详情</h3>
       <table>
@@ -160,7 +160,7 @@ function render(pf, decisions, strategyLib) {
         }).join('') || '<tr><td colspan="7" style="text-align:center;color:#64748b">暂无持仓</td></tr>'}
       </table>
     </div>
-    
+
     ${decisions.length > 0 ? `
     <div class="table-card">
       <h3>💡 最近决策记录 (decision_log.json)</h3>
@@ -184,17 +184,17 @@ function render(pf, decisions, strategyLib) {
       </table>
     </div>` : ''}
   `;
-  
+
   document.getElementById('content').innerHTML = html;
-  
+
   // Destroy old charts
   Object.values(charts).forEach(c => c.destroy());
   charts = {};
-  
+
   // Asset trend chart
   const dates = Object.keys(snapshots).sort();
   const values = dates.map(d => snapshots[d].total_asset);
-  
+
   if (dates.length > 0) {
     const ctx = document.getElementById('assetChart').getContext('2d');
     charts.asset = new Chart(ctx, {
@@ -222,7 +222,7 @@ function render(pf, decisions, strategyLib) {
       }
     });
   }
-  
+
   // Position pie
   const labels = [];
   const data = [];
@@ -231,7 +231,7 @@ function render(pf, decisions, strategyLib) {
     data.push(pos.shares * (pos.current_price || pos.avg_cost));
   }
   if (cash > 0) { labels.push('现金'); data.push(cash); }
-  
+
   if (data.length > 0) {
     const ctx2 = document.getElementById('positionPie').getContext('2d');
     charts.pie = new Chart(ctx2, {

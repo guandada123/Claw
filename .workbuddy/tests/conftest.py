@@ -1,7 +1,7 @@
 """
 Claw 测试 — 共享 fixtures
 """
-import json
+
 import sys
 import tempfile
 from pathlib import Path
@@ -64,6 +64,7 @@ def sample_portfolio():
 def sample_stock_data():
     """模拟日线行情数据。"""
     import datetime
+
     base = datetime.date(2025, 1, 2)
     data = []
     for i in range(50):
@@ -71,16 +72,18 @@ def sample_stock_data():
         if d.weekday() >= 5:  # 跳过周末
             continue
         price = 12.0 + i * 0.1
-        data.append({
-            "trade_date": d.strftime("%Y%m%d"),
-            "open": price - 0.05,
-            "high": price + 0.10,
-            "low": price - 0.10,
-            "close": price,
-            "vol": 100000 + i * 1000,
-            "amount": (100000 + i * 1000) * price,
-            "pre_close": price - 0.10 if i > 0 else price,
-        })
+        data.append(
+            {
+                "trade_date": d.strftime("%Y%m%d"),
+                "open": price - 0.05,
+                "high": price + 0.10,
+                "low": price - 0.10,
+                "close": price,
+                "vol": 100000 + i * 1000,
+                "amount": (100000 + i * 1000) * price,
+                "pre_close": price - 0.10 if i > 0 else price,
+            }
+        )
         if len(data) >= 30:
             break
     return data
@@ -90,6 +93,7 @@ def sample_stock_data():
 def atomic_writer(temp_dir):
     """创建 AtomicJSONWriter 实例（临时目录）。"""
     from error_handler import AtomicJSONWriter
+
     return AtomicJSONWriter(
         filepath=temp_dir / "portfolio.json",
         backup_dir=temp_dir / "backups",

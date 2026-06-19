@@ -16,8 +16,6 @@ import time
 import traceback
 from collections.abc import Callable
 from datetime import UTC, datetime, timezone
-
-UTC = UTC
 from pathlib import Path
 from typing import Any, Optional, TypeVar
 
