@@ -249,7 +249,7 @@ def cmd_status():
         print(f"✅ we-mp-rss 服务在线 ({BASE_URL})")
         if isinstance(data, dict):
             for k, v in data.items():
-                if not isinstance(v, (dict, list)):
+                if not isinstance(v, dict | list):
                     print(f"   {k}: {v}")
     else:
         print(f"❌ 服务离线: {status.get('error')}")

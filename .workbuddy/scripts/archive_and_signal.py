@@ -3,13 +3,14 @@
 缓存文章归档 + 信号提取 + 溯源统计 一键脚本
 """
 
+import contextlib
 import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 CACHE_DIR = Path.home() / ".workbuddy" / "cache" / "wx_articles"
@@ -124,7 +125,7 @@ def extract_signals():
         try:
             with open(f, encoding="utf-8") as fh:
                 article = json.load(fh)
-        except:
+        except Exception:
             continue
 
         title = article.get("title", f.stem)
@@ -211,6 +212,7 @@ def main():
         [sys.executable, str(SCRIPT_DIR / "knowledge_base.py"), "index"],
         capture_output=True,
         text=True,
+        check=False,
     ).returncode
     if ret != 0:
         print("  ⚠️ 索引可能未完整执行，继续处理信号...")
@@ -245,10 +247,8 @@ def main():
         # 合并现有信号
         existing = []
         if SIGNALS_FILE.exists():
-            try:
+            with contextlib.suppress(json.JSONDecodeError, OSError):
                 existing = json.loads(SIGNALS_FILE.read_text())
-            except:
-                pass
 
         # 去重合并
         existing_ids = {s.get("article_id", "") for s in existing}
@@ -264,6 +264,7 @@ def main():
             [sys.executable, str(SCRIPT_DIR / "knowledge_base.py"), "trace", "--days", "60"],
             capture_output=True,
             text=True,
+            check=False,
         )
     else:
         print("\n  📭 未能提取到有效信号")

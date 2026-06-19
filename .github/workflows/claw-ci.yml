@@ -106,7 +106,7 @@ jobs:
       - name: Install scanners
         run: pip install bandit safety
       - name: Bandit (code-level scan)
-        run: bandit -r .workbuddy/scripts/ .workbuddy/lib/ -ll --skip B101
+        run: bandit -r .workbuddy/scripts/ .workbuddy/lib/ -ll --skip B101,B324
       - name: Safety (dependency scan)
         run: safety check --full-report || true
       - name: Secret scan

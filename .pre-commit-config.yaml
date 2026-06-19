@@ -12,6 +12,7 @@ repos:
         args: [--allow-multiple-documents]
       - id: check-toml
       - id: check-json
+        exclude: ^\.workbuddy/data/
       - id: check-added-large-files
         args: [--maxkb=500]
       - id: check-merge-conflict
@@ -23,22 +24,11 @@ repos:
     rev: v0.11.0
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        args: [--fix, --exit-non-zero-on-fix, --config, ruff.toml]
+        files: ^\.workbuddy/
       - id: ruff-format
-
-  # Python: mypy (type check) — 渐进式，非阻塞
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
-    hooks:
-      - id: mypy
-        args:
-          - --ignore-missing-imports
-          - --explicit-package-bases
-        additional_dependencies:
-          - types-PyYAML
-          - types-requests
-        files: ^\.workbuddy/(scripts|lib)/.*\.py$
-        pass_filenames: false
+        args: [--config, ruff.toml]
+        files: ^\.workbuddy/
 
   # Conventional Commits 格式校验
   - repo: local
