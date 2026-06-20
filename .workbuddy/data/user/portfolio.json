@@ -2,7 +2,7 @@
   "broker": "广发证券",
   "account_type": "人民币账户A股",
   "created": "2026-06-05",
-  "updated": "2026-06-12",
+  "updated": "2026-06-20",
   "rules": {
     "stop_loss": -0.08,
     "take_profit": null,
@@ -12,8 +12,8 @@
   "summary": {
     "total_assets": 15714.77,
     "cash_available": 1000,
-    "floating_pnl": 159.0,
-    "position_pct": 9.6
+    "floating_pnl": 201.0,
+    "position_pct": 9.8
   },
   "holdings": [
     {
@@ -21,10 +21,10 @@
       "name": "天娱数科",
       "shares": 200,
       "cost_price": 6.725,
-      "current_price": 7.52,
-      "market_value": 1504.0,
-      "pnl": 159.0,
-      "pnl_pct": 11.82,
+      "current_price": 7.73,
+      "market_value": 1546.0,
+      "pnl": 201.0,
+      "pnl_pct": 14.94,
       "available": 200,
       "added_date": "2026-06-05"
     }
