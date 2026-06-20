@@ -1,0 +1,7 @@
+{
+  "accumulated_cost": 6.40,
+  "last_updated": "2026-06-16",
+  "daily_cost": 0.40,
+  "monthly_est": 12.00,
+  "note": "基于当前自动化运行频率估计，不包含DeepSeek API实际消耗"
+}

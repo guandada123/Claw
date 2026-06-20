@@ -1,0 +1,23 @@
+{
+  "date": "2026-06-16",
+  "flash_runs": 20,
+  "pro_runs": 0,
+  "daily_cost": 0.4,
+  "monthly_est": {
+    "daily_runs_24h": 20,
+    "daily_cost_est": 0.4,
+    "monthly_cost_est": 12.0,
+    "monthly_savings_cache": 1.19,
+    "net_monthly_cost": 10.81
+  },
+  "budget_status": {
+    "level": "🟢 NORMAL",
+    "message": "预算正常。距警告线还有 ¥273.60",
+    "color": "green"
+  },
+  "deepseek": {
+    "available": false,
+    "balance": "N/A",
+    "note": "未配置 DEEPSEEK_API_KEY"
+  }
+}

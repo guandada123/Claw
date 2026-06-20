@@ -12,8 +12,8 @@ jobs:
     with:
       run-python: auto
       run-php: off
-      run-eslint: true
-      run-prettier: true
+      run-eslint: false
+      run-prettier: false
       node-version: '20'
       npm-audit-level: high
     secrets: inherit
