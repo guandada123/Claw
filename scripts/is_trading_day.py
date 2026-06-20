@@ -9,6 +9,7 @@
     exit 0 = 交易日
     exit 1 = 非交易日（含周末+节假日）
 """
+
 import json
 import sys
 from datetime import date, datetime

@@ -27,13 +27,14 @@ _BUDGET_CACHE_TTL = 60  # 秒
 # 注意：MONTHLY_BUDGET 在 check_budget_status() 内延迟导入，
 #       避免模块级别的循环依赖和路径问题
 FLASH_LOCK_THRESHOLD = 350.0  # 超过¥350自动锁定为Flash模式
-DAILY_WARNING = 25.0          # 日超¥25告警
-MAX_SINGLE_CALL = 5.0         # 单次调用 ¥5 上限（超限自动拦截）
+DAILY_WARNING = 25.0  # 日超¥25告警
+MAX_SINGLE_CALL = 5.0  # 单次调用 ¥5 上限（超限自动拦截）
 
 
 # ============================================================
 # 预算状态检查
 # ============================================================
+
 
 def check_budget_status() -> dict:
     """
@@ -55,9 +56,11 @@ def check_budget_status() -> dict:
         return dict(_budget_cache)
 
     try:
-        from cost_tracker import get_monthly_spent, MONTHLY_BUDGET_CNY as MONTHLY_BUDGET
+        from cost_tracker import MONTHLY_BUDGET_CNY as MONTHLY_BUDGET
+        from cost_tracker import get_monthly_spent
     except ImportError:
-        from scripts.cost_tracker import get_monthly_spent, MONTHLY_BUDGET_CNY as MONTHLY_BUDGET
+        from scripts.cost_tracker import MONTHLY_BUDGET_CNY as MONTHLY_BUDGET
+        from scripts.cost_tracker import get_monthly_spent
     month = date.today().strftime("%Y-%m")
     spent = get_monthly_spent(month)
 
@@ -67,13 +70,13 @@ def check_budget_status() -> dict:
     # 层级判定
     if pct >= 0.875:  # ≥¥350
         tier = "flash_only"
-        msg = f"⛔ 预算已用{pct*100:.0f}%（¥{spent:.0f}/¥{MONTHLY_BUDGET:.0f}），已锁定Flash模式"
-    elif pct >= 0.7:   # ≥¥280
+        msg = f"⛔ 预算已用{pct * 100:.0f}%（¥{spent:.0f}/¥{MONTHLY_BUDGET:.0f}），已锁定Flash模式"
+    elif pct >= 0.7:  # ≥¥280
         tier = "flash_preferred"
-        msg = f"⚠️  预算已用{pct*100:.0f}%（¥{spent:.0f}），建议优先使用Flash"
-    elif pct >= 0.5:   # ≥¥200
+        msg = f"⚠️  预算已用{pct * 100:.0f}%（¥{spent:.0f}），建议优先使用Flash"
+    elif pct >= 0.5:  # ≥¥200
         tier = "normal"
-        msg = f"🟡 预算已用{pct*100:.0f}%（¥{spent:.0f}），正常调度"
+        msg = f"🟡 预算已用{pct * 100:.0f}%（¥{spent:.0f}），正常调度"
     else:
         tier = "full"
         msg = f"🟢 预算充足（已用¥{spent:.1f}，剩余¥{remaining:.1f}）"
@@ -112,7 +115,13 @@ def get_allowed_model(intended_model: str, task_priority: str = "normal") -> str
 
     # Flash 锁定模式
     if status["tier"] == "flash_only":
-        if task_priority == "critical" and intended_model in ("gpt-5", "claude-sonnet-4-20250514", "claude-opus-4-20250514", "gpt-4.1", "gpt-4o-mini"):
+        if task_priority == "critical" and intended_model in (
+            "gpt-5",
+            "claude-sonnet-4-20250514",
+            "claude-opus-4-20250514",
+            "gpt-4.1",
+            "gpt-4o-mini",
+        ):
             # 关键任务 + 旗舰模型 → 自动允许（自动化场景无需人工确认）
             print(f"\n⚠️ 预算紧张（已用¥{status['spent']:.0f}），关键任务允许使用 {intended_model}")
             return intended_model
@@ -123,14 +132,16 @@ def get_allowed_model(intended_model: str, task_priority: str = "normal") -> str
         if intended_model in ("deepseek-v4-pro",) and task_priority == "normal":
             # 普通任务的 Pro 降为 Flash
             return "deepseek-v4-flash"
-        elif intended_model in ("gpt-5", "claude-sonnet-4-20250514", "claude-opus-4-20250514") and task_priority != "critical":
+        elif (
+            intended_model in ("gpt-5", "claude-sonnet-4-20250514", "claude-opus-4-20250514")
+            and task_priority != "critical"
+        ):
             return "deepseek-v4-pro"  # 非关键的旗舰降为 Pro
 
     return intended_model
 
 
-def verify_call_cost(estimated_input: int, estimated_output: int,
-                     model: str) -> tuple:
+def verify_call_cost(estimated_input: int, estimated_output: int, model: str) -> tuple:
     """
     调用前验证预估成本是否超限。
 
@@ -156,8 +167,7 @@ def verify_call_cost(estimated_input: int, estimated_output: int,
     prices = MODEL_PRICES.get(model_key, {"input": 0, "output": 0})
 
     estimated_cost = (
-        estimated_input * prices["input"]
-        + estimated_output * prices["output"]
+        estimated_input * prices["input"] + estimated_output * prices["output"]
     ) / 10000
 
     if estimated_cost > MAX_SINGLE_CALL:
@@ -172,6 +182,7 @@ def verify_call_cost(estimated_input: int, estimated_output: int,
 # ============================================================
 # 便捷函数
 # ============================================================
+
 
 def budget_summary() -> str:
     """快速预算摘要（用于日志/推送）"""
@@ -191,7 +202,7 @@ def budget_summary() -> str:
     lines = [
         f"📊 本月预算：¥{status['spent']:.1f} / ¥{MONTHLY_BUDGET:.0f}",
         f"   {'=' * 30}",
-        f"   已用比例：{status['pct']*100:.1f}%",
+        f"   已用比例：{status['pct'] * 100:.1f}%",
         f"   剩余预算：¥{status['remaining']:.1f}",
         f"   预估月底：¥{projected:.0f} {'⚠️' if projected > MONTHLY_BUDGET else '✅'}",
         f"   当前层级：{status['tier']}",
@@ -200,9 +211,9 @@ def budget_summary() -> str:
 
     # 日检查（预加载当日记录，避免 daily_report 重复读取 JSONL）
     try:
-        from cost_tracker import daily_report, _load_records
+        from cost_tracker import _load_records, daily_report
     except ImportError:
-        from scripts.cost_tracker import daily_report, _load_records
+        from scripts.cost_tracker import _load_records, daily_report
     today_records = _load_records(date.today().isoformat())
     today = daily_report("today_only", records=today_records)
     if isinstance(today, dict) and today.get("total", 0) > DAILY_WARNING:
@@ -217,6 +228,7 @@ def budget_summary() -> str:
 
 if __name__ == "__main__":
     import sys
+
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
 
     if cmd == "status":

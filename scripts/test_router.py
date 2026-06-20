@@ -5,9 +5,9 @@ test_router.py — Claw 四层路由单元测试
 运行：cd Claw/scripts && pytest test_router.py -v
 """
 
-from unittest.mock import patch
-import sys
 import os
+import sys
+from unittest.mock import patch
 
 # 确保可以导入 router（脚本目录在 sys.path 中）
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -15,21 +15,21 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 from router import (
-    ModelTier,
-    route_task,
-    get_model,
-    _select_premium_model,
-    _make_error_resp,
-    _resolve_api_config,
-    _build_chat_messages,
-    _parse_success_response,
     PREMIUM_SIGNALS,
+    ModelTier,
+    _build_chat_messages,
+    _make_error_resp,
+    _parse_success_response,
+    _resolve_api_config,
+    _select_premium_model,
+    get_model,
+    route_task,
 )
-
 
 # ============================================================
 # route_task() — 四层路由逻辑
 # ============================================================
+
 
 class TestRouteTask:
     """路由匹配测试（纯逻辑，无需 mock）"""
@@ -124,7 +124,7 @@ class TestRouteTask:
         """PREMIUM_SIGNALS 应为 frozenset，禁止运行时修改"""
         try:
             PREMIUM_SIGNALS.add("新信号")  # type: ignore
-            assert False, "frozenset 不应支持 add"
+            raise AssertionError("frozenset 不应支持 add")
         except AttributeError:
             pass
 
@@ -132,6 +132,7 @@ class TestRouteTask:
 # ============================================================
 # _select_premium_model() — PREMIUM 层模型选择
 # ============================================================
+
 
 class TestSelectPremiumModel:
     def test_code_review_uses_claude(self):
@@ -152,6 +153,7 @@ class TestSelectPremiumModel:
 # ============================================================
 # get_model() — 综合路由决策（含预算约束）
 # ============================================================
+
 
 class TestGetModel:
     """需要 mock _local_check 避免实际 HTTP 调用"""
@@ -239,6 +241,7 @@ class TestGetModel:
 # ============================================================
 # 辅助函数测试（纯逻辑，无需 mock）
 # ============================================================
+
 
 class TestMakeErrorResp:
     def test_all_fields_present(self):
@@ -329,12 +332,9 @@ class TestParseSuccessResponse:
                 "prompt_cache_hit_tokens": 20,
                 "prompt_cache_miss_tokens": 80,
             },
-            "choices": [
-                {"message": {"content": "Hello, world!"}}
-            ],
+            "choices": [{"message": {"content": "Hello, world!"}}],
         }
-        result = _parse_success_response(body, "deepseek-v4-flash", "deepseek",
-                                         0.5, "test", "Claw")
+        result = _parse_success_response(body, "deepseek-v4-flash", "deepseek", 0.5, "test", "Claw")
         assert result["response"] == "Hello, world!"
         assert result["input_tokens"] == 100
         assert result["output_tokens"] == 50
@@ -345,8 +345,7 @@ class TestParseSuccessResponse:
     def test_minimal_response(self):
         """最简响应（无 usage/无 choices）不崩溃"""
         body = {}
-        result = _parse_success_response(body, "default-model", "provider",
-                                         4.0, "t", "p")
+        result = _parse_success_response(body, "default-model", "provider", 4.0, "t", "p")
         assert result["response"] == ""
         assert result["input_tokens"] == 0
         assert result["output_tokens"] == 0

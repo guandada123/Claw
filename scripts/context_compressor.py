@@ -13,23 +13,23 @@ context_compressor.py — 上下文压缩工具
 
 import ast
 from pathlib import Path
-from typing import List
 
 # ============================================================
 # 配置
 # ============================================================
-MAX_HISTORY_ROUNDS = 2        # 保留最近 N 轮完整对话
-MAX_HISTORY_CHARS = 800       # 历史摘要最大字符数
-MAX_DATA_CHARS = 600          # 行情数据最大字符数
-MAX_CODE_TOKENS = 1200        # 代码片段最大 Token 数
-MAX_CHUNK_SIZE = 10           # 分批每批最大数量
+MAX_HISTORY_ROUNDS = 2  # 保留最近 N 轮完整对话
+MAX_HISTORY_CHARS = 800  # 历史摘要最大字符数
+MAX_DATA_CHARS = 600  # 行情数据最大字符数
+MAX_CODE_TOKENS = 1200  # 代码片段最大 Token 数
+MAX_CHUNK_SIZE = 10  # 分批每批最大数量
 
 
 # ============================================================
 # 1. 历史对话压缩
 # ============================================================
 
-def compress_conversation_history(history: List[dict]) -> List[dict]:
+
+def compress_conversation_history(history: list[dict]) -> list[dict]:
     """
     压缩对话历史。
     - 最近 MAX_HISTORY_ROUNDS 轮完整保留
@@ -61,7 +61,7 @@ def compress_conversation_history(history: List[dict]) -> List[dict]:
     return recent
 
 
-def _summarize_history(messages: List[dict]) -> str:
+def _summarize_history(messages: list[dict]) -> str:
     """提取旧对话的关键结论"""
     if not messages:
         return ""
@@ -75,10 +75,23 @@ def _summarize_history(messages: List[dict]) -> str:
             lines = content.split("\n")
             for line in lines:
                 line = line.strip()
-                if any(kw in line for kw in ["建议", "结论", "结果", "推荐",
-                                              "买入", "卖出", "持有",
-                                              "止损", "目标价",
-                                              "✅", "⚠️", "总结"]):
+                if any(
+                    kw in line
+                    for kw in [
+                        "建议",
+                        "结论",
+                        "结果",
+                        "推荐",
+                        "买入",
+                        "卖出",
+                        "持有",
+                        "止损",
+                        "目标价",
+                        "✅",
+                        "⚠️",
+                        "总结",
+                    ]
+                ):
                     conclusions.append(line[:100])  # 每行限100字符
 
     summary = " | ".join(conclusions[:5])  # 最多5条结论
@@ -93,15 +106,34 @@ def _summarize_history(messages: List[dict]) -> str:
 # ============================================================
 
 FIELD_MAP = {
-    "trend_analysis":     ["close", "ma5", "ma10", "ma20", "volume", "macd", "rsi"],
-    "breakout_check":     ["high_52w", "low_52w", "current", "volume_ratio", "change_pct"],
-    "sentiment":          ["northbound_flow", "sector_leader", "limit_up_count",
-                           "limit_down_count", "market_breadth"],
-    "entry_point":        ["support", "resistance", "rsi", "macd_signal",
-                           "volume_breakout", "capital_flow"],
-    "fundamental":        ["pe", "pb", "roe", "eps", "revenue_growth",
-                           "profit_growth", "debt_ratio", "market_cap"],
-    "quick_overview":     ["price", "change_pct", "volume", "pe", "market_cap"],
+    "trend_analysis": ["close", "ma5", "ma10", "ma20", "volume", "macd", "rsi"],
+    "breakout_check": ["high_52w", "low_52w", "current", "volume_ratio", "change_pct"],
+    "sentiment": [
+        "northbound_flow",
+        "sector_leader",
+        "limit_up_count",
+        "limit_down_count",
+        "market_breadth",
+    ],
+    "entry_point": [
+        "support",
+        "resistance",
+        "rsi",
+        "macd_signal",
+        "volume_breakout",
+        "capital_flow",
+    ],
+    "fundamental": [
+        "pe",
+        "pb",
+        "roe",
+        "eps",
+        "revenue_growth",
+        "profit_growth",
+        "debt_ratio",
+        "market_cap",
+    ],
+    "quick_overview": ["price", "change_pct", "volume", "pe", "market_cap"],
 }
 
 
@@ -129,9 +161,12 @@ def compress_market_data(raw_data: dict, task_focus: str = "quick_overview") -> 
         if any(f.lower() in key_lower or key_lower in f.lower() for f in fields):
             # 数字精度压缩
             if isinstance(v, float):
-                if "price" in key_lower or "close" in key_lower:
-                    filtered[k] = round(v, 2)
-                elif "pct" in key_lower or "ratio" in key_lower:
+                if (
+                    "price" in key_lower
+                    or "close" in key_lower
+                    or "pct" in key_lower
+                    or "ratio" in key_lower
+                ):
                     filtered[k] = round(v, 2)
                 elif "volume" in key_lower or "cap" in key_lower:
                     filtered[k] = _compress_number(v)
@@ -150,15 +185,16 @@ def compress_market_data(raw_data: dict, task_focus: str = "quick_overview") -> 
 def _compress_number(n: float) -> str:
     """压缩大数字显示"""
     if abs(n) >= 1_0000_0000:  # 亿
-        return f"{n/1_0000_0000:.2f}亿"
-    elif abs(n) >= 1_0000:     # 万
-        return f"{n/1_0000:.2f}万"
+        return f"{n / 1_0000_0000:.2f}亿"
+    elif abs(n) >= 1_0000:  # 万
+        return f"{n / 1_0000:.2f}万"
     return str(round(n, 2))
 
 
 # ============================================================
 # 3. 大任务分批处理
 # ============================================================
+
 
 def chunk_large_task(data_list: list, chunk_size: int = None) -> list:
     """
@@ -179,7 +215,7 @@ def chunk_large_task(data_list: list, chunk_size: int = None) -> list:
         return [[]]
 
     chunk_size = chunk_size or MAX_CHUNK_SIZE
-    return [data_list[i:i + chunk_size] for i in range(0, len(data_list), chunk_size)]
+    return [data_list[i : i + chunk_size] for i in range(0, len(data_list), chunk_size)]
 
 
 def estimate_chunk_count(total_items: int, chunk_size: int = None) -> int:
@@ -191,6 +227,7 @@ def estimate_chunk_count(total_items: int, chunk_size: int = None) -> int:
 # ============================================================
 # 4. 代码按需加载（开发场景）
 # ============================================================
+
 
 def load_relevant_code(question: str, project_root: str) -> str:
     """
@@ -217,13 +254,15 @@ def load_relevant_code(question: str, project_root: str) -> str:
 
     for py_file in sorted(project_path.rglob("*.py")):
         # 跳过 venv、__pycache__、node_modules
-        if any(p in str(py_file) for p in ["__pycache__", "venv", ".venv", "node_modules",
-                                             ".git", "dist", "build"]):
+        if any(
+            p in str(py_file)
+            for p in ["__pycache__", "venv", ".venv", "node_modules", ".git", "dist", "build"]
+        ):
             continue
 
         try:
             content = py_file.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, IOError):
+        except (OSError, UnicodeDecodeError):
             continue
 
         # 检查文件是否相关
@@ -245,29 +284,61 @@ def load_relevant_code(question: str, project_root: str) -> str:
     return total
 
 
-def _extract_keywords(question: str) -> List[str]:
+def _extract_keywords(question: str) -> list[str]:
     """从问题中提取关键词"""
     # 移除常见无意义词
-    stop_words = {"我", "你", "的", "了", "是", "在", "有", "和", "就",
-                  "不", "人", "都", "一", "一个", "上", "也", "很",
-                  "到", "说", "要", "去", "会", "着", "没有", "看",
-                  "好", "自己", "这", "那", "吗", "吧", "啊", "呢"}
+    stop_words = {
+        "我",
+        "你",
+        "的",
+        "了",
+        "是",
+        "在",
+        "有",
+        "和",
+        "就",
+        "不",
+        "人",
+        "都",
+        "一",
+        "一个",
+        "上",
+        "也",
+        "很",
+        "到",
+        "说",
+        "要",
+        "去",
+        "会",
+        "着",
+        "没有",
+        "看",
+        "好",
+        "自己",
+        "这",
+        "那",
+        "吗",
+        "吧",
+        "啊",
+        "呢",
+    }
 
     # 分词（简单按字拆分 + 提取2-4字词）
     import re as _re
-    words = _re.findall(r'[\u4e00-\u9fff]{2,}', question)
+
+    words = _re.findall(r"[\u4e00-\u9fff]{2,}", question)
 
     # 过滤停用词，保留有意义的业务词
     business_keywords = [w for w in words if w not in stop_words and len(w) >= 2]
 
     # 加入英文关键词
-    eng_words = _re.findall(r'[a-zA-Z_]{3,}', question)
+    eng_words = _re.findall(r"[a-zA-Z_]{3,}", question)
     business_keywords.extend(eng_words)
 
     return list(set(business_keywords))
 
 
-def _extract_relevant_functions(code: str, keywords: List[str]) -> List[str]:
+def _extract_relevant_functions(code: str, keywords: list[str]) -> list[str]:
     """提取包含关键词的函数，不传无关代码"""
     try:
         tree = ast.parse(code)
@@ -281,7 +352,7 @@ def _extract_relevant_functions(code: str, keywords: List[str]) -> List[str]:
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             # 获取函数源码
-            func_lines = code.split("\n")[node.lineno - 1:node.end_lineno]
+            func_lines = code.split("\n")[node.lineno - 1 : node.end_lineno]
             func_code = "\n".join(func_lines)
 
             # 检查函数名或内容是否有关键词
@@ -290,13 +361,15 @@ def _extract_relevant_functions(code: str, keywords: List[str]) -> List[str]:
                 # 限制函数大小
                 if len(func_code) > 500:
                     func_code = func_code[:500] + "\n    # ... (截断)"
-                relevant.append(f"# {py_file.name if 'py_file' in dir() else ''} → {node.name}\n{func_code}")
+                relevant.append(
+                    f"# {py_file.name if 'py_file' in dir() else ''} → {node.name}\n{func_code}"  # noqa: F821
+                )
 
         elif isinstance(node, ast.ClassDef):
             # 检查类名
             class_name = node.name.lower()
             if any(kw in class_name for kw in keywords):
-                class_lines = code.split("\n")[node.lineno - 1:node.end_lineno]
+                class_lines = code.split("\n")[node.lineno - 1 : node.end_lineno]
                 class_code = "\n".join(class_lines[:20])  # 只取类定义的前20行
                 if len(class_code) > 500:
                     class_code = class_code[:500]
@@ -308,6 +381,7 @@ def _extract_relevant_functions(code: str, keywords: List[str]) -> List[str]:
 # ============================================================
 # 测试
 # ============================================================
+
 
 def test_compressor():
     """测试上下文压缩"""
@@ -325,7 +399,7 @@ def test_compressor():
         {"role": "assistant", "content": "建议买入，目标价15元"},
     ]
     compressed = compress_conversation_history(history)
-    print(f"\n📋 历史压缩:")
+    print("\n📋 历史压缩:")
     print(f"   原始 {len(history)} 条 → 压缩后 {len(compressed)} 条")
     for m in compressed:
         print(f"   [{m['role']}] {m['content'][:60]}...")
@@ -349,13 +423,13 @@ def test_compressor():
         "market_cap": 5432000000,
     }
     compressed_data = compress_market_data(raw, "trend_analysis")
-    print(f"\n📋 数据压缩:")
+    print("\n📋 数据压缩:")
     print(f"   原始 {len(str(raw))} 字符 → {len(compressed_data)} 字符")
     print(f"   输出: {compressed_data[:150]}...")
 
     # 测试分批
     batch = chunk_large_task(list(range(55)), 10)
-    print(f"\n📋 分批处理:")
+    print("\n📋 分批处理:")
     print(f"   55 项 → {len(batch)} 批 (每批最多10项)")
 
     print(f"\n{'=' * 50}")
@@ -365,6 +439,7 @@ def test_compressor():
 
 if __name__ == "__main__":
     import sys
+
     cmd = sys.argv[1] if len(sys.argv) > 1 else "test"
 
     if cmd == "test":

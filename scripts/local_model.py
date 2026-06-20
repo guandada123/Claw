@@ -11,9 +11,8 @@ local_model.py — Ollama 本地模型调用封装
 
 import json
 import time
-import urllib.request
 import urllib.error
-from typing import Optional
+import urllib.request
 
 OLLAMA_BASE = "http://localhost:11434"
 DEFAULT_MODEL = "qwen2.5:7b"
@@ -29,6 +28,7 @@ _IS_AVAILABLE_CACHE_TTL = 30  # 秒
 # 可用性检测
 # ============================================================
 
+
 def is_available() -> bool:
     """检查 Ollama 服务是否在运行（30 秒 TTL 缓存）"""
     global _is_available_cache, _is_available_cache_time
@@ -39,7 +39,7 @@ def is_available() -> bool:
     try:
         req = urllib.request.Request(f"{OLLAMA_BASE}/api/tags", method="GET")
         with urllib.request.urlopen(req, timeout=3) as resp:
-            _is_available_cache = (resp.status == 200)
+            _is_available_cache = resp.status == 200
     except (urllib.error.URLError, ConnectionRefusedError, OSError):
         _is_available_cache = False
     _is_available_cache_time = time.time()
@@ -78,9 +78,14 @@ def get_running_models() -> list:
 # 核心调用
 # ============================================================
 
-def call(prompt: str, model: str = DEFAULT_MODEL,
-         system: Optional[str] = None, timeout: int = TIMEOUT,
-         stream: bool = False) -> dict:
+
+def call(
+    prompt: str,
+    model: str = DEFAULT_MODEL,
+    system: str | None = None,
+    timeout: int = TIMEOUT,
+    stream: bool = False,
+) -> dict:
     """
     调用本地 Ollama 模型（Generate API）。
 
@@ -195,8 +200,7 @@ def call(prompt: str, model: str = DEFAULT_MODEL,
         }
 
 
-def chat(messages: list, model: str = DEFAULT_MODEL,
-         timeout: int = TIMEOUT) -> dict:
+def chat(messages: list, model: str = DEFAULT_MODEL, timeout: int = TIMEOUT) -> dict:
     """
     调用 Ollama Chat API（支持多轮对话）。
 
@@ -257,6 +261,7 @@ def chat(messages: list, model: str = DEFAULT_MODEL,
 # 简易稳定性测试
 # ============================================================
 
+
 def run_stability_test(n: int = 20) -> dict:
     """
     稳定性压测：连续调用 n 次，统计成功率。
@@ -283,7 +288,7 @@ def run_stability_test(n: int = 20) -> dict:
     print(f"{'=' * 50}")
 
     for i in range(1, n + 1):
-        result = call(f'reply with OK for test #{i}', timeout=15)
+        result = call(f"reply with OK for test #{i}", timeout=15)
         status = "✅" if result["success"] else "❌"
         dur = result.get("duration_ms", 0)
         print(f"  {status} 第{i:>2}/{n}次  {dur}ms", end="")
@@ -323,12 +328,12 @@ if __name__ == "__main__":
 
     if cmd == "status":
         avail = is_available()
-        print(f"\n🔍 Ollama 本地模型状态")
+        print("\n🔍 Ollama 本地模型状态")
         print(f"{'=' * 35}")
         print(f"  服务运行中: {'✅ 是' if avail else '❌ 否'}")
         if avail:
             models = list_models()
-            print(f"  已安装模型:")
+            print("  已安装模型:")
             for m in models:
                 print(f"    • {m['name']:>15}  {m['size_gb']}GB")
             running = get_running_models()

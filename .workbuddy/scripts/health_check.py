@@ -4,6 +4,7 @@
 检查 Docker容器 / HTTP端点 / Tailscale / Marvis Bridge / 系统资源 / 自动化
 输出: JSON + 终端彩色输出
 """
+
 import json
 import os
 import sqlite3
@@ -38,11 +39,15 @@ def check_docker() -> dict:
         image = parts[2] if len(parts) > 2 else ""
         is_up = "Up" in status
         has_health = "healthy" in status
-        containers.append({
-            "name": name, "status": status.strip(),
-            "up": is_up, "healthy": is_up and (has_health or True),
-            "image": image.split("/")[-1] if "/" in image else image,
-        })
+        containers.append(
+            {
+                "name": name,
+                "status": status.strip(),
+                "up": is_up,
+                "healthy": is_up and (has_health or True),
+                "image": image.split("/")[-1] if "/" in image else image,
+            }
+        )
     healthy = sum(1 for c in containers if c["healthy"])
     return {"total": len(containers), "healthy": healthy, "containers": containers}
 
@@ -59,15 +64,32 @@ def check_http() -> dict:
     for name, url in endpoints.items():
         try:
             code = subprocess.run(
-                ["curl", "-sL", "-o", "/dev/null", "-w", "%{http_code}",
-                 "--connect-timeout", "5", "--max-time", "10", url],
-                capture_output=True, text=True, timeout=15
+                [
+                    "curl",
+                    "-sL",
+                    "-o",
+                    "/dev/null",
+                    "-w",
+                    "%{http_code}",
+                    "--connect-timeout",
+                    "5",
+                    "--max-time",
+                    "10",
+                    url,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
             status_code = code.stdout.strip()
             is_ok = status_code not in ("", "000") and int(status_code) < 500
             if is_ok:
                 ok += 1
-            checks[name] = {"url": url, "status_code": int(status_code) if status_code.isdigit() else 0, "ok": is_ok}
+            checks[name] = {
+                "url": url,
+                "status_code": int(status_code) if status_code.isdigit() else 0,
+                "ok": is_ok,
+            }
         except Exception:
             checks[name] = {"url": url, "status_code": 0, "ok": False}
     return {"total": len(endpoints), "passing": ok, "checks": checks}
@@ -75,7 +97,10 @@ def check_http() -> dict:
 
 # ─── 3. Tailscale ───
 def check_tailscale() -> dict:
-    ts = run_cmd(["tailscale", "--socket=/Users/guan/Library/Caches/tailscale/tailscaled.sock", "status"], timeout=5)
+    ts = run_cmd(
+        ["tailscale", "--socket=/Users/guan/Library/Caches/tailscale/tailscaled.sock", "status"],
+        timeout=5,
+    )
     if ts.returncode != 0:
         return {"status": "stopped", "ip": "", "devices": 0, "peers": []}
 
@@ -116,9 +141,7 @@ def check_bridge() -> dict:
 
     watchers = 0
     try:
-        r = subprocess.run(
-            ["ps", "aux"], capture_output=True, text=True, timeout=5
-        )
+        r = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
         for kw in ["file_watcher", "bridge_monitor", "workbuddy_poller", "fswatch"]:
             watchers += r.stdout.count(kw)
     except Exception:
@@ -199,17 +222,34 @@ def check_ci_failures() -> dict:
             continue
         try:
             r = subprocess.run(
-                ["gh", "run", "list", "--repo", f"guandada123/{name}",
-                 "--limit", "10", "--json", "conclusion,createdAt,workflowName,headBranch"],
-                capture_output=True, text=True, timeout=15, cwd=path,
+                [
+                    "gh",
+                    "run",
+                    "list",
+                    "--repo",
+                    f"guandada123/{name}",
+                    "--limit",
+                    "10",
+                    "--json",
+                    "conclusion,createdAt,workflowName,headBranch",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                cwd=path,
             )
             if r.returncode != 0:
                 continue
             import json as _json
+
             runs = _json.loads(r.stdout)
-            failures = [x for x in runs
-                        if x.get("conclusion") == "failure" and x.get("createdAt", "") > three_days_ago]
+            failures = [
+                x
+                for x in runs
+                if x.get("conclusion") == "failure" and x.get("createdAt", "") > three_days_ago
+            ]
             from collections import Counter
+
             branch_failures = Counter(x.get("headBranch", "unknown") for x in failures)
             alerts = [{"branch": b, "failures": c} for b, c in branch_failures.items() if c >= 3]
             if alerts:
@@ -283,11 +323,19 @@ def main():
 
     # Component status
     components = {
-        "docker": "healthy" if total_failures == 0 else ("degraded" if total_failures < docker["total"] else "critical"),
-        "http": "healthy" if http_fails == 0 else ("degraded" if http_fails < http["total"] else "critical"),
+        "docker": "healthy"
+        if total_failures == 0
+        else ("degraded" if total_failures < docker["total"] else "critical"),
+        "http": "healthy"
+        if http_fails == 0
+        else ("degraded" if http_fails < http["total"] else "critical"),
         "tailscale": "healthy" if tailscale["status"] == "connected" else "degraded",
-        "bridge": "healthy" if bridge["watchers"] >= 3 else ("degraded" if bridge["watchers"] > 0 else "critical"),
-        "automations": "healthy" if automations["failures_24h"] == 0 else ("degraded" if automations["failures_24h"] < 5 else "critical"),
+        "bridge": "healthy"
+        if bridge["watchers"] >= 3
+        else ("degraded" if bridge["watchers"] > 0 else "critical"),
+        "automations": "healthy"
+        if automations["failures_24h"] == 0
+        else ("degraded" if automations["failures_24h"] < 5 else "critical"),
         "ci_health": "healthy" if len(ci_failures.get("problems", [])) == 0 else "degraded",
         "repo_health": "healthy" if len(repo_health.get("problems", [])) == 0 else "degraded",
     }
@@ -311,7 +359,11 @@ def main():
         "timestamp": int(time.time()),
         "date": now.strftime("%Y-%m-%d"),
         "time": now.strftime("%H:%M:%S"),
-        "overall": {"status": overall, "icon": icon, "total_failures": total_failures + http_fails + tailscale_fail},
+        "overall": {
+            "status": overall,
+            "icon": icon,
+            "total_failures": total_failures + http_fails + tailscale_fail,
+        },
         "components": components,
         "docker": docker,
         "http": http,
@@ -331,9 +383,9 @@ def main():
 
     if not output_json:
         # Terminal display
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
         print(f"  全系统健康检查  {icon}  {result['date']} {result['time']}")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
         print("")
         print(f"📦 Docker ({docker['healthy']}/{docker['total']}): {components['docker']}")
         for c in docker["containers"]:
@@ -345,17 +397,23 @@ def main():
             status = "🟢" if c["ok"] else "🔴"
             print(f"  {status} {name:20s} (HTTP {c['status_code']})")
         print("")
-        print(f"🔗 Tailscale: {tailscale['status']}  ({tailscale['ip']}, {tailscale['devices']} peers)")
+        print(
+            f"🔗 Tailscale: {tailscale['status']}  ({tailscale['ip']}, {tailscale['devices']} peers)"
+        )
         print(f"🔗 Marvis Bridge: {bridge['status']}  (watchers: {bridge['watchers']})")
-        print(f"⚙️  Automations: {automations['active']} active, {automations['failures_24h']}/24h failures")
+        print(
+            f"⚙️  Automations: {automations['active']} active, {automations['failures_24h']}/24h failures"
+        )
         print("")
-        print(f"💻 System: {system['disk']} ({system['disk_pct']}) | "
-              f"mem: {system['memory']['used']}/{system['memory']['total']} | "
-              f"load: {system['load']}")
+        print(
+            f"💻 System: {system['disk']} ({system['disk_pct']}) | "
+            f"mem: {system['memory']['used']}/{system['memory']['total']} | "
+            f"load: {system['load']}"
+        )
         print(f"   Uptime: {system['uptime']}")
         print("")
         print(f"📊 组件: 🟢{healthy_count}  🟡{degraded_count}  🔴{critical_count}")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
     else:
         print(json_str)
 

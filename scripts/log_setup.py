@@ -1,4 +1,5 @@
 """log_setup.py — Claw 统一日志工厂"""
+
 import logging
 import logging.handlers
 from pathlib import Path
@@ -14,7 +15,7 @@ def get_logger(name: str) -> logging.Logger:
     - WARNING+ 同时输出控制台（保留 emoji 友好格式）
     """
     logger = logging.getLogger(name)
-    if logger.handlers:          # 防重复初始化
+    if logger.handlers:  # 防重复初始化
         return logger
 
     logger.setLevel(logging.DEBUG)
@@ -27,10 +28,11 @@ def get_logger(name: str) -> logging.Logger:
         encoding="utf-8",
     )
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    ))
+    file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+    )
 
     # 控制台 Handler
     console_handler = logging.StreamHandler()

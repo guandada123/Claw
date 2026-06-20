@@ -78,23 +78,29 @@ def tally_patterns(user_trades):
         if stats["trades"] >= 2:
             win_rate = round(stats["wins"] / stats["trades"] * 100, 1) if stats["trades"] else 0
             avg_pnl = round(stats["total_pnl"] / stats["trades"], 1) if stats["trades"] else 0
-            patterns.append({
-                "source": "user_trades",
-                "industry": industry,
-                "trades": stats["trades"],
-                "wins": stats["wins"],
-                "losses": stats["losses"],
-                "win_rate": win_rate,
-                "avg_pnl_pct": avg_pnl,
-                "last_updated": datetime.now().strftime("%Y-%m-%d"),
-            })
+            patterns.append(
+                {
+                    "source": "user_trades",
+                    "industry": industry,
+                    "trades": stats["trades"],
+                    "wins": stats["wins"],
+                    "losses": stats["losses"],
+                    "win_rate": win_rate,
+                    "avg_pnl_pct": avg_pnl,
+                    "last_updated": datetime.now().strftime("%Y-%m-%d"),
+                }
+            )
 
     return {
         "patterns": patterns,
         "summary": {
             "total_trades": len(user_trades),
-            "total_wins": sum(1 for t in user_trades if t.get("classification") in ("big_win", "win")),
-            "total_losses": sum(1 for t in user_trades if t.get("classification") in ("big_loss", "small_loss")),
+            "total_wins": sum(
+                1 for t in user_trades if t.get("classification") in ("big_win", "win")
+            ),
+            "total_losses": sum(
+                1 for t in user_trades if t.get("classification") in ("big_loss", "small_loss")
+            ),
         },
     }
 
@@ -120,7 +126,9 @@ def feedback():
 
     closed_positions = user_data.get("closed_positions", [])
     if not closed_positions:
-        print(json.dumps({"status": "no_closed_positions", "timestamp": datetime.now().isoformat()}))
+        print(
+            json.dumps({"status": "no_closed_positions", "timestamp": datetime.now().isoformat()})
+        )
         return
 
     # 记录已处理的 closed_position ID
@@ -129,7 +137,7 @@ def feedback():
     new_trades = []
     for pos in closed_positions:
         # 用 code+closed_date 生成唯一 ID
-        trade_id = f"{pos.get('code','')}_{pos.get('closed_date','')}"
+        trade_id = f"{pos.get('code', '')}_{pos.get('closed_date', '')}"
         if trade_id in processed_ids:
             continue
 

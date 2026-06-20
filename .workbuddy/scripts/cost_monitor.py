@@ -21,7 +21,7 @@ REPORTS_DIR = PROJECT_DIR / "reports"
 
 # 预算常量
 BUDGET_WARNING = 280  # ¥ 警戒线
-BUDGET_LOCK = 350     # ¥ 锁定线
+BUDGET_LOCK = 350  # ¥ 锁定线
 MONTHLY_BUDGET = 500  # ¥ 月度预算
 
 # 模型参考单价（每百万 Token，¥）
@@ -32,8 +32,8 @@ PRICE_PER_M_TOKENS = {
 
 # 各自动化平均每次运行估计消耗（¥）
 EST_COST_PER_RUN = {
-    "flash": 0.02,   # Flash 模型每次约 ¥0.02（短任务）
-    "pro": 0.10,     # Pro 模型每次约 ¥0.10（深度分析）
+    "flash": 0.02,  # Flash 模型每次约 ¥0.02（短任务）
+    "pro": 0.10,  # Pro 模型每次约 ¥0.10（深度分析）
 }
 
 
@@ -117,6 +117,7 @@ def check_deepseek_balance() -> dict:
 
     try:
         import urllib.request
+
         req = urllib.request.Request(
             "https://api.deepseek.com/user/balance",
             headers={"Authorization": f"Bearer {api_key}"},
