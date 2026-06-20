@@ -1,0 +1,143 @@
+{
+  "period": "daily",
+  "period_start": "2026-06-16",
+  "period_end": "2026-06-17",
+  "total_days": 1,
+  "trading_days_with_data": 2,
+  "generated_at": "2026-06-17 15:28:30",
+  "summary": {
+    "total_asset": 31926.22,
+    "cash": 14441.22,
+    "total_pnl": 1926.22,
+    "total_pnl_pct": 6.42,
+    "realized_pnl": 2577.08,
+    "unrealized_pnl": 540.0,
+    "max_drawdown_pct": 0.0,
+    "up_days": 1,
+    "down_days": 0,
+    "flat_days": 1,
+    "daily_win_rate": 100.0,
+    "avg_daily_return_pct": 1.935,
+    "best_day": {
+      "date": "2026-06-16",
+      "total_asset": 30347.14,
+      "cash": 3537.14,
+      "daily_return_pct": 3.87,
+      "cumulative_pnl": 347.14,
+      "cumulative_pnl_pct": 1.16,
+      "position_count": 3,
+      "buy_count": 1,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    "worst_day": {
+      "date": "2026-06-17",
+      "total_asset": 30347.14,
+      "cash": 3537.14,
+      "daily_return_pct": 0.0,
+      "cumulative_pnl": 347.14,
+      "cumulative_pnl_pct": 1.16,
+      "position_count": 3,
+      "buy_count": 0,
+      "sell_count": 1,
+      "day_win_count": 1,
+      "day_lose_count": 0,
+      "day_win_rate": 100.0,
+      "day_realized_pnl": 2577.08
+    },
+    "trade_count": 2,
+    "buy_count": 1,
+    "sell_count": 1,
+    "win_count": 1,
+    "lose_count": 0,
+    "trade_win_rate": 100.0,
+    "avg_win": 2577.08,
+    "avg_loss": 0,
+    "profit_factor": 0
+  },
+  "positions": [
+    {
+      "code": "002049",
+      "name": "紫光国微",
+      "shares": 200,
+      "avg_cost": 76.855,
+      "current_price": 80.0,
+      "market_value": 16000.0,
+      "unrealized_pnl": 629.0
+    },
+    {
+      "code": "002601",
+      "name": "龙佰集团",
+      "shares": 100,
+      "avg_cost": 15.74,
+      "current_price": 14.85,
+      "market_value": 1485.0,
+      "unrealized_pnl": -89.0
+    }
+  ],
+  "daily_detail": [
+    {
+      "date": "2026-06-16",
+      "total_asset": 30347.14,
+      "cash": 3537.14,
+      "daily_return_pct": 3.87,
+      "cumulative_pnl": 347.14,
+      "cumulative_pnl_pct": 1.16,
+      "position_count": 3,
+      "buy_count": 1,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    {
+      "date": "2026-06-17",
+      "total_asset": 30347.14,
+      "cash": 3537.14,
+      "daily_return_pct": 0.0,
+      "cumulative_pnl": 347.14,
+      "cumulative_pnl_pct": 1.16,
+      "position_count": 3,
+      "buy_count": 0,
+      "sell_count": 1,
+      "day_win_count": 1,
+      "day_lose_count": 0,
+      "day_win_rate": 100.0,
+      "day_realized_pnl": 2577.08
+    }
+  ],
+  "recent_trades": [
+    {
+      "id": "B0005",
+      "type": "BUY",
+      "code": "002601",
+      "name": "龙佰集团",
+      "shares": 100,
+      "price": 15.69,
+      "commission": 5.0,
+      "total": 1574.0,
+      "time": "2026-06-16 09:20:47",
+      "date": "2026-06-16"
+    },
+    {
+      "id": "S0006",
+      "type": "SELL",
+      "code": "600176",
+      "name": "中国巨石",
+      "shares": 200,
+      "price": 54.6,
+      "commission": 5.0,
+      "stamp_tax": 10.92,
+      "net_proceeds": 10904.08,
+      "realized_pnl": 2577.08,
+      "pnl_pct": 30.95,
+      "reason": "触发≥30%减仓1/3 (当前盈利 31.14%) [new_level: 2]",
+      "time": "2026-06-17 10:24:21",
+      "date": "2026-06-17"
+    }
+  ]
+}

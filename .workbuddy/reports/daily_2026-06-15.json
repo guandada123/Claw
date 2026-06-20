@@ -1,0 +1,68 @@
+{
+  "period": "daily",
+  "period_start": "2026-06-14",
+  "period_end": "2026-06-15",
+  "total_days": 1,
+  "trading_days_with_data": 0,
+  "generated_at": "2026-06-15 15:29:23",
+  "summary": {
+    "total_asset": 27735.14,
+    "cash": 5111.14,
+    "total_pnl": -2264.86,
+    "total_pnl_pct": -7.55,
+    "realized_pnl": 0,
+    "unrealized_pnl": -1074.0,
+    "max_drawdown_pct": 0.0,
+    "up_days": 0,
+    "down_days": 0,
+    "flat_days": 0,
+    "daily_win_rate": 0,
+    "avg_daily_return_pct": 0,
+    "best_day": null,
+    "worst_day": null,
+    "trade_count": 1,
+    "buy_count": 1,
+    "sell_count": 0,
+    "win_count": 0,
+    "lose_count": 0,
+    "trade_win_rate": 0,
+    "avg_win": 0,
+    "avg_loss": 0,
+    "profit_factor": 0
+  },
+  "positions": [
+    {
+      "code": "002049",
+      "name": "紫光国微",
+      "shares": 200,
+      "avg_cost": 76.855,
+      "current_price": 71.51,
+      "market_value": 14302.0,
+      "unrealized_pnl": -1069.0
+    },
+    {
+      "code": "600176",
+      "name": "中国巨石",
+      "shares": 200,
+      "avg_cost": 41.635,
+      "current_price": 41.61,
+      "market_value": 8322.0,
+      "unrealized_pnl": -5.0
+    }
+  ],
+  "daily_detail": [],
+  "recent_trades": [
+    {
+      "id": "B0004",
+      "type": "BUY",
+      "code": "600176",
+      "name": "中国巨石",
+      "shares": 200,
+      "price": 41.61,
+      "commission": 5.0,
+      "total": 8327.0,
+      "time": "2026-06-15 08:53:54",
+      "date": "2026-06-15"
+    }
+  ]
+}

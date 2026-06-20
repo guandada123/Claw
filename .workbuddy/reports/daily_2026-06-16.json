@@ -1,0 +1,133 @@
+{
+  "period": "daily",
+  "period_start": "2026-06-15",
+  "period_end": "2026-06-16",
+  "total_days": 1,
+  "trading_days_with_data": 1,
+  "generated_at": "2026-06-16 15:34:45",
+  "summary": {
+    "total_asset": 30347.14,
+    "cash": 3537.14,
+    "total_pnl": 347.14,
+    "total_pnl_pct": 1.16,
+    "realized_pnl": 0,
+    "unrealized_pnl": 1538.0,
+    "max_drawdown_pct": 0.0,
+    "up_days": 1,
+    "down_days": 0,
+    "flat_days": 0,
+    "daily_win_rate": 100.0,
+    "avg_daily_return_pct": 3.78,
+    "best_day": {
+      "date": "2026-06-15",
+      "total_asset": 29217.14,
+      "cash": 5111.14,
+      "daily_return_pct": 3.78,
+      "cumulative_pnl": -782.86,
+      "cumulative_pnl_pct": -2.61,
+      "position_count": 2,
+      "buy_count": 1,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    "worst_day": {
+      "date": "2026-06-15",
+      "total_asset": 29217.14,
+      "cash": 5111.14,
+      "daily_return_pct": 3.78,
+      "cumulative_pnl": -782.86,
+      "cumulative_pnl_pct": -2.61,
+      "position_count": 2,
+      "buy_count": 1,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    },
+    "trade_count": 2,
+    "buy_count": 2,
+    "sell_count": 0,
+    "win_count": 0,
+    "lose_count": 0,
+    "trade_win_rate": 0,
+    "avg_win": 0,
+    "avg_loss": 0,
+    "profit_factor": 0
+  },
+  "positions": [
+    {
+      "code": "002049",
+      "name": "紫光国微",
+      "shares": 200,
+      "avg_cost": 76.855,
+      "current_price": 76.71,
+      "market_value": 15342.0,
+      "unrealized_pnl": -29.0
+    },
+    {
+      "code": "600176",
+      "name": "中国巨石",
+      "shares": 200,
+      "avg_cost": 41.635,
+      "current_price": 49.64,
+      "market_value": 9928.0,
+      "unrealized_pnl": 1601.0
+    },
+    {
+      "code": "002601",
+      "name": "龙佰集团",
+      "shares": 100,
+      "avg_cost": 15.74,
+      "current_price": 15.4,
+      "market_value": 1540.0,
+      "unrealized_pnl": -34.0
+    }
+  ],
+  "daily_detail": [
+    {
+      "date": "2026-06-15",
+      "total_asset": 29217.14,
+      "cash": 5111.14,
+      "daily_return_pct": 3.78,
+      "cumulative_pnl": -782.86,
+      "cumulative_pnl_pct": -2.61,
+      "position_count": 2,
+      "buy_count": 1,
+      "sell_count": 0,
+      "day_win_count": 0,
+      "day_lose_count": 0,
+      "day_win_rate": null,
+      "day_realized_pnl": 0
+    }
+  ],
+  "recent_trades": [
+    {
+      "id": "B0004",
+      "type": "BUY",
+      "code": "600176",
+      "name": "中国巨石",
+      "shares": 200,
+      "price": 41.61,
+      "commission": 5.0,
+      "total": 8327.0,
+      "time": "2026-06-15 08:53:54",
+      "date": "2026-06-15"
+    },
+    {
+      "id": "B0005",
+      "type": "BUY",
+      "code": "002601",
+      "name": "龙佰集团",
+      "shares": 100,
+      "price": 15.69,
+      "commission": 5.0,
+      "total": 1574.0,
+      "time": "2026-06-16 09:20:47",
+      "date": "2026-06-16"
+    }
+  ]
+}

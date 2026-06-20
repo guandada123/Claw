@@ -1,0 +1,618 @@
+[
+  {
+    "type": "full_verification",
+    "test_date": "2026-06-15T00:01:51.539659",
+    "total_test_cases": 6,
+    "rounds_per_case": 3,
+    "overall_success_rate": 100.0,
+    "avg_fixed_hit_rate": 5.98,
+    "avg_full_hit_rate": 50.94,
+    "avg_duration_ms": 5293.2,
+    "details": [
+      {
+        "name": "模拟炒股-Flash-盘前",
+        "model": "deepseek-v4-flash",
+        "fixed_chars": 168,
+        "total_chars": 251,
+        "rounds": 3,
+        "fixed_only": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 0.0,
+          "avg_duration_ms": 6931.3
+        },
+        "full_prompt": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 71.91
+        }
+      },
+      {
+        "name": "模拟炒股-Flash-盘中",
+        "model": "deepseek-v4-flash",
+        "fixed_chars": 166,
+        "total_chars": 258,
+        "rounds": 3,
+        "fixed_only": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 0.0,
+          "avg_duration_ms": 6907.7
+        },
+        "full_prompt": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 45.39
+        }
+      },
+      {
+        "name": "投资助理-Pro-深度分析",
+        "model": "deepseek-v4-pro",
+        "fixed_chars": 345,
+        "total_chars": 469,
+        "rounds": 3,
+        "fixed_only": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 35.85,
+          "avg_duration_ms": 7553.0
+        },
+        "full_prompt": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 67.3
+        }
+      },
+      {
+        "name": "投资助理-Flash-快速问答",
+        "model": "deepseek-v4-flash",
+        "fixed_chars": 137,
+        "total_chars": 200,
+        "rounds": 3,
+        "fixed_only": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 0.0,
+          "avg_duration_ms": 3242.7
+        },
+        "full_prompt": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 65.64
+        }
+      },
+      {
+        "name": "美股监控-Flash",
+        "model": "deepseek-v4-flash",
+        "fixed_chars": 121,
+        "total_chars": 224,
+        "rounds": 3,
+        "fixed_only": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 0.0,
+          "avg_duration_ms": 4631.7
+        },
+        "full_prompt": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 55.41
+        }
+      },
+      {
+        "name": "成本监控-Flash",
+        "model": "deepseek-v4-flash",
+        "fixed_chars": 95,
+        "total_chars": 179,
+        "rounds": 3,
+        "fixed_only": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 0.0,
+          "avg_duration_ms": 2492.7
+        },
+        "full_prompt": {
+          "success_rate": 100.0,
+          "avg_hit_rate": 0.0
+        }
+      }
+    ],
+    "raw_results": [
+      {
+        "test_case": "模拟炒股-Flash-盘前",
+        "description": "模拟炒股角色，高频盘前分析，Flash模型",
+        "rounds": [
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 6379,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 121,
+                "total_input_tokens": 121,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 7155,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 50,
+                "total_input_tokens": 178,
+                "hit_rate": 71.91,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 7279,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 121,
+                "total_input_tokens": 121,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 6858,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 50,
+                "total_input_tokens": 178,
+                "hit_rate": 71.91,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 7136,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 121,
+                "total_input_tokens": 121,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 7202,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 50,
+                "total_input_tokens": 178,
+                "hit_rate": 71.91,
+                "note": ""
+              },
+              "error": null
+            }
+          }
+        ]
+      },
+      {
+        "test_case": "模拟炒股-Flash-盘中",
+        "description": "模拟炒股角色，高频盘中监控，Flash模型",
+        "rounds": [
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 7262,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 123,
+                "total_input_tokens": 123,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 6848,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 188,
+                "total_input_tokens": 188,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 6973,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 123,
+                "total_input_tokens": 123,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 6425,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 60,
+                "total_input_tokens": 188,
+                "hit_rate": 68.09,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 6488,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 123,
+                "total_input_tokens": 123,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 7438,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 60,
+                "total_input_tokens": 188,
+                "hit_rate": 68.09,
+                "note": ""
+              },
+              "error": null
+            }
+          }
+        ]
+      },
+      {
+        "test_case": "投资助理-Pro-深度分析",
+        "description": "投资助理深度分析，Pro模型，结构化输出",
+        "rounds": [
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 9817,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 238,
+                "total_input_tokens": 238,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 9708,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 189,
+                "total_input_tokens": 317,
+                "hit_rate": 40.38,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 8483,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 110,
+                "total_input_tokens": 238,
+                "hit_rate": 53.78,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 8471,
+              "cache_metrics": {
+                "hit_tokens": 256,
+                "miss_tokens": 61,
+                "total_input_tokens": 317,
+                "hit_rate": 80.76,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 4359,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 110,
+                "total_input_tokens": 238,
+                "hit_rate": 53.78,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 7860,
+              "cache_metrics": {
+                "hit_tokens": 256,
+                "miss_tokens": 61,
+                "total_input_tokens": 317,
+                "hit_rate": 80.76,
+                "note": ""
+              },
+              "error": null
+            }
+          }
+        ]
+      },
+      {
+        "test_case": "投资助理-Flash-快速问答",
+        "description": "投资助理快速问答，Flash模型",
+        "rounds": [
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 1847,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 87,
+                "total_input_tokens": 87,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 4881,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 130,
+                "total_input_tokens": 130,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 3694,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 87,
+                "total_input_tokens": 87,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 4976,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 2,
+                "total_input_tokens": 130,
+                "hit_rate": 98.46,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 4187,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 87,
+                "total_input_tokens": 87,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 4980,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 2,
+                "total_input_tokens": 130,
+                "hit_rate": 98.46,
+                "note": ""
+              },
+              "error": null
+            }
+          }
+        ]
+      },
+      {
+        "test_case": "美股监控-Flash",
+        "description": "美股监控，Flash模型",
+        "rounds": [
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 4894,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 86,
+                "total_input_tokens": 86,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 3176,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 154,
+                "total_input_tokens": 154,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 3956,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 86,
+                "total_input_tokens": 86,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 5620,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 26,
+                "total_input_tokens": 154,
+                "hit_rate": 83.12,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 5045,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 86,
+                "total_input_tokens": 86,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 3675,
+              "cache_metrics": {
+                "hit_tokens": 128,
+                "miss_tokens": 26,
+                "total_input_tokens": 154,
+                "hit_rate": 83.12,
+                "note": ""
+              },
+              "error": null
+            }
+          }
+        ]
+      },
+      {
+        "test_case": "成本监控-Flash",
+        "description": "成本监控日任务，Flash模型",
+        "rounds": [
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 2534,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 67,
+                "total_input_tokens": 67,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 2684,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 117,
+                "total_input_tokens": 117,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 2562,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 67,
+                "total_input_tokens": 67,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 2436,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 117,
+                "total_input_tokens": 117,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            }
+          },
+          {
+            "fixed_only": {
+              "success": true,
+              "duration_ms": 2382,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 67,
+                "total_input_tokens": 67,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            },
+            "fixed_plus_dynamic": {
+              "success": true,
+              "duration_ms": 2754,
+              "cache_metrics": {
+                "hit_tokens": 0,
+                "miss_tokens": 117,
+                "total_input_tokens": 117,
+                "hit_rate": 0.0,
+                "note": ""
+              },
+              "error": null
+            }
+          }
+        ]
+      }
+    ],
+    "estimated_monthly_savings": 1.19,
+    "timestamp": "2026-06-15T00:01:51.557009"
+  }
+]

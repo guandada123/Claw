@@ -1,0 +1,296 @@
+{
+  "config": {
+    "initial_capital": 30000.0,
+    "created_at": "2026-06-05",
+    "updated_at": "2026-06-18 14:18:53"
+  },
+  "cash": 11393.22,
+  "positions": {
+    "002049": {
+      "name": "紫光国微",
+      "shares": 200,
+      "avg_cost": 76.855,
+      "total_cost": 15371.0,
+      "current_price": 81.12,
+      "first_buy_date": "2026-06-05",
+      "highest_price": 81.62
+    },
+    "002601": {
+      "name": "龙佰集团",
+      "shares": 100,
+      "avg_cost": 15.74,
+      "total_cost": 1574.0,
+      "current_price": 15.46,
+      "highest_price": 15.69,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-06-16"
+    },
+    "601899": {
+      "name": "紫金矿业",
+      "shares": 100,
+      "avg_cost": 30.48,
+      "total_cost": 3048.0,
+      "current_price": 29.69,
+      "highest_price": 30.45,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-06-18"
+    }
+  },
+  "transactions": [
+    {
+      "id": "B0001",
+      "type": "BUY",
+      "code": "002049",
+      "name": "紫光国微",
+      "shares": 200,
+      "price": 76.83,
+      "commission": 5.0,
+      "total": 15371.0,
+      "time": "2026-06-05 12:55:18",
+      "date": "2026-06-05"
+    },
+    {
+      "id": "B0002",
+      "type": "BUY",
+      "code": "600460",
+      "name": "士兰微",
+      "shares": 400,
+      "price": 35.07,
+      "commission": 5.0,
+      "total": 14033.0,
+      "time": "2026-06-05 12:57:19",
+      "date": "2026-06-05"
+    },
+    {
+      "id": "S0003",
+      "type": "SELL",
+      "code": "600460",
+      "name": "士兰微",
+      "shares": 400,
+      "price": 32.15,
+      "commission": 5.0,
+      "stamp_tax": 12.86,
+      "net_proceeds": 12842.14,
+      "realized_pnl": -1190.86,
+      "pnl_pct": -8.49,
+      "reason": "触发固定止损线 -8.36% (止损线 -8%)",
+      "time": "2026-06-12 15:11:58",
+      "date": "2026-06-12"
+    },
+    {
+      "id": "B0004",
+      "type": "BUY",
+      "code": "600176",
+      "name": "中国巨石",
+      "shares": 200,
+      "price": 41.61,
+      "commission": 5.0,
+      "total": 8327.0,
+      "time": "2026-06-15 08:53:54",
+      "date": "2026-06-15"
+    },
+    {
+      "id": "B0005",
+      "type": "BUY",
+      "code": "002601",
+      "name": "龙佰集团",
+      "shares": 100,
+      "price": 15.69,
+      "commission": 5.0,
+      "total": 1574.0,
+      "time": "2026-06-16 09:20:47",
+      "date": "2026-06-16"
+    },
+    {
+      "id": "S0006",
+      "type": "SELL",
+      "code": "600176",
+      "name": "中国巨石",
+      "shares": 200,
+      "price": 54.6,
+      "commission": 5.0,
+      "stamp_tax": 10.92,
+      "net_proceeds": 10904.08,
+      "realized_pnl": 2577.08,
+      "pnl_pct": 30.95,
+      "reason": "触发≥30%减仓1/3 (当前盈利 31.14%) [new_level: 2]",
+      "time": "2026-06-17 10:24:21",
+      "date": "2026-06-17"
+    },
+    {
+      "id": "B0007",
+      "type": "BUY",
+      "code": "601899",
+      "name": "",
+      "shares": 100,
+      "price": 30.43,
+      "commission": 5.0,
+      "total": 3048.0,
+      "time": "2026-06-18 09:23:56",
+      "date": "2026-06-18"
+    }
+  ],
+  "daily_snapshot": {
+    "2026-06-11": {
+      "date": "2026-06-11",
+      "time": "2026-06-11 15:25:00",
+      "total_asset": 28152.0,
+      "cash": 596.0,
+      "market_value": 27556.0,
+      "positions": {
+        "002049": {
+          "price": 71.42,
+          "shares": 200
+        },
+        "600460": {
+          "price": 33.18,
+          "shares": 400
+        }
+      }
+    },
+    "2026-06-05": {
+      "date": "2026-06-05",
+      "time": "2026-06-05 15:26:27",
+      "total_asset": 29204.0,
+      "cash": 596.0,
+      "market_value": 28608.0,
+      "positions": {
+        "002049": {
+          "price": 75.14,
+          "shares": 200
+        },
+        "600460": {
+          "price": 33.95,
+          "shares": 400
+        }
+      }
+    },
+    "2026-06-08": {
+      "date": "2026-06-08",
+      "time": "2026-06-08 15:40:00",
+      "total_asset": 27444.0,
+      "cash": 596.0,
+      "market_value": 26848.0,
+      "positions": {
+        "002049": {
+          "price": 69.98,
+          "shares": 200
+        },
+        "600460": {
+          "price": 32.13,
+          "shares": 400
+        }
+      }
+    },
+    "2026-06-09": {
+      "date": "2026-06-09",
+      "time": "2026-06-09 20:05:00",
+      "total_asset": 29220.0,
+      "cash": 596.0,
+      "market_value": 28624.0,
+      "positions": {
+        "002049": {
+          "price": 73.68,
+          "shares": 200
+        },
+        "600460": {
+          "price": 34.72,
+          "shares": 400
+        }
+      }
+    },
+    "2026-06-10": {
+      "date": "2026-06-10",
+      "time": "2026-06-10 15:25:30",
+      "total_asset": 28608.0,
+      "cash": 596.0,
+      "market_value": 28012.0,
+      "positions": {
+        "002049": {
+          "price": 73.0,
+          "shares": 200
+        },
+        "600460": {
+          "price": 33.53,
+          "shares": 400
+        }
+      }
+    },
+    "2026-06-16": {
+      "total_asset": 30347.14,
+      "cash": 3537.14,
+      "pnl": 347.14,
+      "pnl_pct": 1.16,
+      "positions": {
+        "002049": {
+          "name": "紫光国微",
+          "shares": 200,
+          "price": 76.71,
+          "market_value": 15342.0
+        },
+        "600176": {
+          "name": "中国巨石",
+          "shares": 200,
+          "price": 49.64,
+          "market_value": 9928.0
+        },
+        "002601": {
+          "name": "龙佰集团",
+          "shares": 100,
+          "price": 15.4,
+          "market_value": 1540.0
+        }
+      },
+      "time": "2026-06-16 15:35:00"
+    },
+    "2026-06-15": {
+      "total_asset": 29217.14,
+      "cash": 5111.14,
+      "pnl": -782.86,
+      "pnl_pct": -2.61,
+      "positions": {
+        "002049": {
+          "name": "紫光国微",
+          "shares": 200,
+          "price": 74.76,
+          "market_value": 14952.0
+        },
+        "600176": {
+          "name": "中国巨石",
+          "shares": 200,
+          "price": 45.77,
+          "market_value": 9154.0
+        }
+      },
+      "time": "2026-06-15 15:38:08"
+    },
+    "2026-06-17": {
+      "total_asset": 30347.14,
+      "cash": 3537.14,
+      "pnl": 347.14,
+      "pnl_pct": 1.16,
+      "positions": {
+        "002049": {
+          "name": "紫光国微",
+          "shares": 200,
+          "price": 76.71,
+          "market_value": 15342.0
+        },
+        "600176": {
+          "name": "中国巨石",
+          "shares": 200,
+          "price": 49.64,
+          "market_value": 9928.0
+        },
+        "002601": {
+          "name": "龙佰集团",
+          "shares": 100,
+          "price": 15.4,
+          "market_value": 1540.0
+        }
+      },
+      "time": "2026-06-17 09:05:22"
+    }
+  },
+  "dividends": []
+}
