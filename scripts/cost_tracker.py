@@ -11,7 +11,6 @@ cost_tracker.py — AI调用成本追踪器（v2.1 + Prompt Cache 支持）
 """
 
 import json
-import os
 import sys
 import threading
 from datetime import datetime, date

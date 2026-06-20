@@ -11,7 +11,7 @@
 """
 import json
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 HOLIDAYS_FILE = "data/astock_holidays.json"
 

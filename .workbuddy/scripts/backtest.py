@@ -345,7 +345,7 @@ STRATEGIES = {
 # star_signal 策略集成
 try:
     import pandas as pd
-    from star_signal_adapter import fetch_kline_df, generate_backtest_signals
+    from star_signal_adapter import fetch_kline_df, generate_backtest_signals  # noqa: F401
 
     def backtest_star_signal(data: list, init_capital: float = 30000):
         """

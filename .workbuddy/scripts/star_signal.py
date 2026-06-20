@@ -397,7 +397,7 @@ def plot_signals(df: pd.DataFrame, title: str = "Star Signal Analysis"):
         title: 图表标题
     """
     try:
-        import matplotlib.dates as mdates
+        import matplotlib.dates as mdates  # noqa: F401
         import matplotlib.pyplot as plt
     except ImportError:
         print("需要安装 matplotlib: pip install matplotlib")

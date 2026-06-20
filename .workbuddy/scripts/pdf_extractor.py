@@ -35,7 +35,7 @@ class PDFExtractor:
     def _check_dependencies(self):
         """检查可用依赖"""
         try:
-            from pypdf import PdfReader
+            from pypdf import PdfReader  # noqa: F401
 
             self.has_pypdf = True
         except ImportError:
