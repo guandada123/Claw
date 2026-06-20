@@ -13,48 +13,43 @@ cost_tracker.py — AI调用成本追踪器（v2.1 + Prompt Cache 支持）
 import json
 import sys
 import threading
-from datetime import datetime, date
+from datetime import date, datetime
 from pathlib import Path
-from typing import Optional
 
 # ============================================================
 # 模型定价（¥/万Token，2026年6月）
 # ============================================================
 MODEL_PRICES = {
     # 旗舰模型
-    "claude-opus-4-20250514":    {"input": 36.0,  "output": 180.0},
-    "claude-sonnet-4-20250514":  {"input": 21.6,  "output": 108.0},
-    "gpt-5":                     {"input": 18.0,  "output": 72.0},
-    "claude-haiku-3-5":          {"input": 0.5,   "output": 1.5},
-
+    "claude-opus-4-20250514": {"input": 36.0, "output": 180.0},
+    "claude-sonnet-4-20250514": {"input": 21.6, "output": 108.0},
+    "gpt-5": {"input": 18.0, "output": 72.0},
+    "claude-haiku-3-5": {"input": 0.5, "output": 1.5},
     # DeepSeek 系列（你们的主力）
-    "deepseek-v4-pro":       {"input": 4.0,   "output": 12.0},
-    "deepseek-v4-flash":     {"input": 0.5,   "output": 1.5},
-
+    "deepseek-v4-pro": {"input": 4.0, "output": 12.0},
+    "deepseek-v4-flash": {"input": 0.5, "output": 1.5},
     # 老模型兼容
-    "gpt-4o":                {"input": 18.0,  "output": 72.0},
-    "gpt-4o-mini":           {"input": 1.1,   "output": 4.4},
-    "deepseek-v3":           {"input": 1.0,   "output": 2.0},
-
+    "gpt-4o": {"input": 18.0, "output": 72.0},
+    "gpt-4o-mini": {"input": 1.1, "output": 4.4},
+    "deepseek-v3": {"input": 1.0, "output": 2.0},
     # 本地模型（零成本）
-    "ollama-local":          {"input": 0.0,   "output": 0.0},
-    "qwen2.5-7b":            {"input": 0.0,   "output": 0.0},
-    "qwen2.5-14b":           {"input": 0.0,   "output": 0.0},
-
+    "ollama-local": {"input": 0.0, "output": 0.0},
+    "qwen2.5-7b": {"input": 0.0, "output": 0.0},
+    "qwen2.5-14b": {"input": 0.0, "output": 0.0},
     # 其他国产模型
-    "kimi-k2.6":             {"input": 8.0,   "output": 24.0},
-    "glm-5.1":               {"input": 3.5,   "output": 10.5},
-    "glm-5.0-turbo":         {"input": 3.0,   "output": 9.0},
-    "hy3-preview":           {"input": 2.0,   "output": 6.0},
-    "deepseek-reasoner":     {"input": 8.0,   "output": 24.0},
+    "kimi-k2.6": {"input": 8.0, "output": 24.0},
+    "glm-5.1": {"input": 3.5, "output": 10.5},
+    "glm-5.0-turbo": {"input": 3.0, "output": 9.0},
+    "hy3-preview": {"input": 2.0, "output": 6.0},
+    "deepseek-reasoner": {"input": 8.0, "output": 24.0},
 }
 
 # ============================================================
 # 预算约束
 # ============================================================
-MONTHLY_BUDGET_CNY = 400.0      # ¥400/月硬上限
-FLASH_LOCK_THRESHOLD = 350.0    # ¥350触发Flash锁定
-DAILY_WARNING_CNY = 25.0        # 日消费¥25告警
+MONTHLY_BUDGET_CNY = 400.0  # ¥400/月硬上限
+FLASH_LOCK_THRESHOLD = 350.0  # ¥350触发Flash锁定
+DAILY_WARNING_CNY = 25.0  # 日消费¥25告警
 
 # 日志路径（~/.ai_cost_log.jsonl）
 LOG_FILE = Path.home() / ".ai_cost_log.jsonl"
@@ -70,10 +65,16 @@ _write_lock = threading.Lock()
 # 核心追踪函数
 # ============================================================
 
-def log_call(model: str, input_tokens: int, output_tokens: int,
-             task: str = "", project: str = "",
-             prompt_cache_hit_tokens: int = None,
-             prompt_cache_miss_tokens: int = None) -> float:
+
+def log_call(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    task: str = "",
+    project: str = "",
+    prompt_cache_hit_tokens: int = None,
+    prompt_cache_miss_tokens: int = None,
+) -> float:
     """
     记录一次AI API调用（支持 Prompt Cache 指标）。
 
@@ -106,15 +107,15 @@ def log_call(model: str, input_tokens: int, output_tokens: int,
     cost = (input_tokens * prices["input"] + output_tokens * prices["output"]) / 10000
 
     record = {
-        "ts":       datetime.now().isoformat(),
-        "date":     date.today().isoformat(),
-        "model":    model,
+        "ts": datetime.now().isoformat(),
+        "date": date.today().isoformat(),
+        "model": model,
         "model_key": model_key,
-        "input":    input_tokens,
-        "output":   output_tokens,
+        "input": input_tokens,
+        "output": output_tokens,
         "cost_cny": round(cost, 6),
-        "task":     task,
-        "project":  project,
+        "task": task,
+        "project": project,
     }
 
     # 如果提供了缓存指标，追加写入日志
@@ -126,24 +127,39 @@ def log_call(model: str, input_tokens: int, output_tokens: int,
         CACHE_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with _write_lock:
             with open(CACHE_LOG_FILE, "a") as f:
-                f.write(json.dumps({
-                "ts":       record["ts"],
-                "date":     record["date"],
-                "model":    model,
-                "model_key": model_key,
-                "prompt_cache_hit_tokens": prompt_cache_hit_tokens or 0,
-                "prompt_cache_miss_tokens": prompt_cache_miss_tokens or 0,
-                "total_input_tokens": (prompt_cache_hit_tokens or 0) + (prompt_cache_miss_tokens or 0),
-                "hit_rate": round((prompt_cache_hit_tokens or 0) / max(1, (prompt_cache_hit_tokens or 0) + (prompt_cache_miss_tokens or 0)) * 100, 2),
-                "task":     task,
-                "project":  project,
-            }, ensure_ascii=False) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "ts": record["ts"],
+                            "date": record["date"],
+                            "model": model,
+                            "model_key": model_key,
+                            "prompt_cache_hit_tokens": prompt_cache_hit_tokens or 0,
+                            "prompt_cache_miss_tokens": prompt_cache_miss_tokens or 0,
+                            "total_input_tokens": (prompt_cache_hit_tokens or 0)
+                            + (prompt_cache_miss_tokens or 0),
+                            "hit_rate": round(
+                                (prompt_cache_hit_tokens or 0)
+                                / max(
+                                    1,
+                                    (prompt_cache_hit_tokens or 0)
+                                    + (prompt_cache_miss_tokens or 0),
+                                )
+                                * 100,
+                                2,
+                            ),
+                            "task": task,
+                            "project": project,
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
 
     # 追加写入主日志
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with _write_lock:
-        with open(LOG_FILE, "a") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    with _write_lock, open(LOG_FILE, "a") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     return cost
 
@@ -168,13 +184,14 @@ def _match_model(model: str) -> str:
 # 报告函数
 # ============================================================
 
+
 def _load_records(date_filter: str = None) -> list:
     """加载日志文件中符合条件的记录"""
     if not LOG_FILE.exists():
         return []
 
     records = []
-    with open(LOG_FILE, 'r', encoding='utf-8') as f:
+    with open(LOG_FILE, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -241,7 +258,7 @@ def daily_report(target_date: str = None, records: list = None) -> dict:
     print(f"   {'项目':>10}：")
     for p, c in sorted(by_project.items(), key=lambda x: -x[1]):
         print(f"     {p}: ¥{c:.4f}")
-    print(f"   模型分布：")
+    print("   模型分布：")
     for m, c in sorted(by_model.items(), key=lambda x: -x[1]):
         print(f"     {m}: ¥{c:.4f}")
 
@@ -299,23 +316,27 @@ def monthly_report(year_month: str = None) -> dict:
     print(f"   {'总花费':>10}：¥{total:.2f}")
     print(f"   {'调用次数':>10}：{len(records)}")
     print(f"   {'剩余预算':>10}：¥{remain:.2f}")
-    print(f"   {'预估月底':>10}：¥{projection:.0f} {'⚠️ 超预算!' if projection > MONTHLY_BUDGET_CNY else '✅ 预算内'}" if projection > 0 else "")
-    print(f"   模型分布：")
+    print(
+        f"   {'预估月底':>10}：¥{projection:.0f} {'⚠️ 超预算!' if projection > MONTHLY_BUDGET_CNY else '✅ 预算内'}"
+        if projection > 0
+        else ""
+    )
+    print("   模型分布：")
     for m, c in sorted(by_model.items(), key=lambda x: -x[1]):
         bar = "█" * max(1, int(c / total * 30)) if total > 0 else ""
         print(f"     {m:>20}：¥{c:<8.2f} {bar}")
-    print(f"   项目分布：")
+    print("   项目分布：")
     for p, c in sorted(by_project.items(), key=lambda x: -x[1]):
         bar = "█" * max(1, int(c / total * 30)) if total > 0 else ""
         print(f"     {p:>20}：¥{c:<8.2f} {bar}")
 
     if projection > MONTHLY_BUDGET_CNY:
         print(f"   🔴 按当前速度，月底将超预算 ¥{projection - MONTHLY_BUDGET_CNY:.0f}！")
-        print(f"      建议：立即执行 budget_guard 降级策略")
+        print("      建议：立即执行 budget_guard 降级策略")
     elif remain < (MONTHLY_BUDGET_CNY * 0.1):
-        print(f"   🟡 剩余预算不足10%，请注意控制")
+        print("   🟡 剩余预算不足10%，请注意控制")
     else:
-        print(f"   🟢 预算情况良好")
+        print("   🟢 预算情况良好")
 
     return {
         "total": total,
@@ -358,43 +379,53 @@ def top_expensive_tasks(n: int = 5) -> list:
 
 AUTO_COST_ESTIMATES = {
     # === 投资分析类（A股） ===
-    "盘前分析":       {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 800,  "freq": "日"},
-    "收盘回顾":       {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 800,  "freq": "日"},
-    "公众号投资早报": {"model": "deepseek-v4-flash", "inp_est": 4000, "out_est": 1000, "freq": "日"},
-    "财报预警":       {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 500,  "freq": "日"},
-    "股票池技术体检": {"model": "deepseek-v4-flash", "inp_est": 3500, "out_est": 1200, "freq": "周"},
-    "宏观数据周报":   {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 1500, "freq": "周"},
-    "每日复盘":       {"model": "deepseek-v4-flash", "inp_est": 3500, "out_est": 1000, "freq": "日"},
-    "文章归档索引":   {"model": "deepseek-v4-flash", "inp_est": 2000, "out_est": 300,  "freq": "日"},
-
+    "盘前分析": {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 800, "freq": "日"},
+    "收盘回顾": {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 800, "freq": "日"},
+    "公众号投资早报": {
+        "model": "deepseek-v4-flash",
+        "inp_est": 4000,
+        "out_est": 1000,
+        "freq": "日",
+    },
+    "财报预警": {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 500, "freq": "日"},
+    "股票池技术体检": {
+        "model": "deepseek-v4-flash",
+        "inp_est": 3500,
+        "out_est": 1200,
+        "freq": "周",
+    },
+    "宏观数据周报": {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 1500, "freq": "周"},
+    "每日复盘": {"model": "deepseek-v4-flash", "inp_est": 3500, "out_est": 1000, "freq": "日"},
+    "文章归档索引": {"model": "deepseek-v4-flash", "inp_est": 2000, "out_est": 300, "freq": "日"},
     # === 投顾操盘类 ===
-    "智能选股":       {"model": "kimi-k2.6",         "inp_est": 6000, "out_est": 2000, "freq": "日"},
-    "每周总结":       {"model": "glm-5.1",           "inp_est": 5000, "out_est": 2000, "freq": "周"},
-    "月度总结":       {"model": "glm-5.1",           "inp_est": 5000, "out_est": 2500, "freq": "月"},
-    "季度回顾":       {"model": "kimi-k2.6",         "inp_est": 8000, "out_est": 3000, "freq": "季"},
-    "半年回顾":       {"model": "kimi-k2.6",         "inp_est": 8000, "out_est": 3000, "freq": "半年"},
-    "年度回顾":       {"model": "kimi-k2.6",         "inp_est": 10000,"out_est": 4000, "freq": "年"},
-    "下周前瞻":       {"model": "kimi-k2.6",         "inp_est": 6000, "out_est": 2000, "freq": "周"},
-
+    "智能选股": {"model": "kimi-k2.6", "inp_est": 6000, "out_est": 2000, "freq": "日"},
+    "每周总结": {"model": "glm-5.1", "inp_est": 5000, "out_est": 2000, "freq": "周"},
+    "月度总结": {"model": "glm-5.1", "inp_est": 5000, "out_est": 2500, "freq": "月"},
+    "季度回顾": {"model": "kimi-k2.6", "inp_est": 8000, "out_est": 3000, "freq": "季"},
+    "半年回顾": {"model": "kimi-k2.6", "inp_est": 8000, "out_est": 3000, "freq": "半年"},
+    "年度回顾": {"model": "kimi-k2.6", "inp_est": 10000, "out_est": 4000, "freq": "年"},
+    "下周前瞻": {"model": "kimi-k2.6", "inp_est": 6000, "out_est": 2000, "freq": "周"},
     # === 美股 ===
-    "美股盘前分析":   {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 800,  "freq": "日"},
-    "美股收盘回顾":   {"model": "deepseek-v4-pro",   "inp_est": 4000, "out_est": 1200, "freq": "日"},
-    "美股盘中监控":   {"model": "deepseek-v4-flash", "inp_est": 2000, "out_est": 400,  "freq": "高频"},
-
+    "美股盘前分析": {"model": "deepseek-v4-flash", "inp_est": 3000, "out_est": 800, "freq": "日"},
+    "美股收盘回顾": {"model": "deepseek-v4-pro", "inp_est": 4000, "out_est": 1200, "freq": "日"},
+    "美股盘中监控": {"model": "deepseek-v4-flash", "inp_est": 2000, "out_est": 400, "freq": "高频"},
     # === 系统维护 ===
-    "信号溯源":       {"model": "deepseek-reasoner", "inp_est": 6000, "out_est": 2000, "freq": "周"},
-    "全局记忆":       {"model": "kimi-k2.6",         "inp_est": 5000, "out_est": 2000, "freq": "月"},
-    "成本监控":       {"model": "deepseek-v4-flash", "inp_est": 1500, "out_est": 400,  "freq": "日"},
-    "健康巡检":       {"model": "deepseek-v4-flash", "inp_est": 1000, "out_est": 300,  "freq": "日"},
-    "心跳检测":       {"model": "deepseek-v4-flash", "inp_est": 300,  "out_est": 100,  "freq": "时"},
-    "状态巡检":       {"model": "deepseek-v4-flash", "inp_est": 1500, "out_est": 500,  "freq": "日"},
+    "信号溯源": {"model": "deepseek-reasoner", "inp_est": 6000, "out_est": 2000, "freq": "周"},
+    "全局记忆": {"model": "kimi-k2.6", "inp_est": 5000, "out_est": 2000, "freq": "月"},
+    "成本监控": {"model": "deepseek-v4-flash", "inp_est": 1500, "out_est": 400, "freq": "日"},
+    "健康巡检": {"model": "deepseek-v4-flash", "inp_est": 1000, "out_est": 300, "freq": "日"},
+    "心跳检测": {"model": "deepseek-v4-flash", "inp_est": 300, "out_est": 100, "freq": "时"},
+    "状态巡检": {"model": "deepseek-v4-flash", "inp_est": 1500, "out_est": 500, "freq": "日"},
 }
 
 
-def log_estimate(automation_name: str, project: str = "Claw",
-                 override_model: str = None,
-                 override_inp: int = None,
-                 override_out: int = None) -> Optional[float]:
+def log_estimate(
+    automation_name: str,
+    project: str = "Claw",
+    override_model: str = None,
+    override_inp: int = None,
+    override_out: int = None,
+) -> float | None:
     """
     根据自动化名称估算本次调用成本并记录到日志文件。
 
@@ -483,17 +514,19 @@ def log_estimate_all_today(project: str = "Claw") -> float:
     print(f"\n{'=' * 50}")
     print(f"📊 全量自动化单次调用估算总成本: ¥{total_cost:.4f}")
     if logged:
-        print(f"   单次最高: ¥{max(logged, key=lambda x: x[1])[1]:.4f} ({max(logged, key=lambda x: x[1])[0]})")
-    print(f"   注意: 这是所有自动化各跑一次的成本，实际取决于触发频次")
+        print(
+            f"   单次最高: ¥{max(logged, key=lambda x: x[1])[1]:.4f} ({max(logged, key=lambda x: x[1])[0]})"
+        )
+    print("   注意: 这是所有自动化各跑一次的成本，实际取决于触发频次")
     print(f"{'=' * 50}")
 
     return total_cost
 
 
-
 # ============================================================
 # Prompt Cache 报告
 # ============================================================
+
 
 def cache_report(target_date: str = None) -> dict:
     """
@@ -587,21 +620,23 @@ def cache_report(target_date: str = None) -> dict:
     print(f"   {'─' * 50}")
     print(f"   {status} 综合缓存命中率:  {overall_hit_rate:.2f}%")
 
-    print(f"\n   模型维度:")
+    print("\n   模型维度:")
     for model, data in sorted(by_model.items(), key=lambda x: -x[1]["hit"] + x[1]["miss"]):
         rate = round(data["hit"] / max(1, data["hit"] + data["miss"]) * 100, 2)
         bar = "█" * max(1, int(rate / 5))
         print(f"     {model:>20}: {rate:>6.2f}%  ({data['hit']:,}H / {data['miss']:,}M) {bar}")
 
-    print(f"\n   任务维度:")
+    print("\n   任务维度:")
     for task, data in sorted(by_task.items(), key=lambda x: -x[1]["hit"] + x[1]["miss"]):
         rate = round(data["hit"] / max(1, data["hit"] + data["miss"]) * 100, 2)
         print(f"     {task:>20}: {rate:>6.2f}%  (调用{data['count']}次)")
 
-    print(f"\n   成本效益:")
+    print("\n   成本效益:")
     print(f"     实际成本:    ¥{actual_cost:.4f}")
     print(f"     无缓存成本: ¥{nocache_cost:.4f}")
-    print(f"     节省:       ¥{savings:.4f} ({round(savings/nocache_cost*100 if nocache_cost else 0, 1)}%)")
+    print(
+        f"     节省:       ¥{savings:.4f} ({round(savings / nocache_cost * 100 if nocache_cost else 0, 1)}%)"
+    )
     print(f"   {'=' * 50}")
 
     return {
@@ -662,13 +697,19 @@ if __name__ == "__main__":
     elif cmd == "log_cache":
         # 记录一次带缓存指标的调用（命令行调试用）
         if len(sys.argv) < 5:
-            print("用法: python cost_tracker.py log_cache <model> <hit_tokens> <miss_tokens> [task]")
+            print(
+                "用法: python cost_tracker.py log_cache <model> <hit_tokens> <miss_tokens> [task]"
+            )
             sys.exit(1)
         model = sys.argv[2]
         hit = int(sys.argv[3])
         miss = int(sys.argv[4])
         task = sys.argv[5] if len(sys.argv) > 5 else ""
-        cost = log_call(model, hit + miss, 0, task, prompt_cache_hit_tokens=hit, prompt_cache_miss_tokens=miss)
+        cost = log_call(
+            model, hit + miss, 0, task, prompt_cache_hit_tokens=hit, prompt_cache_miss_tokens=miss
+        )
         print(f"缓存记录完成: {model} hit={hit} miss={miss} → ¥{cost:.6f}")
     else:
-        print("用法: python cost_tracker.py [daily|monthly|top [N]|log <model> <in> <out> [task]|log_estimate <名称> [项目]|estimate_today [项目]|cache [日期]|log_cache <model> <hit> <miss> [task]]")
+        print(
+            "用法: python cost_tracker.py [daily|monthly|top [N]|log <model> <in> <out> [task]|log_estimate <名称> [项目]|estimate_today [项目]|cache [日期]|log_cache <model> <hit> <miss> [task]]"
+        )

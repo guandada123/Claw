@@ -72,15 +72,34 @@ STATIC_SYSTEM = """你是专业的A股投资分析助手，专注于主板和中
 # ============================================================
 
 FIELD_MAP = {
-    "stock_screen":     ["code", "name", "price", "change_pct", "volume_ratio", "pe"],
-    "single_analysis":  ["code", "name", "price", "change_pct",
-                         "ma5", "ma20", "volume", "high_52w", "low_52w",
-                         "pe", "pb", "roe", "market_cap"],
-    "market_summary":   ["index_name", "index_value", "change_pct", "volume_total"],
-    "trend_analysis":   ["close", "ma5", "ma10", "ma20", "volume", "macd", "rsi"],
-    "breakout_check":   ["high_52w", "low_52w", "current", "volume_ratio", "change_pct"],
-    "backtest_summary": ["strategy", "total_return", "max_drawdown", "win_rate",
-                         "sharpe_ratio", "trade_count", "avg_holding_days"],
+    "stock_screen": ["code", "name", "price", "change_pct", "volume_ratio", "pe"],
+    "single_analysis": [
+        "code",
+        "name",
+        "price",
+        "change_pct",
+        "ma5",
+        "ma20",
+        "volume",
+        "high_52w",
+        "low_52w",
+        "pe",
+        "pb",
+        "roe",
+        "market_cap",
+    ],
+    "market_summary": ["index_name", "index_value", "change_pct", "volume_total"],
+    "trend_analysis": ["close", "ma5", "ma10", "ma20", "volume", "macd", "rsi"],
+    "breakout_check": ["high_52w", "low_52w", "current", "volume_ratio", "change_pct"],
+    "backtest_summary": [
+        "strategy",
+        "total_return",
+        "max_drawdown",
+        "win_rate",
+        "sharpe_ratio",
+        "trade_count",
+        "avg_holding_days",
+    ],
 }
 
 
@@ -119,11 +138,11 @@ def build_prompt(task_type: str, data: dict) -> dict:
 def _get_builder(task_type: str):
     """获取对应任务类型的 prompt 构建函数"""
     builders = {
-        "stock_screen":     _build_stock_screen,
-        "single_analysis":  _build_single_analysis,
-        "market_summary":   _build_market_summary,
-        "trend_analysis":   _build_trend_analysis,
-        "breakout_check":   _build_breakout_check,
+        "stock_screen": _build_stock_screen,
+        "single_analysis": _build_single_analysis,
+        "market_summary": _build_market_summary,
+        "trend_analysis": _build_trend_analysis,
+        "breakout_check": _build_breakout_check,
         "backtest_summary": _build_backtest_summary,
     }
     return builders.get(task_type, _build_generic)
@@ -133,15 +152,18 @@ def _get_builder(task_type: str):
 # 各任务 Prompt 构建器
 # ============================================================
 
+
 def _build_stock_screen(data: dict) -> dict:
     """选股初筛 — 用压缩格式传数据"""
     stocks = data.get("stocks", [])
-    compact = _compact_stock_list(stocks, fields=["code", "name", "price", "change_pct", "volume_ratio", "pe"])
+    compact = _compact_stock_list(
+        stocks, fields=["code", "name", "price", "change_pct", "volume_ratio", "pe"]
+    )
 
     user_prompt = f"""任务：从以下股票中筛选符合条件的标的
 
-筛选条件：{data.get('criteria', '无')}
-板块/行业：{data.get('sector', '全部')}
+筛选条件：{data.get("criteria", "无")}
+板块/行业：{data.get("sector", "全部")}
 
 候选列表（关键指标）：
 {compact}"""
@@ -151,19 +173,19 @@ def _build_stock_screen(data: dict) -> dict:
 
 def _build_single_analysis(data: dict) -> dict:
     """单股分析 — 只传关键K线节点"""
-    user_prompt = f"""分析股票：{data.get('code', '?')} {data.get('name', '?')}
+    user_prompt = f"""分析股票：{data.get("code", "?")} {data.get("name", "?")}
 
-当前价位：¥{data.get('price', '?')} （{data.get('change_pct', '?')}%）
-近5日收盘：{data.get('closes_5', '无数据')}
-均线：MA5={data.get('ma5', '?')}  MA20={data.get('ma20', '?')}
-成交量：{data.get('volume', '?')}
-52周高低：¥{data.get('low_52w', '?')} ~ ¥{data.get('high_52w', '?')}
-基本面：PE={data.get('pe', '?')} PB={data.get('pb', '?')} ROE={data.get('roe', '?')}%
-流通市值：¥{_fmt_market_cap(data.get('market_cap', 0))}
+当前价位：¥{data.get("price", "?")} （{data.get("change_pct", "?")}%）
+近5日收盘：{data.get("closes_5", "无数据")}
+均线：MA5={data.get("ma5", "?")}  MA20={data.get("ma20", "?")}
+成交量：{data.get("volume", "?")}
+52周高低：¥{data.get("low_52w", "?")} ~ ¥{data.get("high_52w", "?")}
+基本面：PE={data.get("pe", "?")} PB={data.get("pb", "?")} ROE={data.get("roe", "?")}%
+流通市值：¥{_fmt_market_cap(data.get("market_cap", 0))}
 
-技术形态：{data.get('pattern', '待判断')}
-异常信号：{data.get('signal', '无')}
-关注问题：{data.get('question', '请给出操作建议')}"""
+技术形态：{data.get("pattern", "待判断")}
+异常信号：{data.get("signal", "无")}
+关注问题：{data.get("question", "请给出操作建议")}"""
 
     return _build_result(user_prompt, "single_analysis")
 
@@ -182,28 +204,28 @@ def _build_market_summary(data: dict) -> dict:
 
 def _build_trend_analysis(data: dict) -> dict:
     """趋势分析 — 只传趋势相关指标"""
-    user_prompt = f"""趋势分析：{data.get('code', '?')} {data.get('name', '?')}
+    user_prompt = f"""趋势分析：{data.get("code", "?")} {data.get("name", "?")}
 
-收盘价序列：{data.get('close', '?')}
-均值：MA5={data.get('ma5', '?')} MA10={data.get('ma10', '?')} MA20={data.get('ma20', '?')}
-MACD：{data.get('macd', '?')}  RSI(14)：{data.get('rsi', '?')}
-成交量：{data.get('volume', '?')}
-技术判断：{data.get('question', '当前趋势如何？')}"""
+收盘价序列：{data.get("close", "?")}
+均值：MA5={data.get("ma5", "?")} MA10={data.get("ma10", "?")} MA20={data.get("ma20", "?")}
+MACD：{data.get("macd", "?")}  RSI(14)：{data.get("rsi", "?")}
+成交量：{data.get("volume", "?")}
+技术判断：{data.get("question", "当前趋势如何？")}"""
 
     return _build_result(user_prompt, "trend_analysis")
 
 
 def _build_breakout_check(data: dict) -> dict:
     """突破判断 — 聚焦关键价格位"""
-    user_prompt = f"""突破信号检查：{data.get('code', '?')} {data.get('name', '?')}
+    user_prompt = f"""突破信号检查：{data.get("code", "?")} {data.get("name", "?")}
 
-当前价：¥{data.get('current', '?')}
-52周最高：¥{data.get('high_52w', '?')}
-52周最低：¥{data.get('low_52w', '?')}
-量比：{data.get('volume_ratio', '?')}
-涨幅：{data.get('change_pct', '?')}%
+当前价：¥{data.get("current", "?")}
+52周最高：¥{data.get("high_52w", "?")}
+52周最低：¥{data.get("low_52w", "?")}
+量比：{data.get("volume_ratio", "?")}
+涨幅：{data.get("change_pct", "?")}%
 
-距高点：{((data.get('current', 0) - data.get('high_52w', 0)) / max(data.get('high_52w', 1), 0.01) * 100):.1f}%
+距高点：{((data.get("current", 0) - data.get("high_52w", 0)) / max(data.get("high_52w", 1), 0.01) * 100):.1f}%
 是否符合突破条件？"""
 
     return _build_result(user_prompt, "breakout_check")
@@ -213,14 +235,14 @@ def _build_backtest_summary(data: dict) -> dict:
     """回测结果总结"""
     user_prompt = f"""回测结果分析
 
-策略：{data.get('strategy', '?')}
-周期：{data.get('period', '?')}
-总收益率：{data.get('total_return', '?')}%
-最大回撤：{data.get('max_drawdown', '?')}%
-胜率：{data.get('win_rate', '?')}%
-夏普比率：{data.get('sharpe_ratio', '?')}
-交易次数：{data.get('trade_count', '?')}
-平均持仓天数：{data.get('avg_holding_days', '?')}
+策略：{data.get("strategy", "?")}
+周期：{data.get("period", "?")}
+总收益率：{data.get("total_return", "?")}%
+最大回撤：{data.get("max_drawdown", "?")}%
+胜率：{data.get("win_rate", "?")}%
+夏普比率：{data.get("sharpe_ratio", "?")}
+交易次数：{data.get("trade_count", "?")}
+平均持仓天数：{data.get("avg_holding_days", "?")}
 
 请评估策略表现并给出改进建议。"""
 
@@ -238,7 +260,7 @@ def _build_generic(data: dict) -> dict:
 # ============================================================
 
 STATIC_TOKEN_ESTIMATE = 680  # 静态提示词约680 Token（中文）
-OVERHEAD_PER_CALL = 50       # 每次调用的固定开销
+OVERHEAD_PER_CALL = 50  # 每次调用的固定开销
 
 
 def _build_result(user_prompt: str, task_type: str) -> dict:
@@ -299,7 +321,7 @@ def _fmt_market_cap(cap: float) -> str:
     """格式化市值（亿/万）"""
     if cap >= 100_0000:  # 亿
         return f"{cap / 10000:.0f}亿"
-    elif cap >= 10000:   # 万
+    elif cap >= 10000:  # 万
         return f"{cap:.0f}万"
     return f"{cap:.0f}"
 
@@ -308,6 +330,7 @@ def _fmt_market_cap(cap: float) -> str:
 # 测试
 # ============================================================
 
+
 def test_builders():
     """测试各任务类型的 Prompt 构建"""
     print("=" * 50)
@@ -315,33 +338,59 @@ def test_builders():
     print("=" * 50)
 
     # 测试选股初筛
-    result = build_prompt("stock_screen", {
-        "sector": "半导体",
-        "criteria": "量价背离，成交量放大50%以上",
-        "stocks": [
-            {"code": "600123", "name": "兰花科创", "price": 12.34,
-             "change_pct": 3.2, "volume_ratio": 1.5, "pe": 8.5},
-            {"code": "600456", "name": "宝钛股份", "price": 28.90,
-             "change_pct": -1.2, "volume_ratio": 0.8, "pe": 35.2},
-        ],
-    })
+    result = build_prompt(
+        "stock_screen",
+        {
+            "sector": "半导体",
+            "criteria": "量价背离，成交量放大50%以上",
+            "stocks": [
+                {
+                    "code": "600123",
+                    "name": "兰花科创",
+                    "price": 12.34,
+                    "change_pct": 3.2,
+                    "volume_ratio": 1.5,
+                    "pe": 8.5,
+                },
+                {
+                    "code": "600456",
+                    "name": "宝钛股份",
+                    "price": 28.90,
+                    "change_pct": -1.2,
+                    "volume_ratio": 0.8,
+                    "pe": 35.2,
+                },
+            ],
+        },
+    )
     print(f"\n📋 stock_screen: ~{result['estimated_tokens']} Token")
     print(f"   缓存可用: {result['has_cache']}")
     print(f"   User prompt 预览:\n{result['user_prompt'][:200]}...")
 
     # 测试单股分析
-    result2 = build_prompt("single_analysis", {
-        "code": "000001", "name": "平安银行",
-        "price": 12.52, "change_pct": 2.1,
-        "closes_5": "12.1, 12.3, 12.4, 12.5, 12.52",
-        "ma5": 12.35, "ma20": 11.80,
-        "volume": "15.2亿", "high_52w": 14.80, "low_52w": 10.20,
-        "pe": 5.2, "pb": 0.6, "roe": 11.5, "market_cap": 2430_0000,
-        "question": "是否适合入场？",
-    })
+    result2 = build_prompt(
+        "single_analysis",
+        {
+            "code": "000001",
+            "name": "平安银行",
+            "price": 12.52,
+            "change_pct": 2.1,
+            "closes_5": "12.1, 12.3, 12.4, 12.5, 12.52",
+            "ma5": 12.35,
+            "ma20": 11.80,
+            "volume": "15.2亿",
+            "high_52w": 14.80,
+            "low_52w": 10.20,
+            "pe": 5.2,
+            "pb": 0.6,
+            "roe": 11.5,
+            "market_cap": 2430_0000,
+            "question": "是否适合入场？",
+        },
+    )
     print(f"\n📋 single_analysis: ~{result2['estimated_tokens']} Token")
     print(f"   缓存可用: {result2['has_cache']}")
-    print(f"   节省比例(对比全量): ~{(2000 - result2['estimated_tokens'])/2000*100:.0f}%")
+    print(f"   节省比例(对比全量): ~{(2000 - result2['estimated_tokens']) / 2000 * 100:.0f}%")
 
     print(f"\n{'=' * 50}")
     print("  测试完成")
@@ -350,6 +399,7 @@ def test_builders():
 
 if __name__ == "__main__":
     import sys
+
     cmd = sys.argv[1] if len(sys.argv) > 1 else "test"
 
     if cmd == "test":
@@ -358,6 +408,7 @@ if __name__ == "__main__":
         # 自定义构建
         task_type = cmd
         import json
+
         data = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
         result = build_prompt(task_type, data)
         print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -38,39 +38,67 @@ PORTFOLIO_FILE = DATA_DIR / "portfolio.json"
 # ============================================================
 
 # 策略信号信心阈值（COMBO 综合得分，范围 -1~1）
-BUY_THRESHOLD = 0.2      # 买入信号阈值
+BUY_THRESHOLD = 0.2  # 买入信号阈值
 STRONG_BUY_THRESHOLD = 0.4  # 强烈买入阈值
 
 # 风险参数
-MAX_POSITIONS = 3         # 最大持仓数
-MAX_SINGLE_PCT = 0.50     # 单只最大仓位50%
-MAX_SECTOR_PCT = 0.40     # 同行业最大仓位40%
-MIN_CASH_RESERVE = 3000   # 最低现金保留 ¥3,000
+MAX_POSITIONS = 3  # 最大持仓数
+MAX_SINGLE_PCT = 0.50  # 单只最大仓位50%
+MAX_SECTOR_PCT = 0.40  # 同行业最大仓位40%
+MIN_CASH_RESERVE = 3000  # 最低现金保留 ¥3,000
 PORTFOLIO_TARGET = 39000  # 月度目标 30% = ¥39,000
-TOTAL_CAPITAL = 30000     # 初始本金
+TOTAL_CAPITAL = 30000  # 初始本金
 
 # 行业映射（简化版）
 INDUSTRY_MAP = {
-    "002049": "科技/半导体", "600206": "科技/半导体", "688981": "科技/半导体",
-    "600570": "科技/半导体", "600498": "通信/电子", "000725": "通信/电子",
-    "600522": "通信/电子", "002415": "通信/电子", "002230": "AI/科技",
-    "000001": "金融", "601318": "金融", "600036": "金融",
-    "000333": "消费", "600519": "消费", "000858": "消费", "600887": "消费",
+    "002049": "科技/半导体",
+    "600206": "科技/半导体",
+    "688981": "科技/半导体",
+    "600570": "科技/半导体",
+    "600498": "通信/电子",
+    "000725": "通信/电子",
+    "600522": "通信/电子",
+    "002415": "通信/电子",
+    "002230": "AI/科技",
+    "000001": "金融",
+    "601318": "金融",
+    "600036": "金融",
+    "000333": "消费",
+    "600519": "消费",
+    "000858": "消费",
+    "600887": "消费",
     "600276": "医药",
-    "002601": "周期/资源", "600585": "建材", "600893": "军工/制造",
-    "601899": "周期/资源", "300750": "新能源/制造",
+    "002601": "周期/资源",
+    "600585": "建材",
+    "600893": "军工/制造",
+    "601899": "周期/资源",
+    "300750": "新能源/制造",
 }
 
 # 股票名称映射
 STOCK_NAMES = {
-    "002049": "紫光国微", "600498": "烽火通信", "000725": "京东方A",
-    "600522": "中天科技", "002601": "龙佰集团", "600206": "有研新材",
-    "000001": "平安银行", "000333": "美的集团", "002415": "海康威视",
-    "600519": "贵州茅台", "601318": "中国平安", "000858": "五粮液",
-    "600036": "招商银行", "600276": "恒瑞医药", "600887": "伊利股份",
-    "600570": "恒生电子", "600585": "海螺水泥", "600893": "航发动力",
-    "601899": "紫金矿业", "002230": "科大讯飞",
-    "300750": "宁德时代", "688981": "中芯国际",
+    "002049": "紫光国微",
+    "600498": "烽火通信",
+    "000725": "京东方A",
+    "600522": "中天科技",
+    "002601": "龙佰集团",
+    "600206": "有研新材",
+    "000001": "平安银行",
+    "000333": "美的集团",
+    "002415": "海康威视",
+    "600519": "贵州茅台",
+    "601318": "中国平安",
+    "000858": "五粮液",
+    "600036": "招商银行",
+    "600276": "恒瑞医药",
+    "600887": "伊利股份",
+    "600570": "恒生电子",
+    "600585": "海螺水泥",
+    "600893": "航发动力",
+    "601899": "紫金矿业",
+    "002230": "科大讯飞",
+    "300750": "宁德时代",
+    "688981": "中芯国际",
 }
 
 # 受限板块前缀
@@ -94,12 +122,17 @@ def today_str():
 # 策略库集成（v2.1 新增）
 # ============================================================
 
+
 def load_strategy_library() -> dict:
     """读取策略库"""
     if STRATEGY_LIBRARY_FILE.exists():
         return json.loads(STRATEGY_LIBRARY_FILE.read_text())
-    return {"loss_patterns_to_avoid": [], "high_win_rate_patterns": [],
-            "risk_control_rules": {}, "scoring_thresholds": {}}
+    return {
+        "loss_patterns_to_avoid": [],
+        "high_win_rate_patterns": [],
+        "risk_control_rules": {},
+        "scoring_thresholds": {},
+    }
 
 
 def load_decision_log() -> list:
@@ -171,9 +204,17 @@ def check_cross_portfolio_concentration(code: str, industry: str, positions: dic
 # 决策反馈（v2.1 新增）
 # ============================================================
 
-def auto_feedback_decision(trade_type: str, code: str, name: str,
-                           price: float, shares: int, reason: str,
-                           signal_score: float = 0, strategy_tag: str = "combo_signal"):
+
+def auto_feedback_decision(
+    trade_type: str,
+    code: str,
+    name: str,
+    price: float,
+    shares: int,
+    reason: str,
+    signal_score: float = 0,
+    strategy_tag: str = "combo_signal",
+):
     """
     自动记录决策到 decision_log.json
     供 AI 自动化在买入/卖出后调用
@@ -197,13 +238,23 @@ def auto_feedback_decision(trade_type: str, code: str, name: str,
     elif trade_type == "SELL":
         # 找到对应买入记录，更新卖出信息
         for prev in log:
-            if prev.get("code") == code and prev.get("trade_type") == "BUY" and prev.get("status") == "open":
+            if (
+                prev.get("code") == code
+                and prev.get("trade_type") == "BUY"
+                and prev.get("status") == "open"
+            ):
                 prev["status"] = "closed"
                 prev["close_price"] = price
                 prev["close_reason"] = reason
                 prev["close_date"] = today_str()
-                prev["hold_days"] = (date.today() - date.fromisoformat(prev.get("date", today_str()))).days if prev.get("date") else 0
-                prev["realized_pnl"] = round((price - prev["price"]) * min(shares, prev["shares"]), 2)
+                prev["hold_days"] = (
+                    (date.today() - date.fromisoformat(prev.get("date", today_str()))).days
+                    if prev.get("date")
+                    else 0
+                )
+                prev["realized_pnl"] = round(
+                    (price - prev["price"]) * min(shares, prev["shares"]), 2
+                )
                 prev["realized_pnl_pct"] = round((price - prev["price"]) / prev["price"] * 100, 2)
                 break
 
@@ -261,21 +312,25 @@ def cmd_decision_feedback() -> dict:
     loss_patterns = []
     for tag, data in perf.items():
         if data["total_trades"] >= 2 and data["win_rate"] >= 60:
-            high_win_patterns.append({
-                "strategy_tag": tag,
-                "win_rate": data["win_rate"],
-                "total_trades": data["total_trades"],
-                "avg_pnl": data["avg_pnl_per_trade"],
-                "source": "decision_log_auto",
-            })
+            high_win_patterns.append(
+                {
+                    "strategy_tag": tag,
+                    "win_rate": data["win_rate"],
+                    "total_trades": data["total_trades"],
+                    "avg_pnl": data["avg_pnl_per_trade"],
+                    "source": "decision_log_auto",
+                }
+            )
         if data["total_trades"] >= 2 and data["win_rate"] <= 30:
-            loss_patterns.append({
-                "strategy_tag": tag,
-                "win_rate": data["win_rate"],
-                "total_trades": data["total_trades"],
-                "avg_pnl": data["avg_pnl_per_trade"],
-                "source": "decision_log_auto",
-            })
+            loss_patterns.append(
+                {
+                    "strategy_tag": tag,
+                    "win_rate": data["win_rate"],
+                    "total_trades": data["total_trades"],
+                    "avg_pnl": data["avg_pnl_per_trade"],
+                    "source": "decision_log_auto",
+                }
+            )
 
     # 写入 strategy_library
     library["high_win_rate_patterns"] = high_win_patterns
@@ -285,8 +340,13 @@ def cmd_decision_feedback() -> dict:
         "tag_performance": perf,
         "total_closed_trades": len(closed_trades),
         "overall_win_rate": round(
-            sum(1 for t in closed_trades if t.get("realized_pnl", 0) > 0) / len(closed_trades) * 100, 1
-        ) if closed_trades else 0,
+            sum(1 for t in closed_trades if t.get("realized_pnl", 0) > 0)
+            / len(closed_trades)
+            * 100,
+            1,
+        )
+        if closed_trades
+        else 0,
     }
     library["updated_at"] = now()
     library["updated_by"] = "signal_advisor_auto"
@@ -305,6 +365,7 @@ def cmd_decision_feedback() -> dict:
 # 1. 读取信号数据
 # ============================================================
 
+
 def get_latest_signals_from_quant() -> dict | None:
     """
     通过 docker exec 调用 Quant 管线获取最新策略信号
@@ -314,19 +375,25 @@ def get_latest_signals_from_quant() -> dict | None:
         # 尝试在容器内运行管线，获取最新信号
         result = subprocess.run(
             [
-                "docker", "exec", "quant-strategy", "python3",
+                "docker",
+                "exec",
+                "quant-strategy",
+                "python3",
                 "/app/scripts/live_pipeline.py",
-                "--output", "/tmp/live_signals_advisor.json",
+                "--output",
+                "/tmp/live_signals_advisor.json",
             ],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         if result.returncode == 0:
             # 复制回来
             local_path = OUTPUT_DIR / "live_signals_advisor_latest.json"
             subprocess.run(
-                ["docker", "cp", "quant-strategy:/tmp/live_signals_advisor.json",
-                 str(local_path)],
-                capture_output=True, timeout=10,
+                ["docker", "cp", "quant-strategy:/tmp/live_signals_advisor.json", str(local_path)],
+                capture_output=True,
+                timeout=10,
             )
             if local_path.exists():
                 data = json.loads(local_path.read_text())
@@ -351,8 +418,12 @@ def run_quant_signal_for_stock(ts_code: str) -> dict | None:
     try:
         result = subprocess.run(
             [
-                "docker", "exec", "quant-strategy", "python3",
-                "-c", f"""
+                "docker",
+                "exec",
+                "quant-strategy",
+                "python3",
+                "-c",
+                f"""
 import sys, json
 sys.path.insert(0, '/app')
 from services.backtest_engine_v2 import EnhancedBacktestEngine, BacktestConfig
@@ -376,7 +447,9 @@ print(json.dumps({{
 }}))
 """,
             ],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode == 0:
             return json.loads(result.stdout.strip())
@@ -388,6 +461,7 @@ print(json.dumps({{
 # ============================================================
 # 2. 读取当前投顾持仓
 # ============================================================
+
 
 def load_portfolio() -> dict:
     """读取当前模拟盘持仓"""
@@ -415,6 +489,7 @@ def check_restricted(code: str) -> bool:
 # 3. 分析 & 建议
 # ============================================================
 
+
 def analyze_candidates(signals: dict, portfolio: dict) -> dict:
     """
     分析信号数据，结合持仓状态，输出建议
@@ -423,8 +498,7 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
     positions = pf.get("positions", {})
     cash = pf.get("cash", 0)
     total_asset = cash + sum(
-        pos["shares"] * pos.get("current_price", pos["avg_cost"])
-        for pos in positions.values()
+        pos["shares"] * pos.get("current_price", pos["avg_cost"]) for pos in positions.values()
     )
     held_codes = set(positions.keys())
     position_count = len(positions)
@@ -465,20 +539,28 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
         bbr_signal = s.get("bbr_signal", 0)
         adx_signal = s.get("adx_signal", 0)
 
-        candidates.append({
-            "code": code,
-            "ts_code": code_full,
-            "name": STOCK_NAMES.get(code, code),
-            "industry": INDUSTRY_MAP.get(code, "其他"),
-            "combo_confidence": round(confidence, 3),
-            "vwm_signal": round(vwm_signal, 3) if isinstance(vwm_signal, (int, float)) else vwm_signal,
-            "bbr_signal": round(bbr_signal, 3) if isinstance(bbr_signal, (int, float)) else bbr_signal,
-            "adx_signal": round(adx_signal, 3) if isinstance(adx_signal, (int, float)) else adx_signal,
-            "current_price": s.get("current_price", 0),
-            "current_price_change": s.get("current_price_change", 0),
-            "volume_ratio": s.get("volume_ratio", 0),
-            "signal_type": s.get("signal_type", "BUY"),
-        })
+        candidates.append(
+            {
+                "code": code,
+                "ts_code": code_full,
+                "name": STOCK_NAMES.get(code, code),
+                "industry": INDUSTRY_MAP.get(code, "其他"),
+                "combo_confidence": round(confidence, 3),
+                "vwm_signal": round(vwm_signal, 3)
+                if isinstance(vwm_signal, (int, float))
+                else vwm_signal,
+                "bbr_signal": round(bbr_signal, 3)
+                if isinstance(bbr_signal, (int, float))
+                else bbr_signal,
+                "adx_signal": round(adx_signal, 3)
+                if isinstance(adx_signal, (int, float))
+                else adx_signal,
+                "current_price": s.get("current_price", 0),
+                "current_price_change": s.get("current_price_change", 0),
+                "volume_ratio": s.get("volume_ratio", 0),
+                "signal_type": s.get("signal_type", "BUY"),
+            }
+        )
 
     # 按 COMBO 信心排序（降序）
     candidates.sort(key=lambda x: x["combo_confidence"], reverse=True)
@@ -502,8 +584,10 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
         # 检查行业集中度
         cur_sector_pct = sector_load.get(c["industry"], 0) / total_asset if total_asset > 0 else 0
         if cur_sector_pct >= MAX_SECTOR_PCT:
-            logger.info(f"  ⛔ {c['name']} 行业 '{c['industry']}' 已达上限 {MAX_SECTOR_PCT*100:.0f}%")
-            c["skip_reason"] = f"行业集中度上限 {MAX_SECTOR_PCT*100:.0f}%"
+            logger.info(
+                f"  ⛔ {c['name']} 行业 '{c['industry']}' 已达上限 {MAX_SECTOR_PCT * 100:.0f}%"
+            )
+            c["skip_reason"] = f"行业集中度上限 {MAX_SECTOR_PCT * 100:.0f}%"
             continue
 
         # 策略库拦截检查（v2.1 新增）
@@ -552,26 +636,30 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
                     confidence = float(confidence)
                 except (ValueError, TypeError):
                     confidence = 0
-            sell_analysis.append({
-                "code": code,
-                "name": STOCK_NAMES.get(code, code),
-                "combo_signal": round(confidence, 3),
-                "reason": s.get("signal_type", "SELL"),
-                "current_price": s.get("current_price", 0),
-            })
+            sell_analysis.append(
+                {
+                    "code": code,
+                    "name": STOCK_NAMES.get(code, code),
+                    "combo_signal": round(confidence, 3),
+                    "reason": s.get("signal_type", "SELL"),
+                    "current_price": s.get("current_price", 0),
+                }
+            )
 
     # 集中度预警
     concentration_alerts = []
     for ind, mv in sector_values.items():
         pct = mv / total_asset * 100 if total_asset > 0 else 0
         if pct > MAX_SECTOR_PCT * 100:
-            concentration_alerts.append({
-                "industry": ind,
-                "market_value": round(mv, 2),
-                "pct": round(pct, 1),
-                "limit": MAX_SECTOR_PCT * 100,
-                "status": "🚨 超限",
-            })
+            concentration_alerts.append(
+                {
+                    "industry": ind,
+                    "market_value": round(mv, 2),
+                    "pct": round(pct, 1),
+                    "limit": MAX_SECTOR_PCT * 100,
+                    "status": "🚨 超限",
+                }
+            )
 
     return {
         "timestamp": now(),
@@ -602,7 +690,10 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
                 "cost": pos["avg_cost"],
                 "current_price": pos.get("current_price", pos["avg_cost"]),
                 "pnl_pct": round(
-                    (pos.get("current_price", pos["avg_cost"]) - pos["avg_cost"]) / pos["avg_cost"] * 100, 2
+                    (pos.get("current_price", pos["avg_cost"]) - pos["avg_cost"])
+                    / pos["avg_cost"]
+                    * 100,
+                    2,
                 ),
                 "industry": INDUSTRY_MAP.get(code, "其他"),
             }
@@ -614,6 +705,7 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
 # ============================================================
 # 4. 单股深度扫描（智能选股用）
 # ============================================================
+
 
 def scan_candidate_pool(codes: list[str]) -> list[dict]:
     """
@@ -631,33 +723,37 @@ def scan_candidate_pool(codes: list[str]) -> list[dict]:
         # 尝试从 Quant 获取信号
         signal_data = run_quant_signal_for_stock(ts_code)
         if signal_data:
-            results.append({
-                "code": code,
-                "name": STOCK_NAMES.get(code, code),
-                "industry": INDUSTRY_MAP.get(code, "其他"),
-                "ts_code": ts_code,
-                "combo_total_return": signal_data.get("total_return", 0),
-                "combo_sharpe": signal_data.get("sharpe", 0),
-                "combo_max_drawdown": signal_data.get("max_dd", 0),
-                "combo_total_trades": signal_data.get("total_trades", 0),
-                "combo_win_rate": signal_data.get("win_rate", 0),
-                "latest_signal": signal_data.get("latest_signal", {}).get("signal", "HOLD"),
-            })
+            results.append(
+                {
+                    "code": code,
+                    "name": STOCK_NAMES.get(code, code),
+                    "industry": INDUSTRY_MAP.get(code, "其他"),
+                    "ts_code": ts_code,
+                    "combo_total_return": signal_data.get("total_return", 0),
+                    "combo_sharpe": signal_data.get("sharpe", 0),
+                    "combo_max_drawdown": signal_data.get("max_dd", 0),
+                    "combo_total_trades": signal_data.get("total_trades", 0),
+                    "combo_win_rate": signal_data.get("win_rate", 0),
+                    "latest_signal": signal_data.get("latest_signal", {}).get("signal", "HOLD"),
+                }
+            )
         else:
             # 回退：无信号
-            results.append({
-                "code": code,
-                "name": STOCK_NAMES.get(code, code),
-                "industry": INDUSTRY_MAP.get(code, "其他"),
-                "ts_code": ts_code,
-                "combo_total_return": 0,
-                "combo_sharpe": 0,
-                "combo_max_drawdown": 0,
-                "combo_total_trades": 0,
-                "combo_win_rate": 0,
-                "latest_signal": "N/A",
-                "error": "Quant 信号不可用",
-            })
+            results.append(
+                {
+                    "code": code,
+                    "name": STOCK_NAMES.get(code, code),
+                    "industry": INDUSTRY_MAP.get(code, "其他"),
+                    "ts_code": ts_code,
+                    "combo_total_return": 0,
+                    "combo_sharpe": 0,
+                    "combo_max_drawdown": 0,
+                    "combo_total_trades": 0,
+                    "combo_win_rate": 0,
+                    "latest_signal": "N/A",
+                    "error": "Quant 信号不可用",
+                }
+            )
 
     # 按 COMBO 收益率排序
     results.sort(key=lambda x: x.get("combo_total_return", 0), reverse=True)
@@ -670,7 +766,7 @@ def scan_candidate_pool(codes: list[str]) -> list[dict]:
 
 # 再平衡目标行业分布
 TARGET_SECTOR_ALLOCATION = {
-    "科技/半导体": 0.25,     # 目标 25%
+    "科技/半导体": 0.25,  # 目标 25%
     "通信/电子": 0.15,
     "金融": 0.15,
     "消费": 0.15,
@@ -689,15 +785,13 @@ def cmd_rebalance() -> dict:
     positions = portfolio.get("positions", {})
     cash = portfolio.get("cash", 0)
     total_asset = cash + sum(
-        pos["shares"] * pos.get("current_price", pos["avg_cost"])
-        for pos in positions.values()
+        pos["shares"] * pos.get("current_price", pos["avg_cost"]) for pos in positions.values()
     )
 
     # 1. 当前行业分布
     sector_values = get_industry_market_value(positions)
     sector_pcts = {
-        ind: mv / total_asset * 100 if total_asset > 0 else 0
-        for ind, mv in sector_values.items()
+        ind: mv / total_asset * 100 if total_asset > 0 else 0 for ind, mv in sector_values.items()
     }
 
     # 2. 需要减仓的行业
@@ -707,14 +801,16 @@ def cmd_rebalance() -> dict:
         if pct > target:
             # 该行业超配 → 找该行业持仓中表现最差的建议减仓
             ind_positions = [
-                (code, pos) for code, pos in positions.items()
+                (code, pos)
+                for code, pos in positions.items()
                 if INDUSTRY_MAP.get(code, "其他") == ind
             ]
             # 按 PnL 排序（最差优先）
             ind_positions.sort(
                 key=lambda x: (
-                    x[1].get("current_price", x[1]["avg_cost"]) - x[1]["avg_cost"]
-                ) / x[1]["avg_cost"]
+                    (x[1].get("current_price", x[1]["avg_cost"]) - x[1]["avg_cost"])
+                    / x[1]["avg_cost"]
+                )
             )
 
             excess_pct = pct - target
@@ -728,24 +824,29 @@ def cmd_rebalance() -> dict:
 
                 pnl_pct = (
                     (pos.get("current_price", pos["avg_cost"]) - pos["avg_cost"])
-                    / pos["avg_cost"] * 100
+                    / pos["avg_cost"]
+                    * 100
                 )
                 sell_shares = min(
                     int(sell_pct / pos.get("current_price", pos["avg_cost"]) / 100) * 100,
                     pos["shares"],
                 )
                 if sell_shares >= 100:
-                    sell_candidates.append({
-                        "code": code,
-                        "name": pos["name"],
-                        "industry": ind,
-                        "current_price": pos.get("current_price", pos["avg_cost"]),
-                        "current_shares": pos["shares"],
-                        "suggested_sell_shares": sell_shares,
-                        "suggested_sell_value": round(sell_shares * pos.get("current_price", pos["avg_cost"]), 2),
-                        "pnl_pct": round(pnl_pct, 2),
-                        "reason": f"行业 {ind} 超配 {pct:.1f}% 目标 {target:.0f}%，建议减持 {ind} 头寸",
-                    })
+                    sell_candidates.append(
+                        {
+                            "code": code,
+                            "name": pos["name"],
+                            "industry": ind,
+                            "current_price": pos.get("current_price", pos["avg_cost"]),
+                            "current_shares": pos["shares"],
+                            "suggested_sell_shares": sell_shares,
+                            "suggested_sell_value": round(
+                                sell_shares * pos.get("current_price", pos["avg_cost"]), 2
+                            ),
+                            "pnl_pct": round(pnl_pct, 2),
+                            "reason": f"行业 {ind} 超配 {pct:.1f}% 目标 {target:.0f}%，建议减持 {ind} 头寸",
+                        }
+                    )
                     excess_value -= sell_pct
                 if excess_value <= 0:
                     break
@@ -789,15 +890,17 @@ def cmd_rebalance() -> dict:
                         new_ind_value = cur_ind_value + shares * price
                         new_ind_pct = new_ind_value / total_asset * 100
                         if new_ind_pct <= TARGET_SECTOR_ALLOCATION.get(ind, 0.05) * 100 + 10:
-                            rebalance_buys.append({
-                                "code": code,
-                                "name": STOCK_NAMES.get(code, code),
-                                "industry": ind,
-                                "combo_confidence": round(confidence, 3),
-                                "suggested_buy_shares": shares,
-                                "suggested_buy_value": round(shares * price, 2),
-                                "current_price": price,
-                            })
+                            rebalance_buys.append(
+                                {
+                                    "code": code,
+                                    "name": STOCK_NAMES.get(code, code),
+                                    "industry": ind,
+                                    "combo_confidence": round(confidence, 3),
+                                    "suggested_buy_shares": shares,
+                                    "suggested_buy_value": round(shares * price, 2),
+                                    "current_price": price,
+                                }
+                            )
                             freed_cash -= shares * price
                             if freed_cash < price * 100:
                                 break
@@ -837,6 +940,7 @@ def cmd_rebalance() -> dict:
 # 6. CLI
 # ============================================================
 
+
 def push_to_feishu(advice: dict):
     """推送选股建议到飞书"""
     summary = advice["summary"]
@@ -864,11 +968,22 @@ def push_to_feishu(advice: dict):
 
     try:
         subprocess.run(
-            ["lark-cli", "im", "message", "send",
-             "--chat-id", "oc_9ee5303497f5e0e71666b610d6bdc346",
-             "--content", msg,
-             "--msg-type", "text", "--as", "bot"],
-            capture_output=True, timeout=15,
+            [
+                "lark-cli",
+                "im",
+                "message",
+                "send",
+                "--chat-id",
+                "oc_9ee5303497f5e0e71666b610d6bdc346",
+                "--content",
+                msg,
+                "--msg-type",
+                "text",
+                "--as",
+                "bot",
+            ],
+            capture_output=True,
+            timeout=15,
         )
         logger.info("✅ 飞书推送完成")
     except Exception as e:
@@ -877,6 +992,7 @@ def push_to_feishu(advice: dict):
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="投顾操盘信号选股顾问")
     parser.add_argument("--debug", action="store_true", help="详细日志")
     parser.add_argument("--threshold", type=float, default=BUY_THRESHOLD, help="买入信心阈值")

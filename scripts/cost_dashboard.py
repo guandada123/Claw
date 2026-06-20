@@ -14,9 +14,9 @@ cost_dashboard.py — 成本追踪可视化仪表盘生成器
 
 import json
 import sys
-from datetime import datetime, date, timedelta
-from pathlib import Path
 from collections import defaultdict
+from datetime import date, datetime, timedelta
+from pathlib import Path
 
 # ============================================================
 # 数据源
@@ -34,10 +34,10 @@ DAILY_WARNING_CNY = 25.0
 sys.path.insert(0, str(SCRIPTS_DIR))
 from cost_tracker import AUTO_COST_ESTIMATES, MODEL_PRICES
 
-
 # ============================================================
 # 数据加载
 # ============================================================
+
 
 def load_cost_records() -> list:
     """加载所有实际成本记录"""
@@ -81,8 +81,7 @@ def get_model_distribution(records: list) -> list:
         m = r.get("model_key", r.get("model", "未知"))
         by_model[m] += r.get("cost_cny", 0)
     return sorted(
-        [{"name": k, "cost": round(v, 6)} for k, v in by_model.items()],
-        key=lambda x: -x["cost"]
+        [{"name": k, "cost": round(v, 6)} for k, v in by_model.items()], key=lambda x: -x["cost"]
     )
 
 
@@ -93,8 +92,7 @@ def get_project_distribution(records: list) -> list:
         p = r.get("project", "未知")
         by_project[p] += r.get("cost_cny", 0)
     return sorted(
-        [{"name": k, "cost": round(v, 6)} for k, v in by_project.items()],
-        key=lambda x: -x["cost"]
+        [{"name": k, "cost": round(v, 6)} for k, v in by_project.items()], key=lambda x: -x["cost"]
     )
 
 
@@ -139,14 +137,16 @@ def get_automation_estimates() -> list:
         freq = cfg.get("freq", "?")
         prices = MODEL_PRICES.get(model, {"input": 0, "output": 0})
         cost = round((inp * prices["input"] + out * prices["output"]) / 10000, 6)
-        estimates.append({
-            "name": name,
-            "model": model,
-            "inp_est": inp,
-            "out_est": out,
-            "freq": freq,
-            "cost": cost,
-        })
+        estimates.append(
+            {
+                "name": name,
+                "model": model,
+                "inp_est": inp,
+                "out_est": out,
+                "freq": freq,
+                "cost": cost,
+            }
+        )
     return estimates
 
 
@@ -834,6 +834,7 @@ renderTable(DATA);
 # 主逻辑
 # ============================================================
 
+
 def build_dashboard(output_path: str = None) -> str:
     """构建仪表盘 HTML 文件"""
     records = load_cost_records()
@@ -847,11 +848,19 @@ def build_dashboard(output_path: str = None) -> str:
         "topTasks": get_top_tasks(records),
         "month": get_month_summary(records),
         "estimates": get_automation_estimates(),
-        "estimateTotal": round(sum(
-            (cfg.get("inp_est", 0) * MODEL_PRICES.get(cfg.get("model", ""), {}).get("input", 0)
-             + cfg.get("out_est", 0) * MODEL_PRICES.get(cfg.get("model", ""), {}).get("output", 0)) / 10000
-            for cfg in AUTO_COST_ESTIMATES.values()
-        ), 6),
+        "estimateTotal": round(
+            sum(
+                (
+                    cfg.get("inp_est", 0)
+                    * MODEL_PRICES.get(cfg.get("model", ""), {}).get("input", 0)
+                    + cfg.get("out_est", 0)
+                    * MODEL_PRICES.get(cfg.get("model", ""), {}).get("output", 0)
+                )
+                / 10000
+                for cfg in AUTO_COST_ESTIMATES.values()
+            ),
+            6,
+        ),
     }
 
     html = HTML_TEMPLATE.replace("__DATA_PLACEHOLDER__", json.dumps(data, ensure_ascii=False))
@@ -883,5 +892,6 @@ if __name__ == "__main__":
 
     if should_open:
         import webbrowser
+
         webbrowser.open(f"file://{path}")
         print("   已自动打开浏览器")

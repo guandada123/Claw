@@ -6,6 +6,7 @@
 Usage:
   docker exec quant-strategy python /app/scripts/bt_deep_analysis.py
 """
+
 import json
 import os
 import sys
@@ -19,14 +20,28 @@ from services.backtest_engine_v2 import BacktestConfig, EnhancedBacktestEngine
 # 股票池
 # ============================================================
 STOCK_NAMES = {
-    "002049.SZ": "紫光国微", "600498.SH": "烽火通信", "000725.SZ": "京东方A",
-    "600522.SH": "中天科技", "002601.SZ": "龙佰集团", "600206.SH": "有研新材",
-    "000001.SZ": "平安银行", "000333.SZ": "美的集团", "002415.SZ": "海康威视",
-    "600519.SH": "贵州茅台", "601318.SH": "中国平安", "000858.SZ": "五粮液",
-    "600036.SH": "招商银行", "600276.SH": "恒瑞医药", "600887.SH": "伊利股份",
-    "600570.SH": "恒生电子", "600585.SH": "海螺水泥", "600893.SH": "航发动力",
-    "601899.SH": "紫金矿业", "002230.SZ": "科大讯飞",
-    "300750.SZ": "宁德时代", "688981.SH": "中芯国际",
+    "002049.SZ": "紫光国微",
+    "600498.SH": "烽火通信",
+    "000725.SZ": "京东方A",
+    "600522.SH": "中天科技",
+    "002601.SZ": "龙佰集团",
+    "600206.SH": "有研新材",
+    "000001.SZ": "平安银行",
+    "000333.SZ": "美的集团",
+    "002415.SZ": "海康威视",
+    "600519.SH": "贵州茅台",
+    "601318.SH": "中国平安",
+    "000858.SZ": "五粮液",
+    "600036.SH": "招商银行",
+    "600276.SH": "恒瑞医药",
+    "600887.SH": "伊利股份",
+    "600570.SH": "恒生电子",
+    "600585.SH": "海螺水泥",
+    "600893.SH": "航发动力",
+    "601899.SH": "紫金矿业",
+    "002230.SZ": "科大讯飞",
+    "300750.SZ": "宁德时代",
+    "688981.SH": "中芯国际",
 }
 
 TS_CODES = list(STOCK_NAMES.keys())
@@ -42,8 +57,10 @@ INDUSTRY_MAP = {
     "AI/科技": ["002230.SZ"],
 }
 
+
 def fmt(v):
     return round(v, 6)
+
 
 def run_bt(ts_code, strategy, start="20250601", end="20260617"):
     """运行单策略回测"""
@@ -55,6 +72,7 @@ def run_bt(ts_code, strategy, start="20250601", end="20260617"):
         initial_cash=100000,
     )
     return EnhancedBacktestEngine(c).run()
+
 
 def to_dict(r):
     """Convert BacktestResult to dict (safe for JSON)"""
@@ -76,6 +94,7 @@ def to_dict(r):
         "excess_return": fmt(r.excess_return),
     }
 
+
 def run_all():
     """Run all 4 strategies on all stocks, return nested dict"""
     results = {}
@@ -95,8 +114,7 @@ def run_all():
                 stock_data[strat] = to_dict(r)
                 # Also capture equity curve for NAV charts
                 stock_data[f"{strat}_equity"] = [
-                    {"x": e["date"], "y": e["value"]}
-                    for e in getattr(r, "equity_curve", [])
+                    {"x": e["date"], "y": e["value"]} for e in getattr(r, "equity_curve", [])
                 ]
                 stock_data[f"{strat}_trades"] = [
                     {
@@ -116,11 +134,16 @@ def run_all():
 
     return results
 
+
 def gen_html(results, out_path):
     """Generate comprehensive HTML report"""
     strategies = ["vwm", "bollinger", "combo-vwm-bbr", "adx"]
-    strat_labels = {"vwm": "VWM趋势", "bollinger": "BBR均值回归",
-                    "combo-vwm-bbr": "COMBO组合", "adx": "ADX趋势强度"}
+    strat_labels = {
+        "vwm": "VWM趋势",
+        "bollinger": "BBR均值回归",
+        "combo-vwm-bbr": "COMBO组合",
+        "adx": "ADX趋势强度",
+    }
 
     # Build per-stock comparison rows
     stock_rows = []
@@ -140,10 +163,7 @@ def gen_html(results, out_path):
                 if ed:
                     nav_datasets.append({"name": strat_labels[strat], "data": ed})
         if nav_datasets:
-            nav_chart_data[ts_code] = {
-                "name": name,
-                "series": nav_datasets
-            }
+            nav_chart_data[ts_code] = {"name": name, "series": nav_datasets}
 
         trades_list = []
         for strat in strategies:
@@ -161,16 +181,18 @@ def gen_html(results, out_path):
             if "error" in sd:
                 cells.append({"error": sd["error"]})
             else:
-                cells.append({
-                    "ret": sd.get("total_return", 0),
-                    "sharpe": sd.get("sharpe_ratio", 0),
-                    "mdd": sd.get("max_drawdown", 0),
-                    "win": sd.get("win_rate", 0),
-                    "trades": sd.get("total_trades", 0),
-                    "calmar": sd.get("calmar_ratio", 0),
-                    "sortino": sd.get("sortino_ratio", 0),
-                    "hold": sd.get("avg_hold_days", 0),
-                })
+                cells.append(
+                    {
+                        "ret": sd.get("total_return", 0),
+                        "sharpe": sd.get("sharpe_ratio", 0),
+                        "mdd": sd.get("max_drawdown", 0),
+                        "win": sd.get("win_rate", 0),
+                        "trades": sd.get("total_trades", 0),
+                        "calmar": sd.get("calmar_ratio", 0),
+                        "sortino": sd.get("sortino_ratio", 0),
+                        "hold": sd.get("avg_hold_days", 0),
+                    }
+                )
 
         stock_rows.append({"code": ts_code, "name": name, "cells": cells})
 
@@ -178,8 +200,11 @@ def gen_html(results, out_path):
     summary = {}
     for strat in strategies:
         i = strategies.index(strat)
-        vals = [s["cells"][i] for s in stock_rows
-                if i < len(s["cells"]) and "error" not in s["cells"][i]]
+        vals = [
+            s["cells"][i]
+            for s in stock_rows
+            if i < len(s["cells"]) and "error" not in s["cells"][i]
+        ]
         if vals:
             n = len(vals)
             summary[strat_labels[strat]] = {
@@ -216,7 +241,7 @@ def gen_html(results, out_path):
     industry_json = json.dumps(industry_analysis)
     stock_rows_json = json.dumps(stock_rows)
 
-    html = f'''<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -651,9 +676,10 @@ document.getElementById('tradeModal').addEventListener('click', function(e) {{
 }});
 
 </script>
-</body></html>'''
+</body></html>"""
     Path(out_path).write_text(html, encoding="utf-8")
-    print(f"✅ Write: {out_path}  ({os.path.getsize(out_path)/1024:.0f} KB)", flush=True)
+    print(f"✅ Write: {out_path}  ({os.path.getsize(out_path) / 1024:.0f} KB)", flush=True)
+
 
 if __name__ == "__main__":
     print("=" * 60)
@@ -665,7 +691,9 @@ if __name__ == "__main__":
     # Save raw data
     raw_path = "/app/output/bt_deep_analysis_raw.json"
     Path(raw_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(raw_path).write_text(json.dumps(results, ensure_ascii=False, default=str), encoding="utf-8")
+    Path(raw_path).write_text(
+        json.dumps(results, ensure_ascii=False, default=str), encoding="utf-8"
+    )
     print(f"\n✅ Raw data: {raw_path}", flush=True)
 
     # Generate HTML

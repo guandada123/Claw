@@ -21,7 +21,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SIM_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "simulation" / "portfolio.json"
 USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
-STRATEGY_LIB   = PROJECT_ROOT / ".workbuddy" / "data" / "simulation" / "strategy_library.json"
+STRATEGY_LIB = PROJECT_ROOT / ".workbuddy" / "data" / "simulation" / "strategy_library.json"
 
 # ── 行业分类映射（与 asset-allocation-framework.md 一致） ──────────
 INDUSTRY_MAP = {
@@ -165,9 +165,14 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         pnl_pct = ((price - cost) / cost * 100) if cost > 0 else 0
 
         entry = {
-            "code": code, "name": name, "portfolio": "sim",
-            "shares": shares, "price": price, "cost": cost,
-            "market_value": market_value, "pnl_pct": round(pnl_pct, 2),
+            "code": code,
+            "name": name,
+            "portfolio": "sim",
+            "shares": shares,
+            "price": price,
+            "cost": cost,
+            "market_value": market_value,
+            "pnl_pct": round(pnl_pct, 2),
             "industry": industry,
             "stop_loss_price": round(cost * 0.92, 2),
         }
@@ -186,9 +191,14 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         industry = get_industry(code, name)
 
         entry = {
-            "code": code, "name": name, "portfolio": "user",
-            "shares": shares, "price": price, "cost": cost,
-            "market_value": market_value, "pnl_pct": round(pnl_pct, 2),
+            "code": code,
+            "name": name,
+            "portfolio": "user",
+            "shares": shares,
+            "price": price,
+            "cost": cost,
+            "market_value": market_value,
+            "pnl_pct": round(pnl_pct, 2),
             "industry": industry,
             "stop_loss_price": round(cost * 0.92, 2),
         }
@@ -196,7 +206,7 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         combined_by_industry[industry] = combined_by_industry.get(industry, 0) + market_value
 
     # ── 同标检测 ──
-    sim_codes = {code for code in sim_positions}
+    sim_codes = set(sim_positions)
     user_codes = {h["code"].strip() for h in user_holdings if h.get("code")}
     shared_codes = sim_codes & user_codes
 
@@ -218,40 +228,50 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         sim_pnl = sim_pos["current_price"] / sim_cost - 1 if sim_cost else 0
         user_pnl = user_pos["current_price"] / user_cost - 1 if user_cost else 0
 
-        result["shared_holdings"].append({
-            "code": code,
-            "name": sim_pos.get("name", ""),
-            "industry": industry,
-            "sim": {
-                "shares": sim_pos["shares"],
-                "cost": sim_cost,
-                "current_price": sim_pos["current_price"],
-                "market_value": round(sim_mv, 2),
-                "pnl_pct": round(sim_pnl * 100, 2),
-                "pct_of_sim": sim_pct,
-                "stop_loss_price": round(sim_cost * 0.92, 2) if sim_cost else 0,
-                "stop_loss_distance": None,
-            },
-            "user": {
-                "shares": user_pos.get("shares", 0),
-                "cost": user_cost,
-                "current_price": user_pos.get("current_price", 0),
-                "market_value": round(user_mv, 2),
-                "pnl_pct": round(user_pnl * 100, 2),
-                "pct_of_user": user_pct,
-                "stop_loss_price": round(user_cost * 0.92, 2) if user_cost else 0,
-                "stop_loss_distance": None,
-            },
-            "combined_market_value": round(combined_mv, 2),
-        })
+        result["shared_holdings"].append(
+            {
+                "code": code,
+                "name": sim_pos.get("name", ""),
+                "industry": industry,
+                "sim": {
+                    "shares": sim_pos["shares"],
+                    "cost": sim_cost,
+                    "current_price": sim_pos["current_price"],
+                    "market_value": round(sim_mv, 2),
+                    "pnl_pct": round(sim_pnl * 100, 2),
+                    "pct_of_sim": sim_pct,
+                    "stop_loss_price": round(sim_cost * 0.92, 2) if sim_cost else 0,
+                    "stop_loss_distance": None,
+                },
+                "user": {
+                    "shares": user_pos.get("shares", 0),
+                    "cost": user_cost,
+                    "current_price": user_pos.get("current_price", 0),
+                    "market_value": round(user_mv, 2),
+                    "pnl_pct": round(user_pnl * 100, 2),
+                    "pct_of_user": user_pct,
+                    "stop_loss_price": round(user_cost * 0.92, 2) if user_cost else 0,
+                    "stop_loss_distance": None,
+                },
+                "combined_market_value": round(combined_mv, 2),
+            }
+        )
 
         # 计算止损距离
         shared = result["shared_holdings"][-1]
         if shared["sim"]["cost"]:
-            sim_dist = (shared["sim"]["current_price"] - shared["sim"]["stop_loss_price"]) / shared["sim"]["stop_loss_price"] * 100
+            sim_dist = (
+                (shared["sim"]["current_price"] - shared["sim"]["stop_loss_price"])
+                / shared["sim"]["stop_loss_price"]
+                * 100
+            )
             shared["sim"]["stop_loss_distance"] = round(sim_dist, 1)
         if shared["user"]["cost"]:
-            user_dist = (shared["user"]["current_price"] - shared["user"]["stop_loss_price"]) / shared["user"]["stop_loss_price"] * 100
+            user_dist = (
+                (shared["user"]["current_price"] - shared["user"]["stop_loss_price"])
+                / shared["user"]["stop_loss_price"]
+                * 100
+            )
             shared["user"]["stop_loss_distance"] = round(user_dist, 1)
 
     # ── 行业集中度（两盘合并） ──
@@ -268,8 +288,7 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
     # ── 关联性链风险 ──
     for chain_name, chain in CHAIN_MAP.items():
         chain_mv = sum(
-            combined_by_industry.get(g, 0) for g in chain["groups"]
-            if g in combined_by_industry
+            combined_by_industry.get(g, 0) for g in chain["groups"] if g in combined_by_industry
         )
         chain_pct = round(chain_mv / total_market_value * 100, 1) if total_market_value else 0
         max_pct = chain["max_pct"]
@@ -283,7 +302,8 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
             "status": status,
             "stocks": [
                 {
-                    "code": s["code"], "name": s["name"],
+                    "code": s["code"],
+                    "name": s["name"],
                     "portfolio": s["portfolio"],
                     "industry": s["industry"],
                     "market_value": s["market_value"],
@@ -307,27 +327,31 @@ def check_strategy_alerts(combined: dict, strategy: dict):
     # 检查行业集中度
     for industry, info in combined.get("industry_concentration", {}).items():
         if info["status"] in ("⚠️", "🚨"):
-            alerts.append({
-                "type": "行业集中度超限",
-                "industry": industry,
-                "detail": f"{industry} {info['pct']}%（上限{info['limit']}%），两盘合并计算",
-                "severity": "🚨" if info["status"] == "🚨" else "⚠️",
-                "rule_ref": "L001",
-            })
+            alerts.append(
+                {
+                    "type": "行业集中度超限",
+                    "industry": industry,
+                    "detail": f"{industry} {info['pct']}%（上限{info['limit']}%），两盘合并计算",
+                    "severity": "🚨" if info["status"] == "🚨" else "⚠️",
+                    "rule_ref": "L001",
+                }
+            )
 
     # 检查同标持仓的止损距离
     for sh in combined.get("shared_holdings", []):
         for side in ["sim", "user"]:
             dist = sh[side].get("stop_loss_distance")
             if dist is not None and dist < 5:
-                alerts.append({
-                    "type": "同标逼近止损",
-                    "stock": f"{sh['name']}({sh['code']})",
-                    "portfolio": side,
-                    "detail": f"{sh['name']}({sh['code']}) {side}盘距止损线仅 {dist}%",
-                    "severity": "🔴",
-                    "rule_ref": "止损规则",
-                })
+                alerts.append(
+                    {
+                        "type": "同标逼近止损",
+                        "stock": f"{sh['name']}({sh['code']})",
+                        "portfolio": side,
+                        "detail": f"{sh['name']}({sh['code']}) {side}盘距止损线仅 {dist}%",
+                        "severity": "🔴",
+                        "rule_ref": "止损规则",
+                    }
+                )
 
     # 检查并仓节奏（模拟盘建仓后现金 > min_cash）
     min_cash = rules.get("min_cash_after_build", 15)
@@ -361,7 +385,11 @@ def monitor():
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "summary": {
             "sim": {
-                "total_asset": round(sum(p["current_price"] * p["shares"] for p in sim_positions.values()) + sim_data.get("cash", 0), 2),
+                "total_asset": round(
+                    sum(p["current_price"] * p["shares"] for p in sim_positions.values())
+                    + sim_data.get("cash", 0),
+                    2,
+                ),
                 "holdings": len(sim_positions),
                 "cash": sim_data.get("cash", 0),
             },
@@ -391,6 +419,7 @@ if __name__ == "__main__":
         # 有预警时推送飞书
         if report.get("alerts_count", 0) > 0:
             import subprocess
+
             msg_lines = [
                 f"📊 跨盘联动监控 | {report['timestamp']}",
                 "━━━━━━━━━━━━━",
@@ -402,16 +431,23 @@ if __name__ == "__main__":
             if report.get("shared_holdings"):
                 msg_lines.append("\n🔗 同标持仓：")
                 for sh in report["shared_holdings"]:
-                    msg_lines.append(f"  {sh['name']}({sh['code']}) | "
-                                     f"模拟:{sh['sim']['pnl_pct']}% | "
-                                     f"实盘:{sh['user']['pnl_pct']}%")
+                    msg_lines.append(
+                        f"  {sh['name']}({sh['code']}) | "
+                        f"模拟:{sh['sim']['pnl_pct']}% | "
+                        f"实盘:{sh['user']['pnl_pct']}%"
+                    )
 
             msg = "\n".join(msg_lines)
             cmd = [
-                "lark-cli", "im", "+messages-send",
-                "--chat-id", "oc_9ee5303497f5e0e71666b610d6bdc346",
-                "--as", "bot",
-                "--markdown", msg,
+                "lark-cli",
+                "im",
+                "+messages-send",
+                "--chat-id",
+                "oc_9ee5303497f5e0e71666b610d6bdc346",
+                "--as",
+                "bot",
+                "--markdown",
+                msg,
             ]
             try:
                 subprocess.run(cmd, capture_output=True, text=True, timeout=15)

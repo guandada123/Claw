@@ -41,16 +41,19 @@ OLLAMA_MODEL = "qwen2.5:7b"
 # 当被其他脚本 import 时，通过相对项目路径导入
 try:
     import local_model
+
     _dbg = f"local_model loaded from: {local_model.__file__}"
 except ImportError as e:
     sys.path.insert(0, str(PROJECT_DIR / "scripts"))
     import local_model
+
     _dbg = f"local_model loaded from (fallback): {local_model.__file__}"
 
 
 # ============================================================
 # 依赖检查（原 heartbeat.py 内容）
 # ============================================================
+
 
 def check_dependencies() -> dict:
     """检查关键系统依赖"""
@@ -81,6 +84,7 @@ def check_dependencies() -> dict:
 # ============================================================
 # Ollama 检查（新增）
 # ============================================================
+
 
 def check_ollama() -> dict:
     """检查本地 Ollama 服务状态"""
@@ -134,6 +138,7 @@ def check_ollama() -> dict:
 # 主流程
 # ============================================================
 
+
 def main():
     parser = argparse.ArgumentParser(description="Claw 本地心跳检测（Ollama 版）")
     parser.add_argument("--check", action="store_true", help="仅检查，不写心跳")
@@ -179,8 +184,11 @@ def main():
     # 6. 记录成本到 cost_tracker（标记为 qwen2.5-7b，¥0）
     # 非 JSON 模式下打印日志；JSON 模式下静默记录
     try:
+        import contextlib
+        import io
+
         from cost_tracker import log_estimate
-        import io, contextlib
+
         with contextlib.redirect_stdout(io.StringIO()) if args.json else contextlib.nullcontext():
             log_estimate(
                 "心跳检测",
@@ -208,7 +216,7 @@ def main():
         status_icon = "✅" if healthy else "❌"
         local_icon = "🟢" if local_healthy else "⚪"
         print(f"\n{'=' * 50}")
-        print(f"  Claw 本地心跳（Ollama 版）")
+        print("  Claw 本地心跳（Ollama 版）")
         print(f"{'=' * 50}")
         print(f"  {status_icon} 系统: {'健康' if healthy else '异常'}")
         print(f"  {local_icon} 本地模型: {'运行中' if local_healthy else '离线'}")
@@ -216,23 +224,27 @@ def main():
         print()
 
         # ── Ollama 详情 ──
-        print(f"  🔍 Ollama 状态")
+        print("  🔍 Ollama 状态")
         print(f"  {'─' * 35}")
         print(f"    服务: {'✅ 运行中' if ollama_status.get('running') else '❌ 未启动'}")
-        print(f"    模型: {'✅ ' + OLLAMA_MODEL if ollama_status.get('model_available') else '❌ 未安装'}")
+        print(
+            f"    模型: {'✅ ' + OLLAMA_MODEL if ollama_status.get('model_available') else '❌ 未安装'}"
+        )
         if ollama_status.get("model_response_ok"):
             print(f"    推理: ✅ {(ollama_status.get('duration_ms', 0))}ms")
             sample = ollama_status.get("response_sample", "")
             if sample:
-                print(f"    响应: \"{sample}\"")
-            print(f"    Tokens: inp={ollama_status.get('prompt_tokens', 0)} out={ollama_status.get('response_tokens', 0)}")
-            print(f"    费用: ¥0.0000 (本地模型)")
+                print(f'    响应: "{sample}"')
+            print(
+                f"    Tokens: inp={ollama_status.get('prompt_tokens', 0)} out={ollama_status.get('response_tokens', 0)}"
+            )
+            print("    费用: ¥0.0000 (本地模型)")
         else:
             err = ollama_status.get("error", "unknown")
             print(f"    推理: ❌ {err[:80]}")
 
         # ── 依赖详情 ──
-        print(f"\n  📦 系统依赖")
+        print("\n  📦 系统依赖")
         print(f"  {'─' * 35}")
         for name, ok in deps.items():
             print(f"    {'✅' if ok else '❌'} {name}")

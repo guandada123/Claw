@@ -25,9 +25,11 @@ from budget_guard import (
 # 辅助：重置 budget_guard 内部缓存
 # ============================================================
 
+
 def _clear_cache():
     """重置 check_budget_status 的 60s TTL 缓存"""
     import budget_guard
+
     budget_guard._budget_cache = None
     budget_guard._budget_cache_time = 0
 
@@ -35,6 +37,7 @@ def _clear_cache():
 # ============================================================
 # check_budget_status() — 预算状态检查
 # ============================================================
+
 
 class TestCheckBudgetStatus:
     """check_budget_status 在不同消费场景下的表现
@@ -104,6 +107,7 @@ class TestCheckBudgetStatus:
 # budget_summary() — 预算摘要
 # ============================================================
 
+
 class TestBudgetSummary:
     """budget_summary 输出格式与零消费场景"""
 
@@ -145,6 +149,7 @@ class TestBudgetSummary:
 # get_allowed_model() — 模型准入控制
 # ============================================================
 
+
 class TestGetAllowedModel:
     """get_allowed_model 预算敏感模型选择（纯逻辑，mock check_budget_status 即可）"""
 
@@ -177,12 +182,15 @@ class TestGetAllowedModel:
         """flash_preferred 下关键任务的 Pro 不降级"""
         with patch("budget_guard.check_budget_status") as mock_check:
             mock_check.return_value = {"tier": "flash_preferred", "spent": 300, "remaining": 100}
-            assert get_allowed_model("deepseek-v4-pro", task_priority="critical") == "deepseek-v4-pro"
+            assert (
+                get_allowed_model("deepseek-v4-pro", task_priority="critical") == "deepseek-v4-pro"
+            )
 
 
 # ============================================================
 # verify_call_cost() — 调用前成本验证
 # ============================================================
+
 
 class TestVerifyCallCost:
     """verify_call_cost 单次调用成本验证"""

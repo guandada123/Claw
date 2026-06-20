@@ -16,14 +16,13 @@ cost_dashboard_feishu.py — AI成本仪表盘 → 飞书推送
   - scripts/cost_monitor.py 存在
 """
 
+import datetime
 import json
 import os
+import shutil
 import subprocess
 import sys
-import datetime
-import shutil
 from pathlib import Path
-from typing import Optional
 
 SCRIPTS_DIR = Path(__file__).parent.resolve()
 
@@ -39,6 +38,7 @@ LARK_CLI_PATH: str = ""  # 初始化后由 find_lark_cli() 填充
 # 工具函数
 # ============================================================
 
+
 def find_lark_cli() -> str:
     """查找 lark-cli 可执行文件路径"""
     # 1) 优先从 PATH 找
@@ -49,7 +49,9 @@ def find_lark_cli() -> str:
     # 2) 从 WorkBuddy 已知安装路径找
     known_paths = [
         os.path.expanduser("~/.workbuddy/binaries/node/cli-connector-packages/bin/lark-cli"),
-        os.path.expanduser("~/.workbuddy/binaries/node/cli-connector-packages/lib/node_modules/@larksuite/cli/bin/lark-cli"),
+        os.path.expanduser(
+            "~/.workbuddy/binaries/node/cli-connector-packages/lib/node_modules/@larksuite/cli/bin/lark-cli"
+        ),
     ]
     for p in known_paths:
         if os.path.isfile(p) and os.access(p, os.X_OK):
@@ -82,15 +84,15 @@ def now_str() -> str:
 # 步骤1: 生成仪表盘
 # ============================================================
 
-def generate_dashboard() -> Optional[str]:
+
+def generate_dashboard() -> str | None:
     """生成成本仪表盘HTML，返回文件路径"""
     ts = now_str()
     output_path = f"/tmp/ai-cost-dashboard-{ts}.html"
 
-    print(f"  📊 运行 cost_dashboard.py...")
+    print("  📊 运行 cost_dashboard.py...")
     result = run_cmd(
-        [sys.executable, str(SCRIPTS_DIR / "cost_dashboard.py"), output_path],
-        timeout=60
+        [sys.executable, str(SCRIPTS_DIR / "cost_dashboard.py"), output_path], timeout=60
     )
 
     if result.returncode != 0:
@@ -104,8 +106,7 @@ def generate_dashboard() -> Optional[str]:
 
     # 回退：检查桌面最近的文件
     desktop_files = sorted(
-        Path.home().glob("Desktop/ai-cost-dashboard-*.html"),
-        key=os.path.getmtime, reverse=True
+        Path.home().glob("Desktop/ai-cost-dashboard-*.html"), key=os.path.getmtime, reverse=True
     )
     if desktop_files:
         fp = str(desktop_files[0])
@@ -120,7 +121,8 @@ def generate_dashboard() -> Optional[str]:
 # 步骤2: 上传到飞书Drive
 # ============================================================
 
-def upload_to_drive(file_path: str) -> Optional[dict]:
+
+def upload_to_drive(file_path: str) -> dict | None:
     """上传文件到飞书Drive，返回结果字典"""
     date_str = today_str()
     file_name = f"AI成本仪表盘-{date_str}.html"
@@ -134,12 +136,17 @@ def upload_to_drive(file_path: str) -> Optional[dict]:
 
     result = run_cmd(
         [
-            LARK_CLI_PATH, "drive", "+upload",
-            "--file", file_name,
-            "--name", file_name,
-            "--as", "user"
+            LARK_CLI_PATH,
+            "drive",
+            "+upload",
+            "--file",
+            file_name,
+            "--name",
+            file_name,
+            "--as",
+            "user",
         ],
-        timeout=30
+        timeout=30,
     )
 
     # 清理本地副本
@@ -158,15 +165,15 @@ def upload_to_drive(file_path: str) -> Optional[dict]:
             err_type = err_data.get("error", {}).get("type", "")
             print(f"  ❌ 上传失败: {err_type} — {err_msg}")
         except (json.JSONDecodeError, IndexError):
-            print(f"  ❌ 上传失败")
+            print("  ❌ 上传失败")
         return None
 
     try:
         data = json.loads(result.stdout)
-        print(f"  ✅ 上传成功!")
+        print("  ✅ 上传成功!")
         return data
     except json.JSONDecodeError:
-        print(f"  ⚠️  无法解析上传结果")
+        print("  ⚠️  无法解析上传结果")
         print(f"  stdout: {result.stdout[:300]}")
         return None
 
@@ -184,26 +191,21 @@ def build_file_url(upload_result: dict) -> str:
 # 步骤3: 获取日报摘要
 # ============================================================
 
+
 def get_daily_cost_summary() -> tuple[str, dict]:
     """
     获取成本日报摘要，返回 (markdown_text, stats_dict)
     """
-    print(f"  📋 获取成本日报摘要...")
+    print("  📋 获取成本日报摘要...")
 
     # 从cost_monitor获取日报
-    result = run_cmd(
-        [sys.executable, str(SCRIPTS_DIR / "cost_monitor.py"), "daily"],
-        timeout=30
-    )
+    result = run_cmd([sys.executable, str(SCRIPTS_DIR / "cost_monitor.py"), "daily"], timeout=30)
 
     daily_raw = result.stdout.strip() if result.returncode == 0 else ""
 
     # 同时从cost_tracker获取摘要统计
     cost_stats = {}
-    result2 = run_cmd(
-        [sys.executable, str(SCRIPTS_DIR / "cost_tracker.py"), "status"],
-        timeout=15
-    )
+    result2 = run_cmd([sys.executable, str(SCRIPTS_DIR / "cost_tracker.py"), "status"], timeout=15)
     if result2.returncode == 0:
         try:
             cost_stats = json.loads(result2.stdout)
@@ -216,6 +218,7 @@ def get_daily_cost_summary() -> tuple[str, dict]:
 # ============================================================
 # 步骤4: 发送飞书消息
 # ============================================================
+
 
 def build_message(daily_summary: str, file_url: str, cost_stats: dict) -> str:
     """构建飞书消息文本（Markdown格式）"""
@@ -237,7 +240,7 @@ def build_message(daily_summary: str, file_url: str, cost_stats: dict) -> str:
 📊 **今日预估成本**: ¥{total_cost_today:.2f}
 📅 **本月累计**: ¥{total_cost_month:.2f}
 🎯 **剩余预算**: ¥{budget_remaining:.2f}
-📈 **预算消耗**: {total_cost_month/400.0*100:.1f}%
+📈 **预算消耗**: {total_cost_month / 400.0 * 100:.1f}%
 
 ━━━━━━━━━━━━━━━━
 
@@ -247,7 +250,7 @@ def build_message(daily_summary: str, file_url: str, cost_stats: dict) -> str:
 ━━━━━━━━━━━━━━━━
 📎 **[查看完整仪表盘]({file_url})** — 含趋势图/模型分布/烧钱任务Top
 
-> ⏱ {datetime.datetime.now().strftime('%H:%M')} 自动生成
+> ⏱ {datetime.datetime.now().strftime("%H:%M")} 自动生成
 """
 
     return msg
@@ -259,12 +262,17 @@ def send_feishu_message(chat_id: str, message: str) -> bool:
 
     result = run_cmd(
         [
-            LARK_CLI_PATH, "im", "+messages-send",
-            "--chat-id", chat_id,
-            "--markdown", message,
-            "--as", "bot"
+            LARK_CLI_PATH,
+            "im",
+            "+messages-send",
+            "--chat-id",
+            chat_id,
+            "--markdown",
+            message,
+            "--as",
+            "bot",
         ],
-        timeout=30
+        timeout=30,
     )
 
     if result.returncode != 0:
@@ -285,7 +293,7 @@ def send_feishu_message(chat_id: str, message: str) -> bool:
         print(f"  ✅ 消息已发送! message_id: {msg_id}")
         return True
     except json.JSONDecodeError:
-        print(f"  ✅ 消息已发送 (无法解析message_id)")
+        print("  ✅ 消息已发送 (无法解析message_id)")
         return True
 
 
@@ -293,16 +301,18 @@ def send_feishu_message(chat_id: str, message: str) -> bool:
 # 步骤5: 清理
 # ============================================================
 
+
 def cleanup(file_path: str):
     """清理临时文件"""
     if file_path and file_path.startswith("/tmp/") and os.path.exists(file_path):
         os.remove(file_path)
-        print(f"  🧹 已清理临时文件")
+        print("  🧹 已清理临时文件")
 
 
 # ============================================================
 # 主流程
 # ============================================================
+
 
 def main():
     # 解析参数
@@ -331,13 +341,13 @@ def main():
         sys.exit(1)
     print(f"  🔧 lark-cli: {LARK_CLI_PATH}")
 
-    print(f"\n{'='*50}")
-    print(f"  🤖 AI成本仪表盘 → 飞书推送")
+    print(f"\n{'=' * 50}")
+    print("  🤖 AI成本仪表盘 → 飞书推送")
     print(f"  📅 {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  📢 目标群: {chat_id}")
     if dry_run:
-        print(f"  🔍 DRY RUN 模式 — 仅生成，不上传/不推送")
-    print(f"{'='*50}\n")
+        print("  🔍 DRY RUN 模式 — 仅生成，不上传/不推送")
+    print(f"{'=' * 50}\n")
 
     # === 步骤1: 生成仪表盘 ===
     print("📊 [1/4] 生成成本仪表盘...")
@@ -379,7 +389,7 @@ def main():
         print(f"  ✅ 已获取摘要 ({len(lines)} 行)")
     else:
         brief = "(暂无成本数据)"
-        print(f"  ℹ️  暂无成本数据")
+        print("  ℹ️  暂无成本数据")
 
     # === 步骤4: 发送飞书消息 ===
     print("\n💬 [4/4] 发送飞书消息...")
@@ -390,14 +400,14 @@ def main():
     cleanup(html_path)
 
     # === 总结 ===
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     if success:
-        print(f"  🎉 飞书推送完成!")
+        print("  🎉 飞书推送完成!")
     else:
-        print(f"  ⚠️  推送完成但消息发送可能有异常")
+        print("  ⚠️  推送完成但消息发送可能有异常")
     if file_url:
         print(f"  🔗 仪表盘: {file_url}")
-    print(f"{'='*50}\n")
+    print(f"{'=' * 50}\n")
 
 
 if __name__ == "__main__":

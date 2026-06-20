@@ -23,8 +23,8 @@ import os
 import re
 import sys
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -32,15 +32,15 @@ from pathlib import Path
 # 配置
 # ============================================================
 DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
-DEFAULT_ROUNDS = 5            # 每组测试的重复次数
-REQUEST_TIMEOUT = 30          # 单次请求超时（秒）
+DEFAULT_ROUNDS = 5  # 每组测试的重复次数
+REQUEST_TIMEOUT = 30  # 单次请求超时（秒）
 
 # claude-opus-4 使用 catrouter/crazyrouter 时通过 base_url 切换
 # 支持的 DeepSeek 模型
 DEEPSEEK_MODELS = {
-    "deepseek-v4-flash": {"input_price": 0.5, "output_price": 1.5},    # ¥/万Token
-    "deepseek-v4-pro":   {"input_price": 4.0, "output_price": 12.0},   # ¥/万Token
-    "deepseek-reasoner": {"input_price": 8.0, "output_price": 24.0},   # ¥/万Token
+    "deepseek-v4-flash": {"input_price": 0.5, "output_price": 1.5},  # ¥/万Token
+    "deepseek-v4-pro": {"input_price": 4.0, "output_price": 12.0},  # ¥/万Token
+    "deepseek-reasoner": {"input_price": 8.0, "output_price": 24.0},  # ¥/万Token
 }
 
 # ============================================================
@@ -167,6 +167,7 @@ TEST_CASES = [
 # API 调用函数
 # ============================================================
 
+
 def get_api_key() -> str:
     """获取 API key：环境变量 > --api-key > 提示输入"""
     key = os.environ.get("DEEPSEEK_API_KEY", "")
@@ -224,12 +225,14 @@ def call_deepseek(prompt: str, model: str, api_key: str, base_url: str) -> dict:
         }
 
     url = f"{base_url}/chat/completions"
-    payload = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 500,
-        "temperature": 0.3,
-    }).encode("utf-8")
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 500,
+            "temperature": 0.3,
+        }
+    ).encode("utf-8")
 
     headers = {
         "Content-Type": "application/json",
@@ -275,6 +278,7 @@ def call_deepseek(prompt: str, model: str, api_key: str, base_url: str) -> dict:
 # 缓存分析
 # ============================================================
 
+
 def extract_cache_metrics(usage: dict) -> dict:
     """
     从 API usage 响应中提取缓存指标。
@@ -298,7 +302,7 @@ def extract_cache_metrics(usage: dict) -> dict:
                 "miss_tokens": miss,
                 "total_input_tokens": total,
                 "hit_rate": 0.0,
-                "note": "API 未返回分开的缓存指标（hit/miss），建议检查模型版本"
+                "note": "API 未返回分开的缓存指标（hit/miss），建议检查模型版本",
             }
 
     hit_rate = hit / total * 100 if total > 0 else 0.0
@@ -312,8 +316,7 @@ def extract_cache_metrics(usage: dict) -> dict:
     }
 
 
-def run_single_test(test_case: dict, api_key: str, base_url: str,
-                    round_num: int = 1) -> dict:
+def run_single_test(test_case: dict, api_key: str, base_url: str, round_num: int = 1) -> dict:
     """
     运行单次缓存测试。
     1) 只用固定前缀（无动态数据）— 应命中缓存
@@ -354,11 +357,12 @@ def run_single_test(test_case: dict, api_key: str, base_url: str,
 # 报告生成
 # ============================================================
 
+
 def run_verification(api_key: str, base_url: str, rounds: int = DEFAULT_ROUNDS) -> dict:
     """运行完整验证流程"""
 
     print(f"\n{'=' * 65}")
-    print(f"  🔍 DeepSeek Prompt Cache 命中率验证")
+    print("  🔍 DeepSeek Prompt Cache 命中率验证")
     print(f"  {'=' * 65}")
     print(f"  API端点: {base_url}")
     print(f"  API Key: {'✅ 已配置' if api_key else '❌ 未配置'}")
@@ -400,14 +404,17 @@ def run_verification(api_key: str, base_url: str, rounds: int = DEFAULT_ROUNDS) 
                 dur = result["fixed_only"]["duration_ms"]
                 print(f"    Round {r}/{rounds}: 固定前缀✅ hit={hit:.0f}% {dur}ms", end="")
             else:
-                print(f"    Round {r}/{rounds}: ❌ {result['fixed_only'].get('error','')[:60]}", end="")
+                print(
+                    f"    Round {r}/{rounds}: ❌ {result['fixed_only'].get('error', '')[:60]}",
+                    end="",
+                )
 
             if result["fixed_plus_dynamic"]["success"]:
                 hit = full_metrics.get("hit_rate", 0)
                 dur = result["fixed_plus_dynamic"]["duration_ms"]
                 print(f" | 完整prompt✅ hit={hit:.0f}% {dur}ms")
             else:
-                print(f" | ❌ {result['fixed_plus_dynamic'].get('error','')[:60]}")
+                print(f" | ❌ {result['fixed_plus_dynamic'].get('error', '')[:60]}")
 
         # 汇总统计
         fixed_successes = [r for r in round_results if r["fixed_only"]["success"]]
@@ -415,15 +422,20 @@ def run_verification(api_key: str, base_url: str, rounds: int = DEFAULT_ROUNDS) 
 
         avg_fixed_hit = (
             sum(r["fixed_only"]["cache_metrics"]["hit_rate"] for r in fixed_successes)
-            / len(fixed_successes) if fixed_successes else 0
+            / len(fixed_successes)
+            if fixed_successes
+            else 0
         )
         avg_full_hit = (
             sum(r["fixed_plus_dynamic"]["cache_metrics"]["hit_rate"] for r in full_successes)
-            / len(full_successes) if full_successes else 0
+            / len(full_successes)
+            if full_successes
+            else 0
         )
         avg_fixed_dur = (
-            sum(r["fixed_only"]["duration_ms"] for r in fixed_successes)
-            / len(fixed_successes) if fixed_successes else 0
+            sum(r["fixed_only"]["duration_ms"] for r in fixed_successes) / len(fixed_successes)
+            if fixed_successes
+            else 0
         )
 
         row = {
@@ -443,19 +455,25 @@ def run_verification(api_key: str, base_url: str, rounds: int = DEFAULT_ROUNDS) 
             },
         }
         summary_rows.append(row)
-        all_results.append({
-            "test_case": test_case["name"],
-            "description": test_case["description"],
-            "rounds": round_results,
-        })
+        all_results.append(
+            {
+                "test_case": test_case["name"],
+                "description": test_case["description"],
+                "rounds": round_results,
+            }
+        )
 
         # 单组小结
-        print(f"\n  📊 结果汇总:")
-        print(f"     固定前缀: 成功率{row['fixed_only']['success_rate']}%  "
-              f"缓存命中率{row['fixed_only']['avg_hit_rate']:.1f}%  "
-              f"平均耗时{row['fixed_only']['avg_duration_ms']}ms")
-        print(f"     完整prompt: 成功率{row['full_prompt']['success_rate']}%  "
-              f"缓存命中率{row['full_prompt']['avg_hit_rate']:.1f}%")
+        print("\n  📊 结果汇总:")
+        print(
+            f"     固定前缀: 成功率{row['fixed_only']['success_rate']}%  "
+            f"缓存命中率{row['fixed_only']['avg_hit_rate']:.1f}%  "
+            f"平均耗时{row['fixed_only']['avg_duration_ms']}ms"
+        )
+        print(
+            f"     完整prompt: 成功率{row['full_prompt']['success_rate']}%  "
+            f"缓存命中率{row['full_prompt']['avg_hit_rate']:.1f}%"
+        )
 
     # 生成全局汇总
     return generate_summary(summary_rows, all_results, rounds)
@@ -479,16 +497,38 @@ def structural_analysis_only() -> dict:
                 issues.append(f"固定前缀包含动态时间标记「{pat}」")
 
         # 检查方括号动态标记（排除 [角色] [权限] [约束] [输出] [框架] 等结构化标记）
-        bracket_patterns = re.findall(r'\[(\w+)\]', fixed)
-        dynamic_brackets = [b for b in set(bracket_patterns)
-                           if b.lower() not in ('角色', '权限', '约束', '输出', '框架', 'time', '美股监控',
-                                                '投资助理', '模拟炒股', '成本监控')]
+        bracket_patterns = re.findall(r"\[(\w+)\]", fixed)
+        dynamic_brackets = [
+            b
+            for b in set(bracket_patterns)
+            if b.lower()
+            not in (
+                "角色",
+                "权限",
+                "约束",
+                "输出",
+                "框架",
+                "time",
+                "美股监控",
+                "投资助理",
+                "模拟炒股",
+                "成本监控",
+            )
+        ]
         if dynamic_brackets:
             issues.append(f"固定前缀包含疑似动态标记「{', '.join(dynamic_brackets)}」")
 
         # 检查是否有价格/数字动态数据
-        price_keywords = ["{prices}", "{price}", "{portfolio}", "{holding}",
-                          "{market}", "{data}", "[prices]", "[price]"]
+        price_keywords = [
+            "{prices}",
+            "{price}",
+            "{portfolio}",
+            "{holding}",
+            "{market}",
+            "{data}",
+            "[prices]",
+            "[price]",
+        ]
         for kw in price_keywords:
             if kw in fixed:
                 issues.append(f"固定前缀包含动态数据标记「{kw}」")
@@ -500,15 +540,17 @@ def structural_analysis_only() -> dict:
         status = "✅" if not issues else "⚠️"
         note = "通过" if not issues else "; ".join(issues)
 
-        findings.append({
-            "name": tc["name"],
-            "model": tc["model"],
-            "status": status,
-            "note": note,
-            "fixed_chars": len(fixed),
-            "has_section_marker": has_section_marker,
-            "has_dynamic_section": has_dynamic_section,
-        })
+        findings.append(
+            {
+                "name": tc["name"],
+                "model": tc["model"],
+                "status": status,
+                "note": note,
+                "fixed_chars": len(fixed),
+                "has_section_marker": has_section_marker,
+                "has_dynamic_section": has_dynamic_section,
+            }
+        )
 
         print(f"  {status} {tc['name']:>30} | {tc['model']:>18} | {note}")
 
@@ -517,7 +559,7 @@ def structural_analysis_only() -> dict:
     warned = sum(1 for f in findings if f["status"] == "⚠️")
     print(f"\n  {'=' * 65}")
     print(f"  结构化验证: {passed}/{len(findings)} 通过, {warned} 个警告")
-    print(f"  缓存优化建议: 固定前缀中绝对不能出现动态数据")
+    print("  缓存优化建议: 固定前缀中绝对不能出现动态数据")
     print(f"  {'=' * 65}\n")
 
     return {
@@ -536,11 +578,7 @@ def generate_summary(summary_rows: list, all_results: list, rounds: int) -> dict
     if not summary_rows:
         return {"error": "无有效测试数据"}
 
-    total_success = sum(
-        1 for r in all_results
-        for rr in r["rounds"]
-        if rr["fixed_only"]["success"]
-    )
+    total_success = sum(1 for r in all_results for rr in r["rounds"] if rr["fixed_only"]["success"])
     total_rounds = len(TEST_CASES) * rounds
     overall_success_rate = round(total_success / total_rounds * 100, 1) if total_rounds else 0
 
@@ -549,7 +587,7 @@ def generate_summary(summary_rows: list, all_results: list, rounds: int) -> dict
     avg_duration = sum(r["fixed_only"]["avg_duration_ms"] for r in summary_rows) / len(summary_rows)
 
     print(f"\n{'=' * 65}")
-    print(f"  📊 综合验证报告")
+    print("  📊 综合验证报告")
     print(f"  {'=' * 65}")
     print(f"  测试总数: {len(TEST_CASES)} 组 × {rounds} 轮 = {total_rounds} 次调用")
     print(f"  整体成功率: {overall_success_rate}%")
@@ -558,7 +596,7 @@ def generate_summary(summary_rows: list, all_results: list, rounds: int) -> dict
     print(f"  完整prompt缓存命中率: {avg_full_hit:.1f}%")
     print(f"  平均响应耗时: {avg_duration:.0f}ms")
     print(f"  {'─' * 40}")
-    print(f"  缓存优化效果: ", end="")
+    print("  缓存优化效果: ", end="")
 
     if avg_fixed_hit >= 95:
         print("🟢 优秀！固定前缀缓存命中率≥95%")
@@ -567,7 +605,7 @@ def generate_summary(summary_rows: list, all_results: list, rounds: int) -> dict
     else:
         print("🔴 需要检查固定前缀是否包含动态数据")
 
-    print(f"\n  各测试详情:")
+    print("\n  各测试详情:")
     print(f"  {'测试名称':>30} | {'模型':>16} | {'固定前缀命中率':>14} | {'完整prompt命中率':>14}")
     print(f"  {'─' * 80}")
     for row in summary_rows:
@@ -576,7 +614,7 @@ def generate_summary(summary_rows: list, all_results: list, rounds: int) -> dict
         print(f"  {row['name']:>30} | {row['model']:>16} | {f_hit:>13.1f}% | {p_hit:>13.1f}%")
 
     print(f"  {'=' * 65}")
-    print(f"  成本效益分析:")
+    print("  成本效益分析:")
     print(f"  {'─' * 40}")
 
     # 计算节省
@@ -592,7 +630,7 @@ def generate_summary(summary_rows: list, all_results: list, rounds: int) -> dict
     print(f"  当月预估节省（按30天计）: ¥{total_savings:.2f}")
     print(f"  参考：未命中定价 ¥{miss_price:.1f}/万Token")
     print(f"  参考：命中定价    ¥{hit_price:.3f}/万Token")
-    print(f"\n  💡 提示: 缓存命中 vs 未命中的价差约 120 倍")
+    print("\n  💡 提示: 缓存命中 vs 未命中的价差约 120 倍")
     print(f"  {'=' * 65}\n")
 
     return {
@@ -613,6 +651,7 @@ def generate_summary(summary_rows: list, all_results: list, rounds: int) -> dict
 # ============================================================
 # 配置保存
 # ============================================================
+
 
 def save_config(api_key: str = "", base_url: str = ""):
     """保存 API 配置到本地文件"""
@@ -660,6 +699,7 @@ def save_report(report: dict):
 # ============================================================
 # CLI 入口
 # ============================================================
+
 
 def print_help():
     print("""用法: python3 verify_prompt_cache.py [OPTIONS]

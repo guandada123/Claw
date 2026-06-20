@@ -68,7 +68,7 @@ def get_quotes_via_tdx(codes: list[str]) -> dict[str, dict]:
             data = resp.json()
             quotes = data.get("data", data)
             result = {}
-            for q in (quotes or []):
+            for q in quotes or []:
                 code = q.get("code", "").split(".")[0]
                 result[code] = {
                     "name": q.get("name", ""),
@@ -178,7 +178,9 @@ def update_portfolio(data: dict, quotes: dict[str, dict], dry_run: bool = False)
     data["summary"] = summary
     data["updated"] = datetime.now().strftime("%Y-%m-%d")
 
-    print(f"\n[汇总] 更新 {updated_count} 只持仓, 总资产: ¥{summary['total_assets']:,.2f}, 浮动盈亏: ¥{total_pnl:+,.2f}")
+    print(
+        f"\n[汇总] 更新 {updated_count} 只持仓, 总资产: ¥{summary['total_assets']:,.2f}, 浮动盈亏: ¥{total_pnl:+,.2f}"
+    )
 
     if not dry_run:
         save_portfolio(data)
