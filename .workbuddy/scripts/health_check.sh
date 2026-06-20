@@ -112,7 +112,7 @@ c = conn.cursor()
 c.execute('SELECT COUNT(*) FROM automations WHERE status=\"ACTIVE\"')
 total = c.fetchone()[0]
 c.execute('''
-  SELECT COUNT(*) FROM automation_runs 
+  SELECT COUNT(*) FROM automation_runs
   WHERE status=\"failed\" AND created_at > datetime(\"now\", \"-24 hours\")
 ''')
 failures = c.fetchone()[0]
@@ -166,7 +166,7 @@ d = {
     'checks': {$(for name in \"\${!HTTP_CHECKS[@]}\"; do
       url=\"\${HTTP_CHECKS[\"$name\"]}\"
       code=\$(curl -sL -o /dev/null -w \"%{http_code}\" --connect-timeout 5 --max-time 10 \"\$url\" 2>/dev/null || echo \"000\")
-      echo \"\\\"$name\\\": {\\\"url\\\": \\\"$url\\\", \\\"status_code\\\": $code, \\\"healthy\\\": $( [ \"\$code\" != \"000\" ] && [ \"\$code\" -lt 500 ] && echo \"true\" || echo \"false\")}\", 
+      echo \"\\\"$name\\\": {\\\"url\\\": \\\"$url\\\", \\\"status_code\\\": $code, \\\"healthy\\\": $( [ \"\$code\" != \"000\" ] && [ \"\$code\" -lt 500 ] && echo \"true\" || echo \"false\")}\",
     done)}
   },
   'network': {
