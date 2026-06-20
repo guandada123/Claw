@@ -16,8 +16,6 @@ import random
 import urllib.request
 import urllib.error
 from enum import Enum
-from pathlib import Path
-from datetime import date
 
 # ============================================================
 # 模块级依赖导入（替代函数内动态导入，避免 import lock 死锁）

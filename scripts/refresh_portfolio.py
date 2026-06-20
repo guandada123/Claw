@@ -19,10 +19,8 @@ Usage:
 from __future__ import annotations
 
 import json
-import os
 import sys
-import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

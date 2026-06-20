@@ -25,9 +25,8 @@ import sys
 import time
 import urllib.request
 import urllib.error
-from datetime import datetime, date
+from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 # ============================================================
 # 配置

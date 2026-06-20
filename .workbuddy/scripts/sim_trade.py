@@ -80,7 +80,7 @@ TAKE_PROFIT_LEVELS = [  # 分级止盈
 
 # star_signal 集成 (v2.1)
 try:
-    from star_signal_adapter import get_dynamic_stop_loss, get_star_signal
+    from star_signal_adapter import get_dynamic_stop_loss, get_star_signal  # noqa: F401
 
     STAR_SIGNAL_AVAILABLE = True
 except ImportError:

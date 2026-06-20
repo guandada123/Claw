@@ -15,9 +15,9 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 try:
     from .errors import DataValidationError, NetworkError, NonRetryableError

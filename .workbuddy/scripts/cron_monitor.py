@@ -32,7 +32,7 @@ TAKE_PROFIT = 0.30
 
 # star_signal 集成 (v2.1)
 try:
-    from star_signal_adapter import get_star_signal, get_technical_score
+    from star_signal_adapter import get_star_signal, get_technical_score  # noqa: F401
 
     STAR_SIGNAL_AVAILABLE = True
 except ImportError:

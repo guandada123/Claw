@@ -14,7 +14,6 @@ budget_guard.py — 预算守护与用量拦截器
 import calendar
 import time
 from datetime import date
-from typing import Optional
 
 # check_budget_status() 的 60 秒 TTL 缓存
 _budget_cache: dict | None = None
@@ -149,7 +148,7 @@ def verify_call_cost(estimated_input: int, estimated_output: int,
     (bool, float) : (是否允许调用, 预估成本 ¥)
     """
     try:
-        from cost_tracker import MODEL_PRICES, _match_model
+        from cost_tracker import MODEL_PRICES, _match_model  # noqa: F401
     except ImportError:
         from scripts.cost_tracker import MODEL_PRICES, _match_model
 
@@ -178,9 +177,9 @@ def budget_summary() -> str:
     """快速预算摘要（用于日志/推送）"""
     status = check_budget_status()
     try:
-        from cost_tracker import MODEL_PRICES, _match_model
+        from cost_tracker import MODEL_PRICES, _match_model  # noqa: F401
     except ImportError:
-        from scripts.cost_tracker import MODEL_PRICES, _match_model
+        pass
     try:
         from cost_tracker import MONTHLY_BUDGET_CNY as MONTHLY_BUDGET
     except ImportError:

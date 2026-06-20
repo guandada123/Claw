@@ -12,9 +12,8 @@ context_compressor.py — 上下文压缩工具
 """
 
 import ast
-import re
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 # ============================================================
 # 配置

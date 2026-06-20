@@ -11,9 +11,8 @@ AI 成本监控脚本 — 每日预算检查
 
 import json
 import os
-import subprocess
 import sys
-from datetime import UTC, date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
