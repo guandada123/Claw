@@ -33,6 +33,7 @@ logs/*.log
 
 # 密钥（本地使用，不上传 GitHub）
 scripts/secrets.py
+scripts/.prompt_cache_config.json
 
 # 临时
 tmp/

@@ -90,7 +90,7 @@ echo "✅ 信号已保存: $LOCAL_DIR/$(basename $OUTPUT_FILE)"
 # 3. (可选) 推送飞书
 if $PUSH; then
   SIGNAL_JSON="$LOCAL_DIR/$(basename $OUTPUT_FILE)"
-  
+
   # 解析信号
   BUY_COUNT=$(python3 -c "import json; d=json.load(open('$SIGNAL_JSON')); print(d['summary']['buy_signals'])" 2>/dev/null || echo "0")
   SELL_COUNT=$(python3 -c "import json; d=json.load(open('$SIGNAL_JSON')); print(d['summary']['sell_signals'])" 2>/dev/null || echo "0")
@@ -100,7 +100,7 @@ if $PUSH; then
   # 构建飞书消息
   MSG="📊 [Quant 策略信号] $TRADE_DATE\n"
   MSG+="BUY: $BUY_COUNT  |  SELL: $SELL_COUNT  |  HOLD: $HOLD_COUNT\n"
-  
+
   if [ "$BUY_COUNT" -gt 0 ]; then
     MSG+="\n🔴 BUY 信号:\n"
     BUY_STOCKS=$(python3 -c "
@@ -110,7 +110,7 @@ for s in d['buy']:
 " 2>/dev/null)
     MSG+="$BUY_STOCKS\n"
   fi
-  
+
   if [ "$SELL_COUNT" -gt 0 ]; then
     MSG+="\n🟢 SELL 信号:\n"
     SELL_STOCKS=$(python3 -c "
