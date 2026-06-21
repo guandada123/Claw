@@ -30,6 +30,8 @@ logs/*.log
 # WorkBuddy 本地数据 (不提交)
 .workbuddy/logs/
 .workbuddy/.coverage
+.workbuddy/.workbuddy/
+.workbuddy/workbuddy.db
 
 # 密钥（本地使用，不上传 GitHub）
 scripts/secrets.py
@@ -45,3 +47,4 @@ lark-auth-qr*.png
 
 # 自动生成的 git 状态日志
 .workbuddy/memory/git_status_log_*.md
+.benchmarks/
