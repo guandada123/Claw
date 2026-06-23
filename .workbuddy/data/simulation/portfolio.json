@@ -2,7 +2,7 @@
   "config": {
     "initial_capital": 30000.0,
     "created_at": "2026-06-05",
-    "updated_at": "2026-06-12 15:11:58"
+    "updated_at": "2026-06-20 14:56:00"
   },
   "cash": 13438.14,
   "positions": {
@@ -11,7 +11,7 @@
       "shares": 200,
       "avg_cost": 76.855,
       "total_cost": 15371.0,
-      "current_price": 71.51,
+      "current_price": 80.39,
       "first_buy_date": "2026-06-05"
     }
   },
