@@ -37,7 +37,7 @@ jobs:
         run: safety check --full-report --output json > safety-report.json || true
         continue-on-error: true
       - name: Upload safety report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: claw-safety-report
           path: safety-report.json
@@ -71,7 +71,7 @@ jobs:
             -ll --skip B101,B324,B310,B108,B306 || true
         continue-on-error: true
       - name: Upload bandit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: claw-bandit-report
           path: bandit-report.json
