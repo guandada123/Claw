@@ -9,11 +9,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年5月29日",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "012c93cb2879.json"
+    "final_return_pct": -11.13,
+    "source_file": "012c93cb2879.json",
+    "realtime_chg_pct": -0.9,
+    "realtime_price": 65.25,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:29",
+    "source": "早报"
   },
   {
     "article_id": "b37b133aaa83",
@@ -25,11 +31,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年5月29日",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "012c93cb2879.json"
+    "final_return_pct": -5.79,
+    "source_file": "012c93cb2879.json",
+    "realtime_chg_pct": -8.45,
+    "realtime_price": 1093.98,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:30",
+    "source": "早报"
   },
   {
     "article_id": "4481f83d046d",
@@ -41,11 +53,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "1c4a39280116.json"
+    "final_return_pct": -17.17,
+    "source_file": "1c4a39280116.json",
+    "realtime_chg_pct": -4.69,
+    "realtime_price": 66.27,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:30",
+    "source": "早报"
   },
   {
     "article_id": "4481f83d046d",
@@ -57,11 +75,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "1c4a39280116.json"
+    "final_return_pct": -19.62,
+    "source_file": "1c4a39280116.json",
+    "realtime_chg_pct": -7.12,
+    "realtime_price": 348.76,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:30",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -73,11 +97,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": -8.21,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": -8.45,
+    "realtime_price": 1093.98,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:30",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -89,11 +119,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": -1.84,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": -4.12,
+    "realtime_price": 523.05,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:30",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -105,11 +141,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": 23.05,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": -5.77,
+    "realtime_price": 163.02,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:31",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -121,11 +163,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": -19.62,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": -7.12,
+    "realtime_price": 348.76,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:31",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -137,11 +185,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": -10.93,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": 0.36,
+    "realtime_price": 27.72,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:31",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -153,11 +207,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": 0.38,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": -0.43,
+    "realtime_price": 78.99,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:31",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -169,11 +229,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": 2.57,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": -10.0,
+    "realtime_price": 151.2,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:31",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -185,11 +251,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": -11.79,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": 2.21,
+    "realtime_price": 81.51,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:31",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -201,11 +273,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": 43.19,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": -5.11,
+    "realtime_price": 55.7,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:32",
+    "source": "早报"
   },
   {
     "article_id": "d20be6c3cf55",
@@ -217,11 +295,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "22208eb91316.json"
+    "final_return_pct": -33.53,
+    "source_file": "22208eb91316.json",
+    "realtime_chg_pct": -7.43,
+    "realtime_price": 114.79,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:32",
+    "source": "早报"
   },
   {
     "article_id": "73637dac5dbf",
@@ -237,7 +321,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "31d4321ac6d9.json"
+    "source_file": "31d4321ac6d9.json",
+    "realtime_chg_pct": 3.86,
+    "realtime_price": 7.54,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:32",
+    "source": "早报"
   },
   {
     "article_id": "f73be8072d29",
@@ -249,11 +339,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月8日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "32ae0aca5390.json"
+    "final_return_pct": 16.51,
+    "source_file": "32ae0aca5390.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:32",
+    "source": "早报"
   },
   {
     "article_id": "36eee914d740",
@@ -265,11 +361,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年5月31日",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "3eec618068c0.json"
+    "final_return_pct": -3.19,
+    "source_file": "3eec618068c0.json",
+    "realtime_chg_pct": -8.45,
+    "realtime_price": 1093.98,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:32",
+    "source": "早报"
   },
   {
     "article_id": "36eee914d740",
@@ -281,11 +383,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年5月31日",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "3eec618068c0.json"
+    "final_return_pct": -11.35,
+    "source_file": "3eec618068c0.json",
+    "realtime_chg_pct": -0.14,
+    "realtime_price": 271.12,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:33",
+    "source": "早报"
   },
   {
     "article_id": "c9bb79c2fcda",
@@ -297,11 +405,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年5月26日",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "5196f7477b5a.json"
+    "final_return_pct": -0.82,
+    "source_file": "5196f7477b5a.json",
+    "realtime_chg_pct": -8.45,
+    "realtime_price": 1093.98,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:33",
+    "source": "早报"
   },
   {
     "article_id": "9cba93afb5f0",
@@ -317,7 +431,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "532fc8aaaf85.json"
+    "source_file": "532fc8aaaf85.json",
+    "realtime_chg_pct": -0.16,
+    "realtime_price": 12.59,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:33",
+    "source": "早报"
   },
   {
     "article_id": "9cba93afb5f0",
@@ -333,7 +453,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "532fc8aaaf85.json"
+    "source_file": "532fc8aaaf85.json",
+    "realtime_chg_pct": 2.1,
+    "realtime_price": 18.47,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:33",
+    "source": "早报"
   },
   {
     "article_id": "e7bc579d81b1",
@@ -345,11 +471,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月1日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "5b2cf9934f16.json"
+    "final_return_pct": -10.07,
+    "source_file": "5b2cf9934f16.json",
+    "realtime_chg_pct": -0.9,
+    "realtime_price": 65.25,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:33",
+    "source": "早报"
   },
   {
     "article_id": "e7bc579d81b1",
@@ -361,11 +493,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月1日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "5b2cf9934f16.json"
+    "final_return_pct": 14.78,
+    "source_file": "5b2cf9934f16.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:33",
+    "source": "早报"
   },
   {
     "article_id": "6c608ed7c4ed",
@@ -377,11 +515,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "5cd2f2124436.json"
+    "final_return_pct": -6.19,
+    "source_file": "5cd2f2124436.json",
+    "realtime_chg_pct": -2.84,
+    "realtime_price": 77.79,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:34",
+    "source": "早报"
   },
   {
     "article_id": "b18fe1ffa78d",
@@ -397,7 +541,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "5f8fd3917d9c.json"
+    "source_file": "5f8fd3917d9c.json",
+    "realtime_chg_pct": 0.5,
+    "realtime_price": 40.53,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:34",
+    "source": "早报"
   },
   {
     "article_id": "b64ec6d13422",
@@ -409,11 +559,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月7日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "6eba758dbaed.json"
+    "final_return_pct": 16.51,
+    "source_file": "6eba758dbaed.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:34",
+    "source": "早报"
   },
   {
     "article_id": "e5ff458251b9",
@@ -425,11 +581,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月5日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "71f7e72fb69f.json"
+    "final_return_pct": 28.23,
+    "source_file": "71f7e72fb69f.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:34",
+    "source": "早报"
   },
   {
     "article_id": "720cff579d3f",
@@ -441,11 +603,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "7356ade12f77.json"
+    "final_return_pct": -17.17,
+    "source_file": "7356ade12f77.json",
+    "realtime_chg_pct": -4.69,
+    "realtime_price": 66.27,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:34",
+    "source": "早报"
   },
   {
     "article_id": "7655d768c4fe",
@@ -457,11 +625,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年5月31日",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "769eb60e6ed1.json"
+    "final_return_pct": 14.78,
+    "source_file": "769eb60e6ed1.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:35",
+    "source": "早报"
   },
   {
     "article_id": "7564c7ec1d3d",
@@ -473,11 +647,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月5日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "792a3bff2d89.json"
+    "final_return_pct": 28.23,
+    "source_file": "792a3bff2d89.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:35",
+    "source": "早报"
   },
   {
     "article_id": "6f01e3a97f08",
@@ -489,11 +669,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月1日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "7f4a37e68923.json"
+    "final_return_pct": -10.07,
+    "source_file": "7f4a37e68923.json",
+    "realtime_chg_pct": -0.9,
+    "realtime_price": 65.25,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:35",
+    "source": "早报"
   },
   {
     "article_id": "6f01e3a97f08",
@@ -505,11 +691,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月1日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "7f4a37e68923.json"
+    "final_return_pct": 14.78,
+    "source_file": "7f4a37e68923.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:35",
+    "source": "早报"
   },
   {
     "article_id": "0897b7175f5b",
@@ -521,11 +713,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月3日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "a9579d759151.json"
+    "final_return_pct": 38.19,
+    "source_file": "a9579d759151.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:35",
+    "source": "早报"
   },
   {
     "article_id": "510dcbd7ee2a",
@@ -537,11 +735,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年5月25日",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "be76596b0f0f.json"
+    "final_return_pct": 0.09,
+    "source_file": "be76596b0f0f.json",
+    "realtime_chg_pct": -8.45,
+    "realtime_price": 1093.98,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:36",
+    "source": "早报"
   },
   {
     "article_id": "29948a8379c5",
@@ -557,7 +761,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "bed0f6e1218a.json"
+    "source_file": "bed0f6e1218a.json",
+    "realtime_chg_pct": -0.09,
+    "realtime_price": 11.32,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:36",
+    "source": "早报"
   },
   {
     "article_id": "fe55aae47ad2",
@@ -569,11 +779,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年5月31日",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "c7ccaa8ecfcb.json"
+    "final_return_pct": 14.78,
+    "source_file": "c7ccaa8ecfcb.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:36",
+    "source": "早报"
   },
   {
     "article_id": "45457300a05b",
@@ -589,7 +805,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "ed4bda26a6e9.json"
+    "source_file": "ed4bda26a6e9.json",
+    "realtime_chg_pct": 2.54,
+    "realtime_price": 4.84,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:36",
+    "source": "早报"
   },
   {
     "article_id": "45457300a05b",
@@ -605,7 +827,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "ed4bda26a6e9.json"
+    "source_file": "ed4bda26a6e9.json",
+    "realtime_chg_pct": 1.5,
+    "realtime_price": 10.13,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:36",
+    "source": "早报"
   },
   {
     "article_id": "e036e1a5bbcb",
@@ -621,7 +849,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "f1acc8cbe6b6.json"
+    "source_file": "f1acc8cbe6b6.json",
+    "realtime_chg_pct": -1.45,
+    "realtime_price": 85.83,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:36",
+    "source": "早报"
   },
   {
     "article_id": "e036e1a5bbcb",
@@ -637,7 +871,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "f1acc8cbe6b6.json"
+    "source_file": "f1acc8cbe6b6.json",
+    "realtime_chg_pct": -0.17,
+    "realtime_price": 11.93,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:37",
+    "source": "早报"
   },
   {
     "article_id": "0f392c084663",
@@ -653,7 +893,13 @@
     "hit_target": null,
     "hit_stop": null,
     "final_return_pct": null,
-    "source_file": "f68b4f3a70a8.json"
+    "source_file": "f68b4f3a70a8.json",
+    "realtime_chg_pct": -3.6,
+    "realtime_price": 62.14,
+    "hit": null,
+    "verify_note": "信号过旧(>1年)跳过",
+    "verify_at": "2026-07-13 04:56:37",
+    "source": "早报"
   },
   {
     "article_id": "aa1672c41e2a",
@@ -665,11 +911,17 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月9日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "fc035eb119ec.json"
+    "final_return_pct": 5.96,
+    "source_file": "fc035eb119ec.json",
+    "realtime_chg_pct": 5.69,
+    "realtime_price": 8.54,
+    "hit": true,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:37",
+    "source": "早报"
   },
   {
     "article_id": "d04223ba5275",
@@ -681,10 +933,49 @@
     "target_price": null,
     "confidence": 5,
     "recorded_at": "2026年6月2日 ",
-    "verified": false,
+    "verified": true,
     "hit_target": null,
     "hit_stop": null,
-    "final_return_pct": null,
-    "source_file": "fcbf435c7cba.json"
+    "final_return_pct": -13.66,
+    "source_file": "fcbf435c7cba.json",
+    "realtime_chg_pct": -0.9,
+    "realtime_price": 65.25,
+    "hit": false,
+    "verify_note": "累计收益已计算",
+    "verify_at": "2026-07-13 04:56:37",
+    "source": "早报"
+  },
+  {
+    "account": "红鼻子小丑",
+    "article_id": "wx_20260705_110151_五大方向",
+    "stock_code": "603986",
+    "stock_name": "兆易创新",
+    "signal": "bullish",
+    "confidence": 4,
+    "recorded_at": "2026-07-13 09:12",
+    "note": "存储芯片业绩爆发+鱼盆半导体#1双确认",
+    "source": "早报"
+  },
+  {
+    "account": "恩哥箴言",
+    "article_id": "wx_20260705_110148_光模块算力",
+    "stock_code": "002371",
+    "stock_name": "北方华创",
+    "signal": "bullish",
+    "confidence": 4,
+    "recorded_at": "2026-07-13 09:12",
+    "note": "半导体设备+鱼盆半导体#1+订单延伸至2028",
+    "source": "早报"
+  },
+  {
+    "account": "红鼻子小丑",
+    "article_id": "wx_20260705_110151_五大方向",
+    "stock_code": "600584",
+    "stock_name": "长电科技",
+    "signal": "bullish",
+    "confidence": 3,
+    "recorded_at": "2026-07-13 09:12",
+    "note": "封测+半导体链回调抗跌",
+    "source": "早报"
   }
 ]

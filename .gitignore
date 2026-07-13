@@ -32,7 +32,46 @@ logs/*.log
 .workbuddy/.coverage
 .workbuddy/.workbuddy/
 .workbuddy/workbuddy.db
-.workbuddy/data/
+# Core data files (tracked) — whitelist only these, ignore rest
+.workbuddy/data/*
+!.workbuddy/data/article_signals.json
+!.workbuddy/data/automation_health.json
+!.workbuddy/data/macro_data.json
+!.workbuddy/data/stock_pool.json
+!.workbuddy/data/simulation/
+!.workbuddy/data/simulation/portfolio.json
+!.workbuddy/data/user/
+!.workbuddy/data/user/portfolio.json
+# Runtime-only data files under .workbuddy/data/ (explicitly ignored)
+.workbuddy/data/.backup*/
+.workbuddy/data/.backups/
+.workbuddy/data/cache/
+.workbuddy/data/golden_results/
+.workbuddy/data/*.db
+.workbuddy/data/*.lock
+.workbuddy/data/alert_state.json
+.workbuddy/data/midday_data.json
+.workbuddy/data/next_week_data.json
+.workbuddy/data/pool_health.json
+.workbuddy/data/qts_signals.json
+.workbuddy/data/risk_snapshot.json
+.workbuddy/data/signal_history.json
+.workbuddy/data/signal_verified.json
+.workbuddy/data/signal_verify_*.json
+.workbuddy/data/signal_weights.json
+.workbuddy/data/subscribe_candidates.json
+.workbuddy/data/sysinfo.json
+.workbuddy/data/fish_basin_sectors_*.json
+.workbuddy/data/article_stock_discovery.json
+.workbuddy/data/evening_report_data.json
+.workbuddy/data/macro_weekly.md
+.workbuddy/data/portfolio.json
+.workbuddy/data/portfolio.json.lock
+.workbuddy/data/claw-code-audit.md
+.workbuddy/data/simulation/.backups/
+.workbuddy/data/simulation/backups/
+.workbuddy/data/simulation/decision_log*/
+.workbuddy/data/simulation/trading_memory.*
 .workbuddy/automations/*/memory.md
 .workbuddy/archive/
 .workbuddy/experiments/
@@ -71,7 +110,3 @@ claw.egg-info/
 
 # 备份文件
 *.bak.*
-.workbuddy/data/.backup*/
-.workbuddy/data/.backups/
-.workbuddy/data/simulation/.backups/
-.workbuddy/data/simulation/decision_log.json.migrated*

@@ -1,8 +1,8 @@
 {
-  "broker": "广发证券",
+  "broker": "广发证券+国金证券",
   "account_type": "人民币账户A股",
   "created": "2026-06-05",
-  "updated": "2026-06-20",
+  "updated": "2026-07-12",
   "rules": {
     "stop_loss": -0.08,
     "take_profit": null,
@@ -10,35 +10,32 @@
     "note": "止损8%，止盈不设"
   },
   "summary": {
-    "total_assets": 15714.77,
-    "cash_available": 1000,
-    "floating_pnl": 201.0,
-    "position_pct": 9.8
+    "total_assets": 0,
+    "cash_available": 31820.86,
+    "floating_pnl": 0,
+    "position_pct": 0
   },
   "holdings": [
     {
-      "code": "002354",
-      "name": "天娱数科",
-      "shares": 200,
-      "cost_price": 6.725,
-      "current_price": 7.73,
-      "market_value": 1546.0,
-      "pnl": 201.0,
-      "pnl_pct": 14.94,
-      "available": 200,
-      "added_date": "2026-06-05"
-    }
-  ],
-  "closed_positions": [
+      "code": "600522",
+      "name": "中天科技",
+      "shares": 100,
+      "avg_cost": 47.69,
+      "updated": "2026-07-12"
+    },
     {
-      "code": "600884",
-      "name": "杉杉股份",
-      "cost_price": 15.0,
-      "exit_price": 13.69,
-      "pnl": -294.46,
-      "pnl_pct": -8.73,
-      "status": "已清仓",
-      "closed_date": "2026-06-05前"
+      "code": "600206",
+      "name": "有研新材",
+      "shares": 300,
+      "avg_cost": 62.34,
+      "updated": "2026-07-12"
+    },
+    {
+      "code": "000636",
+      "name": "风华高科",
+      "shares": 100,
+      "avg_cost": 70.1,
+      "updated": "2026-07-12"
     }
   ]
 }
