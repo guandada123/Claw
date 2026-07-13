@@ -46,6 +46,7 @@
 - **知识库**：`scripts/pdf_extractor.py`+`knowledge_base.py`；向量库 `~/.workbuddy/cache/knowledge_vectors/`
 - **专家系统**：7位已注册 `~/.workbuddy/plugins/marketplaces/my-experts/plugins/`
 - **宏观数据**：`macro_data.py`(AKShare 8项)+`market_data.py`；`automation_health.py`(32自动化健康检查)
+- **早报系统 v3.0**（2026-07-13 三层拆分）：`claw/feeds/wx_collector.py`(采集,811L) → `claw/feeds/wx_assembler.py`(组装,510L) → `claw/feeds/wx_publisher.py`(推送,58L)；入口 `claw/cli/wx_morning_report.py`(61L 薄壳)。原旧文件 `/tmp/wx_collector_raw.py` 已删除。
 
 ## 已知技术债 / 维护须知
 - ✅ `schedule_utils.py`、`notify_center.py` 已于 **2026-07-12 17:28 创建就位**（此前 v6 引用的技术债已修复）；Dependabot 日清等维护任务可直接使用，无需再走 `automation_health.py` + `push_feishu.sh` 替代路径
