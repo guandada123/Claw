@@ -32,6 +32,14 @@ logs/*.log
 .workbuddy/.coverage
 .workbuddy/.workbuddy/
 .workbuddy/workbuddy.db
+.workbuddy/data/
+.workbuddy/automations/*/memory.md
+.workbuddy/archive/
+.workbuddy/experiments/
+.workbuddy/reports/
+.workbuddy/artifacts/
+.workbuddy/knowledge/
+.workbuddy/memory/.backups/
 
 # 密钥（本地使用，不上传 GitHub）
 scripts/secrets.py
@@ -48,3 +56,22 @@ lark-auth-qr*.png
 # 自动生成的 git 状态日志
 .workbuddy/memory/git_status_log_*.md
 .benchmarks/
+
+# 运行时数据 (不提交)
+data/
+reports/
+claw.egg-info/
+.uv/
+*.egg-info/
+
+# 外部工具配置 (本地)
+.agents/
+.brv/
+.claude/
+
+# 备份文件
+*.bak.*
+.workbuddy/data/.backup*/
+.workbuddy/data/.backups/
+.workbuddy/data/simulation/.backups/
+.workbuddy/data/simulation/decision_log.json.migrated*
