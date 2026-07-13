@@ -97,9 +97,7 @@ def should_include(path, base_dir):
     for pat in EXCLUDE_PATTERNS:
         if fnmatch.fnmatch(rel, pat):
             return False
-    if "__pycache__" in rel.split(os.sep) or rel.endswith(".pyc"):
-        return False
-    return True
+    return not ("__pycache__" in rel.split(os.sep) or rel.endswith(".pyc"))
 
 
 def collect_files(base_dir):

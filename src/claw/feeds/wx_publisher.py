@@ -55,4 +55,3 @@ def print_report(report_text: str, push: bool = False) -> None:
     """
     if push:
         push_to_feishu(report_text)
-    print(report_text)

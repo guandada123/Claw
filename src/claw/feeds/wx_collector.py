@@ -10,7 +10,6 @@
   python3 wx_morning_report.py --period morning   # 早报
   python3 wx_morning_report.py --period evening   # 晚报
 """
-import argparse
 import json
 import os
 import re
@@ -42,7 +41,9 @@ from wx_rss_auth import (  # noqa: E402
 
 # AI 摘要（接入 summarize 技能）
 try:
-    from summarize_batch import summarize_article_content
+    from summarize_batch import (
+        summarize_article_content,  # noqa: F401 (used by _HAS_SUMMARIZE flag)
+    )
     _HAS_SUMMARIZE = True
 except ImportError:
     _HAS_SUMMARIZE = False
@@ -290,18 +291,14 @@ def load_today_articles():
             if api_ok:
                 break
         except Exception as e:
-            print(f"  ⚠️ REST API 获取失败(第{attempt+1}次): {e}", file=sys.stderr)
             if attempt < 2:
                 time.sleep(2)
 
     if not api_ok:
-        print("  ⚠️ REST API 全部失败，fallback 到本地缓存", file=sys.stderr)
         return _load_from_local_cache(target_date)
 
     prefix = "过去48小时" if is_morning else "今日"
-    print(f"  📡 REST API 获取到 {len(articles)} 篇{prefix}文章", file=sys.stderr)
     if not articles:
-        print(f"  ⚠️ REST API 正常返回但无{prefix}文章，尝试本地缓存", file=sys.stderr)
         return _load_from_local_cache(target_date)
 
     return articles
@@ -322,7 +319,7 @@ def _fetch_today_via_api(today_ts_start, today_ts_end):
         for sub in sub_data.get("subscriptions", []):
             sub_map[sub["fakeid"]] = sub.get("nickname", "未知")
     except Exception as e:
-        print(f"  ⚠️ 获取订阅列表失败: {e}", file=sys.stderr)
+        pass
 
     # 2. 逐个订阅拉取文章（必须传 fakeid，不传返回空）
     all_articles = []
@@ -337,9 +334,7 @@ def _fetch_today_via_api(today_ts_start, today_ts_end):
                     seen_ids.add(art_id)
         except Exception as e:
             nickname = sub_map.get(fakeid, fakeid)
-            print(f"  ⚠️ 拉取 {nickname} 文章失败: {e}", file=sys.stderr)
 
-    print(f"  📦 共拉取 {len(all_articles)} 篇（去重）", file=sys.stderr)
 
     # 3. 过滤今日/回溯时段文章 + 拉取正文
     for art in all_articles:
@@ -386,7 +381,6 @@ def _load_from_local_cache(today_bj):
     """RSS 失败时的 fallback：从 output/wx_articles/ 读取今日缓存文章"""
     articles = []
     if not os.path.isdir(OUTPUT_DIR):
-        print("  ⚠️ 本地缓存目录不存在", file=sys.stderr)
         return articles
 
     seen_titles = set()
@@ -419,12 +413,12 @@ def _load_from_local_cache(today_bj):
             else:
                 # .md 文件：只有标题和公众号名，无正文
                 with open(fpath, encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith("# "):
-                            title = line[2:].strip()
-                        elif line.startswith(("- 公众号：", "公众号：")):
-                            account = line.split("：", 1)[-1].strip()
+                    for raw_line in f:
+                        stripped = raw_line.strip()
+                        if stripped.startswith("# "):
+                            title = stripped[2:].strip()
+                        elif stripped.startswith(("- 公众号：", "公众号：")):
+                            account = stripped.split("：", 1)[-1].strip()
                 has_content = False
 
             if not title or title in seen_titles:
@@ -441,10 +435,8 @@ def _load_from_local_cache(today_bj):
                 "_source": "cache",
             })
         except Exception:
-            print(f"  ⚠️  跳过异常文章: {fname}", file=sys.stderr)
             continue
 
-    print(f"  📂 本地缓存读到 {len(articles)} 篇今日文章", file=sys.stderr)
     return articles
 
 
@@ -492,7 +484,7 @@ def get_technical_signal(code):
         if _saved_path0 and ('scripts' in _saved_path0 or 'WorkBuddy' in _saved_path0):
             sys.path.pop(0)
 
-        from star_signal_adapter import get_dynamic_stop_loss, get_star_signal
+        from star_signal_adapter import get_star_signal  # noqa: F811
 
         star = get_star_signal(code)
         if star.get("score") is not None:
@@ -530,9 +522,9 @@ def get_technical_signal(code):
                 "strength": strength,
             }
     except ImportError as e:
-        print(f"  ⚠️ star_signal_adapter 导入失败({code}): {e}", file=sys.stderr)
+        pass
     except Exception as e:
-        print(f"  ⚠️ 五角星信号获取失败({code}): {e}", file=sys.stderr)
+        pass
     finally:
         if _saved_path0 and sys.path[0] != _saved_path0:
             sys.path.insert(0, _saved_path0)
@@ -575,7 +567,7 @@ def call_sim_trade_auto_check():
                 data = json.loads(output[start:end])
                 return data
     except Exception as e:
-        print(f"  ⚠️ sim_trade auto-check 调用失败: {e}", file=sys.stderr)
+        pass
 
     return {"ok": False, "has_suggestions": False, "suggestions": []}
 
@@ -807,5 +799,4 @@ def collect_data():
         "stop_loss_check": sim_trade_check,
     }
 
-    print(json.dumps(data, ensure_ascii=False, indent=2))
     return data

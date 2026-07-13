@@ -24,8 +24,8 @@ _SRC_DIR = str(_PROJECT_ROOT / "src")
 if _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)
 
-from claw.feeds.wx_collector import collect_data  # noqa: E402
 from claw.feeds.wx_assembler import build_evening_report, build_morning_report  # noqa: E402
+from claw.feeds.wx_collector import collect_data  # noqa: E402
 from claw.feeds.wx_publisher import print_report  # noqa: E402
 
 
@@ -48,10 +48,7 @@ def main() -> None:
     if not args.period:
         parser.error("请指定 --period morning 或 --period evening")
 
-    if args.period == "morning":
-        report = build_morning_report()
-    else:
-        report = build_evening_report()
+    report = build_morning_report() if args.period == "morning" else build_evening_report()
 
     # 默认只输出 stdout，不推群（防止原始格式误推）
     print_report(report, push=args.push)

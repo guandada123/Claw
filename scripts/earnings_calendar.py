@@ -36,7 +36,7 @@ def _code_with_prefix(raw: str) -> str:
     """将裸代码转为 westock CLI 所需的 sh/sz 前缀格式"""
     raw = raw.strip()
     # 已有前缀则直接返回
-    if raw.startswith("sh") or raw.startswith("sz"):
+    if raw.startswith(("sh", "sz")):
         return raw
     # 仅数字则按交易所规则加前缀
     if raw.isdigit():

@@ -30,7 +30,7 @@ from pathlib import Path
 for _k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
     os.environ.pop(_k, None)
 
-import urllib.request
+import urllib.request  # noqa: E402 (proxy must be cleared first)
 
 import akshare as ak  # noqa: E402
 
@@ -240,7 +240,6 @@ def build_report(signals: list, today: datetime.date) -> dict:
 
 def main():
     report = verify_signals()
-    print(json.dumps(report, ensure_ascii=False, indent=2))
     return report
 
 

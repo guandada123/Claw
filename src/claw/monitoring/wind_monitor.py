@@ -24,7 +24,6 @@ import json
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 from pathlib import Path
 
 from claw.feeds.wind_analytics import WindAnalytics
@@ -73,9 +72,6 @@ def _fmt(v, decimals: int = 2) -> str:
 
 def monitor_technical():
     """技术指标监控：MACD 趋势 + RSI（并行查询加速）"""
-    print(f"\n{'='*60}")
-    print(f"📊 技术指标监控 ({datetime.now().strftime('%m-%d %H:%M')})")
-    print(f"{'='*60}")
 
     codes = list(HOLDINGS.keys())
 
@@ -102,9 +98,12 @@ def monitor_technical():
                 v = row.get(ck)
                 if v is not None and isinstance(v, (int, float)):
                     rsi_val = v
-                    if rsi_val > 70: rsi_signal = "⚠️ 超买"
-                    elif rsi_val < 30: rsi_signal = "⚠️ 超卖"
-                    else: rsi_signal = "正常"
+                    if rsi_val > 70:
+                        rsi_signal = "⚠️ 超买"
+                    elif rsi_val < 30:
+                        rsi_signal = "⚠️ 超卖"
+                    else:
+                        rsi_signal = "正常"
                     break
 
         return code, name, macd_val, macd_trend, rsi_val, rsi_signal
@@ -116,14 +115,10 @@ def monitor_technical():
             futures.append(pool.submit(_fetch_one, wa, code))
         for f in as_completed(futures):
             code, name, macd_val, macd_trend, rsi_val, rsi_signal = f.result()
-            print(f"  {name}({code}): MACD={_fmt(macd_val)} {macd_trend}  RSI={_fmt(rsi_val)} {rsi_signal}")
 
 
 def monitor_news(top_k: int = 3):
     """财经新闻监控：持仓股最新动态"""
-    print(f"\n{'='*60}")
-    print(f"📰 持仓新闻监控 ({datetime.now().strftime('%m-%d %H:%M')})")
-    print(f"{'='*60}")
 
     def _fetch_one(wa, code):
         name = HOLDINGS[code]
@@ -138,20 +133,15 @@ def monitor_news(top_k: int = 3):
         for f in as_completed(futures):
             code, name, news = f.result()
             if news:
-                print(f"\n  📌 {name}({code}):")
                 for n in news:
                     title = n.get("title", "?")[:55]
                     date = n.get("date", "?")
-                    print(f"    [{date}] {title}")
             else:
-                print(f"\n  {name}({code}): 暂无新闻")
+                pass
 
 
 def monitor_risk():
     """风险指标快照"""
-    print(f"\n{'='*60}")
-    print(f"🛡️  风险指标快照 ({datetime.now().strftime('%m-%d %H:%M')})")
-    print(f"{'='*60}")
 
     def _fetch_one(wa, code):
         name = HOLDINGS[code]
@@ -161,11 +151,13 @@ def monitor_risk():
             beta = None
             for bk in ["过去1年BETA", "过去1年Beta", "过去1年年化Beta"]:
                 beta = r.get(bk)
-                if beta is not None: break
+                if beta is not None:
+                    break
             vol = None
             for vk in ["过去1年波动率", "过去1年年化波动率", "过去1年Volatility"]:
                 vol = r.get(vk)
-                if vol is not None: break
+                if vol is not None:
+                    break
             return code, name, beta, vol
         return code, name, None, None
 
@@ -177,16 +169,13 @@ def monitor_risk():
         for f in as_completed(futures):
             code, name, beta, vol = f.result()
             if beta is not None:
-                print(f"  {name}({code}): Beta={_fmt(beta)}  波动率={_fmt(vol)}%")
+                pass
             else:
-                print(f"  {name}({code}): 数据不可用")
+                pass
 
 
 def run_screening(wa: WindAnalytics):
     """条件选股：发现潜在机会"""
-    print(f"\n{'='*60}")
-    print(f"🔍 条件选股 ({datetime.now().strftime('%m-%d %H:%M')})")
-    print(f"{'='*60}")
 
     conditions = [
         ("沪深市场市值超500亿且连续3日上涨", "大盘企稳"),
@@ -195,14 +184,12 @@ def run_screening(wa: WindAnalytics):
     ]
 
     for condition, label in conditions:
-        print(f"\n  🎯 {label}: {condition}")
         stocks = wa.search_stocks(condition)
         if stocks:
             for s in stocks[:5]:
                 code = s.get("Wind代码", s.get("代码", "?"))
-                print(f"    - {code}")
         else:
-            print("    无结果或不可用")
+            pass
 
 
 def main():
@@ -216,7 +203,6 @@ def main():
 
     wa = WindAnalytics()
     if not wa.available:
-        print("❌ Wind 数据不可用（CLI 未安装或 Key 未配置）")
         sys.exit(1)
 
     # 默认全部
@@ -231,7 +217,6 @@ def main():
     if args.screening:
         run_screening(wa)
 
-    print("\n✅ Wind 监控完成")
 
 
 if __name__ == "__main__":
