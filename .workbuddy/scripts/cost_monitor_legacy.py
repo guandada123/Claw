@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-⚠️ DEPRECATED (2026-07-13) — 已被 scripts/cost_monitor.py (orchestrator wrapper) 取代。
-   活跃调用请走 scripts/cost_monitor.py + cost_tracker.py + budget_guard.py + cost_dashboard.py。
-   此文件仅作历史参考，见 cost_monitor_legacy.py 副本。
+⚠️ DEPRECATED (2026-07-13) — replaced by scripts/cost_monitor.py (orchestrator wrapper)
+   + scripts/cost_tracker.py + scripts/budget_guard.py + scripts/cost_dashboard.py
 
-AI 成本监控脚本 — 每日预算检查（旧版独立实现）
+   此文件保留仅作历史参考。活跃实现请用 scripts/cost_monitor.py。
+
+   AI 成本监控脚本 — 每日预算检查（旧版独立实现）
 
 用法:
     python scripts/cost_monitor.py daily
