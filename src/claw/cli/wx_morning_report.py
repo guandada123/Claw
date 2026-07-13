@@ -793,11 +793,11 @@ def build_morning_report():
     for code, pos in user_pos.items():
         if code not in all_positions:
             all_positions[code] = {"name": pos["name"], "shares": pos["shares"],
-                                    "cost": pos["cost_price"], "source": "实盘"}
+                                    "cost": float(pos["avg_cost"]) if str(pos["avg_cost"]).strip() else 0.0, "source": "实盘"}
 
     # ── 组装早报 ──────────────────────────────────────────
     lines = []
-    lines.append(f"📊 微信读书【早报】— {now.strftime('%Y-%m-%d')} 07:30")
+    lines.append(f"📊 微信早报 — {now.strftime('%Y-%m-%d')}")
     lines.append("=" * 40)
 
     # 一、公众号文章汇总
@@ -979,7 +979,7 @@ def build_evening_report():
     date_str = now.strftime("%Y%m%d")
 
     lines = []
-    lines.append(f"📊 微信读书【晚报·复盘】— {now.strftime('%Y-%m-%d')} 15:30")
+    lines.append(f"📊 微信晚报 — {now.strftime('%Y-%m-%d')}")
     lines.append("=" * 40)
 
     # 读取早报建议
@@ -1014,7 +1014,7 @@ def build_evening_report():
     for code, pos in user_pos.items():
         if code not in all_positions:
             all_positions[code] = {"name": pos["name"], "shares": pos["shares"],
-                                    "cost": pos["cost_price"], "source": "实盘"}
+                                    "cost": float(pos["avg_cost"]) if str(pos["avg_cost"]).strip() else 0.0, "source": "实盘"}
 
     if not all_positions:
         lines.append("  当前无持仓")
@@ -1238,9 +1238,16 @@ def push_to_feishu(report_text):
             print(f"  ⚠️ 飞书推送异常: {e}", file=sys.stderr)
 
 
-def print_report(report_text):
-    """打印报告到 stdout（供调试），同时推送到飞书群"""
-    push_to_feishu(report_text)
+def print_report(report_text, push: bool = False):
+    """打印报告到 stdout（供调试）。
+
+    注意：本函数默认【不推送飞书群】。直接 `build_morning_report` 的输出
+    是「公众号文章聚合」原始格式，并非最终早报标准格式（标准格式由
+    自动化 prompt 定义的飞书文档 + 结构化群卡片生成）。若误推到群会造成
+    格式混乱。如需推群，必须显式传 push=True（仅限自动化流程内部调用）。
+    """
+    if push:
+        push_to_feishu(report_text)
     print(report_text)
 
 
@@ -1295,8 +1302,8 @@ def collect_data():
                 "code": code,
                 "name": pos["name"],
                 "source": "user",
-                "shares": pos["shares"],
-                "avg_cost": pos["cost_price"],
+                "shares": float(pos["shares"]) if str(pos["shares"]).strip() else 0,
+                "avg_cost": float(pos["avg_cost"]) if str(pos["avg_cost"]).strip() else 0.0,
                 "current_price": price,
                 "star_signal": star,
             })
@@ -1335,6 +1342,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--period", choices=["morning", "evening"], help="生成早报或晚报")
     parser.add_argument("--collect-only", action="store_true", help="仅采集数据输出JSON，不做LLM分析和推送")
+    parser.add_argument("--push", action="store_true", help="【仅自动化内部用】生成后推送飞书群。默认不推送，避免误推错误格式到群")
     args = parser.parse_args()
 
     if args.collect_only:
@@ -1343,7 +1351,8 @@ def main():
 
     report = build_morning_report() if args.period == "morning" else build_evening_report()
 
-    print_report(report)
+    # 默认只输出 stdout，不推群（防止公众号聚合原始格式误推到飞书群）
+    print_report(report, push=args.push)
 
 
 if __name__ == "__main__":
