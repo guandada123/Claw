@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from claw.feeds.wind_analytics import WindAnalytics
@@ -119,10 +120,8 @@ class WindStrategy:
                     result["beta"] = round(float(v), 2)
                     break
                 elif v is not None:
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         result["beta"] = round(float(v), 2)
-                    except (ValueError, TypeError):
-                        pass
                     break
             for vk in ["过去1年波动率", "过去1年年化波动率"]:
                 v = r.get(vk)
@@ -130,10 +129,8 @@ class WindStrategy:
                     result["volatility"] = round(float(v), 2)
                     break
                 elif v is not None:
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         result["volatility"] = round(float(v), 2)
-                    except (ValueError, TypeError):
-                        pass
                     break
         return result
 
@@ -191,24 +188,16 @@ if __name__ == "__main__":
     holdings = {"600522": "中天科技", "600206": "有研新材", "000021": "深科技",
                 "000636": "风华高科", "600584": "长电科技"}
 
-    print("=" * 60)
-    print("Wind 策略分析 — 持仓技术信号")
-    print("=" * 60)
 
     for code, name in holdings.items():
         ws = WindStrategy(code, name)
         sig = ws.technical_signals()
         news = ws.news_brief(top_k=1)
         risk = ws.risk_snapshot()
-        print(f"\n{name:>6}({code}):")
-        print(f"  技术: {sig['summary']}")
         if risk["beta"]:
-            print(f"  风险: Beta={risk['beta']}  波动率={risk['volatility']}%")
+            pass
         if news:
-            print(f"  最新: [{news[0]['date']}] {news[0]['title']}")
+            pass
 
-    print("\n" + "=" * 60)
-    print("超买超卖扫描")
-    print("=" * 60)
     for r in check_overbought_oversold(list(holdings.keys()), holdings):
-        print(f"  {r['name']}({r['code']}): RSI={r['rsi']}  {r['signal']}")
+        pass

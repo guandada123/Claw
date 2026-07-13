@@ -59,7 +59,7 @@ def plain_code_to_windcode(code: str) -> str:
     code = code.strip()
     if code.startswith("6"):
         return f"{code}.SH"
-    elif code.startswith("8") or code.startswith("4"):
+    elif code.startswith(("8", "4")):
         return f"{code}.BJ"
     else:
         return f"{code}.SZ"

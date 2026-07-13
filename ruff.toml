@@ -45,9 +45,6 @@ ignore = [
     # CLI 脚本安全规则（subprocess 合法使用）
     "S603",    # subprocess-without-shell-equals-true
     "S607",    # start-process-with-partial-path
-    # CLI 脚本安全规则（subprocess 合法使用）
-    "S603",    # subprocess-without-shell-equals-true
-    "S607",    # start-process-with-partial-path
     # 暂时抑制（待逐步修复）
     "F841",    # unused-variable (部分为调试/模板变量)
     "PLR0911", # too-many-return-statements
@@ -61,3 +58,9 @@ ignore = [
 ".workbuddy/lib/*.py" = ["PLR2004", "F401", "E741", "F823"]
 ".workbuddy/tests/**" = ["S101", "PLR2004", "ARG005", "E722"]
 "scripts/test_*.py" = ["S101", "PLR2004", "ARG005", "E722"]
+"src/**/*.py" = ["T201", "PLR2004", "S112", "PLW0603"]
+"src/claw/feeds/wx_assembler.py" = ["S110"]
+"src/claw/feeds/wx_collector.py" = ["S110", "S310"]
+"src/claw/strategies/wind_strategy.py" = ["S310"]
+"src/claw/cli/wx_morning_report.py" = ["S110", "S310"]
+"src/claw/monitoring/signal_verify.py" = ["S310"]

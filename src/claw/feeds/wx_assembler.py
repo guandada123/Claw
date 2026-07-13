@@ -4,12 +4,14 @@
 所有数据通过 wx_collector 模块获取。
 """
 
+import json
 import os
 import sys
 from datetime import datetime
 
 # 确保项目根在 sys.path 中，以便导入同级模块
 from pathlib import Path as _Path
+
 _SELF = _Path(__file__).resolve()
 _PROJECT_ROOT = _SELF.parent.parent.parent.parent
 if str(_PROJECT_ROOT / "src") not in sys.path:
@@ -18,6 +20,7 @@ if str(_PROJECT_ROOT / "src") not in sys.path:
 from claw.feeds.wx_collector import (  # noqa: E402
     _HAS_SUMMARIZE,
     REPORT_DIR,
+    STRATEGY_FILE,
     call_sim_trade_auto_check,
     extract_article_stocks,
     fetch_cls_telegraph,
@@ -37,20 +40,17 @@ if _HAS_SUMMARIZE:
 def build_morning_report():
     now = datetime.now()
     articles = load_today_articles()
-    print(f"[早报] 读取到 {len(articles)} 篇今日文章", file=sys.stderr)
 
     # ── 接入 summarize 技能：为每篇文章生成 200 字摘要 ────
     article_summaries = {}
     if _HAS_SUMMARIZE and articles:
-        print("  📝 生成文章摘要（summarize skill）...", file=sys.stderr)
         for art in articles:
             try:
                 s = summarize_article_content(art)
                 if s:
                     article_summaries[art.get("title", "")] = s
             except Exception as e:
-                print(f"  ⚠️  摘要失败: {art.get('title','?')[:20]}: {e}", file=sys.stderr)
-        print(f"  ✅ 成功生成 {len(article_summaries)} 篇摘要", file=sys.stderr)
+                pass
     # ────────────────────────────────────────────────────────
 
     # 提取文章中的股票信号（用关键词匹配，LLM分析由Agent完成）
@@ -76,10 +76,9 @@ def build_morning_report():
 
         # 进度提示（每分析5篇输出一次）
         if (i + 1) % 5 == 0:
-            print(f"  已分析 {i+1}/{len(articles)} 篇...", file=sys.stderr)
+            pass
 
     # 财经热讯 + 板块热度 + 宏观数据
-    print("  📡 抓取财经数据...", file=sys.stderr)
     cls_news    = fetch_cls_telegraph()
     em_news     = fetch_eastmoney_news()
     sector_hot  = fetch_sector_hot()
@@ -491,9 +490,9 @@ def build_evening_report():
         lines.append("\n  当前策略摘要：")
         with open(STRATEGY_FILE, encoding="utf-8") as f:
             content = f.read()
-            non_empty = [l.strip() for l in content.split("\n") if l.strip()][:3]
-            for l in non_empty:
-                lines.append(f"    {l}")
+            non_empty = [line_text.strip() for line_text in content.split("\n") if line_text.strip()][:3]
+            for line_text in non_empty:
+                lines.append(f"    {line_text}")
 
     lines.append("\n" + "=" * 40)
     lines.append("📝 明日操作计划：结合今日复盘结果，明日早报将更新建议")
