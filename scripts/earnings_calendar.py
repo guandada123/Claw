@@ -23,7 +23,30 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# ── 双数据源统一层：anysearch_helper（westock 优先 + AnySearch 降级）──
+_HELPER_PATH = Path(__file__).resolve().parent / "anysearch_helper.py"
+sys.path.insert(0, str(_HELPER_PATH.parent))
+try:
+    import anysearch_helper as _helper
+except Exception:
+    _helper = None
+
 # ── 持仓股列表（优先从 portfolio.json 读取，失败时用硬编码兜底）──
+def _code_with_prefix(raw: str) -> str:
+    """将裸代码转为 westock CLI 所需的 sh/sz 前缀格式"""
+    raw = raw.strip()
+    # 已有前缀则直接返回
+    if raw.startswith("sh") or raw.startswith("sz"):
+        return raw
+    # 仅数字则按交易所规则加前缀
+    if raw.isdigit():
+        if raw.startswith(("6", "9")):
+            return f"sh{raw}"
+        elif raw.startswith(("0", "1", "2", "3")):
+            return f"sz{raw}"
+    return raw
+
+
 def _load_portfolio() -> list[dict]:
     """从 Claw 项目持仓文件加载股票列表"""
     portfolio_path = Path(__file__).resolve().parent.parent / ".workbuddy" / "data" / "user" / "portfolio.json"
@@ -32,7 +55,7 @@ def _load_portfolio() -> list[dict]:
             data = json.loads(portfolio_path.read_text(encoding="utf-8"))
             holdings = data.get("holdings", [])
             if holdings:
-                return [{"code": h["code"], "name": h.get("name", h["code"])} for h in holdings]
+                return [{"code": _code_with_prefix(h["code"]), "name": h.get("name", h["code"])} for h in holdings]
     except Exception:
         pass
     # 硬编码兜底
@@ -101,13 +124,27 @@ def parse_markdown_table(md: str) -> list[dict]:
 
 
 def query_reserve(code: str) -> list[dict]:
-    """查询财报预约披露日期"""
-    cmd = [NPX, "-y", CLI, "reserve", code]
-    return parse_markdown_table(run_cmd(cmd))
+    """查询财报预约披露日期（统一走 anysearch_helper：westock 优先 + AnySearch 降级）"""
+    if _helper is None:
+        return []
+    # helper 接收 ts_code 格式（600522.SH），需从 sh/sz 前缀转换
+    raw = code[2:] if code.startswith(("sh", "sz")) else code
+    prefix = "SH" if code.startswith("sh") else "SZ"
+    ts_code = f"{raw}.{prefix}"
+    rows = _helper.earnings_calendar(days=7, cn_code=ts_code)
+    # 统一字段名以兼容 build_report
+    out = []
+    for r in rows:
+        out.append({
+            "disclosureDate": r.get("disclosureDate", r.get("date", "")),
+            "disclosureDesc": r.get("disclosureDesc", r.get("desc", "")),
+            "source": r.get("source", "unknown"),
+        })
+    return out
 
 
 def query_exdiv(code: str) -> list[dict]:
-    """查询分红除权日"""
+    """查询分红除权日（westock exdiv，helper 未覆盖）"""
     cmd = [NPX, "-y", CLI, "exdiv", code]
     return parse_markdown_table(run_cmd(cmd))
 
@@ -120,12 +157,13 @@ def build_report(stocks: list[dict]) -> str:
     lines.append("=" * 50)
 
     has_data = False
+    sources_seen = set()
 
     for s in stocks:
         code = s["code"]
         name = s["name"]
 
-        # 财报预约披露
+        # 财报预约披露（双数据源）
         reserves = query_reserve(code)
         exdivs = query_exdiv(code)
 
@@ -138,20 +176,24 @@ def build_report(stocks: list[dict]) -> str:
         for r in reserves:
             desc = r.get("disclosureDesc", "")
             date = r.get("disclosureDate", "")
-            lines.append(f"  📊 财报披露: {date}")
-            lines.append(f"     {desc}")
+            src = r.get("source", "unknown")
+            sources_seen.add(src)
+            lines.append(f"  📊 财报披露: {date}  [源:{src}]")
+            if desc:
+                lines.append(f"     {desc}")
 
         for e in exdivs:
             ex_date = e.get("exDivDate", "")
-            div = e.get("dividendPerShare", "")
             plan = e.get("dividendPlan", "")
-            lines.append(f"  💰 除权除息: {ex_date}  {plan}")
+            sources_seen.add("westock")
+            lines.append(f"  💰 除权除息: {ex_date}  [源:westock] {plan}")
 
     if not has_data:
         lines.append("\n  （当前无持仓股财报预约数据）")
 
     lines.append("\n" + "=" * 50)
-    lines.append("数据来源: westock 腾讯自选股")
+    src_label = "/".join(sorted(sources_seen)) if sources_seen else "westock"
+    lines.append(f"数据来源: {src_label}（双数据源：westock 优先 + AnySearch 降级）")
     return "\n".join(lines)
 
 
@@ -165,11 +207,11 @@ def push_to_feishu(report: str):
             cwd=CWD
         )
         if result.returncode == 0:
-            print(f"[feishu] ✅ 财报日历已推送")
+            print("[feishu] ✅ 财报日历已推送")
         else:
             print(f"[feishu] ⚠️ 推送失败: {result.stderr[:200]}", file=sys.stderr)
     except FileNotFoundError:
-        print(f"[feishu] ⚠️ lark-cli 未找到，跳过推送", file=sys.stderr)
+        print("[feishu] ⚠️ lark-cli 未找到，跳过推送", file=sys.stderr)
 
 
 def main():

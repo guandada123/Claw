@@ -20,6 +20,26 @@ import akshare as ak
 DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+# ── AnySearch 回退源（双数据源：AKShare 优先 + AnySearch 降级）──
+# helper 位于项目 scripts/ 目录（与 .workbuddy/scripts/ 同级）
+_HELPER_PATH = Path(__file__).resolve().parent.parent / "scripts" / "anysearch_helper.py"
+_anysearch_helper = None
+if _HELPER_PATH.exists():
+    sys.path.insert(0, str(_HELPER_PATH.parent))
+    try:
+        import anysearch_helper as _anysearch_helper
+    except Exception:
+        _anysearch_helper = None
+
+# AKShare→AnySearch 类型映射（回退层覆盖的 5 类干净源）
+_AKSHARE_TO_ANYSEARCH = {
+    "gdp": "gdp",
+    "cpi": "cpi",
+    "money_supply": "money_supply",
+    "lpr": "lpr",
+    "shibor": "shibor",
+}
+
 
 def safe_fetch(name: str, fn, **kwargs) -> dict:
     """安全调用 AKShare 接口，统一错误处理"""
@@ -38,12 +58,55 @@ def safe_fetch(name: str, fn, **kwargs) -> dict:
         return {"status": "error", "error": str(e)}
 
 
+def _with_fallback(name: str, fn, as_type: str, mapper, **kwargs) -> dict:
+    """AKShare 优先，失败/空时回退 AnySearch finance.macro。
+
+    Args:
+        name: 指标名（用于日志）
+        fn: AKShare 取数函数
+        as_type: 回退映射键（gdp/cpi/money_supply/lpr/shibor）
+        mapper: 将 AnySearch 原始 dict 转成与 AKShare 分支一致的字段结构
+    Returns:
+        dict: 成功含业务字段 + '_source'（akshare/anysearch）；
+              全部失败含 'error' + '_source': 'none'
+    """
+    ak_result = safe_fetch(name, fn, **kwargs)
+    if ak_result["status"] == "ok":
+        d = mapper(ak_result)
+        d["_source"] = "akshare"
+        return d
+    # AKShare 失败 → 回退 AnySearch
+    if _anysearch_helper is None or as_type not in _AKSHARE_TO_ANYSEARCH:
+        return {"error": ak_result.get("error", "akshare_failed"),
+                "_source": "none"}
+    try:
+        alt = _anysearch_helper.macro_indicator(_AKSHARE_TO_ANYSEARCH[as_type])
+        if "error" in alt:
+            return {"error": f"akshare_failed+anysearch_{alt['error']}",
+                    "_source": "none"}
+        d = mapper({"_raw": {"latest_12": [alt]}, "status": "ok"}, alt=alt)
+        d["_source"] = "anysearch"
+        return d
+    except Exception as e:
+        return {"error": f"akshare_failed+anysearch_exc({e})",
+                "_source": "none"}
+
+
 def fetch_gdp() -> dict:
-    """GDP 数据（季度）"""
-    result = safe_fetch("GDP", ak.macro_china_gdp)
-    if result["status"] == "ok":
-        # 提取最新季度关键字段（降序：最新在前）
-        latest = result["latest_12"][0] if result["latest_12"] else {}
+    """GDP 数据（季度）— AKShare 优先 + AnySearch 降级"""
+    def _map(ak_result, alt=None):
+        if alt is not None:
+            # AnySearch 回退：{gdp, gdp_yoy, pi, pi_yoy, quarter, si, si_yoy, ti, ti_yoy}
+            return {
+                "latest_quarter": alt.get("quarter", "N/A"),
+                "gdp_absolute": alt.get("gdp", None),
+                "gdp_yoy": alt.get("gdp_yoy", None),
+                "primary_yoy": alt.get("pi_yoy", None),
+                "secondary_yoy": alt.get("si_yoy", None),
+                "tertiary_yoy": alt.get("ti_yoy", None),
+                "history": [alt],
+            }
+        latest = ak_result["latest_12"][0] if ak_result["latest_12"] else {}
         return {
             "latest_quarter": latest.get("季度", "N/A"),
             "gdp_absolute": latest.get("国内生产总值-绝对值", None),
@@ -51,31 +114,38 @@ def fetch_gdp() -> dict:
             "primary_yoy": latest.get("第一产业-同比增长", None),
             "secondary_yoy": latest.get("第二产业-同比增长", None),
             "tertiary_yoy": latest.get("第三产业-同比增长", None),
-            "history": result["latest_12"],
-            "_raw": result,
+            "history": ak_result["latest_12"],
         }
-    return {"error": result.get("error", "unknown")}
+    return _with_fallback("GDP", ak.macro_china_gdp, "gdp", _map)
 
 
 def fetch_cpi() -> dict:
-    """CPI 数据（月度）"""
-    result = safe_fetch("CPI", ak.macro_china_cpi)
-    if result["status"] == "ok":
-        latest = result["latest_12"][0] if result["latest_12"] else {}
+    """CPI 数据（月度）— AKShare 优先 + AnySearch 降级"""
+    def _map(ak_result, alt=None):
+        if alt is not None:
+            # AnySearch: {month, cnt_yoy, cnt_mom, nt_yoy, nt_mom, town_yoy, town_mom}
+            return {
+                "latest_month": alt.get("month", "N/A"),
+                "cpi_national_yoy": alt.get("nt_yoy", alt.get("cnt_yoy", None)),
+                "cpi_national_mom": alt.get("nt_mom", alt.get("cnt_mom", None)),
+                "cpi_city_yoy": alt.get("town_yoy", None),
+                "cpi_rural_yoy": None,
+                "history": [alt],
+            }
+        latest = ak_result["latest_12"][0] if ak_result["latest_12"] else {}
         return {
             "latest_month": latest.get("月份", "N/A"),
             "cpi_national_yoy": latest.get("全国-同比增长", None),
             "cpi_national_mom": latest.get("全国-环比增长", None),
             "cpi_city_yoy": latest.get("城市-同比增长", None),
             "cpi_rural_yoy": latest.get("农村-同比增长", None),
-            "history": result["latest_12"],
-            "_raw": result,
+            "history": ak_result["latest_12"],
         }
-    return {"error": result.get("error", "unknown")}
+    return _with_fallback("CPI", ak.macro_china_cpi, "cpi", _map)
 
 
 def fetch_pmi() -> dict:
-    """PMI 数据（月度）"""
+    """PMI 数据（月度）— AKShare 单源（AnySearch 无结构化 PMI）"""
     result = safe_fetch("PMI", ak.macro_china_pmi)
     if result["status"] == "ok":
         latest = result["latest_12"][0] if result["latest_12"] else {}
@@ -86,16 +156,27 @@ def fetch_pmi() -> dict:
             "pmi_non_manufacturing": latest.get("非制造业-指数", None),
             "pmi_non_manufacturing_yoy": latest.get("非制造业-同比增长", None),
             "history": result["latest_12"],
-            "_raw": result,
+            "_source": "akshare",
         }
-    return {"error": result.get("error", "unknown")}
+    return {"error": result.get("error", "unknown"), "_source": "none"}
 
 
 def fetch_money_supply() -> dict:
-    """货币供应量 M0/M1/M2（月度）"""
-    result = safe_fetch("MoneySupply", ak.macro_china_money_supply)
-    if result["status"] == "ok":
-        latest = result["latest_12"][0] if result["latest_12"] else {}
+    """货币供应量 M0/M1/M2（月度）— AKShare 优先 + AnySearch 降级"""
+    def _map(ak_result, alt=None):
+        if alt is not None:
+            # AnySearch: {month, m0, m0_yoy, m1, m1_yoy, m2, m2_yoy}
+            return {
+                "latest_month": alt.get("month", "N/A"),
+                "m2": alt.get("m2", None),
+                "m2_yoy": alt.get("m2_yoy", None),
+                "m1": alt.get("m1", None),
+                "m1_yoy": alt.get("m1_yoy", None),
+                "m0": alt.get("m0", None),
+                "m0_yoy": alt.get("m0_yoy", None),
+                "history": [alt],
+            }
+        latest = ak_result["latest_12"][0] if ak_result["latest_12"] else {}
         return {
             "latest_month": latest.get("月份", "N/A"),
             "m2": latest.get("货币和准货币(M2)-数量(亿元)", None),
@@ -104,35 +185,61 @@ def fetch_money_supply() -> dict:
             "m1_yoy": latest.get("货币(M1)-同比增长", None),
             "m0": latest.get("流通中的现金(M0)-数量(亿元)", None),
             "m0_yoy": latest.get("流通中的现金(M0)-同比增长", None),
-            "history": result["latest_12"],
-            "_raw": result,
+            "history": ak_result["latest_12"],
         }
-    return {"error": result.get("error", "unknown")}
+    return _with_fallback("MoneySupply", ak.macro_china_money_supply, "money_supply", _map)
 
 
 def fetch_shibor() -> dict:
-    """Shibor 利率（日度）"""
-    try:
-        df = ak.macro_china_shibor_all()
-        if df is None or df.empty:
-            return {"error": "no data"}
-        # 取最近日期
-        latest_date = df["日期"].max()
-        latest_row = df[df["日期"] == latest_date]
-        return {
-            "latest_date": str(latest_date),
-            "overnight": float(latest_row["O/N-定价"].values[0])
-            if "O/N-定价" in df.columns
-            else None,
-            "week_1": float(latest_row["1W-定价"].values[0]) if "1W-定价" in df.columns else None,
-            "month_1": float(latest_row["1M-定价"].values[0]) if "1M-定价" in df.columns else None,
-            "month_3": float(latest_row["3M-定价"].values[0]) if "3M-定价" in df.columns else None,
-            "month_6": float(latest_row["6M-定价"].values[0]) if "6M-定价" in df.columns else None,
-            "year_1": float(latest_row["1Y-定价"].values[0]) if "1Y-定价" in df.columns else None,
-            "total_days": len(df),
-        }
-    except Exception as e:
-        return {"error": str(e)}
+    """Shibor 利率（日度）— AKShare 优先 + AnySearch 降级"""
+    def _map(ak_result, alt=None):
+        if alt is not None:
+            # AnySearch: {date, on, 1w, 1m, 2w, 3m, 6m, 9m, 1y}
+            return {
+                "latest_date": alt.get("date", "N/A"),
+                "overnight": alt.get("on", None),
+                "week_1": alt.get("1w", None),
+                "month_1": alt.get("1m", None),
+                "month_3": alt.get("3m", None),
+                "month_6": alt.get("6m", None),
+                "year_1": alt.get("1y", None),
+                "total_days": 1,
+            }
+        try:
+            df = ak.macro_china_shibor_all()
+            if df is None or df.empty:
+                return {"error": "no data", "_source": "none"}
+            latest_date = df["日期"].max()
+            latest_row = df[df["日期"] == latest_date]
+            return {
+                "latest_date": str(latest_date),
+                "overnight": float(latest_row["O/N-定价"].values[0])
+                if "O/N-定价" in df.columns else None,
+                "week_1": float(latest_row["1W-定价"].values[0]) if "1W-定价" in df.columns else None,
+                "month_1": float(latest_row["1M-定价"].values[0]) if "1M-定价" in df.columns else None,
+                "month_3": float(latest_row["3M-定价"].values[0]) if "3M-定价" in df.columns else None,
+                "month_6": float(latest_row["6M-定价"].values[0]) if "6M-定价" in df.columns else None,
+                "year_1": float(latest_row["1Y-定价"].values[0]) if "1Y-定价" in df.columns else None,
+                "total_days": len(df),
+            }
+        except Exception as e:
+            return {"error": str(e), "_source": "none"}
+    # shibor 原逻辑用 try/except 而非 safe_fetch，故单独处理回退
+    ak_d = _map(None)
+    if "error" not in ak_d:
+        ak_d["_source"] = "akshare"
+        return ak_d
+    # AKShare 失败 → AnySearch
+    if _anysearch_helper is not None:
+        try:
+            alt = _anysearch_helper.macro_indicator("shibor")
+            if "error" not in alt:
+                d = _map(None, alt=alt)
+                d["_source"] = "anysearch"
+                return d
+        except Exception:
+            pass
+    return {"error": ak_d.get("error", "akshare_failed"), "_source": "none"}
 
 
 def fetch_social_financing() -> dict:
@@ -301,9 +408,14 @@ def main():
     data["macro_score"] = score
 
     # 元数据
+    sources = [v.get("_source", "akshare") for v in data.values()
+               if isinstance(v, dict) and "_source" in v]
     data["_meta"] = {
         "updated_at": datetime.now().isoformat(),
-        "source": "AKShare",
+        "source": "AKShare+AnySearch(降级)",
+        "akshare_only": all(s == "akshare" for s in sources) if sources else False,
+        "anysearch_fallback": [k for k, v in data.items()
+                               if isinstance(v, dict) and v.get("_source") == "anysearch"],
         "indicators_ok": sum(1 for v in data.values() if isinstance(v, dict) and "error" not in v),
         "indicators_total": 8,
     }

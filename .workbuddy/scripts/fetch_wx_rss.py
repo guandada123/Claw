@@ -3,6 +3,11 @@
 we-mp-rss API 客户端 — 从自部署的 we-mp-rss 服务拉取公众号文章
 v4.0: 修复 API 路径 (v1/wx) + OAuth2 认证
 
+⚠️ 已弃用 (2026-07-13)：本地 we-mp-rss 服务已下线（Mate Mini 容器停用）。
+   公众号 RSS 已迁移至付费云 RSS 服务 wechatrss.waytomaster.com。
+   早报流程改用 .workbuddy/scripts/wx_rss_auth.py 对接新后端。
+   本文件仅保留作历史参考，请勿在新流程中调用。
+
 用法:
   python3 fetch_wx_rss.py status
   python3 fetch_wx_rss.py list --limit 20
