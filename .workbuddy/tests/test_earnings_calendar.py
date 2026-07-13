@@ -4,8 +4,6 @@ earnings_calendar.py 单元测试
 import sys
 from pathlib import Path
 
-import pytest
-
 # 确保 scripts/ 目录可导入
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
 from earnings_calendar import parse_markdown_table

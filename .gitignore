@@ -74,6 +74,7 @@ logs/*.log
 .workbuddy/data/simulation/trading_memory.*
 .workbuddy/automations/*/memory.md
 .workbuddy/archive/
+archive/
 .workbuddy/experiments/
 .workbuddy/reports/
 .workbuddy/artifacts/
