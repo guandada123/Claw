@@ -1,0 +1,28 @@
+{
+  "ts": "2026-07-07T08:20:12",
+  "date": "2026-07-06",
+  "temperature": 42.3,
+  "regime": "osc",
+  "regime_cn": "分歧",
+  "level": 2,
+  "reason": "晋级率18%（低于降档阈值），连板高度8板，封板率62%",
+  "seal_rate": 0.62,
+  "board_height": 8,
+  "promotion_rate": 0.1875,
+  "adv_ratio": 0.3463,
+  "main_themes": [
+    "养殖业",
+    "煤炭开采",
+    "化学制药",
+    "饲料",
+    "其他电子",
+    "炼化及贸易"
+  ],
+  "trap_themes": [
+    "PCB",
+    "物理AI",
+    "稀土永磁",
+    "玻纤"
+  ],
+  "source": "claw.daily_sentiment_report"
+}
