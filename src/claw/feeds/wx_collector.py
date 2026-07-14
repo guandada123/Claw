@@ -10,6 +10,7 @@
   python3 wx_morning_report.py --period morning   # 早报
   python3 wx_morning_report.py --period evening   # 晚报
 """
+import contextlib
 import json
 import os
 import re
@@ -717,6 +718,66 @@ def load_portfolios():
     return {"sim": {"positions": sim_pos, "cash": sim_cash},
             "user": {"positions": user_pos, "cash": user_cash}}
 
+def save_articles_to_cache(articles, now=None):
+    """将采集到的文章持久化到 output/wx_articles/（供早报/鱼盆提取器复用）。
+
+    写入格式兼容 _load_from_local_cache：
+      - {YYYYMMDD}_{HHMMSS}_{title}.json  -> {"title","content","account","pub_date"}
+      - {YYYYMMDD}_{HHMMSS}_{title}.md     -> "# title\\n公众号：xxx\\n\\n{content}"
+    仅写入尚未存在的文章（按标题去重），避免重复落盘。
+    """
+    if not articles:
+        return 0
+    try:
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+    except Exception:
+        return 0
+
+    now = now or datetime.now()
+    stamp = now.strftime("%Y%m%d_%H%M%S")
+    # 已存在标题集合（防重复）
+    existing = set()
+    for fn in os.listdir(OUTPUT_DIR):
+        if fn.endswith(".json"):
+            try:
+                d = json.loads(Path(OUTPUT_DIR, fn).read_text(encoding="utf-8"))
+                existing.add(d.get("title", ""))
+            except Exception:
+                pass
+
+    saved = 0
+    for art in articles:
+        title = (art.get("title") or "").strip()
+        if not title or title in existing:
+            continue
+        # 文件名安全化（截断 + 去非法字符）
+        safe = "".join(c for c in title if c not in r'\/:*?"<>|')[:40]
+        base = f"{stamp}_{safe}"
+        content = art.get("content", "") or ""
+        account = art.get("account", "") or "未知公众号"
+        pub_date = art.get("pub_date", "") or now.isoformat()
+
+        payload = {
+            "title": title,
+            "content": content,
+            "account": account,
+            "pub_date": pub_date,
+            "_source": art.get("_source", "api"),
+        }
+        try:
+            Path(OUTPUT_DIR, f"{base}.json").write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            md = f"# {title}\n公众号：{account}\n\n{content}\n"
+            Path(OUTPUT_DIR, f"{base}.md").write_text(md, encoding="utf-8")
+            existing.add(title)
+            saved += 1
+        except Exception:
+            continue
+    return saved
+
+
 def collect_data():
     """
     采集所有原始数据，输出结构化 JSON（供 Agent 做 LLM 分析）。
@@ -724,6 +785,9 @@ def collect_data():
     """
     now = datetime.now()
     articles = load_today_articles()
+    # 持久化到 output/wx_articles/，供早报/鱼盆提取器复用（修复缓存冻结）
+    with contextlib.suppress(Exception):
+        save_articles_to_cache(articles, now)
 
     # 文章中的股票提及
     articles_data = []

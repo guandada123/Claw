@@ -36,12 +36,14 @@ def main():
         print("无信号数据，跳过")
         return
 
-    signals = json.load(open(SIGNALS_FILE, encoding="utf-8"))
+    with open(SIGNALS_FILE, encoding="utf-8") as f:
+        signals = json.load(f)
 
     # 读旧权重做对比
     old_weights = {}
     if os.path.exists(WEIGHTS_FILE):
-        old_weights = json.load(open(WEIGHTS_FILE, encoding="utf-8")).get("accounts", {})
+        with open(WEIGHTS_FILE, encoding="utf-8") as f:
+            old_weights = json.load(f).get("accounts", {})
 
     today = date.today()
 

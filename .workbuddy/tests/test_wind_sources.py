@@ -191,10 +191,11 @@ def test_wind_analytics_news_format():
         ],
     }
 
-    with patch("claw.feeds.wind_analytics.call_wind_cli_as_rows", return_value=mock_data["rows"]):
-        with patch("claw.feeds.wind_analytics.wind_available", return_value=True):
-            wa = WindAnalytics()
-            news = wa.get_news("测试", top_k=1)
+    with patch("claw.feeds.wind_analytics.call_wind_cli_as_rows", return_value=mock_data["rows"]), patch(
+        "claw.feeds.wind_analytics.wind_available", return_value=True
+    ):
+        wa = WindAnalytics()
+        news = wa.get_news("测试", top_k=1)
 
     assert news is not None
     assert len(news) == 1
@@ -212,10 +213,11 @@ def test_wind_analytics_macro_edb():
         ],
     }
 
-    with patch("claw.feeds.wind_analytics.call_wind_cli_as_rows", return_value=mock_data["rows"]):
-        with patch("claw.feeds.wind_analytics.wind_available", return_value=True):
-            wa = WindAnalytics()
-            macro = wa.get_macro_data("中国CPI同比", observation="1")
+    with patch("claw.feeds.wind_analytics.call_wind_cli_as_rows", return_value=mock_data["rows"]), patch(
+        "claw.feeds.wind_analytics.wind_available", return_value=True
+    ):
+        wa = WindAnalytics()
+        macro = wa.get_macro_data("中国CPI同比", observation="1")
 
     assert macro is not None
     assert len(macro) == 1
