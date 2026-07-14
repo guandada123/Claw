@@ -15,7 +15,8 @@ LARK = "/Users/guan/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli"
 
 
 def main():
-    d = json.load(open(INDEX_JSON, encoding="utf-8"))
+    with open(INDEX_JSON, encoding="utf-8") as f:
+        d = json.load(f)
     arts = d["articles"]
     n = len(arts)
     if n <= 3:

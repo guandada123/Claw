@@ -36,12 +36,12 @@ def extract_summary(text, limit=SUMMARY_LIMIT):
     paras = [p.strip() for p in body.split('\n')
              if p.strip() and not p.strip().startswith('#')]
     summary = ''
-    for p in paras:
-        p = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', p)        # 去链接保留文字
-        p = re.sub(r'[#*`>]', '', p)                     # 去 markdown 符号
-        if len(p) < 10:
+    for para in paras:
+        cleaned = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', para)   # 去链接保留文字
+        cleaned = re.sub(r'[#*`>]', '', cleaned)            # 去 markdown 符号
+        if len(cleaned) < 10:
             continue
-        summary = p
+        summary = cleaned
         break
     if not summary:
         summary = re.sub(r'\s+', ' ', body)[:200]

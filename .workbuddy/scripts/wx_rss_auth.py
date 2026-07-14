@@ -44,7 +44,7 @@ WX_RSS_SUBS = ""
 
 def _load_auth():
     """从 wx_rss_api.sh 读取凭证（source 后导出环境变量）"""
-    global WX_RSS_API_KEY, WX_RSS_API_SECRET, WX_RSS_API_BASE, WX_RSS_TOKEN, WX_RSS_SUBS
+    global WX_RSS_API_KEY, WX_RSS_API_SECRET, WX_RSS_API_BASE, WX_RSS_TOKEN, WX_RSS_SUBS  # noqa: PLW0603
     if not _AUTH_FILE.exists():
         print(f"  ⚠️ RSS 凭证文件不存在: {_AUTH_FILE}", file=sys.stderr)
         return
@@ -137,7 +137,7 @@ def _parse_rss_xml(xml_text: str, fakeid: str, limit: int) -> list:
 
     arts = []
     try:
-        root = ET.fromstring(xml_text)
+        root = ET.fromstring(xml_text)  # noqa: S314  # RSS源为可信付费服务, 非用户不可信输入
     except ET.ParseError as e:
         print(f"  ⚠️ RSS XML 解析失败: {e}", file=sys.stderr)
         return arts
