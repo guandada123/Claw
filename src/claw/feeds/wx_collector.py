@@ -11,6 +11,7 @@
   python3 wx_morning_report.py --period evening   # 晚报
 """
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -32,6 +33,16 @@ if WORKBUDDY_SCRIPTS not in sys.path:
 if SCRIPTS_DIR not in sys.path:
     sys.path.append(SCRIPTS_DIR)        # for router, cost_tracker (thin wrappers)
 # ────────────────────────────────────────────────────────────
+
+# 本地 WeChat Download API 桥接（自部署公众号文章源，与付费 RSS 互补）
+try:
+    from claw.feeds.local_wechat_collector import collect_local_feeds, sync_local_to_cache
+    _HAS_LOCAL_FEEDS = True
+except ImportError:
+    # 降级：本地 API 不可用时不阻塞流程
+    _HAS_LOCAL_FEEDS = False
+    def collect_local_feeds(*args, **kwargs): return []
+    def sync_local_to_cache(*args, **kwargs): return 0
 
 # 微信 RSS 凭证（统一从 wx_rss_auth.py 加载，凭证文件：~/.workbuddy/auth/wx_rss_api.sh）
 from wx_rss_auth import (  # noqa: E402
@@ -374,6 +385,26 @@ def _fetch_today_via_api(today_ts_start, today_ts_end):
             "pub_date": datetime.fromtimestamp(pub_ts, tz=UTC).isoformat(),
             "_source": "api",
         })
+
+    # 4. 补充本地 WeChat API 文章（自部署源，与付费 RSS 互补）
+    if _HAS_LOCAL_FEEDS:
+        local_lookback = 48 if is_morning else 24
+        try:
+            local_arts = collect_local_feeds(lookback_hours=local_lookback)
+            if local_arts:
+                sync_local_to_cache(local_arts)
+                # 合并到 articles（已按标题去重）
+                existing_links = {
+                    a.get("title", "")[:40] for a in articles
+                }
+                for a in local_arts:
+                    # 用标题前40字符去重，比 content[:40] 更可靠
+                    title_key = (a.get("title", "") or "")[:40]
+                    if title_key and title_key not in existing_links:
+                        articles.append(a)
+                        existing_links.add(title_key)
+        except Exception:  # noqa: S110
+            pass
 
     return articles, True
 
@@ -846,6 +877,14 @@ def collect_data():
     # 止损止盈检查
     sim_trade_check = call_sim_trade_auto_check()
 
+    # 信号同步：将文章提取的股票提及写入 article_signals.json
+    sync_article_signals(articles_data, now)
+
+    # COMBO信号同步：将 QTS 策略信号也写入 article_signals.json
+    with contextlib.suppress(Exception):
+        from sync_combo_signals import sync_combo  # noqa: E402
+        sync_combo()
+
     data = {
         "collected_at": now.isoformat(),
         "date": now.strftime("%Y-%m-%d"),
@@ -864,3 +903,83 @@ def collect_data():
     }
 
     return data
+
+
+# ── 信号仓库同步 ─────────────────────────────────────────
+SIGNALS_FILE = str(_PROJECT_ROOT / ".workbuddy" / "data" / "article_signals.json")
+
+
+def _atomic_write_json(filepath, data):
+    """原子写入 JSON：先写临时文件再 rename，防止并发写丢数据。"""
+    import tempfile
+    dirname = Path(filepath).parent
+    dirname.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(suffix=".json", dir=str(dirname))
+    try:
+        os.write(fd, json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8"))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp, filepath)  # 跨卷原子 rename
+
+
+def sync_article_signals(articles_data, now):
+    """将文章提取的股票提及增量写入 article_signals.json（供 signal_verify 验证）。
+
+    - 以 article_id（标题+账号的md5短hash）去重
+    - 信号默认 neutral，置信度 0（待 LLM 分析后升级）
+    - 仅增量追加，不修改已有条目
+    """
+    if not articles_data:
+        return 0
+
+    try:
+        if Path(SIGNALS_FILE).exists():
+            existing = json.loads(Path(SIGNALS_FILE).read_text(encoding="utf-8"))
+        else:
+            existing = []
+    except (json.JSONDecodeError, OSError):
+        existing = []
+
+    existing_ids = {s.get("article_id", "") for s in existing}
+    new_count = 0
+    record_date = now.strftime("%Y年%m月%d日")
+
+    for art in articles_data:
+        title = art.get("title", "")
+        if not title:
+            continue
+        raw = f"{title}|{art.get('account', '')}|{record_date}"
+        article_id = hashlib.md5(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]  # noqa: S324
+        if article_id in existing_ids:
+            continue
+
+        stocks = art.get("mentioned_stocks", [])
+        if not stocks:
+            continue
+
+        n = 0
+        for s in stocks:
+            code = s.get("code", "")
+            name = s.get("name", "")
+            if not code:
+                continue
+            existing.append({
+                "article_id": article_id,
+                "account": art.get("account", ""),
+                "title": title[:60],
+                "stock_code": code,
+                "stock_name": name,
+                "signal": "neutral",
+                "target_price": None,
+                "confidence": 0,
+                "recorded_at": record_date,
+                "source": "RSS自动提取",
+            })
+            n += 1
+        existing_ids.add(article_id)
+        new_count += n
+
+    if new_count > 0:
+        _atomic_write_json(SIGNALS_FILE, existing)
+    return new_count
