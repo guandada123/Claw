@@ -29,6 +29,7 @@ from claw.feeds.wx_collector import (  # noqa: E402
     fetch_macro_calendar,
     fetch_sector_hot,
     fetch_today_kline,
+    get_subscriptions,
     get_technical_signal,
     load_portfolios,
     load_today_articles,
@@ -36,6 +37,28 @@ from claw.feeds.wx_collector import (  # noqa: E402
 
 if _HAS_SUMMARIZE:
     from summarize_batch import summarize_article_content  # noqa: E402
+
+VERIFY_REPORT = _Path(_PROJECT_ROOT / ".workbuddy" / "data" / "signal_verify_report.json")
+
+
+def load_signal_weights():
+    """读取信号验证报告，返回按公众号的权重摘要。
+    Returns: {"best": [{account, win_rate, avg_return, signals}], "ranking": [...]}
+    """
+    try:
+        if not VERIFY_REPORT.exists():
+            return {"best": [], "ranking": [], "updated": None}
+        report = json.loads(VERIFY_REPORT.read_text(encoding="utf-8"))
+        ranking = report.get("ranking", [])
+        best = [r for r in ranking if r.get("win_rate") and r["win_rate"] >= 40
+                and r.get("total", r.get("signals", 0)) >= 3]
+        return {
+            "best": best[:8],
+            "ranking": ranking,
+            "updated": report.get("generated_at", ""),
+        }
+    except Exception:
+        return {"best": [], "ranking": [], "updated": None}
 
 def build_morning_report():
     now = datetime.now()
@@ -105,6 +128,99 @@ def build_morning_report():
     lines = []
     lines.append(f"📊 微信早报 — {now.strftime('%Y-%m-%d')}")
     lines.append("=" * 40)
+
+    # 监控中的公众号列表
+    accounts = []
+    try:
+        subs = get_subscriptions().get("subscriptions", [])
+        accounts = [s["nickname"] for s in subs if s.get("nickname")]
+        lines.append(f"\n📡 监控公众号（{len(accounts)}个）：{'、'.join(accounts)}")
+    except Exception:
+        lines.append("\n📡 监控公众号：获取失败（查看 wx_rss_auth 配置）")
+
+    # 公众号信号权重（从 signal_verify_report.json 自动加载）
+    sw = load_signal_weights()
+    if sw["best"]:
+        lines.append("\n**📊 公众号信号权重（历史命中率，自动统计）：**")
+        for rank in sw["best"]:
+            icon = "⭐" if rank["win_rate"] >= 60 else "✅"
+            sigs = rank.get("total", rank.get("signals", 0))
+            lines.append(
+                f"  {icon} {rank['account']}："
+                f"命中率 {rank['win_rate']}% / 均收益 {rank['avg_return']:+.1f}%"
+                f"（{sigs}条信号，高权重重点采信）" if rank["win_rate"] >= 60 else
+                f"  {icon} {rank['account']}："
+                f"命中率 {rank['win_rate']}% / 均收益 {rank['avg_return']:+.1f}%"
+                f"（{sigs}条信号，权重中等）"
+            )
+    else:
+        lines.append("\n**📊 公众号信号权重：** 暂无历史命中率数据")
+
+    # 信号有效性警示（双源 STALE 判断）
+    if sw["updated"]:
+        lines.append(f"\n⚠️ 信号权重最后更新：{sw['updated']}（>24h 为 STALE，需重新验证）")
+
+    if not sw.get("best") or len(sw.get("best", [])) < 3:
+        untracked = [a for a in accounts[:6] if all(a != r["account"] for r in sw.get("ranking", []))]
+        if untracked:
+            lines.append(f"⚪ 以下公众号尚无命中率数据，信号仅供参考：{'、'.join(untracked[:6])}")
+
+    # 外部发现账号（红狐API搜索，待验证胜率）
+    ranking_file = _Path(_PROJECT_ROOT / "data" / "signal_ranking.json")
+    if ranking_file.exists():
+        try:
+            ranking_full = json.loads(ranking_file.read_text(encoding="utf-8"))
+            discovered = [r for r in ranking_full.get("ranking", [])
+                          if r.get("win_rate") is None and r.get("source") == "红狐发现"]
+            if discovered:
+                lines.append(f"\n📡 **外部发现（{len(discovered)}个候选，待验证胜率）：**")
+                for d in discovered[:5]:
+                    lines.append(f"  🔍 {d['name']}（{d.get('signals', 0)}篇相关文章）")
+                lines.append("  __完整排名 → data/signal_ranking.json__")
+        except Exception:
+            pass
+
+    # QTS×公众号 信号共识（双源交叉验证）
+    consensus_file = _Path(_PROJECT_ROOT / "data" / "signal_consensus.json")
+    if consensus_file.exists():
+        try:
+            consensus_data = json.loads(consensus_file.read_text(encoding="utf-8"))
+            pairs = consensus_data.get("pairs", [])
+            summary = consensus_data.get("summary", {})
+            if pairs:
+                strong = [p for p in pairs if p["consensus_score"] >= 2]
+                conflict = [p for p in pairs if p["consensus_score"] < 0]
+                lines.append("\n**🔗 双源信号共识（QTS回测 × 公众号，历史命中率加权）：**")
+                if strong:
+                    strong_names = ", ".join(
+                        p["code"] + "(" + p.get("name", "") + ")"
+                        for p in strong[:3]
+                    )
+                    lines.append(f"  🟢 强共识 {len(strong)}只：{strong_names}  权重×1.3")
+                if summary.get("weak_signal", 0) > 0:
+                    lines.append(f"  🟡 弱信号 {summary['weak_signal']}只：QTS与公众号各自独立覆盖")
+                if conflict:
+                    conflict_names = ", ".join(
+                        p["code"] + "(" + p.get("name", "") + ")"
+                        for p in conflict[:3]
+                    )
+                    lines.append(f"  🔴 分歧 {len(conflict)}只：{conflict_names}  建议观望")
+                lines.append(f"  __完整对比 → data/signal_consensus.json__")
+        except Exception:
+            pass
+
+    # QTS 市场状态（牛/熊/震荡/过渡 → 仓位建议）
+    regime_file = _Path(_PROJECT_ROOT / "data" / "qts_regime.json")
+    if regime_file.exists():
+        try:
+            regime_data = json.loads(regime_file.read_text(encoding="utf-8"))
+            pos_mult = regime_data.get("position_multiplier", 0.5)
+            regime_label = regime_data.get("regime_label", "未知")
+            lines.append(f"\n**📈 QTS 市场状态：**{regime_label}")
+            sizetip = "全仓" if pos_mult >= 1.0 else ("半仓" if pos_mult >= 0.5 else ("轻仓" if pos_mult >= 0.25 else "空仓"))
+            lines.append(f"  💰 建议仓位系数：{pos_mult:.1f}x（{sizetip}）")
+        except Exception:
+            pass
 
     # 一、公众号文章汇总
     lines.append(f"\n一、公众号文章汇总（{len(articles)}篇新增）")
@@ -288,6 +404,80 @@ def build_evening_report():
     lines.append(f"📊 微信晚报 — {now.strftime('%Y-%m-%d')}")
     lines.append("=" * 40)
 
+    # 监控中的公众号列表
+    accounts = []
+    try:
+        subs = get_subscriptions().get("subscriptions", [])
+        accounts = [s["nickname"] for s in subs if s.get("nickname")]
+        lines.append(f"\n📡 监控公众号（{len(accounts)}个）：{'、'.join(accounts)}")
+    except Exception:
+        lines.append("\n📡 监控公众号：获取失败（查看 wx_rss_auth 配置）")
+
+    # 公众号信号权重（晚报完整版，对齐早报）
+    sw = load_signal_weights()
+    if sw["best"]:
+        lines.append("\n**📊 公众号信号权重（历史命中率，自动统计）：**")
+        for rank in sw["best"][:5]:
+            icon = "⭐" if rank["win_rate"] >= 60 else "✅"
+            sigs = rank.get("total", rank.get("signals", 0))
+            lines.append(
+                f"  {icon} {rank['account']}：命中率 {rank['win_rate']}% / "
+                f"均收益 {rank['avg_return']:+.1f}%（{sigs}条信号）" if rank["win_rate"] >= 60 else
+                f"  {icon} {rank['account']}：命中率 {rank['win_rate']}% / "
+                f"均收益 {rank['avg_return']:+.1f}%（{sigs}条信号，权重中等）"
+            )
+    else:
+        lines.append("\n**📊 公众号信号权重：** 暂无历史命中率数据")
+    if sw["updated"]:
+        lines.append(f"\n⚠️ 信号权重最后更新：{sw['updated']}（>24h 为 STALE，需重新验证）")
+
+    # 外部发现账号（红狐API搜索，待验证胜率）
+    ranking_file = _Path(_PROJECT_ROOT / "data" / "signal_ranking.json")
+    if ranking_file.exists():
+        try:
+            ranking_full = json.loads(ranking_file.read_text(encoding="utf-8"))
+            discovered = [r for r in ranking_full.get("ranking", [])
+                          if r.get("win_rate") is None and r.get("source") == "红狐发现"]
+            if discovered:
+                lines.append(f"\n📡 **外部发现（{len(discovered)}个候选，待验证胜率）：**")
+                for d in discovered[:5]:
+                    lines.append(f"  🔍 {d['name']}（{d.get('signals', 0)}篇相关文章）")
+                lines.append("  __完整排名 → data/signal_ranking.json__")
+        except Exception:
+            pass
+
+    # QTS×公众号 信号共识（收盘验证）
+    consensus_file = _Path(_PROJECT_ROOT / "data" / "signal_consensus.json")
+    if consensus_file.exists():
+        try:
+            consensus_data = json.loads(consensus_file.read_text(encoding="utf-8"))
+            pairs = consensus_data.get("pairs", [])
+            summary = consensus_data.get("summary", {})
+            if pairs:
+                strong = [p for p in pairs if p["consensus_score"] >= 2]
+                conflict = [p for p in pairs if p["consensus_score"] < 0]
+                lines.append("\n**🔗 双源信号共识（QTS回测 × 公众号，收盘复核）：**")
+                if strong:
+                    lines.append(f"  🟢 强共识 {len(strong)}只 | 早盘双源同时推荐 → 复盘看实际方向是否应验")
+                if conflict:
+                    lines.append(f"  🔴 分歧 {len(conflict)}只 | QTS看多但公众号看空（或反之）→ 谁对？更新权重")
+                if summary.get("dual_source", 0) == 0:
+                    lines.append(f"  🟡 今日无双源重叠信号（QTS回测池 vs 公众号推荐池无交集）")
+                lines.append(f"  __完整对比 → data/signal_consensus.json__")
+        except Exception:
+            pass
+
+    # QTS 市场状态（收盘复核）
+    regime_file = _Path(_PROJECT_ROOT / "data" / "qts_regime.json")
+    if regime_file.exists():
+        try:
+            regime_data = json.loads(regime_file.read_text(encoding="utf-8"))
+            pos_mult = regime_data.get("position_multiplier", 0.5)
+            regime_label = regime_data.get("regime_label", "未知")
+            lines.append(f"\n**📈 QTS 市场状态（收盘复核）：**{regime_label} | 仓位系数 {pos_mult:.1f}x")
+        except Exception:
+            pass
+
     # 读取早报建议
     morning_path = os.path.join(REPORT_DIR, f"{date_str}_morning.txt")
     morning_advice = []
@@ -377,8 +567,8 @@ def build_evening_report():
     else:
         lines.append("  ✅ 所有持仓均未触发止损止盈条件")
 
-    # 四、早报建议 vs 今日实际走势（复盘核心）
-    lines.append("\n五、早报建议复盘（信号质量评估）")
+    # 四、早报推荐回溯（按公众号维度，早盘推荐 × 收盘实际）
+    lines.append("\n五、早报推荐回溯（按公众号维度，早盘推荐 × 收盘实际）")
     articles = load_today_articles()
     articles_stocks = []
     for art in articles:
@@ -387,37 +577,41 @@ def build_evening_report():
         account = art.get("account", "")
         stocks = extract_article_stocks(title, content, account)
         if stocks:
-            # 统一输出为兼容格式
             signals = [{"code": s["code"], "name": s["name"],
                         "signal": "neutral", "confidence": 0, "reason": "待Agent分析"}
                        for s in stocks]
             articles_stocks.append({"title": title, "account": account, "signals": signals})
 
+    # 按股票聚合 + 按公众号聚合（双重维度）
     stock_stats = {}
+    account_stats = {}  # {account: {correct, total, stocks: [(code, name, result)]}}
     for art in articles_stocks:
+        account = art["account"]
         for sig in art["signals"]:
             code = sig["code"]
             name = sig["name"]
-            signal = sig["signal"]
-            confidence = sig.get("confidence", 0)
-
             if code not in stock_stats:
-                stock_stats[code] = {"name": name, "bullish": 0, "bearish": 0, "signals": []}
-            if signal == "bullish":
+                stock_stats[code] = {"name": name, "bullish": 0, "bearish": 0,
+                                     "accounts": set(), "signals": []}
+            if sig["signal"] == "bullish":
                 stock_stats[code]["bullish"] += 1
-            elif signal == "bearish":
+            elif sig["signal"] == "bearish":
                 stock_stats[code]["bearish"] += 1
-            stock_stats[code]["signals"].append(sig)
+            stock_stats[code]["accounts"].add(account)
+            stock_stats[code]["signals"].append((account, sig))
+            if account not in account_stats:
+                account_stats[account] = {"correct": 0, "total": 0, "stocks": []}
+
+    correct = 0
+    total_signal = 0
+    matched_stocks = []  # [(account, code, name, is_correct, change_pct, signal_str)]
 
     if stock_stats:
-        correct = 0
-        total_signal = 0
         for code, stat in stock_stats.items():
             name     = stat["name"]
             bullish  = stat["bullish"]
             bearish  = stat["bearish"]
-            cur_price = fetch_current_price(code)
-            kline     = fetch_today_kline(code)
+            kline    = fetch_today_kline(code)
 
             if kline and (bullish > 0 or bearish > 0):
                 total_signal += 1
@@ -428,12 +622,58 @@ def build_evening_report():
                     correct += 1
                 status_icon = "✅" if is_correct else "❌"
                 signal_str = "看多" if bullish > bearish else ("看空" if bearish > bullish else "中性")
-                actual_str = "上涨" if actual_up else "下跌"
-                lines.append(f"  {status_icon} {name}({code}) 早报信号:{signal_str}  实际:{actual_str}  涨跌{kline['change']:+.2f}%")
+                actual_str = "涨" if actual_up else "跌"
+
+                # 记录到每个相关公众号
+                for acc in stat["accounts"]:
+                    if acc in account_stats:
+                        account_stats[acc]["total"] += 1
+                        if is_correct:
+                            account_stats[acc]["correct"] += 1
+                        account_stats[acc]["stocks"].append(
+                            (code, name, is_correct, kline["change"], signal_str)
+                        )
+                matched_stocks.append(
+                    (",".join(sorted(stat["accounts"])), code, name,
+                     is_correct, kline["change"], signal_str, actual_str)
+                )
+
+        # 按公众号回溯（权重对比）
+        if account_stats:
+            lines.append("\n📊 按公众号统计（今日命中 vs 历史权重）：")
+            # 按命中数排序
+            sorted_accounts = sorted(account_stats.items(),
+                                     key=lambda x: -(x[1]["correct"] / max(x[1]["total"], 1)))
+            for acc, a_stat in sorted_accounts[:8]:
+                if a_stat["total"] == 0:
+                    continue
+                acc_hr = a_stat["correct"] / a_stat["total"] * 100
+                # 查历史权重
+                hist_wr = None
+                for r in sw.get("ranking", []):
+                    if r.get("account") == acc:
+                        hist_wr = r.get("win_rate")
+                        break
+                wr_note = ""
+                if hist_wr is not None:
+                    diff = acc_hr - hist_wr
+                    wr_note = f"（历史 {hist_wr}%，{'↑超预期' if diff > 10 else '↓低于预期' if diff < -10 else '≈吻合'}）"
+                icon = "⭐" if acc_hr >= 60 else ("✅" if acc_hr >= 40 else "⚠️")
+                lines.append(
+                    f"  {icon} {acc}：{a_stat['correct']}/{a_stat['total']} = {acc_hr:.0f}%{wr_note}"
+                )
+            lines.append("")
+
+        # 逐票明细
+        if matched_stocks:
+            lines.append("📋 逐票明细：")
+            for (accs, code, name, is_correct, change, signal_str, actual_str) in matched_stocks:
+                icon = "✅" if is_correct else "❌"
+                lines.append(f"  {icon} [{accs}] {name}({code}) → {signal_str} 实际{actual_str} {change:+.2f}%")
 
         if total_signal > 0:
             acc = correct / total_signal * 100
-            lines.append(f"\n  今日信号准确率：{correct}/{total_signal} = {acc:.0f}%")
+            lines.append(f"\n  今日综合准确率：{correct}/{total_signal} = {acc:.0f}%")
         else:
             lines.append("\n  （无足够信号供复盘）")
     else:
@@ -471,8 +711,27 @@ def build_evening_report():
         trend = "📈提升" if accuracy > prev_acc else ("📉下降" if accuracy < prev_acc else "➡️持平")
         lines.append(f"  准确率趋势：{trend}（昨日{prev_acc:.0f}% → 今日{accuracy:.0f}%）")
 
-    # 六、策略优化建议
+    # 六、策略优化建议 + AI复盘
     lines.append("\n七、策略优化建议")
+
+    # QTS AI 每日复盘（引用 AI 对昨日操作的专业分析）
+    ai_review_file = _Path(_PROJECT_ROOT / "data" / "qts_ai_review.json")
+    ai_review_text = ""
+    if ai_review_file.exists():
+        try:
+            ai_data = json.loads(ai_review_file.read_text(encoding="utf-8"))
+            ai_content = ai_data.get("content", "")
+            if ai_content:
+                # 截取核心结论（取前500字）
+                ai_review_text = ai_content[:500]
+                lines.append(f"\n  🤖 **QTS AI 复盘结论：**")
+                for review_line in ai_review_text.split("\n")[:8]:
+                    review_line = review_line.strip()
+                    if review_line and len(review_line) > 5:
+                        lines.append(f"  {review_line}")
+        except Exception:
+            pass
+
     if accuracy < 50 and total_signal >= 3:
         lines.append("  ⚠️ 今日信号准确率<50%，明日建议：")
         lines.append("    1. 降低仓位至半仓以下，观望为主")
