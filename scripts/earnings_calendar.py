@@ -198,20 +198,24 @@ def build_report(stocks: list[dict]) -> str:
 
 
 def push_to_feishu(report: str):
-    """推送到飞书群（通过 lark-cli）"""
+    """推送到飞书群（经 push_card.py 发 interactive 卡片）"""
+    card_script = os.path.abspath(
+        os.path.join(CWD, ".workbuddy", "scripts", "push_card.py")
+    )
+    if not os.path.isfile(card_script):
+        card_script = os.path.join(CWD, "scripts", "push_card.py")
+    cmd = [sys.executable, card_script,
+            "--title", "📅 持仓财报日历", "--level", "info",
+            "--section", "", report, "--chat-id", FEISHU_CHAT]
     try:
-        result = subprocess.run(
-            ["lark-cli", "im", "+messages-send", "--as", "bot",
-             "--chat-id", FEISHU_CHAT, "--text", report],
-            capture_output=True, text=True, timeout=30,
-            cwd=CWD
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True,
+                                timeout=60, cwd=CWD)
         if result.returncode == 0:
-            print("[feishu] ✅ 财报日历已推送")
+            print("[feishu] ✅ 财报日历已推送（卡片）")
         else:
             print(f"[feishu] ⚠️ 推送失败: {result.stderr[:200]}", file=sys.stderr)
     except FileNotFoundError:
-        print("[feishu] ⚠️ lark-cli 未找到，跳过推送", file=sys.stderr)
+        print("[feishu] ⚠️ push_card.py 未找到，跳过推送", file=sys.stderr)
 
 
 def main():

@@ -19,9 +19,12 @@ cost_dashboard_feishu.py — AI成本仪表盘 → 飞书推送
 import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).parent.resolve()
@@ -88,7 +91,7 @@ def now_str() -> str:
 def generate_dashboard() -> str | None:
     """生成成本仪表盘HTML，返回文件路径"""
     ts = now_str()
-    output_path = f"/tmp/ai-cost-dashboard-{ts}.html"
+    output_path = f"{tempfile.gettempdir()}/ai-cost-dashboard-{ts}.html"
 
     print("  📊 运行 cost_dashboard.py...")
     result = run_cmd(
@@ -256,45 +259,43 @@ def build_message(daily_summary: str, file_url: str, cost_stats: dict) -> str:
     return msg
 
 
-def send_feishu_message(chat_id: str, message: str) -> bool:
-    """发送消息到飞书群"""
+def send_feishu_message(chat_id: str, message: str, max_retries: int = 3) -> bool:
+    """发送消息到飞书群（经 push_card.py 发 interactive 卡片，含 429 退避 + markdown 兜底）"""
     print(f"  💬 发送消息到群 {chat_id}...")
-
-    result = run_cmd(
-        [
-            LARK_CLI_PATH,
-            "im",
-            "+messages-send",
-            "--chat-id",
-            chat_id,
-            "--markdown",
-            message,
-            "--as",
-            "bot",
-        ],
-        timeout=30,
+    py = sys.executable
+    card_script = os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".workbuddy", "scripts", "push_card.py")
     )
-
-    if result.returncode != 0:
-        print(f"  ⚠️  消息发送返回码 {result.returncode}")
-        print(f"  stderr: {result.stderr[:500]}")
-        try:
-            err_data = json.loads(result.stdout) if result.stdout.strip() else {}
-            err_msg = err_data.get("error", {}).get("message", "")
-            if err_msg:
-                print(f"  ❌ 发送失败: {err_msg}")
-        except json.JSONDecodeError:
-            pass
+    if not os.path.isfile(card_script):
+        # 回退到本脚本同级目录
+        card_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "push_card.py")
+    cmd = [
+        py, card_script,
+        "--title", "💰 成本看板日报",
+        "--level", "info",
+        "--section", "", message,
+        "--chat-id", chat_id,
+    ]
+    try:
+        result = run_cmd(cmd, timeout=60)
+    except Exception as e:
+        print(f"  🔴 push_card 调用异常: {e}")
         return False
 
-    try:
-        data = json.loads(result.stdout)
-        msg_id = data.get("data", {}).get("message_id", "?")
-        print(f"  ✅ 消息已发送! message_id: {msg_id}")
+    if result.returncode == 0:
+        # push_card 内部已处理 429 退避与 markdown 兜底
+        out = result.stdout or ""
+        if "卡片已发送" in out or "markdown 兜底发送成功" in out:
+            # 提取 message_id（如有）
+            m = re.search(r"message_id:\s*(\S+)", out)
+            mid = m.group(1) if m else "?"
+            print(f"  ✅ 卡片已发送! message_id: {mid}")
+            return True
+        print("  ✅ 卡片已发送 (无message_id回执)")
         return True
-    except json.JSONDecodeError:
-        print("  ✅ 消息已发送 (无法解析message_id)")
-        return True
+
+    print(f"  🔴 push_card 返回码非0: {(result.stderr or result.stdout)[:200]}")
+    return False
 
 
 # ============================================================
@@ -304,7 +305,7 @@ def send_feishu_message(chat_id: str, message: str) -> bool:
 
 def cleanup(file_path: str):
     """清理临时文件"""
-    if file_path and file_path.startswith("/tmp/") and os.path.exists(file_path):
+    if file_path and file_path.startswith(tempfile.gettempdir()) and os.path.exists(file_path):
         os.remove(file_path)
         print("  🧹 已清理临时文件")
 
