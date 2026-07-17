@@ -49,39 +49,42 @@ from pathlib import Path
 CACHE_FILE = Path("/tmp/us_market_cache.json")
 CACHE_TTL = 3600  # 1 hour
 
-# 腾讯行情代码映射
+# 腾讯行情代码映射（美股需加 us 前缀，否则返回 v_pv_none_match）
 QQ_CODES = {
-    "dow": ".DJI",
-    "nasdaq": ".IXIC",
-    "sp500": ".INX",
-    "kospi": "KOSPI",
+    "dow": "usDJI",
+    "nasdaq": "usIXIC",
+    "sp500": "usINX",
+    "kospi": "KOSPI",       # 腾讯无韩股行情,始终 none_match,保留原值
     "kosdaq": "KOSDAQ",
 }
 
 QQ_STOCKS = {
-    "AAPL": "AAPL",
-    "MSFT": "MSFT",
-    "NVDA": "NVDA",
-    "TSLA": "TSLA",
-    "AMD": "AMD",
+    "AAPL": "usAAPL",
+    "MSFT": "usMSFT",
+    "NVDA": "usNVDA",
+    "TSLA": "usTSLA",
+    "AMD": "usAMD",
 }
 
 
 def _fetch_tencent_qq(codes: list[str]) -> str:
-    """Fetch data from Tencent stock API."""
+    """Fetch data from Tencent stock API.
+
+    注意: 腾讯行情返回 GBK 编码字节流，绝不能用 text=True (会按 UTF-8 解码报错),
+    必须 bytes 模式读取后再显式 decode('gbk')。
+    """
     code_str = ",".join(codes)
     url = f"https://qt.gtimg.cn/q={code_str}"
     try:
         result = subprocess.run(
             ["curl", "-s", url],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, timeout=10,
         )
-        # Decode GBK to UTF-8
-        raw = result.stdout
+        raw = result.stdout  # bytes
         try:
-            return raw.encode("latin-1").decode("gbk")
+            return raw.decode("gbk", errors="ignore")
         except Exception:
-            return raw
+            return raw.decode("utf-8", errors="ignore")
     except Exception:
         return ""
 

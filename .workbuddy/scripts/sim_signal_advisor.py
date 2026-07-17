@@ -41,13 +41,17 @@ PORTFOLIO_FILE = DATA_DIR / "portfolio.json"
 BUY_THRESHOLD = 0.2  # 买入信号阈值
 STRONG_BUY_THRESHOLD = 0.4  # 强烈买入阈值
 
-# 风险参数
-MAX_POSITIONS = 3  # 最大持仓数
-MAX_SINGLE_PCT = 0.50  # 单只最大仓位50%
-MAX_SECTOR_PCT = 0.40  # 同行业最大仓位40%
-MIN_CASH_RESERVE = 3000  # 最低现金保留 ¥3,000
-PORTFOLIO_TARGET = 39000  # 月度目标 30% = ¥39,000
-TOTAL_CAPITAL = 30000  # 初始本金
+# 风险参数（v2.0：对齐 STRATEGY.md，已取消持仓上限与现金保留）
+MAX_POSITIONS = 99  # 最大持仓数：已取消限制（2026-07-14），仅作安全上限
+MAX_SINGLE_PCT = 0.50  # 单只最大仓位50%（代码层 MAX_POSITION_PCT 强制）
+MAX_SECTOR_PCT = 0.60  # 同行业最大仓位60%（对齐 sim_trade.py MAX_SECTOR_PCT）
+MIN_CASH_RESERVE = 0  # 现金保留限制已取消（2026-07-14），AI 可全仓
+PORTFOLIO_TARGET = 65000  # 月度目标 30% = ¥50,000 × 1.3
+TOTAL_CAPITAL = 50000  # 初始本金（2026-07-14 由 30000 放宽）
+
+# QTS 成熟规则接入（复用 QuantTradingSystem 验证策略）
+ADX_TREND_FILTER = 25  # COMBO 建仓需 ADX ≥ 25（趋势有效才入场）
+RSI_OVERBOUGHT_BLOCK = 80  # RSI(14) > 80 禁止追入（超买保护）
 
 # 行业映射（简化版）
 INDUSTRY_MAP = {
@@ -464,10 +468,10 @@ print(json.dumps({{
 
 
 def load_portfolio() -> dict:
-    """读取当前模拟盘持仓"""
+    """读取当前模拟盘持仓（默认回退到 v2.0 参数，不再硬编码 30000）"""
     if PORTFOLIO_FILE.exists():
         return json.loads(PORTFOLIO_FILE.read_text())
-    return {"cash": 30000, "positions": {}, "config": {"initial_capital": 30000}}
+    return {"cash": TOTAL_CAPITAL, "positions": {}, "config": {"initial_capital": TOTAL_CAPITAL}}
 
 
 def get_industry_market_value(positions: dict) -> dict:
@@ -538,6 +542,13 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
         vwm_signal = s.get("vwm_signal", 0)
         bbr_signal = s.get("bbr_signal", 0)
         adx_signal = s.get("adx_signal", 0)
+        adx_value = s.get("adx", s.get("adx_value", 0))  # 趋势强度数值
+        rsi_value = s.get("rsi", s.get("rsi_14", s.get("rsi_value", 0)))  # RSI(14)
+
+        # QTS 成熟规则接入：ADX 趋势过滤 + RSI 超买保护
+        # COMBO 建仓需 ADX >= 25（趋势有效），否则降级为观察不买入
+        adx_ok = (adx_value >= ADX_TREND_FILTER) if isinstance(adx_value, (int, float)) else True
+        rsi_overbought = (rsi_value > RSI_OVERBOUGHT_BLOCK) if isinstance(rsi_value, (int, float)) else False
 
         candidates.append(
             {
@@ -555,6 +566,10 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
                 "adx_signal": round(adx_signal, 3)
                 if isinstance(adx_signal, (int, float))
                 else adx_signal,
+                "adx_value": round(adx_value, 1) if isinstance(adx_value, (int, float)) else adx_value,
+                "rsi_value": round(rsi_value, 1) if isinstance(rsi_value, (int, float)) else rsi_value,
+                "adx_ok": adx_ok,
+                "rsi_overbought": rsi_overbought,
                 "current_price": s.get("current_price", 0),
                 "current_price_change": s.get("current_price_change", 0),
                 "volume_ratio": s.get("volume_ratio", 0),
@@ -567,6 +582,20 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
 
     # 过滤：只保留 >= BUY_THRESHOLD
     candidates = [c for c in candidates if c["combo_confidence"] >= BUY_THRESHOLD]
+
+    # QTS 成熟规则接入：ADX 趋势过滤 + RSI 超买保护
+    filtered = []
+    for c in candidates:
+        if not c.get("adx_ok", True):
+            c["skip_reason"] = f"ADX<{ADX_TREND_FILTER} 趋势无效（QTS趋势过滤）"
+            logger.info(f"  ⛔ {c['name']} {c['skip_reason']}")
+            continue
+        if c.get("rsi_overbought", False):
+            c["skip_reason"] = f"RSI>{RSI_OVERBOUGHT_BLOCK} 超买禁追（QTS超买保护）"
+            logger.info(f"  ⛔ {c['name']} {c['skip_reason']}")
+            continue
+        filtered.append(c)
+    candidates = filtered
 
     # 行业分散检查 + 策略库检查（v2.1 新增）
     buyable = []
@@ -606,9 +635,9 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
             logger.info(f"  ⛔ {c['name']} 跨盘风控拦截: {cross_blocks}")
             continue
 
-        # 计算建议仓位
+        # 计算建议仓位（v2.0：取消现金保留，可用资金 = 全部现金）
         max_budget = total_asset * MAX_SINGLE_PCT
-        available = cash - MIN_CASH_RESERVE
+        available = cash  # 现金保留已取消，不再扣减 MIN_CASH_RESERVE
         suggested_amount = min(max_budget, available)
 
         # 至少能买一手（100股）
@@ -669,7 +698,7 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
             "cash": round(cash, 2),
             "position_count": position_count,
             "available_slots": MAX_POSITIONS - position_count,
-            "available_cash_for_buy": round(max(cash - MIN_CASH_RESERVE, 0), 2),
+            "available_cash_for_buy": round(cash, 2),  # v2.0 取消现金保留
             "candidates_found": len(candidates),
             "buyable_count": len(buyable),
             "sell_signals": len(sell_analysis),

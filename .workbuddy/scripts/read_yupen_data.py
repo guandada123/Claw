@@ -119,8 +119,7 @@ def read_yupen_data(days: int = 30) -> dict:
     stale_note = None
     if freshness == "stale" and data_date:
         stale_note = (
-            f"⚠️ 鱼盆模型数据最后更新于 {data_date}"
-            f"（公众号自该日起未发布新鱼盆文章），以下为最近有效数据"
+            f"⚠️ 鱼盆模型数据日期为 {data_date}，滞后于文章发布日期（通常滞后1天），以下为最新有效数据"
         )
 
     return {

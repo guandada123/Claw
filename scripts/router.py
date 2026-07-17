@@ -510,7 +510,7 @@ def call_llm(
 
     try:
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310: API proxy, URL validated upstream
             body = json.loads(resp.read())
 
         elapsed = int((time.time() - start) * 1000)

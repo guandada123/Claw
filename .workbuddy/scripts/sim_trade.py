@@ -65,7 +65,7 @@ MIN_COMMISSION = 5.0  # 最低佣金 5 元
 RESTRICTED_PREFIXES = ["300", "301", "688", "689", "8", "4"]
 
 # 初始资金
-INITIAL_CAPITAL = 30000.0
+INITIAL_CAPITAL = 50000.0
 
 # 风险管理参数
 MAX_POSITION_PCT = 0.50  # 单只股票最大仓位 50%
