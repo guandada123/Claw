@@ -2,7 +2,7 @@
   "config": {
     "initial_capital": 30000.0,
     "created_at": "2026-07-05",
-    "updated_at": "2026-07-13 11:38:17"
+    "updated_at": "2026-07-17 14:16:50"
   },
   "cash": 13073.0,
   "positions": {
@@ -11,33 +11,36 @@
       "shares": 100,
       "avg_cost": 78.72,
       "total_cost": 7872.0,
-      "current_price": 78.99,
-      "highest_price": 79.33,
+      "current_price": 82.97,
+      "highest_price": 83.45,
       "take_profit_level": 1,
       "entry_mode": "normal",
-      "first_buy_date": "2026-07-09"
+      "first_buy_date": "2026-07-09",
+      "updated": "2026-07-17 14:16:50"
     },
     "600900": {
       "name": "长江电力",
       "shares": 200,
       "avg_cost": 27.585,
       "total_cost": 5517.0,
-      "current_price": 28.03,
-      "highest_price": 28.03,
+      "current_price": 28.09,
+      "highest_price": 28.76,
       "take_profit_level": 1,
       "entry_mode": "normal",
-      "first_buy_date": "2026-07-09"
+      "first_buy_date": "2026-07-09",
+      "updated": "2026-07-17 14:16:50"
     },
     "601899": {
       "name": "紫金矿业",
       "shares": 200,
       "avg_cost": 27.565,
       "total_cost": 5513.0,
-      "current_price": 27.72,
-      "highest_price": 27.72,
+      "current_price": 28.6,
+      "highest_price": 29.59,
       "take_profit_level": 1,
       "entry_mode": "normal",
-      "first_buy_date": "2026-07-09"
+      "first_buy_date": "2026-07-09",
+      "updated": "2026-07-17 14:16:50"
     }
   },
   "transactions": [
@@ -157,6 +160,30 @@
         }
       },
       "time": "2026-07-10 15:30:00"
+    },
+    "2026-07-14": {
+      "total_asset": 32713.0,
+      "cash": 13073.0,
+      "pnl": 2713.0,
+      "pnl_pct": 9.04,
+      "positions": {
+        "000333": {
+          "shares": 100,
+          "price": 81.18,
+          "value": 8118.0
+        },
+        "600900": {
+          "shares": 200,
+          "price": 28.55,
+          "value": 5710.0
+        },
+        "601899": {
+          "shares": 200,
+          "price": 29.06,
+          "value": 5812.0
+        }
+      },
+      "time": "2026-07-14 15:30:00"
     }
   }
 }
