@@ -241,6 +241,7 @@ def gen_html(results, out_path):
     industry_json = json.dumps(industry_analysis)
     stock_rows_json = json.dumps(stock_rows)
 
+    # nosec B608: HTML template, no SQL — bandit false positive on multi-line f-string
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -676,7 +677,7 @@ document.getElementById('tradeModal').addEventListener('click', function(e) {{
 }});
 
 </script>
-</body></html>"""
+</body></html>"""  # nosec B608
     Path(out_path).write_text(html, encoding="utf-8")
     print(f"✅ Write: {out_path}  ({os.path.getsize(out_path) / 1024:.0f} KB)", flush=True)
 

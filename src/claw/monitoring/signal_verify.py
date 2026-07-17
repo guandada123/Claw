@@ -64,7 +64,7 @@ def fetch_realtime(code: str) -> dict:
     url = f"http://qt.gtimg.cn/q={gtimg_prefix(code)}{code}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=8) as r:
+        with urllib.request.urlopen(req, timeout=8) as r:  # nosec B310: qt.gtimg.cn
             raw = r.read().decode("gbk")
         body = raw.split('"', 1)[1].rstrip('";')
         f = body.split("~")
@@ -191,12 +191,12 @@ def build_report(signals: list, today: datetime.date) -> dict:
             ov["bullish"] += 1
         elif s["signal"] == "bearish":
             acc["bearish"] += 1
-        if s.get("final_return_pct") is not None:
+        if s.get("final_return_pct") is not None and s.get("signal") != "neutral":
             acc["with_return"] += 1
             ov["with_return"] += 1
             acc["ret_sum"] += s["final_return_pct"]
             ov["ret_sum"] += s["final_return_pct"]
-        if s.get("hit") is True:
+        if s.get("hit") is True and s.get("signal") != "neutral":
             acc["hits"] += 1
             ov["hits"] += 1
 

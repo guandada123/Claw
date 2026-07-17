@@ -38,7 +38,7 @@ def is_available() -> bool:
 
     try:
         req = urllib.request.Request(f"{OLLAMA_BASE}/api/tags", method="GET")
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:  # nosec B310: local ollama
             _is_available_cache = resp.status == 200
     except (urllib.error.URLError, ConnectionRefusedError, OSError):
         _is_available_cache = False
@@ -50,7 +50,7 @@ def list_models() -> list:
     """列出已安装的本地模型"""
     try:
         req = urllib.request.Request(f"{OLLAMA_BASE}/api/tags", method="GET")
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310: local ollama
             data = json.loads(resp.read())
         models = []
         for m in data.get("models", []):
@@ -67,7 +67,7 @@ def get_running_models() -> list:
     """列出当前正在运行的模型"""
     try:
         req = urllib.request.Request(f"{OLLAMA_BASE}/api/ps", method="GET")
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=3) as resp:  # nosec B310: local ollama
             data = json.loads(resp.read())
         return [m.get("name", "") for m in data.get("models", [])]
     except (urllib.error.URLError, json.JSONDecodeError, OSError):
@@ -148,7 +148,7 @@ def call(
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310: local ollama
             result = json.loads(resp.read())
 
         elapsed = int((time.time() - start) * 1000)
@@ -236,7 +236,7 @@ def chat(messages: list, model: str = DEFAULT_MODEL, timeout: int = TIMEOUT) -> 
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310: local ollama
             result = json.loads(resp.read())
 
         return {

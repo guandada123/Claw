@@ -100,7 +100,7 @@ def get_quotes_via_tencent(codes: list[str]) -> dict[str, dict]:
 
     try:
         url = f"http://qt.gtimg.cn/q={','.join(tc_codes)}"
-        resp = urllib.request.urlopen(url, timeout=5)
+        resp = urllib.request.urlopen(url, timeout=5)  # nosec B310: qt.gtimg.cn
         raw = resp.read().decode("gbk", errors="replace")
 
         result = {}

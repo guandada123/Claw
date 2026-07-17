@@ -41,7 +41,7 @@ def fetch_close(code_prefixed: str, n: int = 60) -> list[float]:
             f"?param={code_prefixed},day,,,{n+1},qfq"
         )
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        resp = urllib.request.urlopen(req, timeout=6, context=_CTX)
+        resp = urllib.request.urlopen(req, timeout=6, context=_CTX)  # nosec B310: ifzq.gtimg.cn
         raw = resp.read().decode("utf-8", errors="replace")
         d = json.loads(raw)
         kl = d.get("data", {}).get(code_prefixed, {}).get("qfqday") or []
@@ -58,7 +58,7 @@ def fetch_close(code_prefixed: str, n: int = 60) -> list[float]:
         f"/CN_MarketData.getKLineData?symbol={sina_code}&scale=240&ma=no&datalen={n+1}"
     )
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    resp = urllib.request.urlopen(req, timeout=6)
+    resp = urllib.request.urlopen(req, timeout=6)  # nosec B310: sina finance
     raw = resp.read().decode("utf-8", errors="replace")
     arr = json.loads(raw)
     # 新浪: [{"day":"2026-07-10","close":"45.91",...}, ...]

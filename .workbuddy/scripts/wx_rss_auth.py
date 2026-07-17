@@ -30,6 +30,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ── 凭证加载 ───────────────────────────────────────────────
 _AUTH_FILE = Path.home() / ".workbuddy" / "auth" / "wx_rss_api.sh"
@@ -94,6 +97,7 @@ def get_subscriptions() -> dict:
             f"{WX_RSS_API_BASE}/api/subscriptions",
             headers=_headers(),
             timeout=15,
+            verify=False,  # noqa: S501  # nosec 本地RSS代理自签证书，禁用校验保障抓取(无敏感凭证)
         )
         data = resp.json()
         subs = data.get("subscriptions", [])
@@ -123,6 +127,7 @@ def fetch_all_articles(since: int = 0, limit: int = 200, fakeid: str = "") -> tu
             f"{WX_RSS_API_BASE}/api/rss/{fakeid}",
             params={"token": WX_RSS_TOKEN} if WX_RSS_TOKEN else {},
             timeout=20,
+            verify=False,  # noqa: S501  # nosec 同上本地RSS代理自签证书
         )
         resp.raise_for_status()
         return _parse_rss_xml(resp.text, fakeid, limit), True
@@ -210,6 +215,7 @@ def fetch_article_content(art_id: str) -> str:
             headers={**_headers(), "Content-Type": "application/json"},
             json={"url": url},
             timeout=15,
+            verify=False,  # noqa: S501  # nosec 同上本地RSS代理自签证书
         )
         data = resp.json()
         if data.get("success") and data.get("data"):

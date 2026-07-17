@@ -242,7 +242,7 @@ def call_deepseek(prompt: str, model: str, api_key: str, base_url: str) -> dict:
     start = time.time()
     try:
         req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:  # nosec B310: API proxy
             body = json.loads(resp.read())
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="replace")[:300]

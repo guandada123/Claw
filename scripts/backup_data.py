@@ -77,9 +77,8 @@ def send_feishu_error(message):
                 "+messages-send",
                 "--chat-id",
                 DEFAULT_CHAT_ID,
+                "--as=bot",
                 "--markdown",
-                "--as",
-                "bot",
                 message,
             ],
             check=True,
@@ -116,10 +115,9 @@ def create_backup(base_dir, output_path):
     with tarfile.open(output_path, "w:gz") as tar:
         for item in BACKUP_ITEMS:
             item_path = os.path.join(base_dir, item)
-            if os.path.isfile(item_path):
-                if should_include(item_path, base_dir):
-                    tar.add(item_path, arcname=item.rstrip("/"))
-                    added += 1
+            if os.path.isfile(item_path) and should_include(item_path, base_dir):
+                tar.add(item_path, arcname=item.rstrip("/"))
+                added += 1
             elif os.path.isdir(item_path):
                 for fp in collect_files(item_path):
                     if should_include(fp, base_dir):
@@ -128,6 +126,12 @@ def create_backup(base_dir, output_path):
                         added += 1
             else:
                 print(f"  ⚠️  跳过不存在的项: {item}")
+        # 可选文件:缺失属正常(可再生成),静默跳过不告警
+        for item in OPTIONAL_ITEMS:
+            item_path = os.path.join(base_dir, item)
+            if os.path.isfile(item_path) and should_include(item_path, base_dir):
+                tar.add(item_path, arcname=item.rstrip("/"))
+                added += 1
     if added == 0:
         print("  ⚠️  没有找到需要备份的文件")
     return os.path.getsize(output_path) if os.path.exists(output_path) else 0
@@ -163,8 +167,13 @@ BACKUP_ITEMS = (
     "docker-compose.yml",
     "pyproject.toml",
     "ruff.toml",
-    "skills-lock.json",
     "requirements.txt",
+)
+# 可再生成的环境锁文件:缺失不影响备份完整性,静默跳过不告警。
+# (skills-lock.json / requirements.lock 为 WorkBuddy 技能锁与依赖锁,
+#  历史上曾多次从项目根目录消失且可随时再生成,不纳入缺失告警。)
+OPTIONAL_ITEMS = (
+    "skills-lock.json",
     "requirements.lock",
 )
 EXCLUDE_PATTERNS = (
