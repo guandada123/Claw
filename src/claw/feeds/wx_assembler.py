@@ -60,6 +60,38 @@ def load_signal_weights():
     except Exception:
         return {"best": [], "ranking": [], "updated": None}
 
+
+# 股票代码→名称映射（A股 5528 只，含 ST 标识），供晚报第八段展示
+_STOCK_NAME_CACHE: dict[str, str] = {}
+_STOCK_NAME_LOADED = False
+
+
+def _load_stock_names():
+    """懒加载 astock_code_name.json（纯数字代码为键，如 '600584'）"""
+    global _STOCK_NAME_LOADED, _STOCK_NAME_CACHE
+    if _STOCK_NAME_LOADED:
+        return
+    _STOCK_NAME_LOADED = True
+    _STOCK_NAME_CACHE = {}  # noqa: PLW0602 重建字典以更新全局引用
+    candidate = _PROJECT_ROOT / ".workbuddy" / "scripts" / "astock_code_name.json"
+    if candidate.exists():
+        try:
+            raw = json.loads(candidate.read_text(encoding="utf-8"))
+            for code_key, name_val in raw.items():
+                _STOCK_NAME_CACHE[code_key] = name_val
+        except Exception:
+            pass
+
+
+def resolve_stock_name(ts_code: str) -> str:
+    """将 '603669.SH' / '000779.SZ' 转为 '名称(代码)'，查不到则仅显示代码。"""
+    _load_stock_names()
+    pure = ts_code.partition(".")[0]
+    name = _STOCK_NAME_CACHE.get(pure)
+    if name:
+        return f"{name}({pure})"
+    return pure
+
 def build_morning_report():
     now = datetime.now()
     articles = load_today_articles()
@@ -205,7 +237,7 @@ def build_morning_report():
                         for p in conflict[:3]
                     )
                     lines.append(f"  🔴 分歧 {len(conflict)}只：{conflict_names}  建议观望")
-                lines.append(f"  __完整对比 → data/signal_consensus.json__")
+                lines.append("  __完整对比 → data/signal_consensus.json__")
         except Exception:
             pass
 
@@ -462,8 +494,8 @@ def build_evening_report():
                 if conflict:
                     lines.append(f"  🔴 分歧 {len(conflict)}只 | QTS看多但公众号看空（或反之）→ 谁对？更新权重")
                 if summary.get("dual_source", 0) == 0:
-                    lines.append(f"  🟡 今日无双源重叠信号（QTS回测池 vs 公众号推荐池无交集）")
-                lines.append(f"  __完整对比 → data/signal_consensus.json__")
+                    lines.append("  🟡 今日无双源重叠信号（QTS回测池 vs 公众号推荐池无交集）")
+                lines.append("  __完整对比 → data/signal_consensus.json__")
         except Exception:
             pass
 
@@ -724,7 +756,7 @@ def build_evening_report():
             if ai_content:
                 # 截取核心结论（取前500字）
                 ai_review_text = ai_content[:500]
-                lines.append(f"\n  🤖 **QTS AI 复盘结论：**")
+                lines.append("\n  🤖 **QTS AI 复盘结论：**")
                 for review_line in ai_review_text.split("\n")[:8]:
                     review_line = review_line.strip()
                     if review_line and len(review_line) > 5:
@@ -744,6 +776,60 @@ def build_evening_report():
         lines.append("  ➡️ 今日信号准确率中等，维持当前策略：")
         lines.append("    1. 严格执行止损纪律（持仓股浮亏>5%必须止损）")
         lines.append("    2. 记录每笔操作的买入理由，周复盘时总结")
+
+    # 八、🧪 量化策略验证（QTS 11策略全市场回测，消费 /tmp/qts_daily_brief.json）
+    lines.append("\n八、🧪 量化策略验证（QTS 11策略全市场回测）")
+    brief_path = "/tmp/qts_daily_brief.json"  # noqa: S108 跨项目桥接文件(QTS容器写→Claw读)，约定路径
+    brief = None
+    if os.path.exists(brief_path):  # noqa: E742 独立判断QTS数据文件是否存在，与上方准确率if无关
+        try:
+            with open(brief_path, encoding="utf-8") as f:
+                brief = json.load(f)
+            # 消费外部数据铁律：必须校验 report_date 为今日，否则视为旧数据丢弃
+            if brief.get("report_date") != now.strftime("%Y-%m-%d"):
+                brief = None
+                lines.append("  ⚠️ QTS 日评数据非今日（report_date 不匹配），不填入旧数据")
+        except Exception:
+            brief = None
+    if brief:
+        sm = brief.get("summary", {})
+        top5 = brief.get("top5", [])
+        total = sm.get("total_backtests", 0)
+        avg_sharpe = sm.get("avg_sharpe", 0)
+        wf_passed = sm.get("wf_passed", 0)
+        wf_candidates = sm.get("wf_candidates", 0)
+        lines.append(
+            "  数据来源: `/tmp/qts_daily_brief.json`（15:00 🧪QTS策略日评预生成）"
+        )
+        lines.append(
+            f"  回测概况：{total} 次回测 | 均 Sharpe {avg_sharpe:+.2f} | "
+            f"WF 验证候选 {wf_candidates} 个 / 通过 {wf_passed} 个"
+        )
+        if top5:
+            lines.append("")
+            lines.append("  | 排名 | 策略 | 标的 | 夏普 | 收益率 | WF稳定性 | 判别 |")
+            lines.append("  |------|------|------|------|--------|---------|------|")
+            for i, t in enumerate(top5[:5], 1):
+                code = resolve_stock_name(t.get("ts_code", "?"))
+                strat = t.get("strategy", "?")
+                sharpe = t.get("sharpe", 0)
+                ret = t.get("total_return", 0)
+                wf_stab = t.get("wf_stability", 0)
+                wf_label = t.get("wf_label", "⚪未验证")
+                lines.append(
+                    f"  | {i} | {strat} | {code} | {sharpe:.2f} | "
+                    f"{ret:+.1f}% | {wf_stab:.1f}% | {wf_label} |"
+                )
+        # 本周趋势解读（基于 WF 通过情况）
+        if wf_passed == 0 and wf_candidates > 0:
+            trend = "无策略通过 WF 验证 → 市场环境异常，回测信号暂停追入（过拟合特征明显）"
+        elif wf_passed > 0:
+            trend = f"{wf_passed} 个策略通过 WF 验证，量价策略在当前市场相对有效"
+        else:
+            trend = "今日无 WF 候选（回测池未产出达标标的）"
+        lines.append(f"  **本周趋势解读**：{trend}")
+    elif not os.path.exists(brief_path):
+        lines.append("  （QTS 日评 15:00 批次未生成 /tmp/qts_daily_brief.json，不填入旧数据）")
 
     if os.path.exists(STRATEGY_FILE):
         lines.append("\n  当前策略摘要：")
