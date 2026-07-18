@@ -153,9 +153,11 @@ def check_health(auto: dict) -> dict:
         schedule = auto.get("schedule_type", "recurring")
         rrule = auto.get("rrule", "") or ""
 
-        # 根据调度频率设定不同阈值
-        if "WEEKLY" in rrule or "每周" in name:
-            threshold = 192  # 8天
+        # 根据调度频率设定不同阈值（防月/周度任务误报 stale）
+        if "MONTHLY" in rrule or "每月" in name:
+            threshold = 744  # 31天（最大月窗口+1天缓冲）
+        elif "WEEKLY" in rrule or "每周" in name:
+            threshold = 192  # 8天（1周+1天缓冲）
         elif schedule == "once":
             threshold = 99999  # 一次性任务不报
         else:
