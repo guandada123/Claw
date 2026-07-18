@@ -42,11 +42,19 @@ def merge() -> dict:
                 "weighted_score": (wr or 0) * row.get("total", 0),  # 胜率×信号数 = 综合权重
             })
 
+    # 跨源去重真值集：RSS 已有的号名（小写），红狐发现的同名号不再重复计入、也不推荐"接入RSS"
+    rss_names = {r["name"].strip().lower() for r in rss_ranking}
+    deduped = 0
+
     # 外部发现（v2: 含初步命中率 hit_rate）
     discovered = []
     if _DISCOVERED.exists():
         data = json.loads(_DISCOVERED.read_text(encoding="utf-8"))
         for r in data.get("candidates", [])[:30]:
+            # 跨源去重：已在 RSS 的号直接跳过，避免"建议接入RSS"误判
+            if r["name"].strip().lower() in rss_names:
+                deduped += 1
+                continue
             ext_hr = r.get("hit_rate")  # 红狐 v2 计算的初步命中率
             ext_verified = r.get("stocks_verified", 0)
             discovered.append({
@@ -74,6 +82,7 @@ def merge() -> dict:
         "generated_at": now.isoformat(),
         "rss_count": len(rss_ranking),
         "discovered_count": len(discovered),
+        "deduped": deduped,  # 红狐发现中与 RSS 重名的号（已跳过，不重复计入/不推荐接入）
         "total": len(all_ranking),
         "ranking": all_ranking,
     }
@@ -100,7 +109,9 @@ if __name__ == "__main__":
     print(f"\n{'='*60}")
     print("📊 对比建议：外部号命中率 >= RSS 最低命中号 → 推荐接入")
     rss_with_hr = [x for x in r['ranking'] if x['source'] == 'RSS付费订阅' and x['win_rate']]
-    ext_with_hr = [x for x in r['ranking'] if x['source'] == '红狐发现' and x['win_rate'] and x['win_rate'] >= 30]
+    ext_with_hr = [x for x in r['ranking'] if x['source'] == '红狐发现'
+                   and x['win_rate'] and x['win_rate'] >= 30
+                   and x['name'].strip().lower() not in rss_names]  # 防御：排除已订阅号
 
     if rss_with_hr:
         rss_min = min(rss_with_hr, key=lambda x: x['win_rate'])
