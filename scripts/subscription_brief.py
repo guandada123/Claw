@@ -13,7 +13,6 @@ subscription_brief.py — 全开订阅增长简报（C 可选周报推送）
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 import urllib.request
@@ -120,7 +119,7 @@ def build_brief(dry: bool = False) -> dict:
         return brief
 
     # 推飞书
-    env = dict(os.environ)
+    env = {"FEISHU_CHAT_ID": CHAT_ID}
     env["FEISHU_CHAT_ID"] = CHAT_ID
     push = subprocess.run(
         ["bash", str(PROJECT_ROOT / ".workbuddy" / "scripts" / "push_feishu.sh"),
