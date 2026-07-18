@@ -158,6 +158,8 @@ def check_health(auto: dict) -> dict:
             threshold = 744  # 31天（最大月窗口+1天缓冲）
         elif "WEEKLY" in rrule or "每周" in name:
             threshold = 192  # 8天（1周+1天缓冲）
+        elif "YEARLY" in rrule or "每年" in name:
+            threshold = 8760  # 365天（年度任务）
         elif schedule == "once":
             threshold = 99999  # 一次性任务不报
         else:

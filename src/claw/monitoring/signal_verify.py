@@ -46,7 +46,7 @@ _DATE_ISO = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 # 跌破质量门槛(当前 25%)即被踢出优质名单、信号流断崖。
 # 滚动口径只看近 ROLLING_DAYS 天样本，更稳；窗口样本不足 MIN_ROLLING_SAMPLES 时
 # 回退全量累计，避免近期少发的稀疏号被误踢。假设透明：报告含 win_rate_basis 字段。
-ROLLING_DAYS = 30
+ROLLING_DAYS = int(os.environ.get("SIGNAL_ROLLING_DAYS", "30"))
 MIN_ROLLING_SAMPLES = 10
 
 
