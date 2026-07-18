@@ -4,7 +4,7 @@ mine_wx_articles_v8.py — 全网挖掘 v8 信号归档器
 复用 archive_and_signal.py 的抽取范式，但：
   1. 数据源指向真实微信文章库 output/wx_articles（v8 prompt 中 'archive/output/wx_articles' 为笔误）
   2. 股票词典从 31 只扩展为全 A（astock_code_name.json 全名 + 3字以上无歧义简称）
-  3. 增量闸基于 baseline 文件，首跑做全量回填，后续只处理新落盘文章
+  3. 增量闸基于「已处理文件名清单」比对（根治 mtime 假阴性），首跑做全量回填，后续只处理清单外的新落盘文章
   4. 信号写入 article_signals.json（source="微信文章"），并按胜率表筛选优质信号推飞书
 """
 import contextlib
@@ -22,14 +22,18 @@ WX_DIR = ROOT / "output" / "wx_articles"
 SIGNALS_FILE = ROOT / ".workbuddy" / "data" / "article_signals.json"
 VERIFY_REPORT = ROOT / ".workbuddy" / "data" / "signal_verify_report.json"
 NAME_DICT = ROOT / ".workbuddy" / "scripts" / "astock_code_name.json"
-BASELINE_FILE = ROOT / ".workbuddy" / "knowledge" / "index" / "wx_articles_last_scan.txt"
+PROCESSED_FILE = ROOT / ".workbuddy" / "knowledge" / "index" / "wx_articles_processed.txt"
 
 # ---- 方向判定关键词（沿用 canonical） ----
 BULLISH = ["买入", "推荐", "看好", "加仓", "爆发", "上涨", "突破", "反弹", "龙头", "机会", "低吸", "建仓", "关注", "目标"]
 BEARISH = ["卖出", "减仓", "风险", "下跌", "回避", "止损", "利空", "见顶", "退潮"]
 
-# 优质信号门槛：胜率 >= 40% 的号（来自 signal_verify_report ranking）
-QUALITY_WIN_RATE = 40.0
+# 优质信号门槛：胜率 >= 25% 的号（来自 signal_verify_report ranking）
+# v8 @2026-07-18：由 40% 临时下调至 25%。
+# 背景：A股普跌期全部28个源胜率均 <40%（好运侠客 64.7%→17.6%），原阈值使质量门恒为空、
+#       推送条件(>=2优质信号)在普跌期永远无法触发。下调后熊市期仍能有信号流。
+# TODO：后续应改为"近N日滚动胜率"口径，避免单日阈值断崖。
+QUALITY_WIN_RATE = 25.0
 
 
 def build_stock_map():
@@ -123,18 +127,26 @@ def dir_of_signal_local(title):
     return "bullish" if b > 0 else None
 
 
-def get_baseline():
-    if BASELINE_FILE.exists():
-        try:
-            return float(BASELINE_FILE.read_text().strip())
-        except Exception:
-            return 0.0
-    return 0.0  # 首跑：genesis，处理全部
+def load_processed():
+    """已处理文件名清单（增量闸比对基准）。
+
+    根治 mtime 假阴性：原方案用 find -newermt 比对文件 mtime，晚到但 mtime 旧的
+    文章会被永久漏捕（只能靠每 6h 一次 genesis 全量重扫兜底）。改为「清单比对」后，
+    只要文件出现在目录里、且不在已处理清单中，下次增量扫描必被捕获。
+    """
+    if not PROCESSED_FILE.exists():
+        return set()
+    try:
+        return {ln.strip() for ln in PROCESSED_FILE.read_text(encoding="utf-8").splitlines() if ln.strip()}
+    except Exception:
+        return set()
 
 
-def set_baseline(ts):
-    BASELINE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    BASELINE_FILE.write_text(str(ts))
+def save_processed(names):
+    PROCESSED_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with PROCESSED_FILE.open("a", encoding="utf-8") as fh:
+        for n in names:
+            fh.write(n + "\n")
 
 
 def load_quality_accounts():
@@ -166,16 +178,15 @@ def push_feishu(title, content):
 
 def main():
     full_map, short_map = build_stock_map()
-    baseline = get_baseline()
-    genesis = baseline == 0.0
+    processed = load_processed()
+    genesis = not PROCESSED_FILE.exists()
     now = datetime.now()
-    now_ts = now.timestamp()
 
     files = sorted(WX_DIR.glob("*.json"))
     files = [f for f in files if f.name not in (".cache.json", "fetched_cache.json")]
-    # 增量闸：只处理 mtime > baseline 的（genesis 时 baseline=0 → 全量）
-    new_files = [f for f in files if f.stat().st_mtime > baseline]
-    print(f"[gate] 总文章 {len(files)} | baseline={'genesis' if genesis else datetime.fromtimestamp(baseline).strftime('%Y-%m-%dT%H:%M:%S')} | 本次处理 {len(new_files)}")
+    # 增量闸：只处理「不在已处理清单」的文件（根治 mtime 假阴性——晚到旧 mtime 文件不再漏捕）
+    new_files = [f for f in files if f.name not in processed]
+    print(f"[gate] 总文章 {len(files)} | 已处理 {len(processed)} | 本次处理 {len(new_files)}" + (" [genesis]" if genesis else ""))
 
     quality_accounts = load_quality_accounts()
     print(f"[weights] 优质号(胜率>={QUALITY_WIN_RATE}%): {sorted(quality_accounts)}")
@@ -264,9 +275,12 @@ def main():
         pushed = rc == 0
         print(f"[push] 飞书推送 {'成功' if pushed else '失败'} (rc={rc}) {out[:200]}")
 
-    # 写 baseline（增量闸推进到本次运行时刻）
-    set_baseline(now_ts)
-    print(f"[baseline] 已更新 -> {now.strftime('%Y-%m-%dT%H:%M:%S')}")
+    # 增量闸推进：把本次处理过的文件名写入已处理清单（替代原 mtime baseline）
+    if new_files:
+        save_processed([f.name for f in new_files])
+        print(f"[gate] 已追加 {len(new_files)} 个文件名到已处理清单")
+    else:
+        print("[gate] 无新文件，已处理清单不变")
 
     # 返回结构化摘要供调用方
     return {
