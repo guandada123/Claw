@@ -36,7 +36,7 @@ def _win_rate_to_weight(win_rate: float, signals: int) -> float:
     """将胜率 + 信号数映射为权重"""
     if signals < 3:
         return 0.5  # 样本不足
-    
+
     if win_rate >= 60:
         return 1.0  # 高信源
     elif win_rate >= 40:
@@ -49,7 +49,7 @@ def _win_rate_to_weight(win_rate: float, signals: int) -> float:
 
 def compute_weights() -> dict[str, Any]:
     """从 verify_report 计算各信源权重"""
-    
+
     # 基础权重（未经验证时的默认值）
     base_weights: dict[str, float] = {
         "好运侠客": 1.0,
@@ -62,7 +62,7 @@ def compute_weights() -> dict[str, Any]:
         "QTS_BACKTEST": 0.5,
         "_default": 0.5,
     }
-    
+
     if not _VERIFY_REPORT.exists():
         result = {
             "generated_at": datetime.now().isoformat(),
@@ -71,19 +71,19 @@ def compute_weights() -> dict[str, Any]:
         }
         _write_output(result)
         return result
-    
+
     data = json.loads(_VERIFY_REPORT.read_text(encoding="utf-8"))
     ranking = data.get("ranking", [])
-    
+
     weights: dict[str, float] = {}
     details: list[dict] = []
-    
+
     for row in ranking:
         account = row.get("account", "")
         win_rate = row.get("win_rate")
         total = row.get("total", 0)
         avg_return = row.get("avg_return", 0)
-        
+
         if win_rate is not None:
             weight = _win_rate_to_weight(win_rate, total)
             weights[account] = weight
@@ -101,12 +101,12 @@ def compute_weights() -> dict[str, Any]:
                      " → 极低（接近反向指标）")
                 ),
             })
-    
+
     # 合并：已验证的用动态权重，未验证的保留默认
     final_weights = dict(base_weights)
     final_weights.update(weights)
     final_weights.setdefault("_default", 0.5)
-    
+
     result = {
         "generated_at": datetime.now().isoformat(),
         "source": f"signal_verify_report ({data.get('generated_at', 'N/A')})",
@@ -114,7 +114,7 @@ def compute_weights() -> dict[str, Any]:
         "weights": final_weights,
         "details": details,
     }
-    
+
     _write_output(result)
     return result
 
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     print(f"   数据源: {result['source']}")
     for d in result.get("details", [])[:8]:
         print(f"   {d['account']:15s} 胜率{d['win_rate']:.1f}% 信号{d['signals']}条 → 权重{d['weight']:.1f} {d['rationale']}")
-    
+
     # 检查有无权重变化
     old_file = _PROJECT_ROOT / "data" / "source_weights.json"
     if old_file.exists():

@@ -17,6 +17,7 @@ Claw 财报日历 — 用 westock MCP 替代原有 akshare 财报追踪
 """
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys

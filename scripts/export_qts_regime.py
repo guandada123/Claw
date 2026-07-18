@@ -12,9 +12,9 @@ export_qts_regime.py — 从 QTS 导出当前市场状态（牛/熊/震荡/过�
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -27,7 +27,7 @@ try:
     from services.market_regime import MarketRegimeFilter, Regime
     from models.database import get_db_session
     from sqlalchemy import text
-    
+
     # 从 daily_quote 直接取沪深300收盘价（最近500日）
     with get_db_session() as db:
         rows = db.execute(text(
@@ -35,27 +35,27 @@ try:
             "WHERE ts_code = '000300.SH' "
             "ORDER BY trade_date DESC LIMIT 500"
         )).fetchall()
-    
+
     if rows and len(rows) >= 50:
         rows_rev = list(reversed(rows))
         closes = [float(r[0]) for r in rows_rev]
         highs = [float(r[1]) for r in rows_rev]
         lows = [float(r[2]) for r in rows_rev]
-        
+
         rf = MarketRegimeFilter()
         regime = rf.classify(closes, highs, lows)
         pos_mult = MarketRegimeFilter.get_position_mult(regime)
     else:
         regime = Regime.OSCILLATE
         pos_mult = 0.5
-    
+
     desc = {
         "bull": "🟢 牛市 — 建议全仓(1.0x)",
         "oscillate": "🟡 震荡 — 建议半仓(0.5x)",
         "bear": "🔴 熊市 — 建议25%仓(0.25x)",
         "transition": "⚠️ 过渡态 — 建议40%仓(0.4x)，等方向明确",
     }
-    
+
     result = {
         "regime": regime.value,
         "regime_label": desc.get(regime.value, str(regime)),
@@ -85,7 +85,7 @@ def export() -> dict:
             ["docker", "exec", "quant-strategy", "python", "/app/_export_regime.py"],
             capture_output=True, text=True, timeout=30,
         )
-        
+
         for line in reversed(result.stdout.strip().split("\n")):
             if line.startswith("{"):
                 data = json.loads(line)

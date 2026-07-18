@@ -108,16 +108,16 @@ def _load_verify_weights() -> dict[str, float]:
 def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
     """计算双源信号共识"""
     today_str = today_str or datetime.now().strftime("%Y年%m月%d日")
-    
+
     article_signals = _load_article_signals()
     qts_data = _load_qts_signals()
     source_weights = _load_source_weights()
     verify_weights = _load_verify_weights()
-    
+
     # 合并权重：已验证的公众号用实际命中率转换的权重
     effective_weights = dict(source_weights)
     effective_weights.update(verify_weights)
-    
+
     # 按股票代码分组公众号信号（同一只股票可能有多个公众号提及）
     gzh_by_code: dict[str, list[dict]] = defaultdict(list)
     for s in article_signals:
@@ -126,47 +126,47 @@ def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
         code = s.get("stock_code", "")
         if code:
             gzh_by_code[code].append(s)
-    
+
     # QTS 信号按代码索引
     qts_signals = qts_data.get("signals", [])
     qts_by_code: dict[str, dict] = {}
     for s in qts_signals:
         code = s["ts_code"].split(".")[0]  # "603823.SH" → "603823"
         qts_by_code[code] = s
-    
+
     # 匹配 + 共识计算
     all_codes = set(list(gzh_by_code.keys()) + list(qts_by_code.keys()))
     pairs: list[dict] = []
-    
+
     for code in sorted(all_codes):
         gzh_list = gzh_by_code.get(code, [])
         qts = qts_by_code.get(code)
-        
+
         if not gzh_list and not qts:
             continue
-        
+
         # 公众号信号聚合
         gzh_names = list({s.get("stock_name", "") for s in gzh_list})
         gzh_accounts = list({s.get("account", "") for s in gzh_list})
-        
+
         # 公众号方向（取多数）
         gzh_directions = [s.get("signal", "neutral") for s in gzh_list]
         bullish = gzh_directions.count("bullish")
         bearish = gzh_directions.count("bearish")
         gzh_direction = "bullish" if bullish > bearish else ("bearish" if bearish > bullish else "neutral")
-        
+
         # QTS 方向（从 strategy 推断：breakout/ma-cross 偏看多）
         qts_direction = None
         qts_strategy = None
         if qts:
             qts_strategy = qts.get("strategy", "")
             qts_direction = "bullish"  # 回测 Top 都是正收益策略 → 看多
-        
+
         # 共识计算
         consensus_score = 0
         consensus_label = ""
         detail_parts = []
-        
+
         if gzh_list and qts:
             # 双源覆盖
             if qts_direction == gzh_direction and gzh_direction != "neutral":
@@ -189,21 +189,21 @@ def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
             consensus_score = +1
             consensus_label = "🟡 仅QTS"
             detail_parts.append(f"仅QTS覆盖（{qts_strategy}）")
-        
+
         # 权重计算：信源加权 × 共识系数
         account_weights = [
             effective_weights.get(a, effective_weights["_default"])
             for a in gzh_accounts
         ]
         gzh_avg_weight = sum(account_weights) / max(len(account_weights), 1)
-        
+
         qts_weight = effective_weights.get("QTS_BACKTEST", 0.5)
         if qts and qts.get("wf_passed"):
             qts_weight *= 1.3  # WF 验证通过的信源额外加 30%
-        
+
         combined_weight = (gzh_avg_weight + qts_weight) / 2 if (gzh_list and qts) else (gzh_avg_weight if gzh_list else qts_weight)
         final_weight = round(combined_weight * (1 + 0.15 * consensus_score), 2)
-        
+
         pairs.append({
             "code": code,
             "name": (gzh_names[0] if gzh_names else qts.get("ts_code", "")),
@@ -228,15 +228,15 @@ def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
             "consensus_detail": " | ".join(detail_parts),
             "combined_weight": final_weight,
         })
-    
+
     # 按最终权重排序
     pairs.sort(key=lambda x: -x["combined_weight"])
-    
+
     # 统计
     strong = sum(1 for p in pairs if p["consensus_score"] >= 2)
     weak = sum(1 for p in pairs if p["consensus_score"] == 1)
     conflict = sum(1 for p in pairs if p["consensus_score"] < 0)
-    
+
     result = {
         "generated_at": datetime.now().isoformat(),
         "date": today_str,
@@ -251,17 +251,17 @@ def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
         },
         "pairs": pairs,
     }
-    
+
     _OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     _OUTPUT.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    
+
     return result
 
 
 if __name__ == "__main__":
     result = compute_consensus()
     s = result["summary"]
-    print(f"✅ 信号共识计算完成")
+    print("✅ 信号共识计算完成")
     print(f"   总配对: {s['total_pairs']} | 双源: {s['dual_source']} | "
           f"强共识: {s['strong_consensus']} | 分歧: {s['conflict']}")
     print()

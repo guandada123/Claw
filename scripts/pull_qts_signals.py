@@ -17,8 +17,8 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import tempfile
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -91,17 +91,17 @@ def _connect() -> dict:
              "python", "/app/_pull_signals.py"],
             capture_output=True, text=True, timeout=30,
         )
-        
+
         if result.returncode != 0:
             return {"error": f"docker exec failed: {result.stderr[:200]}"}
-        
+
         output = result.stdout.strip()
         # 提取最后一行 JSON
         for line in reversed(output.split("\n")):
             line = line.strip()
             if line.startswith("{"):
                 return json.loads(line)
-        
+
         return {"error": f"no JSON in output: {output[:200]}"}
     finally:
         os.unlink(tmp_path)
