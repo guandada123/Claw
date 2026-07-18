@@ -14,7 +14,7 @@ signal_verify.py — 公众号信号行情验证（v4 新增）
 
 输出：
   - 增量写回 article_signals.json（保留原有字段，新增验证字段）
-  - 生成 signal_verify_report.json（按公众号统计 + 总体胜率/均价）
+  - 生成 signal_verify_report.json（按公众号统计 + 总体胜率/均价；胜率采近 N 日滚动口径，样本不足回退累计）
 """
 from __future__ import annotations
 
@@ -40,6 +40,14 @@ REPORT_FILE = PROJECT_ROOT / ".workbuddy" / "data" / "signal_verify_report.json"
 
 _DATE_CN = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日?")
 _DATE_ISO = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+
+# B @2026-07-18：胜率口径由「全量累计」改为「近 N 日滚动」。
+# 原口径对所有历史信号累计算 win_rate，某号阶段性回撤会缓慢但不可逆地拉低胜率，
+# 跌破质量门槛(当前 25%)即被踢出优质名单、信号流断崖。
+# 滚动口径只看近 ROLLING_DAYS 天样本，更稳；窗口样本不足 MIN_ROLLING_SAMPLES 时
+# 回退全量累计，避免近期少发的稀疏号被误踢。假设透明：报告含 win_rate_basis 字段。
+ROLLING_DAYS = 30
+MIN_ROLLING_SAMPLES = 10
 
 
 def parse_date(s: str):
@@ -170,16 +178,20 @@ def verify_signals() -> dict:
     return report
 
 
-def build_report(signals: list, today: datetime.date) -> dict:
+def build_report(signals: list, today: datetime.date, rolling_days: int = ROLLING_DAYS) -> dict:
+    cutoff = today - datetime.timedelta(days=rolling_days)
     accounts: dict = {}
     ov = {"total": 0, "verified": 0, "bullish": 0, "with_return": 0, "hits": 0, "ret_sum": 0.0}
+    # 总体滚动窗口累计
+    ov_win_samples = ov_win_hits = 0
+    ov_win_ret_sum = 0.0
     for s in signals:
         a = s["account"]
-        acc = accounts.setdefault(
-            a,
-            {"total": 0, "verified": 0, "bullish": 0, "bearish": 0,
-             "with_return": 0, "hits": 0, "ret_sum": 0.0, "stocks": set()},
-        )
+        acc = accounts.setdefault(a, {
+            "total": 0, "verified": 0, "bullish": 0, "bearish": 0,
+            "with_return": 0, "hits": 0, "ret_sum": 0.0, "stocks": set(),
+            "win_samples": 0, "win_hits": 0, "win_ret_sum": 0.0,  # 滚动窗口内累计
+        })
         acc["total"] += 1
         ov["total"] += 1
         acc["stocks"].add(s["stock_code"])
@@ -191,19 +203,42 @@ def build_report(signals: list, today: datetime.date) -> dict:
             ov["bullish"] += 1
         elif s["signal"] == "bearish":
             acc["bearish"] += 1
+        # 非 neutral 且有累计收益的样本
         if s.get("final_return_pct") is not None and s.get("signal") != "neutral":
             acc["with_return"] += 1
             ov["with_return"] += 1
             acc["ret_sum"] += s["final_return_pct"]
             ov["ret_sum"] += s["final_return_pct"]
+            # 滚动窗口：仅计入信号日在近 rolling_days 内的样本
+            sdate = parse_date(s.get("recorded_at"))
+            if sdate is not None and sdate >= cutoff:
+                acc["win_samples"] += 1
+                acc["win_ret_sum"] += s["final_return_pct"]
+                if s.get("hit") is True:
+                    acc["win_hits"] += 1
+                ov_win_samples += 1
+                ov_win_ret_sum += s["final_return_pct"]
+                if s.get("hit") is True:
+                    ov_win_hits += 1
         if s.get("hit") is True and s.get("signal") != "neutral":
             acc["hits"] += 1
             ov["hits"] += 1
 
     rows = []
     for a, acc in accounts.items():
-        win = (acc["hits"] / acc["with_return"] * 100) if acc["with_return"] else None
-        avg = (acc["ret_sum"] / acc["with_return"]) if acc["with_return"] else None
+        # 滚动胜率优先；窗口样本不足回退全量累计（防稀疏号近期少发被误踢）
+        if acc["win_samples"] >= MIN_ROLLING_SAMPLES:
+            basis = "rolling"
+            with_return = acc["win_samples"]
+            hits = acc["win_hits"]
+            win = (acc["win_hits"] / acc["win_samples"] * 100) if acc["win_samples"] else None
+            avg = (acc["win_ret_sum"] / acc["win_samples"]) if acc["win_samples"] else None
+        else:
+            basis = "cumulative"
+            with_return = acc["with_return"]
+            hits = acc["hits"]
+            win = (acc["hits"] / acc["with_return"] * 100) if acc["with_return"] else None
+            avg = (acc["ret_sum"] / acc["with_return"]) if acc["with_return"] else None
         cov = (acc["verified"] / acc["total"] * 100) if acc["total"] else 0
         rows.append({
             "account": a,
@@ -211,19 +246,28 @@ def build_report(signals: list, today: datetime.date) -> dict:
             "verified": acc["verified"],
             "verify_cov": round(cov, 1),
             "bullish": acc["bullish"],
-            "with_return": acc["with_return"],
-            "hits": acc["hits"],
+            "with_return": with_return,
+            "hits": hits,
             "win_rate": round(win, 1) if win is not None else None,
             "avg_return": round(avg, 2) if avg is not None else None,
             "stocks": len(acc["stocks"]),
+            "win_rate_basis": basis,
+            "rolling_window_days": rolling_days,
         })
     rows.sort(key=lambda x: -(x["win_rate"] if x["win_rate"] is not None else -1))
 
-    ov_win = (ov["hits"] / ov["with_return"] * 100) if ov["with_return"] else None
-    ov_avg = (ov["ret_sum"] / ov["with_return"]) if ov["with_return"] else None
+    # 总体胜率同采滚动口径（窗口样本不足回退累计）
+    if ov_win_samples >= MIN_ROLLING_SAMPLES:
+        ov_win = (ov_win_hits / ov_win_samples * 100) if ov_win_samples else None
+        ov_avg = (ov_win_ret_sum / ov_win_samples) if ov_win_samples else None
+    else:
+        ov_win = (ov["hits"] / ov["with_return"] * 100) if ov["with_return"] else None
+        ov_avg = (ov["ret_sum"] / ov["with_return"]) if ov["with_return"] else None
     return {
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "trade_date": today.strftime("%Y-%m-%d"),
+        "win_rate_basis": "rolling" if ROLLING_DAYS else "cumulative",
+        "rolling_window_days": rolling_days,
         "overall": {
             "total": ov["total"],
             "verified": ov["verified"],

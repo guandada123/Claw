@@ -34,6 +34,20 @@ _FETCH_SCRIPT = (
     / "fetch_gzh_trends.py"
 )
 
+# ── 本地订阅接入（替换原 Pinchtab 全文抓取）─────────────────
+# 新发现的公众号统一走本地 WeChat Download API (localhost:5001) 订阅，
+# 由 wx_collector → collect_local_feeds 自动拉取全文，不再依赖 Pinchtab 浏览器自动化。
+_LOCAL_API_BASE = "http://localhost:5001"
+_SUBSCRIBE_CANDIDATES_FILE = _PROJECT_ROOT / "data" / "subscribe_candidates.json"
+# 自动接入本地订阅的命中率门槛：仅当 AUTO_SUBSCRIBE=False 时生效，作为质量闸门；
+# AUTO_SUBSCRIBE=True（全开）时，所有能解析出 fakeid 的候选号一律接入本地订阅，
+# 不再卡 hit_rate（避免 122 个红狐号无差别灌入的问题靠“候选须含股票提及”已兜底）。
+_AUTO_SUBSCRIBE = True
+_AUTO_SUBSCRIBE_HIT_RATE = 40.0
+# 全开模式下本地订阅列表的数量上限：防止列表无限膨胀变杂（C @2026-07-18）。
+# 达到上限后，新发现的候选号不再自动接入，改为 pending_cap（待人工提升上限后重跑解冻）。
+_AUTO_SUBSCRIBE_CAP = 40
+
 SEARCH_KEYWORDS = [
     "A股推荐",
     "涨停复盘",
@@ -79,29 +93,6 @@ def _search(keyword: str, start_date: str) -> list[dict]:
         return data.get("articles", [])
     except Exception:
         return []
-
-
-def _fetch_article_full_text(url: str) -> str | None:
-    """抓取微信公众号文章全文（用 PinchTab 浏览器自动化绕过反爬）"""
-    if not url or "mp.weixin.qq.com" not in url:
-        return None
-    try:
-        result = subprocess.run(
-            [
-                "bash", "-c",
-                f'source ~/.workbuddy/scripts/pinchtab_utils.sh && pinchtab_text "{url}" 2>/dev/null',
-            ],
-            capture_output=True, text=True, timeout=45,
-        )
-        if result.returncode != 0:
-            return None
-        content = result.stdout.strip()
-        # 过滤 PinchTab 噪音（如 "pinchtab server is not running" 等系统输出）
-        if "pinchtab" in content.lower() and len(content) < 500:
-            return None
-        return content if len(content) > 200 else None
-    except Exception:
-        return None
 
 
 def _extract_codes_from_text(text: str) -> list[str]:
@@ -203,9 +194,111 @@ def _check_price_change(code: str, check_date_str: str) -> dict | None:
     return None
 
 
+def _load_local_subscriptions() -> dict:
+    """读取本地 WeChat Download API 当前已订阅列表。
+
+    Returns: {"names": set(小写昵称), "aliases": set(小写微信号), "fakeids": set(fakeid)}
+    本地 API 不可达时返回全空集（降级，不阻塞发现流程）。
+    """
+    result = {"names": set(), "aliases": set(), "fakeids": set()}
+    try:
+        url = f"{_LOCAL_API_BASE}/api/rss/subscriptions"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        for s in data.get("data", []):
+            if s.get("nickname"):
+                result["names"].add(s["nickname"].strip().lower())
+            if s.get("alias"):
+                result["aliases"].add(s["alias"].strip().lower())
+            if s.get("fakeid"):
+                result["fakeids"].add(s["fakeid"])
+    except Exception:
+        pass  # 本地 API 未运行 → 返回空集，后续全部走 pending
+    return result
+
+
+def _resolve_fakeid(nickname: str) -> str | None:
+    """通过本地 API 的 searchbiz 接口，按昵称解析公众号 fakeid。
+
+    匹配策略：精确昵称匹配 → 宽松包含匹配（防"财联社"vs"财联社电报"偏差）；
+    均不匹配（或查不到）返回 None，绝不返回无关账号的 fakeid，避免误订阅。
+    """
+    if not nickname:
+        return None
+    q = nickname.strip().lower()
+    try:
+        from urllib.parse import quote
+        url = f"{_LOCAL_API_BASE}/api/public/searchbiz?query={quote(nickname)}"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        items = data.get("data", {}).get("list", [])
+        # 第一遍：精确匹配
+        for item in items:
+            if item.get("nickname", "").strip().lower() == q and item.get("fakeid"):
+                return item["fakeid"]
+        # 第二遍：包含匹配（双向）
+        for item in items:
+            rn = item.get("nickname", "").strip().lower()
+            if rn and item.get("fakeid") and (q in rn or rn in q):
+                return item["fakeid"]
+    except Exception:
+        return None
+    return None
+
+
+def _subscribe_local(fakeid: str, nickname: str, alias: str = "") -> bool:
+    """向本地 API 订阅一个公众号（POST /api/rss/subscribe）。成功返回 True。"""
+    if not fakeid:
+        return False
+    try:
+        url = f"{_LOCAL_API_BASE}/api/rss/subscribe"
+        payload = json.dumps({
+            "fakeid": fakeid,
+            "nickname": nickname,
+            "alias": alias or "",
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            url, data=payload, method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return bool(data.get("success"))
+    except Exception:
+        return False
+
+
+def _load_subscribe_candidates() -> list[dict]:
+    """读取既有的订阅候选登记（subscribe_candidates.json），不存在则返回空列表。"""
+    if not _SUBSCRIBE_CANDIDATES_FILE.exists():
+        return []
+    try:
+        d = json.loads(_SUBSCRIBE_CANDIDATES_FILE.read_text(encoding="utf-8"))
+        if isinstance(d, list):
+            return d
+        return d.get("candidates", [])
+    except Exception:
+        return []
+
+
+def _save_subscribe_candidates(candidates: list[dict]) -> None:
+    """原子写入订阅候选登记（带 updated_at 元数据）。"""
+    out = {
+        "updated_at": datetime.now().isoformat(),
+        "note": "红狐发现的新公众号候选，经本地订阅接入；status: subscribed/already_subscribed/pending/subscribe_failed",
+        "candidates": candidates,
+    }
+    _SUBSCRIBE_CANDIDATES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _SUBSCRIBE_CANDIDATES_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(_SUBSCRIBE_CANDIDATES_FILE)
+
+
 def discover() -> dict:
     """
-    主流程：搜索 → 提取股票 → 验证方向 → 聚合命中率
+    主流程：搜索 → 提取股票 → 验证方向 → 聚合命中率 → 本地订阅接入
     """
     start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 
@@ -213,7 +306,6 @@ def discover() -> dict:
     seen_article_ids: set[str] = set()
     account_stocks: dict[str, list[dict]] = defaultdict(list)  # author → [{code, date, ...}, ...]
     account_meta: dict[str, dict] = {}
-    articles_for_enrich: list[dict] = []  # 有股票代码的文章，后续抓全文
 
     for kw in SEARCH_KEYWORDS:
         articles = _search(kw, start_date)
@@ -242,6 +334,8 @@ def discover() -> dict:
             account_meta[author]["keywords"].add(kw)
             if len(account_meta[author]["sample_titles"]) < 3:
                 account_meta[author]["sample_titles"].append(title[:60])
+            if not account_meta[author].get("sample_url") and art.get("url"):
+                account_meta[author]["sample_url"] = art.get("url", "")
 
             for code in codes:
                 account_stocks[author].append({
@@ -250,36 +344,9 @@ def discover() -> dict:
                     "article_title": title[:40],
                 })
 
-            # 有股票代码的文章，保存信息用于后续全文抓取
-            if codes and art.get("url"):
-                articles_for_enrich.append(art)
-
-    # 第一阶段B：对有股票代码的文章，抓全文补充更多代码
-    if articles_for_enrich:
-        print(f"抓取 {len(articles_for_enrich)} 篇文章全文...")
-        full_codes_added = 0
-        for art in articles_for_enrich:
-            url = art.get("url", "")
-            author = art.get("author", "")
-            pub_time = art.get("publicTime", "")
-            title = art.get("title", "")
-            full_text = _fetch_article_full_text(url)
-            if not full_text:
-                continue
-            extra_codes = _extract_codes_from_text(full_text)
-            for code in extra_codes:
-                existing = any(
-                    s["code"] == code and s["article_date"] == pub_time
-                    for s in account_stocks[author]
-                )
-                if not existing:
-                    account_stocks[author].append({
-                        "code": code,
-                        "article_date": pub_time,
-                        "article_title": title[:40],
-                    })
-                    full_codes_added += 1
-        print(f"  全文抓取新增 {full_codes_added} 条股票提及")
+    # 注：原"Pinchtab 全文抓取补充代码"已移除（v8 @2026-07-18）。
+    # 新号接入本地订阅(localhost:5001)后，wx_collector→collect_local_feeds 会自动
+    # 拉取全文并提取信号，无需浏览器自动化。标题/摘要中的股票代码已足够做命中率初筛。
 
     # 第二阶段：验证股价方向
     print(f"发现 {len(account_meta)} 个公众号，{sum(len(v) for v in account_stocks.values())} 条股票提及")
@@ -335,6 +402,7 @@ def discover() -> dict:
             "articles": meta["articles"],
             "keywords": sorted(meta["keywords"]),
             "sample_titles": meta["sample_titles"],
+            "sample_url": meta.get("sample_url", ""),
             "stocks_mentioned": len(stocks),
             "stocks_verified": verified,
             "direction_correct": direction_correct,
@@ -349,6 +417,63 @@ def discover() -> dict:
         x["hit_rate"] if x["hit_rate"] is not None else -1,
         x["stocks_mentioned"],
     ), reverse=True)
+
+    # ── 本地订阅接入（替换原 Pinchtab 全文抓取）─────────────────
+    # 真值源 = 本地 WeChat Download API 当前订阅列表；新号走本地订阅，不再依赖浏览器自动化。
+    local_subs = _load_local_subscriptions()
+    cur_sub_count = len(local_subs["names"])
+    existing_candidates = _load_subscribe_candidates()
+    seen_names = {c.get("name") for c in existing_candidates}
+    onboard_new = onboard_sub = onboard_pending = onboard_capped = 0
+    for cand in candidates:
+        name = cand["name"]
+        lname = name.strip().lower()
+        if lname in local_subs["names"]:
+            status = "already_subscribed"
+            fakeid = ""
+        else:
+            # 仅对尚未订阅的号解析一次 fakeid（后续复用，避免重复调用）
+            fakeid = _resolve_fakeid(name)
+            # 全开模式：能解析 fakeid 即自动订阅（不卡 hit_rate）；
+            # 非全开：仅对 hit_rate 达标者订阅，其余 pending 待审。
+            # 已达上限：降级为 pending_cap，待人工提升 _AUTO_SUBSCRIBE_CAP 后重跑解冻。
+            auto_ok = bool(fakeid) and (
+                _AUTO_SUBSCRIBE
+                or (cand["hit_rate"] is not None and cand["hit_rate"] >= _AUTO_SUBSCRIBE_HIT_RATE)
+            )
+            if auto_ok and (cur_sub_count + onboard_sub) < _AUTO_SUBSCRIBE_CAP:
+                ok = _subscribe_local(fakeid, name)
+                status = "subscribed" if ok else "subscribe_failed"
+                if ok:
+                    onboard_sub += 1
+            elif auto_ok:
+                status = "pending_cap"  # 已达订阅上限，待人工扩额
+                onboard_capped += 1
+                onboard_pending += 1
+            else:
+                status = "pending"  # 待人工审核（未能解析 fakeid 或被质量闸门挡下）
+                onboard_pending += 1
+        # 仅登记首次出现的号（幂等）
+        if name not in seen_names:
+            existing_candidates.append({
+                "name": name,
+                "fakeid": fakeid or "",
+                "hit_rate": cand["hit_rate"],
+                "stocks_verified": cand["stocks_verified"],
+                "status": status,
+                "discovered_at": datetime.now().isoformat(),
+                "sample_url": cand.get("sample_url", ""),
+                "sample_titles": cand.get("sample_titles", []),
+                "keywords": cand.get("keywords", []),
+            })
+            seen_names.add(name)
+            if status != "already_subscribed":
+                onboard_new += 1
+    _save_subscribe_candidates(existing_candidates)
+    already = sum(1 for c in candidates if c["name"].strip().lower() in local_subs["names"])
+    print(f"[本地订阅] 当前已订阅 {cur_sub_count}/{_AUTO_SUBSCRIBE_CAP} | "
+          f"新候选 {onboard_new} | 自动接入 {onboard_sub} | 达上限转pending {onboard_capped} | "
+          f"待审核 {onboard_pending - onboard_capped} | 已订阅跳过 {already}")
 
     output = {
         "generated_at": datetime.now().isoformat(),
