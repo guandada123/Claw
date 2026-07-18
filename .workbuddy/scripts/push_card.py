@@ -172,13 +172,13 @@ def send_card(title, level="info", sections=None, table=None, buttons=None,
                 print(f"  ✅ 卡片已发送! message_id: {mid} (level={level})")
                 return True
             except json.JSONDecodeError:
-                print(f"  ✅ 卡片已发送 (无法解析message_id)")
+                print("  ✅ 卡片已发送 (无法解析message_id)")
                 return True
 
         # 失败：判断是否 429 限流
         is_429 = "429" in (err or "") or "429" in (out or "")
         last_err = (err or out)[:300]
-        print(f"  ⚠️ 卡片发送返回码非0" + (" (429限流)" if is_429 else ""))
+        print("  ⚠️ 卡片发送返回码非0" + (" (429限流)" if is_429 else ""))
         if attempt < max_retries:
             wait = backoff[attempt - 1] if attempt <= len(backoff) else backoff[-1]
             print(f"  🔄 第{attempt}次失败，{wait}s后重试 ({attempt}/{max_retries})...")
@@ -196,7 +196,7 @@ def send_card(title, level="info", sections=None, table=None, buttons=None,
         for row in table["rows"]:
             md_text += "| " + " | ".join(str(c) for c in row) + " |\n"
     if ok_fb := _send_via_markdown_fallback(md_text, chat_id):
-        print(f"  ✅ markdown 兜底发送成功")
+        print("  ✅ markdown 兜底发送成功")
         return True
     print(f"  🔴 卡片+兜底均失败: {last_err}")
     return False

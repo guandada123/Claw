@@ -19,7 +19,6 @@ from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from html import unescape
 from pathlib import Path
-from typing import Optional
 from xml.etree import ElementTree
 
 import requests
@@ -137,7 +136,7 @@ def _parse_rss_xml(xml_text: str, since_ts: int) -> list[dict]:
 # ── 正文内容 ──────────────────────────────────────────────
 
 
-def fetch_article_content(url: str) -> Optional[str]:
+def fetch_article_content(url: str) -> str | None:
     """从本地 API 获取文章正文（返回 plain_content 纯文本）。"""
     try:
         resp = requests.post(

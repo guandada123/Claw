@@ -299,7 +299,7 @@ def load_today_articles():
     api_ok = False
     for attempt in range(3):
         try:
-            articles, api_ok = _fetch_today_via_api(ts_start, ts_end)
+            articles, api_ok = _fetch_today_via_api(ts_start, ts_end, is_morning)
             if api_ok:
                 break
         except Exception as e:
@@ -316,7 +316,7 @@ def load_today_articles():
     return articles
 
 
-def _fetch_today_via_api(today_ts_start, today_ts_end):
+def _fetch_today_via_api(today_ts_start, today_ts_end, is_morning=False):
     """通过 REST API 获取今日文章（含正文 Markdown）
 
     Returns:
