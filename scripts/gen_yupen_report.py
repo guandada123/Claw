@@ -9,6 +9,8 @@
 对比基准 CAT_REF 固定为 2026-07-17 猫笔叨《复盘完》原表(同源复现参照)，
 用于验证自建 MA20 偏离度与猫哥口径的误差。
 """
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import argparse
 import datetime as dt
 import json

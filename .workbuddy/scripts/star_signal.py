@@ -30,6 +30,8 @@ StarSignal — 五角星信号 优化版量化模块
 许可: MIT
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 from dataclasses import dataclass
 from enum import Enum
 

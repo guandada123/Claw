@@ -15,6 +15,8 @@ cost_monitor.py — 成本监控报告生成器（供 WorkBuddy 自动化调用�
 版本: v1.0 | 2026-06-14
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import subprocess
 import sys
 from datetime import datetime
@@ -75,7 +77,7 @@ def monthly_report() -> str:
 预算：¥400/月"""
 
 
-def generate_dashboard(output: str = None) -> str:
+def generate_dashboard(output: str | None = None) -> str:
     """生成可视化仪表盘 HTML"""
     args = [sys.executable, str(SCRIPTS_DIR / "cost_dashboard.py")]
     if output:

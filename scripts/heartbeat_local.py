@@ -20,6 +20,8 @@
 版本：v1.0 | 2026-06-14
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import argparse
 import json
 import sqlite3

@@ -11,9 +11,17 @@ budget_guard.py — 预算守护与用量拦截器
 版本：v2.0 | 2026-06-14
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import calendar
+import os
+import sys
 import time
 from datetime import date
+
+# 确保本脚本目录在 sys.path，使兄弟模块 `from cost_tracker import ...` 始终可解析
+# （消除 `from scripts.cost_tracker` 双导入反模式；scripts/ 无 __init__.py，从不以包形式导入）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # check_budget_status() 的 60 秒 TTL 缓存
 _budget_cache: dict | None = None
@@ -29,6 +37,64 @@ _BUDGET_CACHE_TTL = 60  # 秒
 FLASH_LOCK_THRESHOLD = 350.0  # 超过¥350自动锁定为Flash模式
 DAILY_WARNING = 25.0  # 日超¥25告警
 MAX_SINGLE_CALL = 5.0  # 单次调用 ¥5 上限（超限自动拦截）
+MAX_BUDGET_CAP = 1_000_000  # 预算上限护栏：超大值截顶，防止失控
+
+# ============================================================
+# 模型分层常量
+# ============================================================
+# 统一维护入口：模型名或 Tier 规则变更时只需改此处，不再散落各函数
+
+# 旗舰模型（flash_only 关键任务可豁免降级）
+FLAGSHIP_MODELS = (
+    "gpt-5",
+    "claude-sonnet-4-20250514",
+    "claude-opus-4-20250514",
+    "gpt-4.1",
+    "gpt-4o-mini",
+)
+PRO_MODEL = "deepseek-v4-pro"    # 中级模型
+FLASH_MODEL = "deepseek-v4-flash"  # 兜底降级目标
+
+# flash_preferred 层级下，非关键任务需降级的旗舰子集
+# （gpt-4.1 / gpt-4o-mini 成本较低，不在此列）
+HIGH_COST_FLAGSHIP = (
+    "gpt-5",
+    "claude-sonnet-4-20250514",
+    "claude-opus-4-20250514",
+)
+
+
+# ============================================================
+# 预算值健壮解析
+# ============================================================
+
+
+def parse_budget(raw: str | None) -> int:
+    """将环境变量/配置中的预算值解析为安全整数。
+
+    规则（fail-safe）：
+      - None / 空字符串 / 仅空白 → 0
+      - 非数字字符串 → 0
+      - 小数 → 向下取整
+      - 负数 → 0
+      - 超出 MAX_BUDGET_CAP → 截顶为 CAP
+
+    调用方使用返回值前应检查 `<= 0` → fail-closed。
+    """
+    if raw is None:
+        return 0
+    stripped = str(raw).strip()
+    if not stripped:
+        return 0
+    try:
+        val = float(stripped)
+    except (ValueError, TypeError):
+        return 0
+    if val < 0:
+        return 0
+    if val > MAX_BUDGET_CAP:
+        return MAX_BUDGET_CAP
+    return int(val)
 
 
 # ============================================================
@@ -55,22 +121,29 @@ def check_budget_status() -> dict:
     if _budget_cache is not None and now - _budget_cache_time < _BUDGET_CACHE_TTL:
         return dict(_budget_cache)
 
-    try:
-        from cost_tracker import MONTHLY_BUDGET_CNY as MONTHLY_BUDGET
-        from cost_tracker import get_monthly_spent
-    except ImportError:
-        from scripts.cost_tracker import MONTHLY_BUDGET_CNY as MONTHLY_BUDGET
-        from scripts.cost_tracker import get_monthly_spent
+    from cost_tracker import MONTHLY_BUDGET_CNY as _RAW_BUDGET
+    from cost_tracker import get_monthly_spent
+    budget = parse_budget(str(_RAW_BUDGET))
     month = date.today().strftime("%Y-%m")
     spent = get_monthly_spent(month)
 
-    remaining = MONTHLY_BUDGET - spent
-    pct = spent / MONTHLY_BUDGET
+    # 预算配置异常（如 MONTHLY_BUDGET=0/误改/非数字）→ fail-closed 锁定 Flash，绝不因异常放行调用
+    if budget <= 0:
+        return {
+            "spent": spent,
+            "remaining": 0.0,
+            "pct": 1.0,
+            "tier": "flash_only",
+            "msg": "⛔ 预算配置异常（MONTHLY_BUDGET<=0），已锁定Flash模式",
+        }
+
+    remaining = budget - spent
+    pct = spent / budget
 
     # 层级判定
     if pct >= 0.875:  # ≥¥350
         tier = "flash_only"
-        msg = f"⛔ 预算已用{pct * 100:.0f}%（¥{spent:.0f}/¥{MONTHLY_BUDGET:.0f}），已锁定Flash模式"
+        msg = f"⛔ 预算已用{pct * 100:.0f}%（¥{spent:.0f}/¥{budget:.0f}），已锁定Flash模式"
     elif pct >= 0.7:  # ≥¥280
         tier = "flash_preferred"
         msg = f"⚠️  预算已用{pct * 100:.0f}%（¥{spent:.0f}），建议优先使用Flash"
@@ -115,28 +188,19 @@ def get_allowed_model(intended_model: str, task_priority: str = "normal") -> str
 
     # Flash 锁定模式
     if status["tier"] == "flash_only":
-        if task_priority == "critical" and intended_model in (
-            "gpt-5",
-            "claude-sonnet-4-20250514",
-            "claude-opus-4-20250514",
-            "gpt-4.1",
-            "gpt-4o-mini",
-        ):
+        if task_priority == "critical" and intended_model in FLAGSHIP_MODELS:
             # 关键任务 + 旗舰模型 → 自动允许（自动化场景无需人工确认）
             print(f"\n⚠️ 预算紧张（已用¥{status['spent']:.0f}），关键任务允许使用 {intended_model}")
             return intended_model
-        return "deepseek-v4-flash"
+        return FLASH_MODEL
 
     # Flash 优先模式
     if status["tier"] == "flash_preferred":
-        if intended_model in ("deepseek-v4-pro",) and task_priority == "normal":
+        if intended_model == PRO_MODEL and task_priority == "normal":
             # 普通任务的 Pro 降为 Flash
-            return "deepseek-v4-flash"
-        elif (
-            intended_model in ("gpt-5", "claude-sonnet-4-20250514", "claude-opus-4-20250514")
-            and task_priority != "critical"
-        ):
-            return "deepseek-v4-pro"  # 非关键的旗舰降为 Pro
+            return FLASH_MODEL
+        elif intended_model in HIGH_COST_FLAGSHIP and task_priority != "critical":
+            return PRO_MODEL  # 非关键的旗舰降为 Pro
 
     return intended_model
 
@@ -158,10 +222,7 @@ def verify_call_cost(estimated_input: int, estimated_output: int, model: str) ->
     ----
     (bool, float) : (是否允许调用, 预估成本 ¥)
     """
-    try:
-        from cost_tracker import MODEL_PRICES, _match_model  # noqa: F401
-    except ImportError:
-        from scripts.cost_tracker import MODEL_PRICES, _match_model
+    from cost_tracker import MODEL_PRICES, _match_model  # noqa: F401
 
     model_key = _match_model(model)
     prices = MODEL_PRICES.get(model_key, {"input": 0, "output": 0})
@@ -187,33 +248,25 @@ def verify_call_cost(estimated_input: int, estimated_output: int, model: str) ->
 def budget_summary() -> str:
     """快速预算摘要（用于日志/推送）"""
     status = check_budget_status()
-    try:
-        from cost_tracker import MODEL_PRICES, _match_model  # noqa: F401
-    except ImportError:
-        pass
-    try:
-        from cost_tracker import MONTHLY_BUDGET_CNY as MONTHLY_BUDGET
-    except ImportError:
-        from scripts.cost_tracker import MONTHLY_BUDGET_CNY as MONTHLY_BUDGET
+    from cost_tracker import MODEL_PRICES, _match_model  # noqa: F401
+    from cost_tracker import MONTHLY_BUDGET_CNY as _RAW_BUDGET
+    budget = parse_budget(str(_RAW_BUDGET))
     _, days_in_month = calendar.monthrange(date.today().year, date.today().month)
     today_day = date.today().day
     projected = status["spent"] / max(today_day, 1) * days_in_month
 
     lines = [
-        f"📊 本月预算：¥{status['spent']:.1f} / ¥{MONTHLY_BUDGET:.0f}",
+        f"📊 本月预算：¥{status['spent']:.1f} / ¥{budget:.0f}",
         f"   {'=' * 30}",
         f"   已用比例：{status['pct'] * 100:.1f}%",
         f"   剩余预算：¥{status['remaining']:.1f}",
-        f"   预估月底：¥{projected:.0f} {'⚠️' if projected > MONTHLY_BUDGET else '✅'}",
+        f"   预估月底：¥{projected:.0f} {'⚠️' if projected > budget else '✅'}",
         f"   当前层级：{status['tier']}",
         f"   {status['msg']}",
     ]
 
     # 日检查（预加载当日记录，避免 daily_report 重复读取 JSONL）
-    try:
-        from cost_tracker import _load_records, daily_report
-    except ImportError:
-        from scripts.cost_tracker import _load_records, daily_report
+    from cost_tracker import _load_records, daily_report
     today_records = _load_records(date.today().isoformat())
     today = daily_report("today_only", records=today_records)
     if isinstance(today, dict) and today.get("total", 0) > DAILY_WARNING:

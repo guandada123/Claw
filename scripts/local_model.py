@@ -9,6 +9,8 @@ local_model.py — Ollama 本地模型调用封装
 版本：v1.0 | 2026-06-14
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import json
 import time
 import urllib.error

@@ -9,24 +9,28 @@ router.py — 智能四层模型路由器 + 统一 API 调用层
 版本：v4.0 | 2026-06-15 — 集成真实 API 调用、成本追踪、CatRouter 代理
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import json
+import os
 import random
 import re
 import secrets
+import sys
 import time
 import urllib.error
 import urllib.request
 from enum import Enum
 
+# 确保本脚本目录在 sys.path，使兄弟模块 `from cost_tracker import ...` 始终可解析
+# （消除 `from scripts.cost_tracker` 双导入反模式；scripts/ 无 __init__.py，从不以包形式导入）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 # ============================================================
 # 模块级依赖导入（替代函数内动态导入，避免 import lock 死锁）
 # ============================================================
-try:
-    from cost_tracker import MODEL_PRICES, _match_model
-    from cost_tracker import log_call as _log_call
-except ImportError:
-    from scripts.cost_tracker import MODEL_PRICES, _match_model
-    from scripts.cost_tracker import log_call as _log_call
+from cost_tracker import MODEL_PRICES, _match_model
+from cost_tracker import log_call as _log_call
 
 try:
     from local_model import call as _local_call
@@ -34,19 +38,13 @@ try:
 
     _LOCAL_AVAILABLE = True
 except ImportError:
-    try:
-        from scripts.local_model import call as _local_call
-        from scripts.local_model import is_available as _local_check
+    _LOCAL_AVAILABLE = False
 
-        _LOCAL_AVAILABLE = True
-    except ImportError:
-        _LOCAL_AVAILABLE = False
+    def _local_call(*a, **kw):  # type: ignore[misc]
+        raise ImportError("local_model 未安装")
 
-        def _local_call(*a, **kw):
-            raise ImportError("local_model 未安装")
-
-        def _local_check():
-            return False
+    def _local_check():  # type: ignore[misc]
+        return False
 
 
 # ============================================================
@@ -142,7 +140,7 @@ ROUTING_RULES = {
 
 # 预编译路由正则（避免每次 route_task() 调用都编译）
 _COMPILED_RULES = {
-    tier: [re.compile(p) for p in patterns] for tier, patterns in ROUTING_RULES.items()
+    tier: [re.compile(p, re.IGNORECASE) for p in patterns] for tier, patterns in ROUTING_RULES.items()
 }
 
 # 旗舰模型信号词（触发 PREMIUM 层级）— frozenset 禁止运行时修改
@@ -188,7 +186,7 @@ _COMPILED_PREMIUM_SIGNALS = re.compile(
 
 
 def route_task(
-    prompt: str, task_type: str = "", force_tier: ModelTier = None, allow_local: bool = True
+    prompt: str, task_type: str = "", force_tier: ModelTier | None = None, allow_local: bool = True
 ) -> ModelTier:
     """
     根据 Prompt 内容决定使用哪个模型层级。
@@ -250,10 +248,10 @@ def _select_premium_model(prompt: str, task_type: str) -> dict:
 
 def get_model(
     prompt: str,
-    budget_status: dict = None,
+    budget_status: dict | None = None,
     task_type: str = "",
-    force_tier: ModelTier = None,
-    local_available: bool = None,
+    force_tier: ModelTier | None = None,
+    local_available: bool | None = None,
 ) -> dict:
     """
     综合路由决策：任务分类 + 预算约束 + 本地可用性 + 模型选择。
@@ -362,7 +360,7 @@ def _resolve_api_config(provider: str, model_config: dict) -> tuple:
         return DEEPSEEK_API_KEY, model_config.get("base_url", DEEPSEEK_BASE_URL)
 
 
-def _build_chat_messages(system: str, prompt: str) -> list:
+def _build_chat_messages(system: str | None, prompt: str) -> list:
     """构建聊天消息列表"""
     messages = []
     if system:
@@ -404,7 +402,7 @@ def _parse_success_response(
 def call_llm(
     prompt: str,
     model_config: dict,
-    system: str = None,
+    system: str | None = None,
     temperature: float = 0.3,
     max_tokens: int = 4096,
     task: str = "",
@@ -578,8 +576,8 @@ FALLBACK_CHAIN = [
 def call_with_fallback(
     prompt: str,
     task_type: str = "",
-    budget_status: dict = None,
-    system: str = None,
+    budget_status: dict | None = None,
+    system: str | None = None,
     temperature: float = 0.3,
     max_tokens: int = 4096,
     task: str = "",
@@ -655,6 +653,15 @@ def call_with_fallback(
             seen_models.add(key)
             unique_candidates.append(c)
 
+    # ---- 层级约束：Flash / LOCAL 不进更贵模型 ----
+    # Flash(¥0.5) 失败后不能 fallback 到 Pro(¥4.0) 或 CatRouter 旗舰（¥18-36）
+    if tier in (ModelTier.FLASH, ModelTier.LOCAL):
+        primary_cost = primary["cost_per_10k"]
+        unique_candidates = [
+            c for c in unique_candidates
+            if c.get("cost_per_10k", 999) <= primary_cost
+        ]
+
     for idx, candidate in enumerate(unique_candidates):
         is_fallback = idx > 0
         model_name = candidate["model"]
@@ -726,7 +733,7 @@ def call_with_fallback(
             if verbose:
                 print(f"  ❌ {model_name}: 失败 ({result.get('error', '未知错误')[:80]})")
             # 失败后指数退避 + jitter（避免 429 限速拔高重试压力）
-            sleep_sec = min(8, (2**idx) * 0.5 + secrets.randbelow(300) / 1000.0)  # jitter 0～0.3s
+            sleep_sec = min(8, (2**idx) * 0.5 + secrets.randbelow(300) / 1000.0)  # type: ignore[attr-defined]  # jitter 0～0.3s
             time.sleep(sleep_sec)
 
     # 全部失败

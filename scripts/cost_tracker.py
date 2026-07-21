@@ -10,6 +10,8 @@ cost_tracker.py — AI调用成本追踪器（v2.1 + Prompt Cache 支持）
 版本：v2.1 | 2026-06-14 — 新增 Prompt Cache 指标追踪
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import json
 import sys
 import threading
@@ -72,8 +74,8 @@ def log_call(
     output_tokens: int,
     task: str = "",
     project: str = "",
-    prompt_cache_hit_tokens: int = None,
-    prompt_cache_miss_tokens: int = None,
+    prompt_cache_hit_tokens: int | None = None,
+    prompt_cache_miss_tokens: int | None = None,
 ) -> float:
     """
     记录一次AI API调用（支持 Prompt Cache 指标）。
@@ -185,7 +187,7 @@ def _match_model(model: str) -> str:
 # ============================================================
 
 
-def _load_records(date_filter: str = None) -> list:
+def _load_records(date_filter: str | None = None) -> list:
     """加载日志文件中符合条件的记录"""
     if not LOG_FILE.exists():
         return []
@@ -205,14 +207,14 @@ def _load_records(date_filter: str = None) -> list:
     return records
 
 
-def get_monthly_spent(month: str = None) -> float:
+def get_monthly_spent(month: str | None = None) -> float:
     """返回指定月份已花费金额（¥），由 budget_guard 调用以避免重复读 JSONL"""
     month = month or date.today().strftime("%Y-%m")
     records = _load_records(month)
-    return sum(r.get("cost_cny", 0) for r in records)
+    return sum(r.get("cost_cny", 0) for r in records)  # type: ignore[no-any-return]
 
 
-def daily_report(target_date: str = None, records: list = None) -> dict:
+def daily_report(target_date: str | None = None, records: list | None = None) -> dict:
     """
     打印并返回每日成本报告。
 
@@ -239,9 +241,9 @@ def daily_report(target_date: str = None, records: list = None) -> dict:
     total = sum(r["cost_cny"] for r in records)
 
     # 按模型聚合
-    by_model = {}
-    by_project = {}
-    by_task = {}
+    by_model: dict[str, float] = {}
+    by_project: dict[str, float] = {}
+    by_task: dict[str, float] = {}
     for r in records:
         m = r.get("model_key", r["model"])
         by_model[m] = by_model.get(m, 0) + r["cost_cny"]
@@ -275,7 +277,7 @@ def daily_report(target_date: str = None, records: list = None) -> dict:
     }
 
 
-def monthly_report(year_month: str = None) -> dict:
+def monthly_report(year_month: str | None = None) -> dict:
     """
     打印并返回月度成本汇总。
 
@@ -297,8 +299,8 @@ def monthly_report(year_month: str = None) -> dict:
         print(f"\n📅 {month} 月度汇总 — 暂无数据")
         return {"total": 0, "count": 0}
 
-    by_model = {}
-    by_project = {}
+    by_model: dict[str, float] = {}
+    by_project: dict[str, float] = {}
     for r in records:
         m = r.get("model_key", r["model"])
         by_model[m] = by_model.get(m, 0) + r["cost_cny"]
@@ -353,7 +355,7 @@ def top_expensive_tasks(n: int = 5) -> list:
     month = date.today().strftime("%Y-%m")
     records = _load_records(month)
 
-    by_task = {}
+    by_task: dict[str, float] = {}
     for r in records:
         t = r.get("task", "未知")
         by_task[t] = by_task.get(t, 0) + r["cost_cny"]
@@ -422,9 +424,9 @@ AUTO_COST_ESTIMATES = {
 def log_estimate(
     automation_name: str,
     project: str = "Claw",
-    override_model: str = None,
-    override_inp: int = None,
-    override_out: int = None,
+    override_model: str | None = None,
+    override_inp: int | None = None,
+    override_out: int | None = None,
 ) -> float | None:
     """
     根据自动化名称估算本次调用成本并记录到日志文件。
@@ -481,7 +483,7 @@ def log_estimate(
     inp = override_inp or config["inp_est"]
     out = override_out or config["out_est"]
 
-    cost = log_call(model, inp, out, task=automation_name, project=project)
+    cost = log_call(model, inp, out, task=automation_name, project=project)  # type: ignore[arg-type]
     print(f"📝 估算日志: «{matched_key}» → {model} | 输入≈{inp} 输出≈{out} | ¥{cost:.6f}")
     return cost
 
@@ -505,7 +507,7 @@ def log_estimate_all_today(project: str = "Claw") -> float:
         inp = cfg.get("inp_est", 0)
         out = cfg.get("out_est", 0)
         freq = cfg.get("freq", "?")
-        prices = MODEL_PRICES.get(model, {"input": 0, "output": 0})
+        prices = MODEL_PRICES.get(model, {"input": 0, "output": 0})  # type: ignore[call-overload]
         cost = (inp * prices["input"] + out * prices["output"]) / 10000
         total_cost += cost
         logged.append((name, cost, freq))
@@ -528,7 +530,7 @@ def log_estimate_all_today(project: str = "Claw") -> float:
 # ============================================================
 
 
-def cache_report(target_date: str = None) -> dict:
+def cache_report(target_date: str | None = None) -> dict:
     """
     打印并返回 Prompt Cache 命中率报告。
 
@@ -683,8 +685,8 @@ if __name__ == "__main__":
             sys.exit(1)
         name = sys.argv[2]
         project = sys.argv[3] if len(sys.argv) > 3 else "Claw"
-        cost = log_estimate(name, project)
-        if cost is None:
+        est = log_estimate(name, project)
+        if est is None:
             sys.exit(1)
     elif cmd == "estimate_today":
         # 估算当天所有自动化成本

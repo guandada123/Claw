@@ -16,6 +16,8 @@ cost_dashboard_feishu.py — AI成本仪表盘 → 飞书推送
   - scripts/cost_monitor.py 存在
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import datetime
 import json
 import os
@@ -174,7 +176,7 @@ def upload_to_drive(file_path: str) -> dict | None:
     try:
         data = json.loads(result.stdout)
         print("  ✅ 上传成功!")
-        return data
+        return data  # type: ignore[no-any-return]
     except json.JSONDecodeError:
         print("  ⚠️  无法解析上传结果")
         print(f"  stdout: {result.stdout[:300]}")

@@ -9,6 +9,8 @@
 数据源: 腾讯财经前复权日K (web.ifzq.gtimg.cn)，本地计算 Wilder RSI(14)
 降级: 网络失败/数据不足 → 输出 null + 原因，不抛异常（供自动化安全调用）
 """
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import json
 import sys
 import urllib.request
@@ -19,7 +21,7 @@ try:
     _CTX.check_hostname = False
     _CTX.verify_mode = ssl.CERT_NONE
 except Exception:
-    _CTX = None
+    _CTX = None  # type: ignore[assignment]
 
 
 def _prefix(code: str) -> str:
