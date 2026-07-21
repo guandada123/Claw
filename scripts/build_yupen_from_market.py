@@ -16,6 +16,7 @@
   python scripts/build_yupen_from_market.py [--date YYYY-MM-DD]
 """
 from __future__ import annotations
+
 import argparse
 import datetime as dt
 import json
@@ -246,10 +247,12 @@ def build_table(cfg_list, target, beg, end, ref_path, ref_key, no_selfcheck=Fals
             continue
         rows, src = fetch(s, beg, end)
         if not rows:
-            fails.append(s["name"]); continue
+            fails.append(s["name"])
+            continue
         c = compute(rows, target)
         if not c:
-            fails.append(s["name"] + "(<20日)"); continue
+            fails.append(s["name"] + "(<20日)")
+            continue
         results.append({"name": s["name"], "code": s["code"], "ok": True, "src": src,
                         **c, "dev_color": "red" if c["dev"] > 0 else "green",
                         "approx": s.get("approx", "")})
@@ -266,7 +269,8 @@ def build_table(cfg_list, target, beg, end, ref_path, ref_key, no_selfcheck=Fals
     # 自检（仅回溯验证历史日时启用；每日实跑禁止，避免今天vs历史表的时序漂移误报）
     selfcheck, max_diff = None, 0.0
     if os.path.exists(ref_path) and not no_selfcheck:
-        ref = json.load(open(ref_path))
+        with open(ref_path) as f:
+            ref = json.load(f)
         rm = {x["name"]: x for x in ref.get(ref_key, [])}
         selfcheck = []
         for r in ok:
@@ -284,7 +288,7 @@ def write_table(out_path, date, data_type, ok, fails, selfcheck, max_diff, trend
     out = {
         "date": date, "source": "自建·Wind+雅虎+东财(脱离微信RSS OCR)",
         "data_type": data_type, "article_title": "(自建生成，无原文)",
-        "article_id": "", "fetch_time": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "article_id": "", "fetch_time": dt.datetime.now(dt.UTC).isoformat(),
         "sectors": [
             {"rank": r["rank"], "code": r["code"], "name": r["name"],
              "change_pct": f"{r['chg']:+.2f}%", "price": r["close"], "ma20": r["ma20"],
@@ -299,7 +303,8 @@ def write_table(out_path, date, data_type, ok, fails, selfcheck, max_diff, trend
         "selfcheck": selfcheck, "selfcheck_max_diff_pp": round(max_diff, 2),
     }
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    json.dump(out, open(out_path, "w"), ensure_ascii=False, indent=2)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
     return out_path
 
 
