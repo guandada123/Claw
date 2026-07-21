@@ -300,7 +300,7 @@ def write_table(out_path, date, data_type, ok, fails, selfcheck, max_diff, trend
     out = {
         "date": date, "source": "自建·Wind+雅虎+东财(脱离微信RSS OCR)",
         "data_type": data_type, "article_title": "(自建生成，无原文)",
-        "article_id": "", "fetch_time": dt.datetime.now(dt.UTC).isoformat(),
+        "article_id": "", "fetch_time": dt.datetime.now(dt.timezone.utc).isoformat(),
         "sectors": [
             {"rank": r["rank"], "code": r["code"], "name": r["name"],
              "change_pct": f"{r['chg']:+.2f}%", "price": r["close"], "ma20": r["ma20"],
