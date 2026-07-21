@@ -37,7 +37,7 @@ SECTORS = [
     {"name": "证券公司", "code": "399975", "src": "wind", "wind": "399975.SZ"},
     {"name": "房地产",   "code": "931775", "src": "wind", "wind": "931775.CSI"},
     {"name": "电网设备", "code": "881278", "src": "em",   "em": "1.881278"},
-    {"name": "有色金属", "code": "1B0819", "src": "wind", "wind": "中证有色金属"},
+    {"name": "有色金属", "code": "1B0819", "src": "wind", "wind": "中证有色金属", "wind2": "1B0819"},
     {"name": "细分化工", "code": "000813", "src": "em",   "em": "0.000813"},
     {"name": "机器人",   "code": "H30590", "src": "wind", "wind": "H30590.CSI"},
     {"name": "光伏设备", "code": "881279", "src": "em",   "em": "1.881279"},
@@ -89,6 +89,15 @@ EM_SECID = {
 USE_EM = os.environ.get("YUPEN_USE_EM") == "1"
 
 
+def _norm_date(s):
+    """Wind TIME 字段偶发返回 20260721(无横线)或 2026-07-21(有横线)，统一为 YYYY-MM-DD，
+    避免与 target 字符串比较时因格式不一致导致 upto 全被过滤(<20日误判)。"""
+    s = s[:10]
+    if len(s) == 8 and s.isdigit():
+        return f"{s[:4]}-{s[4:6]}-{s[6:]}"
+    return s
+
+
 def wind_kline(query, beg, end):
     params = json.dumps({"windcode": query, "begin_date": beg, "end_date": end},
                         ensure_ascii=False)
@@ -109,7 +118,7 @@ def wind_kline(query, beg, end):
             ti, oi, ci, hi, li, vi = (cols.index("TIME"), cols.index("OPEN"),
                                       cols.index("MATCH"), cols.index("HIGH"),
                                       cols.index("LOW"), cols.index("VOLUME"))
-            rows = [{"date": r[ti][:10], "open": float(r[oi]), "close": float(r[ci]),
+            rows = [{"date": _norm_date(r[ti]), "open": float(r[oi]), "close": float(r[ci]),
                      "high": float(r[hi]), "low": float(r[li]), "vol": float(r[vi])}
                     for r in data["rows"]]
             rows.sort(key=lambda x: x["date"])
@@ -189,7 +198,10 @@ def yf_kline(ticker, beg, end):
 def fetch(sector, beg, end):
     s = sector["src"]
     if s == "wind":
-        return wind_kline(sector["wind"], beg, end), "wind"
+        rows = wind_kline(sector["wind"], beg, end)
+        if not rows and sector.get("wind2"):
+            rows = wind_kline(sector["wind2"], beg, end)
+        return rows, "wind"
     if s == "yf":
         return yf_kline(sector["yf"], beg, end), "yf"
     if s == "rss" and USE_EM and sector["name"] in EM_SECID:
@@ -286,6 +298,7 @@ def write_table(out_path, date, data_type, ok, fails, selfcheck, max_diff, trend
         "missing": fails,
         "selfcheck": selfcheck, "selfcheck_max_diff_pp": round(max_diff, 2),
     }
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
     json.dump(out, open(out_path, "w"), ensure_ascii=False, indent=2)
     return out_path
 
