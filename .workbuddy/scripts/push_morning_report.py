@@ -12,6 +12,8 @@ push_morning_report.py — 微信早报统一推送脚本（卡片化）
 
 依赖：push_card.py（同目录）、lark-cli
 """
+from __future__ import annotations
+
 import json
 import os
 import re

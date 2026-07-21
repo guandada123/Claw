@@ -12,6 +12,7 @@ PDF报告提取工具 - 支持从PDF中提取图片并自动转换为可读文�
 - pypdf: PDF解析
 - 可选: pytesseract + tesseract (本地OCR)
 """
+from __future__ import annotations
 
 import os
 import re

@@ -10,6 +10,8 @@
   python3 local_combo_signal.py <kline_json_file>
   python3 local_combo_signal.py   # 默认读 /tmp/kline_cache.json
 """
+from __future__ import annotations
+
 import json
 import math
 import sys
