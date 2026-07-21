@@ -31,7 +31,10 @@ CLAW = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WIND_CLI = os.path.expanduser("~/.agents/skills/wind-mcp-skill/scripts/cli.mjs")
 WIND_CWD = os.path.dirname(os.path.dirname(WIND_CLI))
 
-# ── 板块轮动(14) ── src: wind=中证/国证系; em=东财行业指数(881xxx)
+# ── 板块轮动(14) ── src: wind=中证/国证/Wind二级行业系; em=东财行业指数(881xxx,仅兜底)
+# 走势交叉验证(2026-07-21, vs 申万/聚源同名板块逐日涨跌方向):
+#   光伏866020.WI 7/7吻合✅  半导体882121.WI 6/6吻合✅  电网882122/细分化工882202=Wind标准二级行业
+#   商业航天884110.WI=泛航天概念近似(Wind无专属口径,详见该行注释)
 SECTORS = [
     {"name": "中证消费", "code": "1B0932", "src": "wind", "wind": "中证消费"},
     {"name": "CS创新药", "code": "931152", "src": "wind", "wind": "931152.CSI"},
@@ -44,7 +47,10 @@ SECTORS = [
     {"name": "细分化工", "code": "000813", "src": "wind", "wind": "882202.WI", "em": "0.000813"},
     {"name": "机器人",   "code": "H30590", "src": "wind", "wind": "H30590.CSI"},
     {"name": "光伏设备", "code": "881279", "src": "wind", "wind": "866020.WI", "em": "1.881279"},
-    {"name": "商业航天", "code": "886078", "src": "wind", "wind": "884110.WI", "em": "1.886078"},
+    # 商业航天: Wind 通用 index_data 无专属"商业航天"口径(886078 取不到; 884110/884168/884142 同值,
+    # 均映射到同一泛航天/军工概念线)。走势与聚源商业航天概念 corr+0.66(方向4/6)，作近似轮动观察项，标 approx。
+    {"name": "商业航天", "code": "886078", "src": "wind", "wind": "884110.WI", "em": "1.886078",
+     "approx": "泛航天概念近似(Wind无专属商业航天口径)"},
     {"name": "新能源",   "code": "000941", "src": "wind", "wind": "000941.CSI"},
     {"name": "半导体",   "code": "881121", "src": "wind", "wind": "882121.WI", "em": "1.881121"},
 ]
