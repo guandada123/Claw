@@ -25,6 +25,8 @@ prompt_builder.py — 分层 Prompt 构建器
 # 要求：> 1024 Token 才能触发 Anthropic 的缓存
 # ============================================================
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 STATIC_SYSTEM = """你是专业的A股投资分析助手，专注于主板和中小板股票的分析与交易辅助。
 
 【投资约束】（必须严格遵守）
@@ -132,7 +134,7 @@ def build_prompt(task_type: str, data: dict) -> dict:
     }
     """
     builder = _get_builder(task_type)
-    return builder(data)
+    return builder(data)  # type: ignore[no-any-return]
 
 
 def _get_builder(task_type: str):
@@ -282,7 +284,7 @@ def _build_result(user_prompt: str, task_type: str) -> dict:
     }
 
 
-def _compact_stock_list(stocks: list, fields: list = None) -> str:
+def _compact_stock_list(stocks: list, fields: list | None = None) -> str:
     """压缩股票列表格式（节省 50-70% Token）
 
     默认字段：code, name, price, change_pct, volume_ratio, pe

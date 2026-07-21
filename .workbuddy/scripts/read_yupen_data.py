@@ -17,6 +17,8 @@
   "yupen_trend": { ... } | null
 }
 """
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import argparse
 import json
 import os

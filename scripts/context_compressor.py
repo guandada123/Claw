@@ -11,6 +11,8 @@ context_compressor.py — 上下文压缩工具
 版本：v2.0 | 2026-06-14
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import ast
 from pathlib import Path
 
@@ -169,7 +171,7 @@ def compress_market_data(raw_data: dict, task_focus: str = "quick_overview") -> 
                 ):
                     filtered[k] = round(v, 2)
                 elif "volume" in key_lower or "cap" in key_lower:
-                    filtered[k] = _compress_number(v)
+                    filtered[k] = _compress_number(v)  # type: ignore[assignment]
                 else:
                     filtered[k] = round(v, 2)
             else:
@@ -196,7 +198,7 @@ def _compress_number(n: float) -> str:
 # ============================================================
 
 
-def chunk_large_task(data_list: list, chunk_size: int = None) -> list:
+def chunk_large_task(data_list: list, chunk_size: int | None = None) -> list:
     """
     大任务分批 —— 避免超大 Context。
 
@@ -218,7 +220,7 @@ def chunk_large_task(data_list: list, chunk_size: int = None) -> list:
     return [data_list[i : i + chunk_size] for i in range(0, len(data_list), chunk_size)]
 
 
-def estimate_chunk_count(total_items: int, chunk_size: int = None) -> int:
+def estimate_chunk_count(total_items: int, chunk_size: int | None = None) -> int:
     """估算需要多少批"""
     chunk_size = chunk_size or MAX_CHUNK_SIZE
     return (total_items + chunk_size - 1) // chunk_size
@@ -267,7 +269,7 @@ def load_relevant_code(question: str, project_root: str) -> str:
 
         # 检查文件是否相关
         if any(kw in content.lower() for kw in keywords):
-            snippets = _extract_relevant_functions(content, keywords)
+            snippets = _extract_relevant_functions(content, keywords, source_file=py_file.name)
             relevant_snippets.extend(snippets)
 
     if not relevant_snippets:
@@ -338,7 +340,7 @@ def _extract_keywords(question: str) -> list[str]:
     return list(set(business_keywords))
 
 
-def _extract_relevant_functions(code: str, keywords: list[str]) -> list[str]:
+def _extract_relevant_functions(code: str, keywords: list[str], source_file: str | None = None) -> list[str]:
     """提取包含关键词的函数，不传无关代码"""
     try:
         tree = ast.parse(code)
@@ -362,7 +364,7 @@ def _extract_relevant_functions(code: str, keywords: list[str]) -> list[str]:
                 if len(func_code) > 500:
                     func_code = func_code[:500] + "\n    # ... (截断)"
                 relevant.append(
-                    f"# {py_file.name if 'py_file' in dir() else ''} → {node.name}\n{func_code}"  # noqa: F821
+                    f"# {source_file or ''} → {node.name}\n{func_code}"
                 )
 
         elif isinstance(node, ast.ClassDef):

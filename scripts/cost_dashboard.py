@@ -12,6 +12,8 @@ cost_dashboard.py — 成本追踪可视化仪表盘生成器
 输出：自包含 HTML 文件（Chart.js 通过 CDN 加载）
 """
 
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import json
 import sys
 from collections import defaultdict
@@ -60,7 +62,7 @@ def get_daily_trend(records: list, days: int = 30) -> list:
     """获取过去 N 天每日成本趋势"""
     end = date.today()
     start = end - timedelta(days=days - 1)
-    daily = defaultdict(float)
+    daily: dict[str, float] = defaultdict(float)
     for r in records:
         d = r.get("date", "")
         if start.isoformat() <= d <= end.isoformat():
@@ -76,7 +78,7 @@ def get_daily_trend(records: list, days: int = 30) -> list:
 
 def get_model_distribution(records: list) -> list:
     """按模型聚合成本"""
-    by_model = defaultdict(float)
+    by_model: defaultdict[str, float] = defaultdict(float)
     for r in records:
         m = r.get("model_key", r.get("model", "未知"))
         by_model[m] += r.get("cost_cny", 0)
@@ -87,7 +89,7 @@ def get_model_distribution(records: list) -> list:
 
 def get_project_distribution(records: list) -> list:
     """按项目聚合成本"""
-    by_project = defaultdict(float)
+    by_project: defaultdict[str, float] = defaultdict(float)
     for r in records:
         p = r.get("project", "未知")
         by_project[p] += r.get("cost_cny", 0)
@@ -98,7 +100,7 @@ def get_project_distribution(records: list) -> list:
 
 def get_top_tasks(records: list, n: int = 10) -> list:
     """最烧钱的任务 TOP-N"""
-    by_task = defaultdict(lambda: {"cost": 0.0, "count": 0})
+    by_task: dict[str, dict] = defaultdict(lambda: {"cost": 0.0, "count": 0})
     for r in records:
         t = r.get("task", "未知")
         by_task[t]["cost"] += r.get("cost_cny", 0)
@@ -135,7 +137,7 @@ def get_automation_estimates() -> list:
         inp = cfg.get("inp_est", 0)
         out = cfg.get("out_est", 0)
         freq = cfg.get("freq", "?")
-        prices = MODEL_PRICES.get(model, {"input": 0, "output": 0})
+        prices = MODEL_PRICES.get(model, {"input": 0, "output": 0})  # type: ignore[call-overload]
         cost = round((inp * prices["input"] + out * prices["output"]) / 10000, 6)
         estimates.append(
             {
@@ -835,7 +837,7 @@ renderTable(DATA);
 # ============================================================
 
 
-def build_dashboard(output_path: str = None) -> str:
+def build_dashboard(output_path: str | None = None) -> str:
     """构建仪表盘 HTML 文件"""
     records = load_cost_records()
 
@@ -852,9 +854,9 @@ def build_dashboard(output_path: str = None) -> str:
             sum(
                 (
                     cfg.get("inp_est", 0)
-                    * MODEL_PRICES.get(cfg.get("model", ""), {}).get("input", 0)
+                    * MODEL_PRICES.get(cfg.get("model", ""), {}).get("input", 0)  # type: ignore[call-overload]
                     + cfg.get("out_est", 0)
-                    * MODEL_PRICES.get(cfg.get("model", ""), {}).get("output", 0)
+                    * MODEL_PRICES.get(cfg.get("model", ""), {}).get("output", 0)  # type: ignore[call-overload]
                 )
                 / 10000
                 for cfg in AUTO_COST_ESTIMATES.values()

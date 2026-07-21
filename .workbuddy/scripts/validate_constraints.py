@@ -10,6 +10,8 @@ A股交易约束校验器 — 统一整手规则、板块限制、止损/止盈�
 
 规则来源: llm_constraints.md（如存在则优先读取）
 """
+from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
+
 import argparse
 import json
 import re
