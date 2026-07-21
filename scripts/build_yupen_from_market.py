@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """build_yupen_from_market.py — 用行情数据自建鱼盆两张表（脱离微信RSS）
 
-数据源: Wind API (index_data.get_index_kline) 覆盖 中证/国证/港股/美股/全球指数；
-        雅虎财经 v8 API 覆盖外盘/商品(日经/台湾/韩国/金/银，Mac mini 直连可达)；
-        东财行业指数(881xxx) + 微盘股 由 YUPEN_USE_EM=1 启用（猫哥私有口径）。
-        RSS OCR 作为最终兜底(merge 回填所有未覆盖缺口)。
+数据源(主): Wind API (index_data.get_index_kline) 覆盖 中证/国证/港股/美股/全球指数
+            及 A股行业/概念(882xxx/884xxx/866xxx)，含原东财 881xxx 板块的 Wind 等价口径；
+            雅虎财经 v8 API 覆盖外盘/商品(日经/台湾/韩国/金/银，Mac mini/沙箱均直连可达)。
+兜底:      东财行业指数(881xxx)+微盘股 仅作 YUPEN_USE_EM=1 时的兜底(猫哥原生口径)，
+            正常情况 Wind 主源已覆盖全部 34 项，无需东财、无需 RSS。
+RSS OCR:   仅当 Wind 与东财均不可达时的最后兜底(merge 回填缺口)，正常零 RSS 闭环。
 
 产出（写入 output/yupen/，与 RSS OCR 产物 schema 兼容；primary_ 前缀隔离，避免被 RSS 同名文件覆盖）:
   - yupen_primary_<date>_sector_rotation.json  板块轮动(14)
@@ -37,14 +39,14 @@ SECTORS = [
     {"name": "中证煤炭", "code": "399998", "src": "wind", "wind": "中证煤炭"},
     {"name": "证券公司", "code": "399975", "src": "wind", "wind": "399975.SZ"},
     {"name": "房地产",   "code": "931775", "src": "wind", "wind": "931775.CSI"},
-    {"name": "电网设备", "code": "881278", "src": "em",   "em": "1.881278"},
+    {"name": "电网设备", "code": "881278", "src": "wind", "wind": "882122.WI", "em": "1.881278"},
     {"name": "有色金属", "code": "1B0819", "src": "wind", "wind": "中证有色金属", "wind2": "1B0819"},
-    {"name": "细分化工", "code": "000813", "src": "em",   "em": "0.000813"},
+    {"name": "细分化工", "code": "000813", "src": "wind", "wind": "882202.WI", "em": "0.000813"},
     {"name": "机器人",   "code": "H30590", "src": "wind", "wind": "H30590.CSI"},
-    {"name": "光伏设备", "code": "881279", "src": "em",   "em": "1.881279"},
-    {"name": "商业航天", "code": "886078", "src": "em",   "em": "1.886078"},
+    {"name": "光伏设备", "code": "881279", "src": "wind", "wind": "866020.WI", "em": "1.881279"},
+    {"name": "商业航天", "code": "886078", "src": "wind", "wind": "884110.WI", "em": "1.886078"},
     {"name": "新能源",   "code": "000941", "src": "wind", "wind": "000941.CSI"},
-    {"name": "半导体",   "code": "881121", "src": "em",   "em": "1.881121"},
+    {"name": "半导体",   "code": "881121", "src": "wind", "wind": "882121.WI", "em": "1.881121"},
 ]
 
 # ── 鱼盆趋势(20全球指数) ──
@@ -59,7 +61,7 @@ TREND = [
     {"name": "标普500",  "code": "SPY",   "src": "wind", "wind": "SPX.GI"},
     {"name": "黄金现价", "code": "GC=F",  "src": "yf", "yf": "GC=F", "approx": "期货近似"},
     {"name": "纳指100",  "code": "QQQ",   "src": "wind", "wind": "NDX.GI"},
-    {"name": "微盘股",   "code": "884143", "src": "rss"},
+    {"name": "微盘股",   "code": "884143", "src": "wind", "wind": "884143.WI"},
     {"name": "上证50",   "code": "1B0016", "src": "wind", "wind": "上证50"},
     {"name": "白银现价", "code": "SI=F",  "src": "yf", "yf": "SI=F", "approx": "期货近似"},
     {"name": "沪深300",  "code": "399300", "src": "wind", "wind": "沪深300"},
@@ -202,10 +204,14 @@ def fetch(sector, beg, end):
         rows = wind_kline(sector["wind"], beg, end)
         if not rows and sector.get("wind2"):
             rows = wind_kline(sector["wind2"], beg, end)
+        # 东财兜底(仅 YUPEN_USE_EM=1 且 Wind 不可达时)：保留猫哥原生 881xxx 口径
+        if not rows and USE_EM and sector["name"] in EM_SECID:
+            rows = em_kline(EM_SECID[sector["name"]], beg, end)
+            return rows, "em"
         return rows, "wind"
     if s == "yf":
         return yf_kline(sector["yf"], beg, end), "yf"
-    if s == "rss" and USE_EM and sector["name"] in EM_SECID:
+    if s == "em" and USE_EM and sector["name"] in EM_SECID:
         return em_kline(EM_SECID[sector["name"]], beg, end), "em"
     return None, "none"
 

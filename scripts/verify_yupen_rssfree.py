@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""鱼盆零 RSS 闭环验证（Mac mini 裸机终端运行，非 WorkBuddy 自动化沙箱）。
+"""鱼盆零 RSS 闭环验证。
 
-为什么需要裸机：
-  WorkBuddy 自动化沙箱封了东财(push2his HTTP 000)，而鱼盆主生成自动化 1784605310235
-  运行在沙箱内，故其 primary 产物只能 9/14+19/20，靠 RSS 兜底补 5 东财轮动+微盘股。
-  本脚本需在 Mac mini 裸机终端跑（东财直连可达）：
-      cd /Users/guan/WorkBuddy/Claw
-      YUPEN_USE_EM=1 python3 scripts/verify_yupen_rssfree.py
-  自动：跑生成(YUPEN_USE_EM=1 东财直连) → 读合并产物 → 判定 merged_from_rss 是否清空。
+背景：原鱼盆主生成依赖东财(881xxx) + 微盘股，沙箱封网无法直连，需 RSS OCR 兜底。
+修复：已将 5 个东财轮动板块 + 微盘股 改为 Wind 主源(882xxx/884xxx/866xxx 等价口径)，
+      东财仅作 YUPEN_USE_EM=1 时的兜底。Wind + 雅虎 在沙箱/裸机均直连可达，
+      故现在可在任意环境(含 WorkBuddy 自动化沙箱)达成真正零 RSS 闭环，无需 Mac mini。
+
+用法：
+  cd /Users/guan/WorkBuddy/Claw
+  python3 scripts/verify_yupen_rssfree.py            # 默认走 Wind+Yahoo 主源
+  YUPEN_USE_EM=1 python3 scripts/verify_yupen_rssfree.py   # 含东财兜底(验证兜底路径)
+自动：跑生成 → 读合并产物 → 判定 merged_from_rss 是否清空。
 """
 import datetime as dt
 import json
