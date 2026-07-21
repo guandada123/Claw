@@ -15,12 +15,14 @@ import logging
 import os
 import re
 import time
-from datetime import UTC, datetime, timedelta
+from contextlib import suppress
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html import unescape
 from pathlib import Path
 from xml.etree import ElementTree
 
+import defusedxml.ElementTree as DefusedET
 import requests
 
 logger = logging.getLogger(__name__)
@@ -85,7 +87,7 @@ def _parse_rss_xml(xml_text: str, since_ts: int) -> list[dict]:
     """解析 RSS 2.0 XML，提取文章列表，过滤时间戳。"""
     articles = []
     try:
-        root = ElementTree.fromstring(xml_text)
+        root = DefusedET.fromstring(xml_text)
     except ElementTree.ParseError:
         return articles
 
@@ -109,10 +111,8 @@ def _parse_rss_xml(xml_text: str, since_ts: int) -> list[dict]:
         # 解析发布时间
         pub_ts = 0
         if pub_str:
-            try:
+            with suppress(Exception):
                 pub_ts = int(parsedate_to_datetime(pub_str).timestamp())
-            except Exception:
-                pass
 
         # 时间过滤
         if pub_ts < since_ts:
@@ -167,11 +167,11 @@ def collect_local_feeds(lookback_hours: int = 48) -> list[dict]:
         与 wx_collector.load_today_articles() 兼容的 articles 列表：
             [{title, content, account, pub_date, _source}]
     """
-    beijing_now = datetime.now(UTC) + timedelta(hours=8)
+    beijing_now = datetime.now(timezone.utc) + timedelta(hours=8)
     today_bj = beijing_now.date()
     today_end_ts = int(datetime(
         today_bj.year, today_bj.month, today_bj.day,
-        tzinfo=UTC,
+        tzinfo=timezone.utc,
     ).timestamp()) + 86400
     since_ts = today_end_ts - lookback_hours * 3600
 
@@ -190,8 +190,7 @@ def collect_local_feeds(lookback_hours: int = 48) -> list[dict]:
     seen_links = set()
     account_counts: dict[str, int] = {}
 
-    for fakeid in fakeid_map:
-        nickname = fakeid_map[fakeid]
+    for fakeid, nickname in fakeid_map.items():
         account_counts[nickname] = 0
         # 2. RSS 拉取文章列表
         rss_articles = fetch_rss_articles(fakeid, since_ts, limit=30)
@@ -215,7 +214,7 @@ def collect_local_feeds(lookback_hours: int = 48) -> list[dict]:
                 "title": art.get("title", "")[:80],
                 "content": content[:3000],
                 "account": nickname,
-                "pub_date": datetime.fromtimestamp(pub_ts, tz=UTC).isoformat() if pub_ts else "",
+                "pub_date": datetime.fromtimestamp(pub_ts, tz=timezone.utc).isoformat() if pub_ts else "",
                 "link": link,
                 "_source": "local_api",
             })
@@ -246,18 +245,16 @@ def sync_local_to_cache(articles: list[dict]) -> int:
         logger.warning("创建缓存目录失败 %s: %s", OUTPUT_DIR, str(e)[:80])
         return 0
 
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     stamp = now.strftime("%Y%m%d_%H%M%S")
 
     # 已存在标题集合
     existing = set()
     for fn in os.listdir(OUTPUT_DIR):
         if fn.endswith(".json"):
-            try:
+            with suppress(Exception):
                 d = json.loads(Path(OUTPUT_DIR, fn).read_text(encoding="utf-8"))
                 existing.add(d.get("title", ""))
-            except Exception:
-                pass
 
     saved = 0
     for art in articles:

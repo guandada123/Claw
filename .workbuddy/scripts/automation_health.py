@@ -9,6 +9,7 @@
     python3 automation_health.py --json    # JSON only
     python3 automation_health.py --alert   # 异常时飞书告警
 """
+from __future__ import annotations
 
 import argparse
 import json

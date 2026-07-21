@@ -11,6 +11,8 @@ push_weekly_report.py — 每周综合复盘统一推送脚本（卡片化 + 可
 依赖：push_card.py（同目录）、lark-cli
 支持 --date YYYYMMDD 覆盖（调试/补推）
 """
+from __future__ import annotations
+
 import json
 import os
 import re

@@ -17,7 +17,7 @@ import os
 import re
 import sys
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -279,7 +279,7 @@ def load_today_articles():
     - 午前(06:00~12:00)：回溯过去 48 小时（覆盖昨日/上周末）
     - 午后：当日文章
     """
-    beijing_now = datetime.now(UTC) + timedelta(hours=8)
+    beijing_now = datetime.now(timezone.utc) + timedelta(hours=8)
     today_bj = beijing_now.date()
     is_morning = 6 <= beijing_now.hour < 12
 
@@ -287,7 +287,7 @@ def load_today_articles():
     lookback_hours = 48 if is_morning else 24
     today_end_ts = int(datetime(
         today_bj.year, today_bj.month, today_bj.day,
-        tzinfo=UTC,
+        tzinfo=timezone.utc,
     ).timestamp()) + 86400
     ts_start = today_end_ts - lookback_hours * 3600
     ts_end = today_end_ts
@@ -382,7 +382,7 @@ def _fetch_today_via_api(today_ts_start, today_ts_end, is_morning=False):
             "title": title,
             "content": content,
             "account": account or "未知公众号",
-            "pub_date": datetime.fromtimestamp(pub_ts, tz=UTC).isoformat(),
+            "pub_date": datetime.fromtimestamp(pub_ts, tz=timezone.utc).isoformat(),
             "_source": "api",
         })
 

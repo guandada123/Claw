@@ -37,6 +37,8 @@
   "source": "腾讯行情API | WebSearch fallback"
 }
 """
+from __future__ import annotations
+
 import argparse
 import json
 import os
