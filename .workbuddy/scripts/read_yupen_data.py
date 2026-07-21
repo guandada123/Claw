@@ -28,56 +28,87 @@ YUPE_DIR = Path("/Users/guan/WorkBuddy/Claw/output/yupen")
 SCRIPTS_DIR = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/scripts")
 
 
-def find_latest_valid(days: int = 30) -> dict[str, Path | None]:
-    """Find the latest valid sector_rotation and yupen_trend JSON files."""
+def _load(fp: Path, days: int = 30) -> dict | None:
+    """Load a yupen json if valid & fresh enough."""
+    if not fp or not fp.exists():
+        return None
+    try:
+        data = json.loads(fp.read_text())
+        if data.get("status") == "no_data":
+            return None
+        dd = data.get("date", "")
+        if dd:
+            d = datetime.strptime(dd, "%Y-%m-%d").date()
+            if (date.today() - d).days > days:
+                return None
+        if "sectors" not in data:
+            return None
+        return data
+    except Exception:
+        return None
+
+
+def _latest(glob_pat: str, exclude_sub: str | None, days: int = 30, rich: bool = False):
+    """Return (data, filepath) for the best valid file matching glob.
+    exclude_sub: skip filenames containing this substring (e.g. '_primary_').
+    rich=True: 优先板块数最多(用于 RSS 兜底源回填缺口, 允许跨日期取最全)；
+    rich=False: 优先日期最新(用于主生成 primary 选取)。"""
     if not YUPE_DIR.exists():
-        return {"sector_rotation": None, "yupen_trend": None}
+        return None, None
+    cands = []
+    for fp in YUPE_DIR.glob(glob_pat):
+        if exclude_sub and exclude_sub in fp.name:
+            continue
+        d = _load(fp, days)
+        if d:
+            cands.append((d, fp))
+    if not cands:
+        return None, None
+    if rich:
+        cands.sort(key=lambda x: (len(x[0].get("sectors", [])), x[0].get("date", "")),
+                   reverse=True)
+    else:
+        cands.sort(key=lambda x: x[0].get("date", ""), reverse=True)
+    return cands[0]
 
-    sr_files = sorted(YUPE_DIR.glob("yupen_*_sector_rotation.json"), reverse=True)
-    yt_files = sorted(YUPE_DIR.glob("yupen_*_yupen_trend.json"), reverse=True)
 
-    cutoff = date.today()
-
-    # Find valid files (not no_data, within days range)
-    def _is_valid(fp: Path) -> bool:
-        if not fp.exists():
-            return False
-        try:
-            data = json.loads(fp.read_text())
-            if data.get("status") == "no_data":
-                return False
-            # Check date freshness
-            data_date = data.get("date", "")
-            if data_date:
-                dt = datetime.strptime(data_date, "%Y-%m-%d").date()
-                if (cutoff - dt).days > days:
-                    return False
-            return "sectors" in data
-        except Exception:
-            return False
-
-    result = {}
-    for key, files in [("sector_rotation", sr_files), ("yupen_trend", yt_files)]:
-        found = None
-        for fp in files:
-            if _is_valid(fp):
-                found = fp
-                break
-        result[key] = found
-    return result
+def _merge_primary_rss(primary: dict | None, rss: dict | None) -> dict | None:
+    """主生成(Wind)优先；RSS 仅补 Wind 未覆盖的缺口板块。"""
+    if not primary:
+        return rss
+    if not rss:
+        return primary
+    pnames = {s["name"] for s in primary.get("sectors", [])}
+    extra = [s for s in rss.get("sectors", []) if s["name"] not in pnames]
+    if not extra:
+        return primary
+    base = max((s.get("rank", 0) for s in primary["sectors"]), default=0)
+    for i, s in enumerate(extra, 1):
+        s = dict(s)
+        s["rank"] = base + i
+        s.setdefault("src", "rss")
+        extra[i - 1] = s
+    merged = dict(primary)
+    merged["sectors"] = primary["sectors"] + extra
+    merged["_merged_from_rss"] = [s["name"] for s in extra]
+    return merged
 
 
 def read_yupen_data(days: int = 30) -> dict:
-    """Read yupen data and return structured result with freshness info."""
-    files = find_latest_valid(days)
+    """Read yupen data: prefer primary(Wind) file, fill gaps from RSS file."""
     today = date.today()
 
-    sr_file = files.get("sector_rotation")
-    yt_file = files.get("yupen_trend")
+    # 板块轮动: primary(Wind) 优先, 缺口从 RSS 补(取板块数最多者)
+    p_sr, _ = _latest("yupen_primary_*_sector_rotation.json", None, days, rich=False)
+    r_sr, _ = _latest("yupen_*_sector_rotation.json", "_primary_", days, rich=True)
+    sector_rotation = _merge_primary_rss(p_sr, r_sr)
 
-    # Use the most recent file to determine data_date
-    all_valid = [f for f in [sr_file, yt_file] if f is not None]
-    if not all_valid:
+    # 鱼盆趋势
+    p_yt, _ = _latest("yupen_primary_*_yupen_trend.json", None, days, rich=False)
+    r_yt, _ = _latest("yupen_*_yupen_trend.json", "_primary_", days, rich=True)
+    yupen_trend = _merge_primary_rss(p_yt, r_yt)
+
+    if not sector_rotation and not yupen_trend:
         return {
             "status": "no_data",
             "freshness": "none",
@@ -87,30 +118,11 @@ def read_yupen_data(days: int = 30) -> dict:
             "yupen_trend": None,
         }
 
-    # Extract data from files
-    sector_rotation = None
-    yupen_trend = None
-    data_date = None
-
-    if sr_file:
-        try:
-            sector_rotation = json.loads(sr_file.read_text())
-            data_date = sector_rotation.get("date", data_date)
-        except Exception:
-            pass
-
-    if yt_file:
-        try:
-            yupen_trend = json.loads(yt_file.read_text())
-            data_date = yupen_trend.get("date", data_date) or data_date
-        except Exception:
-            pass
-
-    # Determine freshness
+    data_date = (sector_rotation or yupen_trend).get("date")
     if data_date:
         try:
-            dt = datetime.strptime(data_date, "%Y-%m-%d").date()
-            freshness = "today" if dt == today else "stale"
+            d = datetime.strptime(data_date, "%Y-%m-%d").date()
+            freshness = "today" if d == today else "stale"
         except Exception:
             freshness = "unknown"
     else:
