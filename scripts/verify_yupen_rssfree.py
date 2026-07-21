@@ -8,8 +8,8 @@
 
 用法：
   cd /Users/guan/WorkBuddy/Claw
-  python3 scripts/verify_yupen_rssfree.py            # 默认走 Wind+Yahoo 主源
-  YUPEN_USE_EM=1 python3 scripts/verify_yupen_rssfree.py   # 含东财兜底(验证兜底路径)
+  python3 scripts/verify_yupen_rssfree.py                # 纯 Wind+Yahoo 主源验证(无 EM 兜底)
+  YUPEN_USE_EM=1 python3 scripts/verify_yupen_rssfree.py # 含东财兜底(验证兜底路径也零 RSS)
 自动：跑生成 → 读合并产物 → 判定 merged_from_rss 是否清空。
 """
 import datetime as dt
@@ -22,9 +22,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def main():
-    os.environ["YUPEN_USE_EM"] = "1"
+    use_em = os.environ.get("YUPEN_USE_EM") == "1"
     today = dt.date.today().isoformat()
-    print(f"[1/2] 生成 yupen 主表 (YUPEN_USE_EM=1, date={today}) ...")
+    print(f"[1/2] 生成 yupen 主表 (YUPEN_USE_EM={'1' if use_em else '0'}, date={today}) ...")
     r = subprocess.run(
         [sys.executable, "scripts/build_yupen_from_market.py",
          "--date", today, "--no-selfcheck"],
