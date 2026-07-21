@@ -9,11 +9,11 @@
       YUPEN_USE_EM=1 python3 scripts/verify_yupen_rssfree.py
   自动：跑生成(YUPEN_USE_EM=1 东财直连) → 读合并产物 → 判定 merged_from_rss 是否清空。
 """
-import os
-import sys
-import json
-import subprocess
 import datetime as dt
+import json
+import os
+import subprocess
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -28,7 +28,8 @@ def main():
         cwd=ROOT,
     )
     if r.returncode != 0:
-        print("❌ 生成器失败"); sys.exit(1)
+        print("❌ 生成器失败")
+        sys.exit(1)
 
     print("[2/2] 读取合并产物，检查 RSS 兜底项 ...")
     out = json.loads(subprocess.run(

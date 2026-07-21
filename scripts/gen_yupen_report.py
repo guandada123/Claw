@@ -9,7 +9,11 @@
 对比基准 CAT_REF 固定为 2026-07-17 猫笔叨《复盘完》原表(同源复现参照)，
 用于验证自建 MA20 偏离度与猫哥口径的误差。
 """
-import json, os, sys, argparse, datetime as dt
+import argparse
+import datetime as dt
+import json
+import os
+import sys
 
 CLAW = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 YUPE = os.path.join(CLAW, "output/yupen")
@@ -49,7 +53,8 @@ def main():
     args = ap.parse_args()
 
     gen_path = _resolve_src(args.date, args.src)
-    gen = json.load(open(gen_path))
+    with open(gen_path) as f:
+        gen = json.load(f)
     secs = gen["sectors"]
     missing = gen.get("missing", [])
     rows = []
@@ -131,7 +136,8 @@ h2{{font-size:15px;margin:0 0 12px}}
 </div>
 </div></body></html>"""
     out = os.path.join(YUPE, f"yupen_verify_report_{gen['date']}.html")
-    open(out, "w").write(html)
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(html)
     print("报告:", out)
 
 
