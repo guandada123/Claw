@@ -12,7 +12,7 @@ RSS OCR:   仅当 Wind 与东财均不可达时的最后兜底(merge 回填缺�
   - yupen_primary_<date>_sector_rotation.json  板块轮动(14)
   - yupen_primary_<date>_yupen_trend.json      鱼盆趋势(20全球指数)
 
-增强字段: ma20_slope(趋势拐头) / rps(池内相对强度) / overheat_warning(高波动三重确认) / src
+增强字段: ma20_slope(趋势拐头) / rps(池内相对强度) / overheat_warning(高波动双重确认: dev>15 + 量比<1)
 
 用法:
   python scripts/build_yupen_from_market.py [--date YYYY-MM-DD]
@@ -110,7 +110,7 @@ def _norm_date(s):
 def wind_kline(query, beg, end):
     params = json.dumps({"windcode": query, "begin_date": beg, "end_date": end},
                         ensure_ascii=False)
-    for _ in range(3):
+    for attempt in range(3):
         try:
             r = subprocess.run(
                 ["node", WIND_CLI, "call", "index_data", "get_index_kline", params],
@@ -132,7 +132,9 @@ def wind_kline(query, beg, end):
                     for r in data["rows"]]
             rows.sort(key=lambda x: x["date"])
             return rows
-        except Exception:
+        except Exception as e:
+            if attempt == 2:
+                print(f"  ⚠️ wind_kline {query}: {e}", file=sys.stderr)
             continue
     return None
 
@@ -194,7 +196,7 @@ def yf_kline(ticker, beg, end):
             c = closes[i]
             if c is None:
                 continue
-            dstr = dt.datetime.utcfromtimestamp(t).strftime("%Y-%m-%d")
+            dstr = dt.datetime.fromtimestamp(t, tz=dt.timezone.utc).strftime("%Y-%m-%d")
             rows.append({"date": dstr, "open": float(opens[i] or c),
                          "close": float(c), "high": float(highs[i] or c),
                          "low": float(lows[i] or c), "vol": float(vols[i] or 0)})
@@ -298,7 +300,7 @@ def build_table(cfg_list, target, beg, end, ref_path, ref_key, no_selfcheck=Fals
 
 def write_table(out_path, date, data_type, ok, fails, selfcheck, max_diff, trend=False):
     out = {
-        "date": date, "source": "自建·Wind+雅虎+东财(脱离微信RSS OCR)",
+        "date": date, "source": "自建·Wind+雅虎(东财仅兜底;脱离微信RSS OCR)",
         "data_type": data_type, "article_title": "(自建生成，无原文)",
         "article_id": "", "fetch_time": dt.datetime.now(dt.timezone.utc).isoformat(),
         "sectors": [
