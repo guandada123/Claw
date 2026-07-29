@@ -413,6 +413,7 @@ def build_morning_report():
             seen.add(key)
             count += 1
 
+
     lines.append("\n" + "=" * 40)
     lines.append("⚠️ 以上为公众号文章观点汇总，操作请结合实时行情，止损纪律优先")
 
@@ -758,9 +759,9 @@ def build_evening_report():
                 ai_review_text = ai_content[:500]
                 lines.append("\n  🤖 **QTS AI 复盘结论：**")
                 for review_line in ai_review_text.split("\n")[:8]:
-                    review_line = review_line.strip()
-                    if review_line and len(review_line) > 5:
-                        lines.append(f"  {review_line}")
+                    stripped = review_line.strip()
+                    if stripped and len(stripped) > 5:
+                        lines.append(f"  {stripped}")
         except Exception:
             pass
 
@@ -838,6 +839,7 @@ def build_evening_report():
             non_empty = [line_text.strip() for line_text in content.split("\n") if line_text.strip()][:3]
             for line_text in non_empty:
                 lines.append(f"    {line_text}")
+
 
     lines.append("\n" + "=" * 40)
     lines.append("📝 明日操作计划：结合今日复盘结果，明日早报将更新建议")

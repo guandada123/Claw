@@ -372,9 +372,9 @@ def _fetch_today_via_api(today_ts_start, today_ts_end, is_morning=False):
                 # 去掉 YAML frontmatter
                 if md.startswith("---"):
                     parts = md.split("---", 2)
-                    content = parts[2].strip()[:3000] if len(parts) >= 3 else md[:3000]
+                    content = parts[2].strip()[:20000] if len(parts) >= 3 else md[:20000]
                 else:
-                    content = md[:3000]
+                    content = md[:20000]
         except Exception:  # noqa: S110
             pass
 
@@ -438,7 +438,7 @@ def _load_from_local_cache(today_bj):
                 with open(fpath, encoding="utf-8") as f:
                     data = json.load(f)
                 title = data.get("title", "")
-                content = (data.get("content", "") or data.get("description", "") or "")[:3000]
+                content = (data.get("content", "") or data.get("description", "") or "")[:20000]
                 account = data.get("account", data.get("author", ""))
                 pub_date = data.get("pub_date", "")
                 has_content = bool(content)
@@ -461,7 +461,7 @@ def _load_from_local_cache(today_bj):
 
             articles.append({
                 "title": title[:80],
-                "content": content[:3000] if content else "",
+                "content": content[:20000] if content else "",
                 "account": account or "未知公众号",
                 "pub_date": pub_date,
                 "_source": "cache",
@@ -605,8 +605,30 @@ def call_sim_trade_auto_check():
 
 
 # ── 行情获取 ────────────────────────────────────────────────
+
+# Wind 万得（可选依赖）
+try:
+    from claw.feeds.wind_utils import get_wind_kline, get_wind_realtime_price, wind_available
+except ImportError:
+    def wind_available() -> bool:  # type: ignore[misc]
+        return False
+    def get_wind_realtime_price(code: str) -> None:  # type: ignore[misc]
+        return None
+    def get_wind_kline(code: str, days: int = 60) -> None:  # type: ignore[misc]
+        return None
+
+
 def fetch_current_price(code):
-    """获取股票当前价格（腾讯API）"""
+    """获取股票当前价格。Wind 优先，降级腾讯 gtimg。"""
+    # 1) Wind 万得
+    if wind_available():
+        try:
+            r = get_wind_realtime_price(code)
+            if r and r.get("price") is not None:
+                return r["price"]
+        except Exception:
+            pass
+    # 2) 腾讯 gtimg
     try:
         prefix = "sh" if code.startswith("6") else "sz"
         url = f"https://qt.gtimg.cn/q={prefix}{code}"
@@ -623,7 +645,22 @@ def fetch_current_price(code):
 
 
 def fetch_today_kline(code):
-    """获取今日K线数据"""
+    """获取今日K线数据。Wind 优先，降级腾讯 ifzq。"""
+    # 1) Wind 万得
+    if wind_available():
+        try:
+            klines = get_wind_kline(code, days=5)
+            if klines and len(klines) > 0:
+                today_k = klines[-1]
+                o = float(today_k.get("OPEN", 0) or 0)
+                c = float(today_k.get("MATCH", 0) or 0)
+                h = float(today_k.get("HIGH", 0) or 0)
+                lo = float(today_k.get("LOW", 0) or 0)
+                change = round((c - o) / o * 100, 2) if o > 0 else 0
+                return {"open": o, "close": c, "high": h, "low": lo, "change": change}
+        except Exception:
+            pass
+    # 2) 腾讯 ifzq
     try:
         prefix = "sh" if code.startswith("6") else "sz"
         url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={prefix}{code},day,,,10,qfq"

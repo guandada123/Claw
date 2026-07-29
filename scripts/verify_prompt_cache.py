@@ -180,7 +180,7 @@ def get_api_key() -> str:
             config = json.loads(config_path.read_text())
             key = config.get("api_key", "")
             if key:
-                return key
+                return key  # type: ignore[no-any-return]
         except (json.JSONDecodeError, OSError):
             pass
     return ""
@@ -196,7 +196,7 @@ def get_base_url() -> str:
         try:
             config = json.loads(config_path.read_text())
             url = config.get("base_url", DEFAULT_BASE_URL)
-            return url.rstrip("/")
+            return url.rstrip("/")  # type: ignore[no-any-return]
         except (json.JSONDecodeError, OSError):
             pass
     return DEFAULT_BASE_URL
@@ -378,7 +378,7 @@ def run_verification(api_key: str, base_url: str, rounds: int = DEFAULT_ROUNDS) 
         return structural_analysis_only()
 
     all_results = []
-    summary_rows = []
+    summary_rows: list[dict] = []
 
     for test_case in TEST_CASES:
         name = test_case["name"]
@@ -466,13 +466,13 @@ def run_verification(api_key: str, base_url: str, rounds: int = DEFAULT_ROUNDS) 
         # 单组小结
         print("\n  📊 结果汇总:")
         print(
-            f"     固定前缀: 成功率{row['fixed_only']['success_rate']}%  "
-            f"缓存命中率{row['fixed_only']['avg_hit_rate']:.1f}%  "
-            f"平均耗时{row['fixed_only']['avg_duration_ms']}ms"
+            f"     固定前缀: 成功率{row['fixed_only']['success_rate']}%  "  # type: ignore[index]
+            f"缓存命中率{row['fixed_only']['avg_hit_rate']:.1f}%  "  # type: ignore[index]
+            f"平均耗时{row['fixed_only']['avg_duration_ms']}ms"  # type: ignore[index]
         )
         print(
-            f"     完整prompt: 成功率{row['full_prompt']['success_rate']}%  "
-            f"缓存命中率{row['full_prompt']['avg_hit_rate']:.1f}%"
+            f"     完整prompt: 成功率{row['full_prompt']['success_rate']}%  "  # type: ignore[index]
+            f"缓存命中率{row['full_prompt']['avg_hit_rate']:.1f}%"  # type: ignore[index]
         )
 
     # 生成全局汇总
@@ -608,7 +608,7 @@ def generate_summary(summary_rows: list, all_results: list, rounds: int) -> dict
     print("\n  各测试详情:")
     print(f"  {'测试名称':>30} | {'模型':>16} | {'固定前缀命中率':>14} | {'完整prompt命中率':>14}")
     print(f"  {'─' * 80}")
-    for row in summary_rows:
+    for row in summary_rows:  # type: ignore[assignment]
         f_hit = row["fixed_only"]["avg_hit_rate"]
         p_hit = row["full_prompt"]["avg_hit_rate"]
         print(f"  {row['name']:>30} | {row['model']:>16} | {f_hit:>13.1f}% | {p_hit:>13.1f}%")

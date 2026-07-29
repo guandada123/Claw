@@ -12,8 +12,9 @@ Usage:
     python3 refresh_portfolio.py [--dry-run]
 
 数据源:
-    主: tdx-connector MCP (通过 tdx_quotes)
-    备: 腾讯财经 API (免费、稳定)
+    主: Wind 万得 (高质量付费行情)
+    备1: tdx-connector MCP (通达信)
+    备2: 腾讯财经 API (免费、稳定)
 """
 
 from __future__ import annotations
@@ -22,6 +23,24 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+
+# Wind 万得（可选依赖）
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    from claw.feeds.wind_utils import (
+        get_wind_realtime_price,
+        plain_code_to_windcode,
+        wind_available,
+    )
+except ImportError:
+    def wind_available() -> bool:  # type: ignore[misc]
+        return False
+
+    def get_wind_realtime_price(code: str) -> None:  # type: ignore[misc]
+        return None
+
+    def plain_code_to_windcode(code: str) -> str:  # type: ignore[misc]
+        return code
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PORTFOLIO_PATH = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
@@ -34,7 +53,7 @@ def load_portfolio() -> dict:
         sys.exit(1)
 
     with open(PORTFOLIO_PATH) as f:
-        return json.load(f)
+        return json.load(f)  # type: ignore[no-any-return]
 
 
 def save_portfolio(data: dict) -> None:
@@ -84,6 +103,34 @@ def get_quotes_via_tdx(codes: list[str]) -> dict[str, dict]:
     except Exception as e:
         print(f"[TDX] 异常: {e}")
     return {}
+
+
+def get_quotes_via_wind(codes: list[str]) -> dict[str, dict]:
+    """通过 Wind 万得获取实时行情（优先数据源）。"""
+    if not wind_available():
+        print("[Wind] CLI 或 API Key 不可用，跳过")
+        return {}
+
+    result = {}
+    for code in codes:
+        try:
+            r = get_wind_realtime_price(code)
+            if r and r.get("price") is not None:
+                result[code] = {
+                    "name": "",  # Wind 不返回名称，后面用持仓中的
+                    "price": r["price"],
+                    "pct_change": r.get("change_pct", 0),
+                    "change": None,
+                }
+        except Exception as e:
+            print(f"  [Wind] {code} 查询异常: {e}")
+            continue
+
+    if result:
+        print(f"[Wind] 获取 {len(result)}/{len(codes)} 只标的行情")
+    else:
+        print("[Wind] 未获取到行情数据")
+    return result
 
 
 def get_quotes_via_tencent(codes: list[str]) -> dict[str, dict]:
@@ -207,8 +254,11 @@ def main():
     codes = [h["code"] for h in holdings]
     print(f"\n持仓标的: {', '.join(codes)}")
 
-    # 优先通达信，降级到腾讯
-    quotes = get_quotes_via_tdx(codes)
+    # Wind → TDX → 腾讯 三级降级链
+    quotes = get_quotes_via_wind(codes)
+    if not quotes:
+        print("[降级] Wind 不可用，切换到通达信 MCP")
+        quotes = get_quotes_via_tdx(codes)
     if not quotes:
         print("[降级] 通达信不可用，切换到腾讯财经")
         quotes = get_quotes_via_tencent(codes)

@@ -119,7 +119,8 @@ def _parse_rss_xml(xml_text: str, since_ts: int) -> list[dict]:
             continue
 
         # 从 description 提取纯文本（去除 HTML）
-        plain_text = re.sub(r"<[^>]+>", "", desc_html)[:3000] if desc_html else ""
+        # 放开长度：RSS description 有时已含较完整正文，保留下来作为正文抓取失败时的降级来源
+        plain_text = re.sub(r"<[^>]+>", "", desc_html) if desc_html else ""
         plain_text = unescape(plain_text)
 
         articles.append({
@@ -127,7 +128,7 @@ def _parse_rss_xml(xml_text: str, since_ts: int) -> list[dict]:
             "link": link,
             "author": author,
             "publish_time": pub_ts,
-            "digest": plain_text[:500],
+            "digest": plain_text,
         })
 
     return articles
@@ -148,7 +149,8 @@ def fetch_article_content(url: str) -> str | None:
             return None
         data = resp.json()
         if data.get("success"):
-            return data["data"].get("plain_content", "")[:3000]
+            # 放开正文长度：保留完整正文供 LLM 阅读理解（上限 20000 防极端长文撑爆）
+            return data["data"].get("plain_content", "")[:20000]
     except Exception as e:
         logger.debug("获取文章正文失败: %s", str(e)[:80])
     return None
@@ -212,7 +214,7 @@ def collect_local_feeds(lookback_hours: int = 48) -> list[dict]:
 
             all_articles.append({
                 "title": art.get("title", "")[:80],
-                "content": content[:3000],
+                "content": content[:20000],
                 "account": nickname,
                 "pub_date": datetime.fromtimestamp(pub_ts, tz=timezone.utc).isoformat() if pub_ts else "",
                 "link": link,

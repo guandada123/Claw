@@ -22,7 +22,7 @@ def summarize_text(text: str, length: str = "short") -> str:
     )
     if result.returncode == 0:
         data = json.loads(result.stdout)
-        return data.get("summary", text[:100] + "...")
+        return data.get("summary", text[:100] + "...")  # type: ignore[no-any-return]
     logger.warning(f"summarize skill 调用失败 (rc={result.returncode}): {result.stderr[:100]}")
     return text[:100] + "..."
 
@@ -33,12 +33,12 @@ def summarize_file(filepath: str) -> dict:
         capture_output=True, text=True, timeout=30
     )
     if result.returncode == 0:
-        return json.loads(result.stdout)
+        return json.loads(result.stdout)  # type: ignore[no-any-return]
     return {"summary": f"[解析失败: {filepath}]"}
 
 def batch_summarize(dir_path: str, limit: int = 10) -> list:
     """批量摘要目录下的文章"""
-    results = []
+    results: list[dict] = []
     target_dir = Path(dir_path)
     if not target_dir.exists():
         print(f"[summarize] 目录不存在: {dir_path}")

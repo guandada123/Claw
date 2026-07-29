@@ -63,11 +63,11 @@ def build_brief(dry: bool = False) -> dict:
     # 近 7 天新增
     now = datetime.now()
     cutoff = now - timedelta(days=7)
-    new_7d = sum(1 for c in candidates if c.get("status") == "subscribed"
-                 and _parse_iso(c.get("discovered_at", ""))
-                 and _parse_iso(c["discovered_at"]) >= cutoff)
-    new_total_7d = sum(1 for c in candidates if _parse_iso(c.get("discovered_at", ""))
-                       and _parse_iso(c["discovered_at"]) >= cutoff)
+    new_7d = sum(1 for c in candidates if c.get("status") == "subscribed"  # type: ignore[misc]
+                 and _parse_iso(c.get("discovered_at", ""))  # type: ignore[arg-type]
+                 and _parse_iso(c["discovered_at"]) >= cutoff)  # type: ignore[operator,return-value]
+    new_total_7d = sum(1 for c in candidates if _parse_iso(c.get("discovered_at", ""))  # type: ignore[misc]
+                       and _parse_iso(c["discovered_at"]) >= cutoff)  # type: ignore[operator,return-value]
 
     title = f"📬【订阅周报】{now.strftime('%Y-%m-%d')}"
 
@@ -84,12 +84,12 @@ def build_brief(dry: bool = False) -> dict:
         f"**失败**：{failed}",
         f"**累计候选总数**：{total}",
         "",
-        f"最近候选：",
+        "最近候选：",
     ]
     # 列出最近 5 条候选
     recent = sorted(
-        [c for c in candidates if _parse_iso(c.get("discovered_at"))],
-        key=lambda c: _parse_iso(c["discovered_at"]),
+        [c for c in candidates if _parse_iso(c.get("discovered_at"))],  # type: ignore[arg-type]
+        key=lambda c: _parse_iso(c["discovered_at"]) or datetime.min,  # type: ignore[return-value]
         reverse=True,
     )[:5]
     for c in recent:

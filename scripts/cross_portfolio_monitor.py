@@ -16,6 +16,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # ── 路径配置 ──────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -61,7 +62,7 @@ INDUSTRY_MAP = {
 }
 
 # ── 关联性链分组 ────────────────────────────────────────────────
-CHAIN_MAP = {
+CHAIN_MAP: dict[str, Any] = {
     "科技链": {"groups": ["🏭 科技/半导体"], "max_pct": 50},
     "基建链": {"groups": ["🏗️ 基建/建材", "🛢️ 周期/资源"], "max_pct": 50},
 }
@@ -84,7 +85,7 @@ def get_industry(code: str, name: str = "") -> str:
     """通过股票代码或名称获取行业分组"""
     code = code.strip()
     if code in INDUSTRY_MAP:
-        return INDUSTRY_MAP[code]
+        return INDUSTRY_MAP[code]  # type: ignore[return-value]
 
     # 按名称匹配（兜底）
     name_lower = name.lower()
@@ -113,7 +114,7 @@ def parse_sim_positions(sim_data: dict) -> dict:
 
 def parse_user_holdings(user_data: dict) -> list:
     """解析实盘持仓"""
-    return user_data.get("holdings", [])
+    return user_data.get("holdings", [])  # type: ignore[no-any-return]
 
 
 def calc_combined_metrics(sim_positions: dict, user_holdings: list):
@@ -125,7 +126,7 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         "chain_risk": {...}
     }
     """
-    result = {
+    result: dict[str, Any] = {
         "shared_holdings": [],
         "industry_concentration": {},
         "chain_risk": {},
@@ -149,8 +150,8 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         result["user_market_value_total"] += h.get("market_value", 0) or 0
 
     # 合并所有持仓的市值（用于行业集中度计算）
-    combined_by_industry = {}
-    all_holdings_combined = []
+    combined_by_industry: dict[str, float] = {}
+    all_holdings_combined: list[dict] = []
     sim_total = result["sim_market_value_total"]
     user_total = result["user_market_value_total"]
 
@@ -286,14 +287,14 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         }
 
     # ── 关联性链风险 ──
-    for chain_name, chain in CHAIN_MAP.items():
+    for chain_name, chain in CHAIN_MAP.items():  # type: ignore[assignment]
         chain_mv = sum(
-            combined_by_industry.get(g, 0) for g in chain["groups"] if g in combined_by_industry
+            combined_by_industry.get(g, 0) for g in chain["groups"] if g in combined_by_industry  # type: ignore[index]
         )
         chain_pct = round(chain_mv / total_market_value * 100, 1) if total_market_value else 0
-        max_pct = chain["max_pct"]
-        status = "✅" if chain_pct <= max_pct else ("⚠️" if chain_pct <= max_pct + 10 else "🚨")
-        stocks_in_chain = [e for e in all_holdings_combined if e["industry"] in chain["groups"]]
+        max_pct = chain["max_pct"]  # type: ignore[index]
+        status = "✅" if chain_pct <= max_pct else ("⚠️" if chain_pct <= max_pct + 10 else "🚨")  # type: ignore[operator]
+        stocks_in_chain = [e for e in all_holdings_combined if e["industry"] in chain["groups"]]  # type: ignore[index]
         result["chain_risk"][chain_name] = {
             "groups": chain["groups"],
             "total_market_value": round(chain_mv, 2),

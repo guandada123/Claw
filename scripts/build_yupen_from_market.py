@@ -43,7 +43,10 @@ SECTORS = [
     {"name": "证券公司", "code": "399975", "src": "wind", "wind": "399975.SZ"},
     {"name": "房地产",   "code": "931775", "src": "wind", "wind": "931775.CSI"},
     {"name": "电网设备", "code": "881278", "src": "wind", "wind": "882122.WI", "em": "1.881278"},
-    {"name": "有色金属", "code": "1B0819", "src": "wind", "wind": "中证有色金属", "wind2": "1B0819"},
+    # 有色金属: 原 wind="中证有色金属"/wind2="1B0819" 均 MARKET_TARGET_NOT_FOUND(连续3日空返回, 07-27/28/29)。
+    # 正确 Wind 代码 = CI005003.WI(Wind 有色金属行业指数, 实测 42 行覆盖 MA20)；wind2="有色金属.WI" 自然语言别名冗余。
+    # ⚠️ DO NOT REVERT: "中证有色金属"/"1B0819" 经实测 Wind MCP 无法解析(MARKET_TARGET_NOT_FOUND)，改回必再次缺失。
+    {"name": "有色金属", "code": "CI005003", "src": "wind", "wind": "CI005003.WI", "wind2": "有色金属.WI"},
     {"name": "细分化工", "code": "000813", "src": "wind", "wind": "882202.WI", "em": "0.000813"},
     {"name": "机器人",   "code": "H30590", "src": "wind", "wind": "H30590.CSI"},
     {"name": "光伏设备", "code": "881279", "src": "wind", "wind": "866020.WI", "em": "1.881279"},

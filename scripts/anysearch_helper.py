@@ -85,7 +85,7 @@ def _extract_first_json_block(text: str) -> dict:
             depth -= 1
             if depth == 0:
                 try:
-                    return json.loads(text[start:i + 1])
+                    return json.loads(text[start:i + 1])  # type: ignore[no-any-return]
                 except json.JSONDecodeError:
                     return {}
     return {}
@@ -161,7 +161,7 @@ def a_stock_indicator(cn_code: str) -> dict:
     blocks.sort(key=lambda b: b.get("end_date", ""), reverse=True)
     b = blocks[0]
     b["source"] = "anysearch"
-    return b
+    return b  # type: ignore[no-any-return]
 
 
 def earnings_calendar(days: int = 7, cn_code: str = "") -> list:
@@ -261,7 +261,8 @@ def macro_indicator(macro_type: str) -> dict:
     b = blocks[0]
     b["source"] = "anysearch"
     b["type"] = macro_type
-    return b
+    return b  # type: ignore[no-any-return]
+
 
 
 def _parse_md_table(md: str) -> list:

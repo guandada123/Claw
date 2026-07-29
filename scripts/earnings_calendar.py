@@ -30,7 +30,7 @@ sys.path.insert(0, str(_HELPER_PATH.parent))
 try:
     import anysearch_helper as _helper
 except Exception:
-    _helper = None
+    _helper = None  # type: ignore[assignment]
 
 # ── 持仓股列表（优先从 portfolio.json 读取，失败时用硬编码兜底）──
 def _code_with_prefix(raw: str) -> str:

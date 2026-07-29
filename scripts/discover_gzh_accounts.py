@@ -23,6 +23,17 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Wind 万得（可选依赖）
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    from claw.feeds.wind_utils import get_wind_realtime_price, wind_available
+except ImportError:
+    def wind_available() -> bool:  # type: ignore[misc]
+        return False
+
+    def get_wind_realtime_price(code: str) -> None:  # type: ignore[misc]
+        return None
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _OUTPUT_FILE = _PROJECT_ROOT / "data" / "discovered_accounts.json"
 _FETCH_SCRIPT = (
@@ -89,8 +100,16 @@ def _search(keyword: str, start_date: str) -> list[dict]:
         )
         if result.returncode != 0:
             return []
-        data = json.loads(result.stdout)
-        return data.get("articles", [])
+        # 红狐 API 在 JSON 之后会附加一行非 JSON 的营销脚注
+        # （如「另外红狐配套全量数据库...」），直接 json.loads 全量 stdout 会抛
+        # JSONDecodeError → 被下方 except 吞掉返回 []，导致发现步骤静默归零。
+        # 改为只截取首个 '{' 到末个 '}' 之间的 JSON 对象。
+        text = result.stdout.strip()
+        s, e = text.find("{"), text.rfind("}")
+        if s == -1 or e == -1 or e <= s:
+            return []
+        data = json.loads(text[s:e + 1])
+        return data.get("articles", [])  # type: ignore[no-any-return]
     except Exception:
         return []
 
@@ -154,11 +173,34 @@ def _fetch_stock_name(codes: list[str]) -> dict[str, str]:
 
 
 def _check_price_change(code: str, check_date_str: str) -> dict | None:
-    """查询某个股票从 check_date 到现在的涨跌幅"""
-    # 格式化代码
+    """查询某个股票从 check_date 到现在的涨跌幅。Wind 优先，降级腾讯 gtimg。"""
+
+    # 计算文章距今的天数
+    try:
+        check_date = datetime.strptime(check_date_str[:10], "%Y-%m-%d")
+        days_ago = (datetime.now() - check_date).days
+    except ValueError:
+        days_ago = 0
+
+    # 1) Wind 万得
+    if wind_available():
+        try:
+            r = get_wind_realtime_price(code)
+            if r and r.get("price") is not None:
+                return {
+                    "name": "",
+                    "current_price": r["price"],
+                    "change_pct": r.get("change_pct", 0),
+                    "days_since_article": days_ago,
+                    "direction": "up" if (r.get("change_pct") or 0) > 0 else ("down" if (r.get("change_pct") or 0) < 0 else "flat"),
+                    "source": "wind",
+                }
+        except Exception:
+            pass
+
+    # 2) 腾讯 gtimg
     prefix = "sh" if code.startswith("6") else "sz"
     try:
-        # 用腾讯行情获取当前价（不精确做历史比对，用近N天涨跌幅近似）
         url = _QT_URL.format(codes=f"{prefix}{code}")
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: qt.gtimg.cn
@@ -175,19 +217,13 @@ def _check_price_change(code: str, check_date_str: str) -> dict | None:
             current_price = float(parts[3]) if parts[3] else 0
             change_pct = float(parts[32]) if parts[32] else 0
 
-            # 计算文章距今的天数
-            try:
-                check_date = datetime.strptime(check_date_str[:10], "%Y-%m-%d")
-                days_ago = (datetime.now() - check_date).days
-            except ValueError:
-                days_ago = 0
-
             return {
                 "name": name,
                 "current_price": current_price,
                 "change_pct": change_pct,
                 "days_since_article": days_ago,
                 "direction": "up" if change_pct > 0 else ("down" if change_pct < 0 else "flat"),
+                "source": "tencent",
             }
     except Exception:
         return None
@@ -200,7 +236,7 @@ def _load_local_subscriptions() -> dict:
     Returns: {"names": set(小写昵称), "aliases": set(小写微信号), "fakeids": set(fakeid)}
     本地 API 不可达时返回全空集（降级，不阻塞发现流程）。
     """
-    result = {"names": set(), "aliases": set(), "fakeids": set()}
+    result: dict[str, set] = {"names": set(), "aliases": set(), "fakeids": set()}
     try:
         url = f"{_LOCAL_API_BASE}/api/rss/subscriptions"
         req = urllib.request.Request(url)
@@ -237,12 +273,12 @@ def _resolve_fakeid(nickname: str) -> str | None:
         # 第一遍：精确匹配
         for item in items:
             if item.get("nickname", "").strip().lower() == q and item.get("fakeid"):
-                return item["fakeid"]
+                return item["fakeid"]  # type: ignore[no-any-return]
         # 第二遍：包含匹配（双向）
         for item in items:
             rn = item.get("nickname", "").strip().lower()
             if rn and item.get("fakeid") and (q in rn or rn in q):
-                return item["fakeid"]
+                return item["fakeid"]  # type: ignore[no-any-return]
     except Exception:
         return None
     return None
@@ -278,7 +314,7 @@ def _load_subscribe_candidates() -> list[dict]:
         d = json.loads(_SUBSCRIBE_CANDIDATES_FILE.read_text(encoding="utf-8"))
         if isinstance(d, list):
             return d
-        return d.get("candidates", [])
+        return d.get("candidates", [])  # type: ignore[no-any-return]
     except Exception:
         return []
 
@@ -433,7 +469,7 @@ def discover() -> dict:
             fakeid = ""
         else:
             # 仅对尚未订阅的号解析一次 fakeid（后续复用，避免重复调用）
-            fakeid = _resolve_fakeid(name)
+            fakeid = _resolve_fakeid(name)  # type: ignore[assignment]
             # 全开模式：能解析 fakeid 即自动订阅（不卡 hit_rate）；
             # 非全开：仅对 hit_rate 达标者订阅，其余 pending 待审。
             # 已达上限：降级为 pending_cap，待人工提升 _AUTO_SUBSCRIBE_CAP 后重跑解冻。
