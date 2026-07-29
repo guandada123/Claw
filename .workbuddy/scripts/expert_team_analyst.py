@@ -5,6 +5,8 @@
 按顺序分析5个维度，汇总输出综合投资建议
 """
 
+from __future__ import annotations
+
 import re
 import ssl
 import sys
@@ -33,8 +35,18 @@ EXPERT_NAMES_ZH = [
 
 
 def fetch_tencent_quote(symbol: str) -> dict | None:
-    """从腾讯财经API获取实时行情（3-5秒延迟）"""
-    # 判断交易所：600xxx/601xxx → sh, 000xxx/002xxx → sz
+    """获取实时行情。Wind 优先，降级腾讯 gtimg。"""
+    # 1) Wind 万得
+    try:
+        from wind_quote import fetch_wind_quote, wind_available
+        if wind_available():
+            wq = fetch_wind_quote(symbol)
+            if wq and wq.get("price") is not None:
+                return {k: (v if v is not None else 0) for k, v in wq.items()}
+    except Exception:
+        pass
+
+    # 2) 腾讯 gtimg
     if symbol.startswith(("6", "5")):
         code = f"sh{symbol}"
     elif symbol.startswith(("0", "3")):

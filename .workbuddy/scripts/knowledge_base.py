@@ -127,8 +127,8 @@ def index_articles(input_dir: str = None, glob_pattern: str = "*.md"):
             if len(content) < 100:
                 continue  # 跳过过短文件
 
-            # 生成唯一 ID
-            doc_id = hashlib.md5(str(filepath).encode()).hexdigest()[:12]
+            # 生成唯一 ID (仅用于去重标识, 非密码学用途)
+            doc_id = hashlib.md5(str(filepath).encode(), usedforsecurity=False).hexdigest()[:12]
 
             # 提取元数据
             title = filepath.stem
@@ -404,7 +404,8 @@ def index_research_report(report_path: str = None):
             if len(content) < 200:
                 continue
 
-            doc_id = f"report_{hashlib.md5(str(filepath).encode()).hexdigest()[:12]}"
+            # 生成唯一 ID (仅用于去重标识, 非密码学用途)
+            doc_id = f"report_{hashlib.md5(str(filepath).encode(), usedforsecurity=False).hexdigest()[:12]}"
 
             # 提取标题
             title = filepath.stem

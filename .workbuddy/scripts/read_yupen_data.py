@@ -96,9 +96,58 @@ def _merge_primary_rss(primary: dict | None, rss: dict | None) -> dict | None:
     return merged
 
 
+def _latest_raw(days: int = 3) -> dict | None:
+    """读取最新 yupen_*_raw.json (RSS 抓取原始记录)，提取真实抓取信号。
+
+    返回 dict: {date, has_images, fetch_time, status} 或 None。
+    - date: 抓取日期(文章发布日)，用于判断 RSS 是否当天有新文章
+    - has_images: image_paths 长度>0 表示抓到含鱼盆图表文章
+    - 这是根治 v5 双重推送的关键：软失败检查应基于 raw 真实抓取，
+      而非 primary 结构化表头日期(恒等于 today)。
+    """
+    if not YUPE_DIR.exists():
+        return None
+    cands = []
+    for fp in YUPE_DIR.glob("yupen_*_raw.json"):
+        try:
+            d = json.loads(fp.read_text())
+        except Exception:
+            continue
+        if d.get("status") == "no_data":
+            continue
+        rd = d.get("date", "")
+        if not rd:
+            continue
+        try:
+            rdate = datetime.strptime(rd, "%Y-%m-%d").date()
+        except Exception:
+            continue
+        if (date.today() - rdate).days > days:
+            continue
+        cands.append((rd, d, fp))
+    if not cands:
+        return None
+    cands.sort(key=lambda x: x[0], reverse=True)
+    _, d, _ = cands[0]
+    imgs = d.get("image_paths") or []
+    return {
+        "date": d.get("date"),
+        "has_images": bool(imgs),
+        "image_count": len(imgs),
+        "fetch_time": d.get("fetch_time"),
+        "status": d.get("status", "ok"),
+    }
+
+
 def read_yupen_data(days: int = 30) -> dict:
     """Read yupen data: prefer primary(Wind) file, fill gaps from RSS file."""
     today = date.today()
+
+    # RSS 真实抓取信号 (根治 v5 双重推送: 软失败检查应基于此而非 primary 表头日期)
+    raw = _latest_raw(days=3)
+    rss_updated = bool(raw and raw["date"] == today.isoformat() and raw["has_images"])
+    raw_date = raw["date"] if raw else None
+    raw_has_images = raw["has_images"] if raw else False
 
     # 板块轮动: primary(Wind) 优先, 缺口从 RSS 补(取板块数最多者)
     p_sr, _ = _latest("yupen_primary_*_sector_rotation.json", None, days, rich=False)
@@ -115,6 +164,9 @@ def read_yupen_data(days: int = 30) -> dict:
             "status": "no_data",
             "freshness": "none",
             "data_date": None,
+            "rss_updated": rss_updated,
+            "raw_date": raw_date,
+            "raw_has_images": raw_has_images,
             "stale_note": "output/yupen/ 目录无有效数据文件（已排除 no_data 占位文件）",
             "sector_rotation": None,
             "yupen_trend": None,
@@ -140,6 +192,9 @@ def read_yupen_data(days: int = 30) -> dict:
         "status": "ok",
         "freshness": freshness,
         "data_date": data_date,
+        "rss_updated": rss_updated,
+        "raw_date": raw_date,
+        "raw_has_images": raw_has_images,
         "stale_note": stale_note,
         "sector_rotation": sector_rotation,
         "yupen_trend": yupen_trend,
@@ -160,6 +215,9 @@ def main():
         print(json.dumps({
             "freshness": result["freshness"],
             "data_date": result["data_date"],
+            "rss_updated": result.get("rss_updated"),
+            "raw_date": result.get("raw_date"),
+            "raw_has_images": result.get("raw_has_images"),
             "stale_note": result["stale_note"],
         }, ensure_ascii=False, indent=2))
     else:

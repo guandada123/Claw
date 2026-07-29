@@ -169,7 +169,8 @@ def extract_signals():
 
             signals.append(
                 {
-                    "article_id": hashlib.md5(f.name.encode()).hexdigest()[:12],
+                    # article_id 仅用于去重标识, 非密码学用途
+                    "article_id": hashlib.md5(f.name.encode(), usedforsecurity=False).hexdigest()[:12],
                     "account": account,
                     "title": title,
                     "stock_code": stock["code"],

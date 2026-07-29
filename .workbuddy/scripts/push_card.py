@@ -62,6 +62,19 @@ LEVEL_TEMPLATE = {
 }
 
 
+def _strip_surrogates(s):
+    """去掉孤立代理码点(U+D800~U+DFFF)。
+
+    某些环境下(Bash 以 C/POSIX locale 启动时)多字节 argv 经 surrogateescape
+    解码会混入孤立代理码点，导致后续 json.dumps(...).encode('utf-8') 直接抛
+    UnicodeEncodeError 而整个推送崩溃、连 markdown 兜底都走不到。这里在入卡前
+    净化，保证推送在任意 locale 下都不崩。对正常 UTF-8 输入零影响。
+    """
+    if not isinstance(s, str):
+        return s
+    return "".join(ch for ch in s if not (0xD800 <= ord(ch) <= 0xDFFF))
+
+
 def build_card(title: str, level: str, sections: list, table: dict = None,
               buttons: list = None, footer: str = None) -> dict:
     """构造飞书 interactive card JSON"""
@@ -149,8 +162,10 @@ def _send_via_markdown_fallback(text: str, chat_id: str, timeout: int = 30) -> b
 def send_card(title, level="info", sections=None, table=None, buttons=None,
               footer=None, chat_id=DEFAULT_CHAT, max_retries=3) -> bool:
     """对外主函数：发卡片，带 429 退避 + markdown 兜底"""
-    sections = sections or []
-    buttons = buttons or []
+    sections = [(_strip_surrogates(t), _strip_surrogates(b)) for t, b in (sections or [])]
+    buttons = [{"text": _strip_surrogates(b.get("text", "")), "url": b.get("url", "")} for b in (buttons or [])]
+    title = _strip_surrogates(title)
+    footer = _strip_surrogates(footer) if footer else footer
     card = build_card(title, level, sections, table, buttons, footer)
 
     # 卡片 body 大小检查（≤30KB）
@@ -218,9 +233,7 @@ def _looks_like_placeholder(text: str) -> bool:
         return True
     # 孤立占位单词：整段去掉空白后恰好是 title / body（小写）
     bare = "".join(low.split())
-    if bare in ("title", "body", "body内容占位"):
-        return True
-    return False
+    return bare in ("title", "body", "body内容占位")
 
 
 def main():

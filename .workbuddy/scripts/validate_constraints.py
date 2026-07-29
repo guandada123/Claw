@@ -95,15 +95,55 @@ def validate_code(code: str) -> tuple[bool, str]:
     return True, f"✅ {code} 允许交易"
 
 
-def validate_portfolio(portfolio_path: str | None = None) -> dict:
-    """Validate current portfolio data."""
-    if portfolio_path is None:
-        portfolio_path = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/portfolio.json"
+# 三系统边界(2026-07-15 锁定)后，持仓拆为两份权威源：
+#   实盘 -> .workbuddy/data/user/portfolio.json（refresh_portfolio.py 维护）
+#   模拟 -> .workbuddy/data/simulation/portfolio.json（sim_trade.py 维护）
+# 旧的 .workbuddy/data/portfolio.json（v2.0 混合格式）已删除，故 --portfolio
+# 默认从两份权威源聚合，不再依赖孤儿文件。
+_USER_PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/user/portfolio.json"
+_SIM_PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/simulation/portfolio.json"
 
+
+def _load_authoritative_merged() -> dict:
+    """从两份权威源聚合出旧混合视图 {live:{positions}, sim:{positions}}。
+
+    旧 .workbuddy/data/portfolio.json 已删除(2026-07-22)，此函数让
+    `validate_constraints.py --portfolio` 在拆分后仍能跑、且结果正确
+    （旧函数因 live 段用 'holdings' 键而漏数实盘持仓）。
+    """
+    merged = {"live": {"positions": []}, "sim": {"positions": []}}
     try:
-        data = json.loads(Path(portfolio_path).read_text())
-    except Exception as e:
-        return {"status": "error", "message": f"读取持仓失败: {e}"}
+        user = json.loads(Path(_USER_PORTFOLIO).read_text())
+        for h in user.get("holdings", []):
+            merged["live"]["positions"].append(
+                {"code": h.get("code"), "name": h.get("name"), "shares": h.get("shares")}
+            )
+    except Exception:
+        pass
+    try:
+        sim = json.loads(Path(_SIM_PORTFOLIO).read_text())
+        for code, p in sim.get("positions", {}).items():
+            merged["sim"]["positions"].append(
+                {"code": code, "name": p.get("name"), "shares": p.get("shares")}
+            )
+    except Exception:
+        pass
+    return merged
+
+
+def validate_portfolio(portfolio_path: str | None = None) -> dict:
+    """Validate current portfolio data.
+
+    默认(portfolio_path=None)：从两份权威源(user/portfolio.json +
+    .workbuddy/data/simulation/portfolio.json)聚合。显式传路径时仍按旧混合格式直读。
+    """
+    if portfolio_path is None:
+        data = _load_authoritative_merged()
+    else:
+        try:
+            data = json.loads(Path(portfolio_path).read_text())
+        except Exception as e:
+            return {"status": "error", "message": f"读取持仓失败: {e}"}
 
     constraints = load_constraints()
     issues = []

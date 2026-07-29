@@ -132,7 +132,25 @@ def fetch_db_history(ts_code: str) -> list[dict]:
 
 
 def fetch_realtime(symbol: str) -> dict | None:
-    """腾讯实时行情补最新一根（qt.gtimg.cn）"""
+    """最新行情。Wind 优先，降级腾讯 qt.gtimg.cn。"""
+    # 1) Wind 万得
+    try:
+        from wind_quote import fetch_wind_price, wind_available
+        if wind_available():
+            wp = fetch_wind_price(symbol)
+            if wp and wp.get("price") is not None:
+                from datetime import date
+                return {
+                    "trade_date": date.today().isoformat(),
+                    "open": None, "high": None,
+                    "low": None, "close": wp["price"],
+                    "vol": None,
+                    "_source": "wind",
+                }
+    except Exception:
+        pass
+
+    # 2) 腾讯 gtimg 降级
     import urllib.request
     url = f"https://qt.gtimg.cn/q={symbol}"
     try:

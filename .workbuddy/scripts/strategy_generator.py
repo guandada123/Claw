@@ -191,31 +191,42 @@ def generate_stock_strategy(symbol: str) -> dict:
     # 获取股票基本信息（简化版）
     import sys
 
-    # 尝试从腾讯财经API获取实时行情
+    # 获取实时行情：Wind 优先 → 腾讯降级
     current_price = 0
+    # 1) Wind 万得
     try:
-        import re
-        import urllib.request
-
-        if symbol.startswith(("6", "5")):
-            code = f"sh{symbol}"
-        elif symbol.startswith(("0", "3")):
-            code = f"sz{symbol}"
-        else:
-            code = f"sh{symbol}"
-        url = f"https://qt.gtimg.cn/q={code}"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            raw = resp.read().decode("gbk", errors="replace")
-        match = re.search(r'="(.*)"', raw)
-        if match:
-            fields = match.group(1).split("~")
-            if len(fields) > 3 and fields[3]:
-                current_price = float(fields[3])
+        from wind_quote import fetch_wind_price, wind_available
+        if wind_available():
+            wp = fetch_wind_price(symbol)
+            if wp and wp.get("price") is not None:
+                current_price = wp["price"]
     except Exception:
-        import sys
+        pass
+    # 2) 腾讯 gtimg 降级
+    if current_price == 0:
+        try:
+            import re
+            import urllib.request
 
-        print("[strategy_generator] 腾讯财经报价解析失败", file=sys.stderr)
+            if symbol.startswith(("6", "5")):
+                code = f"sh{symbol}"
+            elif symbol.startswith(("0", "3")):
+                code = f"sz{symbol}"
+            else:
+                code = f"sh{symbol}"
+            url = f"https://qt.gtimg.cn/q={code}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                raw = resp.read().decode("gbk", errors="replace")
+            match = re.search(r'="(.*)"', raw)
+            if match:
+                fields = match.group(1).split("~")
+                if len(fields) > 3 and fields[3]:
+                    current_price = float(fields[3])
+        except Exception:
+            import sys
+
+            print("[strategy_generator] 腾讯财经报价解析失败", file=sys.stderr)
 
     if current_price == 0:
         current_price = 100.0
