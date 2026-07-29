@@ -34,8 +34,7 @@ jobs:
         run: |
           pip install safety
       - name: Safety check
-        run: safety check --full-report --output json > safety-report.json || true
-        continue-on-error: true
+        run: safety check --full-report --output json > safety-report.json
       - name: Upload safety report
         uses: actions/upload-artifact@v4
         with:
@@ -67,9 +66,8 @@ jobs:
         run: pip install bandit[toml]
       - name: Bandit scan
         run: |
-          bandit -r .workbuddy/scripts/ .workbuddy/lib/ -f json -o bandit-report.json \
-            -ll --skip B101,B324,B310,B108,B306 || true
-        continue-on-error: true
+          bandit -r .workbuddy/scripts/ src/claw/ scripts/ -f json -o bandit-report.json \
+            -ll --skip B101,B324,B310,B108,B306
       - name: Upload bandit report
         uses: actions/upload-artifact@v4
         with:
