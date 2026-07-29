@@ -2,41 +2,26 @@
 """
 fetch_holdings_quotes.py — 获取持仓个股实时行情
 
-从 portfolio.json 读取持仓代码 → 腾讯行情接口拉取实时报价 → 输出 JSON
+从 portfolio.json 读取持仓代码 → Wind 万得(优先) → 腾讯(降级) → 输出 JSON
 
 用法:
     python3 fetch_holdings_quotes.py              → 用户实盘持仓
     python3 fetch_holdings_quotes.py --user       → 同上（显式指定）
     python3 fetch_holdings_quotes.py --sim        → 模拟盘持仓
 
-输出: JSON { "quotes": [...] }，供「综合持仓监控」自动化 PHASE 2/3 消费
-
-腾讯 qt.gtimg.cn 行情字段索引:
-  [1]名称 [2]代码 [3]现价 [4]昨收 [5]今开 [6]成交量(手)
-  [31]涨跌额 [32]涨跌幅% [33]最高 [34]最低
-  [37]成交额(万元) [38]换手率% [43]振幅% [45]总市值(亿)
+输出: JSON { "quotes": [...], "data_source": "wind"/"tencent" }
 """
 
 import json
 import sys
-import urllib.request
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+from wind_quote import fetch_quotes  # noqa: E402
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent.parent  # .workbuddy/scripts/ → Claw
 USER_DATA = PROJECT_DIR / ".workbuddy" / "data" / "user" / "portfolio.json"
 SIM_DATA = PROJECT_DIR / ".workbuddy" / "data" / "simulation" / "portfolio.json"
-
-QT_URL = "https://qt.gtimg.cn/q={}"
-
-
-def _code_prefix(code: str) -> str:
-    """600xxx → sh600xxx, 000xxx → sz000xxx"""
-    code = code.strip()
-    if code.startswith(("6", "5")):
-        return f"sh{code}"
-    if code.startswith(("0", "3")):
-        return f"sz{code}"
-    return code
 
 
 def _load_portfolio(path: Path) -> list[dict]:
@@ -45,69 +30,17 @@ def _load_portfolio(path: Path) -> list[dict]:
         sys.exit(1)
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
-    return data.get("holdings", [])
-
-
-def _parse_line(line: str) -> dict | None:
-    """解析单行 qt 行情 v_sh600522="..." → dict"""
-    if "=" not in line or line.startswith("pv_none_match"):
-        return None
-    try:
-        vals = line.split('"')[1].split("~")
-    except IndexError:
-        return None
-    if len(vals) < 40:
-        return None
-
-    def f(i):
-        try:
-            return float(vals[i])
-        except (ValueError, TypeError):
-            return None
-
-    def s(i):
-        return vals[i]
-
-    return {
-        "name": s(1),
-        "code": s(2),
-        "price": f(3),
-        "prev_close": f(4),
-        "open": f(5),
-        "volume": int(vals[6]) if vals[6].isdigit() else None,
-        "change": f(31),
-        "change_pct": f(32),
-        "high": f(33),
-        "low": f(34),
-        "amount": f(37),
-        "turnover": f(38),
-    }
-
-
-def _fetch(codes: list[str]) -> dict[str, dict]:
-    """批量拉取实时行情，返回 {code: quote_dict}"""
-    if not codes:
-        return {}
-    qt_codes = [_code_prefix(c) for c in codes]
-    url = QT_URL.format(",".join(qt_codes))
-
-    try:
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            raw = resp.read()
-        text = raw.decode("gbk", errors="replace")
-    except Exception as e:
-        return {c: {"error": str(e)} for c in codes}
-
-    results: dict[str, dict] = {}
-    for line in text.split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        parsed = _parse_line(line)
-        if parsed and parsed.get("code"):
-            results[parsed["code"]] = parsed
-    return results
+    # 优先读 positions（模拟盘权威源，由 sim_trade.py 维护）；
+    # 无 positions 时回退 holdings（实盘 user/portfolio.json 结构）。
+    # 背景：sim 的 holdings 数组是遗留死副本，不随交易更新（2026-07-27 曾漏招商600036）。
+    positions = data.get("positions")
+    if isinstance(positions, dict) and positions:
+        return [
+            {"code": code, "name": p.get("name", ""), "shares": p.get("shares", 0),
+             "avg_cost": p.get("avg_cost", 0)}
+            for code, p in positions.items()
+        ]
+    return data.get("holdings", [])  # type: ignore[no-any-return]
 
 
 def _merge(holdings: list[dict], quotes: dict[str, dict]) -> list[dict]:
@@ -156,10 +89,12 @@ if __name__ == "__main__":
         sys.exit(0)
 
     codes = [h["code"] for h in holdings]
-    quotes = _fetch(codes)
+    quotes = fetch_quotes(codes)
+    data_source = quotes.pop("_source", "tencent")
     output = _merge(holdings, quotes)
 
     print(json.dumps({
         "quotes": output,
         "source": str(portfolio_path),
+        "data_source": data_source,
     }, ensure_ascii=False, indent=2))

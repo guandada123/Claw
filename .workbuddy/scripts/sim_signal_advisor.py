@@ -12,6 +12,8 @@
   python3 sim_signal_advisor.py --push                           # 飞书推送建议
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import subprocess

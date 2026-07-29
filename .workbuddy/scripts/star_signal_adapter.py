@@ -45,6 +45,17 @@ def fetch_kline_df(code: str, market: str = None, days: int = 200) -> pd.DataFra
     if market is None:
         market = "sh" if code.startswith(("6", "68")) else "sz"
 
+    # 1) Wind 万得 K线
+    try:
+        from wind_quote import fetch_wind_kline, wind_available
+        if wind_available():
+            wdf = fetch_wind_kline(code, days=days)
+            if wdf is not None and not wdf.empty:
+                return wdf
+    except Exception:
+        pass
+
+    # 2) 腾讯 ifzq 前复权
     prefix = "sh" if market == "sh" else "sz"
     url = (
         f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={prefix}{code},day,,,{days},qfq"

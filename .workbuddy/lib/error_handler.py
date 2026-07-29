@@ -7,6 +7,8 @@
     - atomic_write_json: 原子写 JSON（先 tmp → rename）
 """
 
+from __future__ import annotations
+
 import functools
 import json
 import os
@@ -15,9 +17,11 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypeVar
+
+UTC = timezone.utc  # 兼容 Py3.9（datetime.UTC 是 3.11+ 语法糖）
 
 try:
     from .errors import DataValidationError, NetworkError, NonRetryableError

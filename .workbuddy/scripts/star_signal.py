@@ -492,7 +492,28 @@ if __name__ == "__main__":
     import urllib.request
 
     def fetch_demo_data(code="600522", market="sh", days=200):
-        """从腾讯财经获取演示数据"""
+        """获取 K 线数据。Wind 优先，降级腾讯 ifzq。"""
+        # 1) Wind 万得
+        try:
+            from wind_quote import fetch_wind_kline, wind_available
+            if wind_available():
+                wdf = fetch_wind_kline(code, days=days)
+                if wdf is not None and not wdf.empty:
+                    rows = []
+                    for _, row in wdf.iterrows():
+                        rows.append({
+                            "date": row.name.strftime("%Y-%m-%d") if hasattr(row.name, "strftime") else str(row.name)[:10],
+                            "open": float(row["open"]),
+                            "close": float(row["close"]),
+                            "high": float(row["high"]),
+                            "low": float(row["low"]),
+                            "volume": float(row["volume"]),
+                        })
+                    return rows
+        except Exception:
+            pass
+
+        # 2) 腾讯 ifzq 前复权
         prefix = "sh" if market == "sh" else "sz"
         url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={prefix}{code},day,,,{days},qfq"
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})

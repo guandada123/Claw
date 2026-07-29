@@ -4,6 +4,8 @@
 直接调用腾讯财经 API 获取行情，更新模拟持仓，写入报告文件。
 """
 
+from __future__ import annotations
+
 import json
 import os
 import subprocess
@@ -15,6 +17,7 @@ from pathlib import Path
 # 加载 Claw 公共库
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from error_handler import atomic_write_json
+from wind_quote import fetch_quotes as _wind_quotes
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 PORTFOLIO_FILE = PROJECT_DIR / "data" / "simulation" / "portfolio.json"
@@ -40,34 +43,12 @@ except ImportError:
 
 
 def fetch_quote(code: str) -> dict:
-    """用腾讯财经 API 获取实时行情"""
-    url = f"https://qt.gtimg.cn/q={code}"
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data_str = resp.read().decode("gbk", errors="replace")
-    except Exception as e:
-        return {"error": f"请求失败 {code}: {e}"}
-    if not data_str or '="' not in data_str:
-        return {"error": f"No data for {code}"}
-    try:
-        content = data_str.split('="')[1].rstrip('";')
-        fields = content.split("~")
-        return {
-            "code": fields[2],
-            "name": fields[1],
-            "price": float(fields[3]) if fields[3] else 0,
-            "prev_close": float(fields[4]) if fields[4] else 0,
-            "open": float(fields[5]) if fields[5] else 0,
-            "high": float(fields[33]) if len(fields) > 33 and fields[33] else 0,
-            "low": float(fields[34]) if len(fields) > 34 and fields[34] else 0,
-            "change": float(fields[31]) if len(fields) > 31 and fields[31] else 0,
-            "change_pct": float(fields[32]) if len(fields) > 32 and fields[32] else 0,
-            "volume": int(fields[6]) if fields[6] else 0,
-            "amount_wan": float(fields[37]) if len(fields) > 37 and fields[37] else 0,
-        }
-    except Exception as e:
-        return {"error": str(e)}
+    """获取实时行情：Wind 优先 → 腾讯降级"""
+    result = _wind_quotes([code])
+    source = result.pop("_source", "tencent")
+    q = result.get(code, {"error": f"获取行情失败: {code}"})
+    q["_source"] = source
+    return q
 
 
 def fetch_money_flow(code: str) -> dict:

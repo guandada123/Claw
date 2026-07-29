@@ -16,9 +16,9 @@ SCRIPTS_DIR = PROJECT_DIR / "scripts"
 REPORTS_DIR = PROJECT_DIR / "reports"
 DATA_DIR = PROJECT_DIR / "data" / "simulation"
 
-INITIAL_CAPITAL = 30000.0
-STOP_LOSS = -0.08
-TAKE_PROFIT = 0.30
+# 注意：初始本金 / 止损 / 止盈的真实取值由 sim_trade.py 引擎决定
+# （其模块常量 INITIAL_CAPITAL=50000 = 原始30000 + 加仓20000，见 portfolio.json 的
+# config.initial_capital + capital_additions）。此处不再重复定义，避免误读。
 
 
 def today_str():
@@ -27,6 +27,17 @@ def today_str():
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def load_sim_config() -> dict:
+    """读取模拟盘 config，含原始 initial_capital 与 capital_additions（加仓记录）。
+    收益分母由 sim_trade.py 引擎统一决定，这里仅用于报告展示本金构成。"""
+    pf_file = DATA_DIR / "portfolio.json"
+    try:
+        pf = json.loads(pf_file.read_text(encoding="utf-8"))
+        return pf.get("config", {})
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
 
 def run_script(script_name: str, *args) -> dict:
@@ -79,6 +90,19 @@ def generate_comprehensive_report():
         lines.append(f"| 累计盈亏 | {emoji} {total_pnl:+,.0f} ({total_pnl_pct:+.2f}%) |")
         lines.append(f"| 已实现盈亏 | ¥{realized_pnl:+,.0f} |")
         lines.append(f"| 胜率 | {win_rate:.1f}% ({total_trades}笔交易) |")
+
+        # 本金构成（原始本金 + 加仓），数据来自 portfolio.json config
+        cfg = load_sim_config()
+        orig_cap = cfg.get("initial_capital", 0)
+        additions = cfg.get("capital_additions", [])
+        if additions:
+            added_parts = " + ".join(
+                f"加仓¥{a.get('amount', 0):,.0f}({a.get('date', '')})" for a in additions
+            )
+            total_principal = orig_cap + sum(a.get("amount", 0) for a in additions)
+            lines.append(
+                f"| 本金构成 | 原始¥{orig_cap:,.0f} + {added_parts} = ¥{total_principal:,.0f} |"
+            )
         lines.append("")
 
         # 仓位分布
