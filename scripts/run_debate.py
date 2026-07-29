@@ -46,6 +46,7 @@ def parse_args():
     p.add_argument("--mcap", help="市值")
     p.add_argument("--from-scan", help="从 scan 候选 JSON 批量")
     p.add_argument("--from-holdings", help="从持仓 JSON 批量")
+    p.add_argument("--codes", help="逗号分隔的股票代码列表，自动拉行情后批量辩论")
     p.add_argument("--latest", action="store_true", help="查看最近辩论结果")
     p.add_argument("--dry-run", action="store_true", help="仅打印参数，不调 LLM")
     return p.parse_args()
@@ -104,6 +105,52 @@ def debate_from_scan(path: str):
         return
 
     print(f"开始对 {len(stocks)} 只候选股进行多智能体辩论...\n")
+    results = batch_debate(stocks)
+    _print_summary(results)
+
+
+def debate_from_codes(codes_str: str):
+    """从逗号分隔的代码列表自动拉行情后批量辩论"""
+    import re
+    import subprocess
+
+    codes = [c.strip() for c in codes_str.split(",") if c.strip()]
+    if not codes:
+        print("无股票代码")
+        return
+
+    # 自动拉取行情
+    market_codes = ",".join(
+        f"sh{c}" if c.startswith("6") else f"sz{c}" for c in codes
+    )
+    quotes = {}
+    try:
+        raw = subprocess.run(
+            ["curl", "-s", f"http://qt.gtimg.cn/q={market_codes}"],
+            capture_output=True, text=True, timeout=10,
+        )
+        for line in raw.stdout.split("\n"):
+            m = re.search(r'v_\w+="[^"]*~([^~]*)~([^~]*)~([^~]*)~', line)
+            if m:
+                qt_name = m.group(1)
+                qt_price = float(m.group(3)) if m.group(3).replace(".", "").replace("-", "").isdigit() else 0
+                # 用代码匹配（非名称）
+                for c in codes:
+                    if c in line:
+                        quotes[c] = {"name": qt_name, "price": qt_price}
+    except Exception:
+        pass
+
+    stocks = []
+    for c in codes:
+        q = quotes.get(c, {})
+        stocks.append({
+            "code": c,
+            "name": q.get("name", c),
+            "data": {"price": q.get("price", 0), "change_pct": 0},
+        })
+
+    print(f"开始对 {len(stocks)} 只股票进行多智能体辩论...\n")
     results = batch_debate(stocks)
     _print_summary(results)
 
@@ -219,8 +266,12 @@ def main():
         debate_from_holdings(args.from_holdings)
         return
 
+    if args.codes:
+        debate_from_codes(args.codes)
+        return
+
     if not args.code:
-        print("请提供 --code 或 --from-scan/--from-holdings/--latest")
+        print("请提供 --code 或 --from-scan/--from-holdings/--codes/--latest")
         sys.exit(1)
 
     data = build_data(args)
