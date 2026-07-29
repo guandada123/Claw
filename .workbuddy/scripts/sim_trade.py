@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 模拟炒股引擎 — AI 自主决策买卖，跟踪收益与胜率
-总资金：¥30,000 | 不可买创业板/科创板/北交所
+总资金：¥30,000 | 不可买科创板/北交所（创业板已于 07-29 放开）
 
 优化说明（2026-06-06）：
 1. 修复所有语法错误（字典缺少逗号）
@@ -11,7 +11,10 @@
 5. 添加自动止损止盈检查函数
 """
 
+from __future__ import annotations
+
 import fcntl
+import hashlib
 import json
 import logging
 import sys
@@ -61,16 +64,29 @@ COMMISSION_RATE = 0.0003  # 佣金 0.03%
 STAMP_TAX_RATE = 0.001  # 印花税（仅卖出）0.1%
 MIN_COMMISSION = 5.0  # 最低佣金 5 元
 
-# 不可交易的板块（创业板/科创板/北交所）
-RESTRICTED_PREFIXES = ["300", "301", "688", "689", "8", "4"]
+# 不可交易的板块（科创板/北交所/ST）。创业板(300/301)已于 07-29 放开。
+RESTRICTED_PREFIXES = ["688", "689", "8", "4"]
 
 # 初始资金
 INITIAL_CAPITAL = 50000.0
 
+def get_effective_capital(pf: dict) -> float:
+    """实际投入本金 = 初始本金 + 历次加仓合计。
+
+    收益百分比分母用此值，避免硬编码 INITIAL_CAPITAL 与 portfolio.json
+    的 capital_additions 脱节。无 capital_additions 时退化为 INITIAL_CAPITAL。
+    """
+    cfg = pf.get("config", {})
+    base = cfg.get("initial_capital", INITIAL_CAPITAL)
+    adds = sum(float(a.get("amount", 0)) for a in cfg.get("capital_additions", []))
+    return round(base + adds, 2)
+
 # 风险管理参数
 MAX_POSITION_PCT = 0.50  # 单只股票最大仓位 50%
 MAX_SECTOR_PCT = 0.60  # 同行业最大仓位 60%
-STOP_LOSS_PCT = 0.08  # 固定止损线 -8%（降级方案）
+STOP_LOSS_PCT = 0.08  # 固定止损线 -8%（主板/中小板，降级方案）
+# 创业板(300/301)单独更宽止损：20%涨跌停，单日波动大，-8%易被穿透。07-29放开创业板后增设。
+CYB_STOP_LOSS_PCT = 0.15  # 创业板固定止损线 -15%
 TRAILING_STOP_PCT = 0.15  # 追踪止损：从最高价回落 15% 触发
 TAKE_PROFIT_LEVELS = [  # 分级止盈
     {"pct": 0.15, "sell_ratio": 0.33, "desc": "+15%卖出1/3"},
@@ -109,6 +125,63 @@ def save_portfolio(pf: dict):
         atomic_write_json(PORTFOLIO_FILE, pf)
 
 
+MEMORY_FILE = DATA_DIR / "trading_memory.json"
+
+
+def record_trade_memory(txn: dict) -> None:
+    """交易完成后自动写入交易记忆（memory_type=trade），去重防重复写入"""
+    memory_records = []
+    if MEMORY_FILE.exists():
+        try:
+            memory_records = json.loads(MEMORY_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, FileNotFoundError):
+            memory_records = []
+
+    # 用 txn id + date 生成唯一指纹
+    raw = f"{txn.get('id','')}:{txn.get('date','')}:{txn.get('code','')}"
+    fingerprint = hashlib.sha256(raw.encode()).hexdigest()[:16]
+    if any(r.get("fingerprint") == fingerprint for r in memory_records):
+        return  # 已存在，跳过
+
+    txn_type = txn.get("type", "TRADE")
+    code = txn.get("code", "")
+    name = txn.get("name", "")
+    action = "买入" if txn_type == "BUY" else "卖出"
+
+    memory_entry = {
+        "id": f"mem_{txn.get('date','unknown')}_{txn.get('id','').lower()}",
+        "fingerprint": fingerprint,
+        "created_at": now(),
+        "updated_at": now(),
+        "memory_type": "trade",
+        "title": f"{action} {name}({code})",
+        "summary": (
+            f"{action} {shares}股 @¥{price:.2f} | "
+            f"总金额 ¥{txn.get('total',txn.get('net_proceeds',0)):.2f}"
+            if (shares := txn.get("shares", 0)) and (price := txn.get("price", 0))
+            else f"{action} {code}"
+        ),
+        "lesson": txn.get("reason", ""),
+        "symbols": [code],
+        "authors": ["北辰_自动交易"],
+        "strategies": [],
+        "experts": [],
+        "market_regime": "unknown",
+        "positive_signals": [],
+        "negative_signals": [],
+        "applicable_conditions": ["交易闭环自动记录"],
+        "avoid_conditions": [],
+        "source_decision_ids": [],
+        "evidence": {},
+        "confidence": 1.0,
+        "status": "active",
+    }
+    memory_records.append(memory_entry)
+    MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(MEMORY_FILE, memory_records)
+    logger.info("交易记忆已写入: %s", memory_entry["title"])
+
+
 def _empty_portfolio() -> dict:
     return {
         "config": {
@@ -125,12 +198,10 @@ def _empty_portfolio() -> dict:
 
 
 def check_restricted(code: str) -> str | None:
-    """检查股票代码是否受限，返回原因或 None"""
+    """检查股票代码是否受限，返回原因或 None。创业板(300/301)已放开(07-29)。"""
     for prefix in RESTRICTED_PREFIXES:
         if code.startswith(prefix):
             board = {
-                "300": "创业板",
-                "301": "创业板",
                 "688": "科创板",
                 "689": "科创板",
                 "8": "北交所",
@@ -209,11 +280,14 @@ def check_stop_loss(pf: dict, code: str) -> dict:
         except Exception:
             logger.warning("AI止损计算失败，降级到固定止损")
 
-    # 2. 固定止损：-8%（降级方案 / ATR不可用时的主方案）
-    if pnl_pct <= -STOP_LOSS_PCT * 100:
+    # 2. 固定止损（降级方案 / ATR不可用时的主方案）
+    #    创业板(300/301)用更宽止损线 CYB_STOP_LOSS_PCT，其余用 STOP_LOSS_PCT
+    is_cyb = code.startswith(("300", "301"))
+    stop_pct = CYB_STOP_LOSS_PCT if is_cyb else STOP_LOSS_PCT
+    if pnl_pct <= -stop_pct * 100:
         return {
             "should_sell": True,
-            "reason": f"触发固定止损线 {pnl_pct:.2f}% (止损线 -{STOP_LOSS_PCT * 100:.0f}%)",
+            "reason": f"触发固定止损线 {pnl_pct:.2f}% (止损线 -{stop_pct * 100:.0f}%{' 创业板' if is_cyb else ''})",
             "shares_to_sell": pos["shares"],
             "priority": "high",
         }
@@ -389,10 +463,13 @@ def cmd_buy(code: str, shares: int, price: float, name: str = ""):
 
     save_portfolio(pf)
 
+    # 记录交易记忆（审计 🟢6: 异常不阻断交易结果返回）
+    try:
+        record_trade_memory(txn)
+    except Exception as e:
+        logger.warning("交易记忆写入失败（不影响交易结果）: %s", e)
+
     return {
-        "ok": True,
-        "transaction": txn,
-        "position": pf["positions"][code],
         "cash_remaining": pf["cash"],
         "total_asset": calc_total_asset(pf),
     }
@@ -467,6 +544,12 @@ def cmd_sell(code: str, shares: int, price: float, reason: str = ""):
 
     save_portfolio(pf)
 
+    # 记录交易记忆（审计 🟢6: 异常不阻断交易结果返回）
+    try:
+        record_trade_memory(txn)
+    except Exception as e:
+        logger.warning("交易记忆写入失败（不影响交易结果）: %s", e)
+
     return {
         "ok": True,
         "transaction": txn,
@@ -522,8 +605,9 @@ def cmd_execute_suggestion(suggestion: dict, price: float):
 def calc_total_return(pf: dict) -> dict:
     """计算总收益"""
     total = calc_total_asset(pf)
-    pnl = round(total - INITIAL_CAPITAL, 2)
-    pnl_pct = round(pnl / INITIAL_CAPITAL * 100, 2)
+    cap = get_effective_capital(pf)
+    pnl = round(total - cap, 2)
+    pnl_pct = round(pnl / cap * 100, 2)
 
     # 统计已实现盈亏
     realized = sum(t.get("realized_pnl", 0) for t in pf["transactions"] if t["type"] == "SELL")
@@ -552,12 +636,13 @@ def cmd_snapshot():
     pf = load_portfolio()
     d = today_str()
     total = calc_total_asset(pf)
+    cap = get_effective_capital(pf)
 
     pf["daily_snapshot"][d] = {
         "total_asset": total,
         "cash": pf["cash"],
-        "pnl": round(total - INITIAL_CAPITAL, 2),
-        "pnl_pct": round((total - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100, 2),
+        "pnl": round(total - cap, 2),
+        "pnl_pct": round((total - cap) / cap * 100, 2),
         "positions": {
             code: {
                 "name": pos["name"],
@@ -715,13 +800,14 @@ def cmd_report(period: str = "daily"):
     # ══ 构建每日明细（核心增强）═══
     daily_detail = []
     cum_pnl = 0.0
+    cap = get_effective_capital(pf)
 
     for i, dt in enumerate(sorted_dates):
         snap = snapshots[dt]
 
         # 当日收益率（相对前一日）
         if i == 0:
-            daily_ret = round((snap["total_asset"] - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100, 2)
+            daily_ret = round((snap["total_asset"] - cap) / cap * 100, 2)
         else:
             prev_val = snapshots[sorted_dates[i - 1]]["total_asset"]
             daily_ret = (
@@ -729,8 +815,8 @@ def cmd_report(period: str = "daily"):
             )
 
         # 累计收益
-        cum_pnl = round(snap["total_asset"] - INITIAL_CAPITAL, 2)
-        cum_pnl_pct = round(cum_pnl / INITIAL_CAPITAL * 100, 2)
+        cum_pnl = round(snap["total_asset"] - cap, 2)
+        cum_pnl_pct = round(cum_pnl / cap * 100, 2)
 
         # 当日交易
         day_txns = [t for t in txns if t["date"] == dt]

@@ -655,12 +655,32 @@ def call_with_fallback(
 
     # ---- 层级约束：Flash / LOCAL 不进更贵模型 ----
     # Flash(¥0.5) 失败后不能 fallback 到 Pro(¥4.0) 或 CatRouter 旗舰（¥18-36）
+    # （审计 🟡3 修复：滤空时提前返回明确错误，避免「全部 0 次尝试均失败」误导）
     if tier in (ModelTier.FLASH, ModelTier.LOCAL):
         primary_cost = primary["cost_per_10k"]
+        before = len(unique_candidates)
         unique_candidates = [
             c for c in unique_candidates
             if c.get("cost_per_10k", 999) <= primary_cost
         ]
+        if not unique_candidates and before > 0:
+            return {
+                "success": False,
+                "response": None,
+                "model": primary["model"],
+                "provider": primary["provider"],
+                "tier": tier.value if hasattr(tier, "value") else str(tier),
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost_cny": 0.0,
+                "duration_ms": 0,
+                "attempts": [],
+                "fallback_used": False,
+                "error": (
+                    f"Flash/LOCAL层无可用备选（成本约束：所有模型 > ¥{primary_cost}/万token，"
+                    f"已过滤 {before} 个候选）"
+                ),
+            }
 
     for idx, candidate in enumerate(unique_candidates):
         is_fallback = idx > 0

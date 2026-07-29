@@ -103,13 +103,15 @@ def _load_qts_signals() -> dict:
     if "error" in data:
         return {"signals": [], "note": f"QTS拉取失败: {data['error']}"}
     # 质量闸门（A-side 护栏，2026-07-29 加）：回测日报被隔离时直接拒收，不污染共识
-    if data.get("quarantine") or data.get("ok") is False:
+    # 审计 🟡8: 仅依赖 quarantine 字段判断隔离（而非 ok is False，两者耦合易误判）
+    if data.get("quarantine"):
         reason = data.get("quarantine_reason", "回测日报不可信")
         return {"signals": [], "note": f"⚠️ QTS信号已隔离: {reason}"}
     # 跨项目契约校验：缺字段 / STALE 时给出明确提示（不丢弃信号，仅置 note）
     v = validate_qts_signals(data)
     if not v["ok"]:
-        data.setdefault("note", v["msg"])
+        # 审计 🟢3: 直接覆盖确保 STALE 警告不被旧 note 掩盖
+        data["note"] = v["msg"]
     return data  # type: ignore[no-any-return]
 
 

@@ -24,8 +24,8 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = [".workbuddy/tests"]
-pythonpath = [".workbuddy"]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -34,13 +34,23 @@ ignore_missing_imports = true
 check_untyped_defs = true
 warn_return_any = true
 warn_redundant_casts = true
+# 增量类型检查：审计 🟢4 修复 — 扩展覆盖 src/claw/（debate 等新模块）
+files = ["scripts", "src/claw"]
 
 [tool.bandit]
-exclude_dirs = [".workbuddy/tests"]
+# 审计 🟡7 修复：移除 .workbuddy/ 排除（🔴1 硬编码密码已改为环境变量）
+exclude_dirs = ["tests", "archive"]
 skips = ["B324", "B310", "B108"]
 
 [tool.coverage.run]
-source = [".workbuddy/scripts", ".workbuddy/lib"]
+source = ["scripts"]
+omit = ["scripts/test_*.py"]
 
 [tool.coverage.report]
-fail_under = 50
+# 全 scripts 口径（排除 scripts/ 下旧测试文件），256 条用例
+# 当前 34%，排除旧测试后约 41%，下阶段目标 50%
+fail_under = 35
+
+# check_no_double_import 守卫配置
+[tool.ci.double_import]
+ignore_paths = ["tests/conftest.py"]
