@@ -22,6 +22,9 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
+
+_TZ = ZoneInfo("Asia/Shanghai")
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -40,13 +43,57 @@ def _load_article_signals() -> list[dict]:
     if not _ARTICLE_SIGNALS.exists():
         return []
     try:
-        return json.loads(_ARTICLE_SIGNALS.read_text(encoding="utf-8"))
+        return json.loads(_ARTICLE_SIGNALS.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
     except (json.JSONDecodeError, OSError):
         return []
 
 
+def validate_qts_signals(data: dict, max_age_hours: int = 8) -> dict:
+    """校验 QTS 跨项目契约（Claw↔QTS）的有效性与时效性。
+
+    生产者 pull_qts_signals.py 写入 report_date / generated_at；
+    消费者（本模块）须校验字段完整性与时效，避免误用过期/残缺信号。
+
+    时区约定：全部归一化为 Asia/Shanghai。
+    - now 取 datetime.now(_TZ)
+    - generated_at 若无 tzinfo，默认附加以 Asia/Shanghai 再转换
+    - 有 tzinfo → 统一转为 Asia/Shanghai 后比较
+
+    返回: {"ok", "stale", "report_date", "generated_at", "signals", "msg"}
+    """
+    if not isinstance(data, dict):
+        return {"ok": False, "stale": False, "report_date": None,
+                "generated_at": None, "signals": 0,
+                "msg": "契约格式错误：非 JSON 对象"}
+    report_date = data.get("report_date")
+    generated_at = data.get("generated_at")
+    if not report_date or not generated_at:
+        return {"ok": False, "stale": False, "report_date": report_date,
+                "generated_at": generated_at, "signals": len(data.get("signals", [])),
+                "msg": "契约缺字段：report_date / generated_at 缺失"}
+    try:
+        gen = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return {"ok": False, "stale": False, "report_date": report_date,
+                "generated_at": generated_at, "signals": len(data.get("signals", [])),
+                "msg": f"generated_at 格式非法: {generated_at}"}
+    # 时区归一化：无 tzinfo → 假定 Asia/Shanghai；有 tzinfo → 转为 Asia/Shanghai
+    gen = gen.replace(tzinfo=_TZ) if gen.tzinfo is None else gen.astimezone(_TZ)
+    now = datetime.now(_TZ)
+    age_h = (now - gen).total_seconds() / 3600
+    stale = age_h > max_age_hours
+    return {
+        "ok": not stale,
+        "stale": stale,
+        "report_date": report_date,
+        "generated_at": generated_at,
+        "signals": len(data.get("signals", [])),
+        "msg": "⚠️ 数据已过期（STALE）" if stale else "✅ 契约有效",
+    }
+
+
 def _load_qts_signals() -> dict:
-    """加载 QTS 回测信号"""
+    """加载 QTS 回测信号（含跨项目契约校验）"""
     if not _QTS_SIGNALS.exists():
         return {"signals": [], "note": "qts_daily_signals.json 未生成（回测日报尚未运行）"}
     try:
@@ -55,7 +102,15 @@ def _load_qts_signals() -> dict:
         return {"signals": [], "note": "qts_daily_signals.json 解析失败"}
     if "error" in data:
         return {"signals": [], "note": f"QTS拉取失败: {data['error']}"}
-    return data
+    # 质量闸门（A-side 护栏，2026-07-29 加）：回测日报被隔离时直接拒收，不污染共识
+    if data.get("quarantine") or data.get("ok") is False:
+        reason = data.get("quarantine_reason", "回测日报不可信")
+        return {"signals": [], "note": f"⚠️ QTS信号已隔离: {reason}"}
+    # 跨项目契约校验：缺字段 / STALE 时给出明确提示（不丢弃信号，仅置 note）
+    v = validate_qts_signals(data)
+    if not v["ok"]:
+        data.setdefault("note", v["msg"])
+    return data  # type: ignore[no-any-return]
 
 
 def _load_source_weights() -> dict[str, float]:
@@ -77,7 +132,7 @@ def _load_source_weights() -> dict[str, float]:
         data = json.loads(_SOURCE_WEIGHTS.read_text(encoding="utf-8"))
         weights = data.get("weights", data)
         weights.setdefault("_default", 0.5)
-        return weights
+        return weights  # type: ignore[no-any-return]
     except (json.JSONDecodeError, OSError):
         return default_weights
 
@@ -107,7 +162,7 @@ def _load_verify_weights() -> dict[str, float]:
 
 def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
     """计算双源信号共识"""
-    today_str = today_str or datetime.now().strftime("%Y年%m月%d日")
+    today_str = today_str or datetime.now(_TZ).strftime("%Y年%m月%d日")
 
     article_signals = _load_article_signals()
     qts_data = _load_qts_signals()
@@ -206,7 +261,7 @@ def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
 
         pairs.append({
             "code": code,
-            "name": (gzh_names[0] if gzh_names else qts.get("ts_code", "")),
+            "name": (gzh_names[0] if gzh_names else qts.get("ts_code", "") if qts else ""),
             "qts_signal": {
                 "strategy": qts_strategy,
                 "sharpe": qts.get("sharpe") if qts else None,
@@ -238,7 +293,7 @@ def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
     conflict = sum(1 for p in pairs if p["consensus_score"] < 0)
 
     result = {
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": datetime.now(_TZ).isoformat(),
         "date": today_str,
         "summary": {
             "total_pairs": len(pairs),

@@ -70,15 +70,39 @@ def plain_code_to_windcode(code: str) -> str:
 # 每日查询上限（保护积分，1000 免费积分/天 ≈ 200 次简单查询 或 20 次分析查询）
 _DAILY_QUERY_LIMIT = 100
 _query_lock = threading.Lock()
-_daily_query_count = 0
-_daily_query_date = ""
+
+# ── 持久化计数器（跨进程累加，修复"日报永远0"测量bug）──
+# ⚠️ DO NOT REVERT: 原 _daily_query_count 是纯内存变量，进程退出即归零，
+# 导致 wind_quota_report.py 每次新进程读到0、日报失真。改为落盘 JSON 跨进程共享。
+_WIND_COUNT_FILE = os.path.expanduser("~/.workbuddy/wind_query_count.json")
+
+
+def _load_count() -> tuple[str, int]:
+    """读取持久化计数 (date, count)，文件损坏/缺失返回 ('', 0)"""
+    try:
+        with open(_WIND_COUNT_FILE) as f:
+            d = json.load(f)
+        return str(d.get("date", "")), int(d.get("count", 0))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return "", 0
+
+
+def _save_count(date: str, count: int) -> None:
+    """原子写入持久化计数（先写临时文件再 rename，避免半写损坏）"""
+    tmp = _WIND_COUNT_FILE + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump({"date": date, "count": count}, f)
+        os.replace(tmp, _WIND_COUNT_FILE)
+    except OSError as e:
+        logger.warning(f"Wind 计数器持久化失败(不影响本次调用): {e}")
 
 
 def _check_query_limit() -> bool:
-    """检查是否超过每日查询上限（线程安全）"""
-    global _daily_query_count, _daily_query_date
+    """检查是否超过每日查询上限（跨进程线程安全，落盘累加）"""
     with _query_lock:
         today = time.strftime("%Y%m%d")
+        _daily_query_date, _daily_query_count = _load_count()
         if _daily_query_date != today:
             _daily_query_count = 0
             _daily_query_date = today
@@ -88,13 +112,15 @@ def _check_query_limit() -> bool:
             )
             return False
         _daily_query_count += 1
+        _save_count(_daily_query_date, _daily_query_count)
         return True
 
 
 def get_query_stats() -> dict:
-    """查询今日统计 {limit, used, remaining, date}（线程安全）"""
+    """查询今日统计 {limit, used, remaining, date}（跨进程线程安全，读落盘值）"""
     with _query_lock:
         today = time.strftime("%Y%m%d")
+        _daily_query_date, _daily_query_count = _load_count()
         used = _daily_query_count if _daily_query_date == today else 0
     return {
         "limit": _DAILY_QUERY_LIMIT,
@@ -217,9 +243,114 @@ def call_wind_cli_as_rows(
 
     # items 格式下的 row 已经是 dict
     if rows and isinstance(rows[0], dict):
-        return rows
+        return rows  # type: ignore[no-any-return]
 
     # columns + rows 格式：zip 成 dict
     if columns:
         return [dict(zip(columns, row)) for row in rows]
     return None
+
+
+# ── 高频便捷函数 ──
+
+def get_wind_realtime_price(code: str) -> dict | None:
+    """获取指定股票的实时行情（价格 + 涨跌幅）
+
+    Args:
+        code: 裸 6 位代码（如 "600519"）
+
+    Returns:
+        {"price": 1308.0, "change_pct": -1.47, "windcode": "600519.SH"} 或 None
+    """
+    if not wind_available():
+        return None
+    windcode = plain_code_to_windcode(code)
+    rows = call_wind_cli_as_rows(
+        "stock_data",
+        "get_stock_price_indicators",
+        {"windcode": windcode, "indexes": "最新成交价,涨跌幅"},
+        timeout=10,
+    )
+    if not rows or not rows[0]:
+        return None
+    row = rows[0]
+    try:
+        price = None
+        change_pct = None
+        for k in row:
+            kl = k.lower()
+            if "成交价" in kl or "price" in kl or "最新" in kl:
+                price = float(row[k]) if row[k] is not None else None
+            elif "涨跌" in kl or "change" in kl:
+                change_pct = float(row[k]) if row[k] is not None else None
+        if price is not None or change_pct is not None:
+            return {"price": price, "change_pct": change_pct, "windcode": windcode}
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
+def get_wind_kline(
+    code: str,
+    days: int = 60,
+    kline_type: str = "日K",
+) -> list[dict] | None:
+    """获取指定股票的历史 K 线数据
+
+    Kline 列名: TIME, OPEN, MATCH(=收盘), HIGH, LOW, AMOUNT, VOL, PCT_CHG, PRE_CLOSE
+
+    Args:
+        code: 裸 6 位代码
+        days: 回溯天数
+        kline_type: K 线类型（日K/周K/月K）
+
+    Returns:
+        list[dict] 每行代表一根 K 线，或 None
+    """
+    if not wind_available():
+        return None
+    windcode = plain_code_to_windcode(code)
+    end = time.strftime("%Y%m%d")
+    # 保守估算：days*1.5 天窗口确保够
+    window = max(days * 2, 400)
+    start_ts = time.time() - window * 86400
+    begin = time.strftime("%Y%m%d", time.localtime(start_ts))
+    return call_wind_cli_as_rows(
+        "stock_data",
+        "get_stock_kline",
+        {
+            "windcode": windcode,
+            "kline": kline_type,
+            "begin_date": begin,
+            "end_date": end,
+        },
+        timeout=15,
+    )
+
+
+def get_wind_ma(code: str, period: int = 20) -> float | None:
+    """计算指定股票 Wind K 线的移动平均线（MA）
+
+    Args:
+        code: 裸 6 位代码
+        period: 均线周期（默认 20 = MA20）
+
+    Returns:
+        MA 值（float），或 None
+    """
+    # 拉足够数据（period*2 确保够，最小 40）
+    klines = get_wind_kline(code, days=max(period * 2, 40))
+    if not klines or len(klines) < period:
+        return None
+    try:
+        closes = []
+        for k in klines:
+            # MATCH = 收盘价
+            v = k.get("MATCH") or k.get("match") or k.get("close") or k.get("收盘价")
+            if v is not None:
+                closes.append(float(v))
+        if len(closes) < period:
+            return None
+        return sum(closes[-period:]) / period
+    except (ValueError, TypeError):
+        return None
