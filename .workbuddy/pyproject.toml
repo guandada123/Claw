@@ -15,6 +15,7 @@ dependencies = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# 注：lib + scripts 路径已由 conftest.py 统一添加，此处仅作兜底
 pythonpath = ["lib", "scripts"]
 addopts = "-v --tb=short --strict-markers"
 markers = [
@@ -23,7 +24,7 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = false
 warn_return_any = true
 warn_unused_configs = true
