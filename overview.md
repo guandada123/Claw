@@ -1,22 +1,45 @@
-# 助理全主板选股器落地（B方案）
+# 🐟 鱼盆数据提取 — 2026-07-22 08:40 批次
 
-## 做了什么
-把 📊炒股助理 从「纯持仓监控」升级为「全主板主动选股器」，复用投顾 v2.0 的 QTS COMBO 信号体系，每天收盘后自动扫全主板并向用户推新股票建议。
+## 任务概要
+- **自动化 ID**: 1783472286775（v5 直连RSS+LLM视觉OCR + 失败告警）
+- **执行时间**: 2026-07-22 08:40（交易日，schedule 锁可用）
+- **执行结果**: ✅ OCR完成 + 双推送（软失败告警 + 已更新通知）
 
-## 关键成果
-1. **基础设施复用**：发现 QTS `daily_quote` 已有 3521 只全市场日线（到 7/13），跳过 westock 批量回填，直接 SQL 取数。
-2. **基准池构建**：主板(8前缀) + 近20日均成交额≥3亿 + 非ST/退 → **1076 只**（`mainboard_scan_pool.json`）。
-3. **扫描脚本**：`scan_mainboard_full.py` 容器内运行，复用 QTS COMBO=VWM(0.6)+BBR(0.4)，ADX≥25过滤，RSI>80拦截，COMBO≥0.2买入，输出完整建议格式（代码+价位+手数+止损+周期+风险）。
-4. **实测结论（7/14）**：全主板 1067 只有效扫描，**0 只买入候选**——市场系统性回调后死水期，VWM/BBR 全 0，与投顾扩大池扫描自洽。
-5. **收盘自动化**：`automation-1784013251841`，每个交易日 15:30 跑全主板扫描并推飞书（📊炒股助理前缀）。
-6. **规则固化**：写入 MEMORY.md「助理全主板选股规则」段。
+## 关键发现
+**公众号 RSS 表内数据日期（2026-07-20）比 self-built Wind primary（2026-07-22）旧 2 天**。这是 v5 prompt 首次在「双源数据并列」场景下实战——基线来自 primary，新文却带回 2 天前的鱼盆表。
+
+## 数据流
+1. **STEP 0 基线**：`data_date=2026-07-22`（来自 self-built Wind primary 8:35 批次）
+2. **STEP 1 抓取**：猫笔叨的读后感专区《猫哥昨晚似乎没喝尽兴，评论区少了好多…》3 张图
+3. **STEP 1 软失败告警**：`DATA_DATE==BASE_DATE` 触发，message_id `om_x100b69355499aca8ddb9ec5e2869fa2`（继续推进）
+4. **STEP 2 LLM 视觉 OCR**：
+   - 图0 → `yupen_2026-07-20_yupen_trend.json`（20 指数，港股三剑客红底）
+   - 图1 → `yupen_2026-07-20_sector_rotation.json`（14 板块，中证消费/中证煤炭/CS创新药/中证红利红底）
+   - 图2 跳过（美股/A50/中概/VIX 行情表）
+5. **STEP 3 更新推送**：message_id `om_x100b69356c8aa4b0df92d3169060f0a`，含 data_date=2026-07-20 + primary 对比说明
 
 ## 交付文件
-- `/Users/guan/WorkBuddy/Claw/.workbuddy/scripts/scan_mainboard_full.py` — 全主板扫描脚本
-- `/Users/guan/WorkBuddy/Claw/.workbuddy/scripts/mainboard_scan_pool.json` — 1076只基准池
-- `/Users/guan/WorkBuddy/Claw/.workbuddy/scripts/astock_code_name.json` — 全市场代码名称(ST映射)
-- `/Users/guan/WorkBuddy/Claw/.workbuddy/scripts/mainboard_liq_pool.json` — 流动性初筛池(1084只)
+| 文件 | 用途 | 数据日期 | 板块数 |
+|------|------|---------|--------|
+| `output/yupen/yupen_2026-07-20_sector_rotation.json` | 板块轮动 OCR 结构化 | 2026-07-20 | 14 |
+| `output/yupen/yupen_2026-07-20_yupen_trend.json` | 趋势模型 OCR 结构化 | 2026-07-20 | 20 |
+| `output/yupen/yupen_2026-07-22_raw.json` | 抓取元数据（status=ocr_done） | 2026-07-22 | - |
 
-## 下一步
-- 等市场 COMBO 翻正（死水期结束）后，自动化会在收盘后自动推买入候选
-- 鱼盆板块数据当前 STALE(7/8)，恢复后可增强板块共振权重
+## 强势区摘要
+**板块（红底）**：
+- 中证消费 (+6.66%) / 中证煤炭 (+6.64%) / CS创新药 (+4.52%) / 中证红利 (+4.17%)
+
+**指数（红底）**：
+- 港股三剑客：国企指数 (+6.18%) / 恒生指数 (+5.63%) / 恒生科技 (+3.94%)
+
+**弱势最深**：
+- 板块：半导体 (-26.05%) / 商业航天 (-16.85%) / 新能源 (-15.12%)
+- 指数：中证2000 (-16.65%) / 韩国综合 (-16.48%) / 中证1000 (-15.63%)
+
+## v5 prompt 实战问题
+1. **软失败告警时机不准**：STEP1 的 `DATA_DATE==BASE_DATE` 检查在 OCR 前触发，但此时 read_yupen 读的是 self-built primary 2026-07-22，OCR 后才会发现实际 RSS 数据是 2026-07-20。导致连续两条推送（前置告警 + 后续更新）。
+2. **建议优化**：软失败检查应改为「fetch 找到新文章 AND 新文章数据日期 ≤ 基线」才告警；或读 raw.json 的 table_dates 字段做精准比对。
+
+## 后续建议
+- 公众号鱼盆表比 self-built Wind primary 慢 1-2 天是常态。如果未来 primary 持续领先，RSS OCR 价值会降低（可考虑停 RSS OCR 改用纯自建数据；保留 RSS 抓取作对账/审计备份）。
+- v5 prompt 软失败逻辑需要重写以避免与 primary 错位时的双重告警。

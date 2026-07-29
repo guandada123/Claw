@@ -211,7 +211,8 @@ def main():
         stocks = extract_signals_for_article(title, content, full_map, short_map)
         if not stocks:
             continue
-        article_id = hashlib.md5(f.name.encode()).hexdigest()[:12]
+        # article_id 仅用于去重标识, 非密码学用途
+        article_id = hashlib.md5(f.name.encode(), usedforsecurity=False).hexdigest()[:12]
         rec_date = (pub[:10] if pub else datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d"))
         for s in stocks:
             sig = {

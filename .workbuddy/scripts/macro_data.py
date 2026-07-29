@@ -1,26 +1,114 @@
 #!/usr/bin/env python3
 """
-宏观数据采集脚本 — 基于 AKShare
+宏观数据采集脚本 — AKShare + Wind EDB(MCP) + AnySearch
 覆盖指标: GDP / CPI / PMI / 货币供应 / Shibor / 社融 / LPR / 外汇储备
 输出: data/macro_data.json（标准化格式）
-Python: 系统 3.9（AKShare 已安装）
+数据源优先级: Wind EDB MCP(HTTP) → AKShare → AnySearch
 """
 
 import json
+import re
+import subprocess
 import sys
+import urllib.request
 import warnings
 from datetime import datetime
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
-import akshare as ak
+try:
+    import akshare as ak
+except ImportError:
+    ak = None  # type: ignore[assignment]
 
 # 输出目录
 DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# ── AnySearch 回退源（双数据源：AKShare 优先 + AnySearch 降级）──
+# ── Wind MCP HTTP 直连（用 urllib，零依赖）──
+WIND_MCP_URL = "https://mcp.wind.com.cn/vserver_analytics_data/mcp/"
+WIND_MCP_AUTH = "Bearer ak_7w6DGzdxZAtiZA5Z6btos1VjS7hexvPI"
+
+# Wind 指标 → MCP 查询关键词
+WIND_MCP_QUERIES = {
+    "gdp": "中国GDP当季同比 最近10期",
+    "cpi": "中国CPI当月同比 最近12期",
+    "pmi": "中国制造业PMI 最近12期",
+    "money_supply": "中国M2同比 最近12期",
+    "shibor": "Shibor隔夜利率 最近12期",
+    "lpr": "贷款市场报价利率LPR 最近12期",
+    "social_financing": "中国社会融资规模增量 最近12期",
+    "forex_reserve": "中国外汇储备 最近12期",
+}
+
+
+def _fetch_wind_mcp_macro(indicator: str) -> dict | None:
+    """从 Wind analytics_data MCP (HTTP) 获取宏观指标。
+
+    Args:
+        indicator: 查询关键词（如 "中国CPI当月同比 最近12期"）
+
+    Returns:
+        {"status": "ok", "latest_12": [{"日期": ..., "值": ...}]} 或 None
+    """
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": {"name": "get_financial_data", "arguments": {"question": indicator, "lang": "CNS"}},
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        WIND_MCP_URL, data=payload,
+        headers={
+            "Authorization": WIND_MCP_AUTH,
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8")
+    except Exception:
+        return None
+
+    # 解析 SSE 响应: event: message \n data: {...}
+    for line in raw.split("\n"):
+        line = line.strip()
+        if line.startswith("data: "):
+            try:
+                msg = json.loads(line[6:])
+                result = msg.get("result", {})
+                content = result.get("content", [])
+                for c in content:
+                    if c.get("type") == "text":
+                        text = json.loads(c["text"])
+                        rows = text.get("data", {}).get("data", [])
+                        if not rows:
+                            continue
+                        data_rows = rows[0].get("rows", [])
+                        if not data_rows:
+                            continue
+                        cols = rows[0].get("columns", [])
+                        # 找日期列和第一个数值列
+                        date_idx = next((i for i, col in enumerate(cols) if "日期" in col.get("name", "")), 0)
+                        val_idx = min(i for i, col in enumerate(cols) if i != date_idx and "累计" not in col.get("name", ""))
+                        name = cols[val_idx].get("name", indicator)
+                        unit = cols[val_idx].get("unit", "")
+                        flat = []
+                        for row in data_rows:
+                            flat.append({
+                                "指标": name,
+                                "单位": unit,
+                                "日期": str(row[date_idx])[:10],
+                                "值": row[val_idx],
+                            })
+                        if flat:
+                            return {"status": "ok", "latest_12": flat, "_source": "wind"}
+            except (json.JSONDecodeError, IndexError, KeyError, TypeError):
+                continue
+    return None
+
+
+# ── AnySearch 回退源（Wind MCP → AKShare → AnySearch 三级降级）──
 # helper 位于项目 scripts/ 目录（与 .workbuddy/scripts/ 同级）
 _HELPER_PATH = Path(__file__).resolve().parent.parent / "scripts" / "anysearch_helper.py"
 _anysearch_helper = None
@@ -59,25 +147,40 @@ def safe_fetch(name: str, fn, **kwargs) -> dict:
 
 
 def _with_fallback(name: str, fn, as_type: str, mapper, **kwargs) -> dict:
-    """AKShare 优先，失败/空时回退 AnySearch finance.macro。
+    """Wind MCP(HTTP) 优先，AKShare 次之，AnySearch 末级降级。
 
     Args:
         name: 指标名（用于日志）
         fn: AKShare 取数函数
-        as_type: 回退映射键（gdp/cpi/money_supply/lpr/shibor）
-        mapper: 将 AnySearch 原始 dict 转成与 AKShare 分支一致的字段结构
+        as_type: 回退映射键（gdp/cpi/money_supply/lpr/shibor 等）
+        mapper: 将原始 dict 转成与 AKShare 分支一致的字段结构
     Returns:
-        dict: 成功含业务字段 + '_source'（akshare/anysearch）；
+        dict: 成功含业务字段 + '_source'（wind/akshare/anysearch）；
               全部失败含 'error' + '_source': 'none'
     """
+    # 1) Wind MCP (HTTP 直连，优先)
+    wind_query = WIND_MCP_QUERIES.get(as_type)
+    if wind_query:
+        try:
+            wind_result = _fetch_wind_mcp_macro(wind_query)
+            if wind_result and wind_result.get("status") == "ok":
+                mapped = mapper(wind_result)
+                if mapped and "error" not in mapped:
+                    mapped["_source"] = "wind"
+                    return mapped
+        except Exception:
+            pass
+
+    # 2) AKShare
     ak_result = safe_fetch(name, fn, **kwargs)
     if ak_result["status"] == "ok":
         d = mapper(ak_result)
         d["_source"] = "akshare"
         return d
-    # AKShare 失败 → 回退 AnySearch
+
+    # 3) AnySearch（末级降级）
     if _anysearch_helper is None or as_type not in _AKSHARE_TO_ANYSEARCH:
-        return {"error": ak_result.get("error", "akshare_failed"),
+        return {"error": ak_result.get("error", "wind+akshare_failed"),
                 "_source": "none"}
     try:
         alt = _anysearch_helper.macro_indicator(_AKSHARE_TO_ANYSEARCH[as_type])
@@ -372,9 +475,74 @@ def calculate_macro_score(data: dict) -> dict:
     }
 
 
+# ── Wind MCP 全量指标映射（一次拉全部，失败即降级）──
+_WIND_INDICATOR_MAP = {
+    "gdp":  {"q": "中国GDP当季同比 最近8期"},
+    "cpi":  {"q": "中国CPI当月同比 最近12期"},
+    "pmi":  {"q": "中国制造业PMI 最近12期"},
+    "money_supply": {"q": "中国M2同比 最近12期"},
+    "shibor": {"q": "Shibor隔夜利率 最近12期"},
+    "lpr":  {"q": "贷款市场报价利率LPR 最近12期"},
+    "social_financing": {"q": "中国社会融资规模增量 最近12期"},
+    "forex_reserve": {"q": "中国外汇储备 最近12期"},
+}
+
+
+def _fetch_all_via_wind_mcp() -> dict | None:
+    """Wind MCP 一次拉取全部指标。任一失败返回 None 触发降级。"""
+    result = {}
+    for key, spec in _WIND_INDICATOR_MAP.items():
+        raw = _fetch_wind_mcp_macro(spec["q"])
+        if not raw or raw.get("status") != "ok":
+            print(f"[wind] {key}: 获取失败 → 整体降级", file=sys.stderr)
+            return None
+        rows = raw.get("latest_12", [])
+        if not rows:
+            return None
+        val = rows[0].get("值")
+        if key == "gdp":
+            result["gdp"] = {
+                "latest_quarter": str(rows[0].get("日期", ""))[:7],
+                "gdp_yoy": val, "gdp_absolute": None,
+                "primary_yoy": None, "secondary_yoy": None, "tertiary_yoy": None,
+                "_source": "wind",
+            }
+        elif key == "cpi":
+            result["cpi"] = {"cpi_national_yoy": val, "_source": "wind"}
+        elif key == "pmi":
+            result["pmi"] = {"pmi_manufacturing": val, "_source": "wind"}
+        elif key == "money_supply":
+            result["money_supply"] = {"m2_yoy": val, "_source": "wind"}
+        elif key == "shibor":
+            result["shibor"] = {"overnight": val, "_source": "wind"}
+        elif key == "lpr":
+            result["lpr"] = {"lpr_1y": val, "_source": "wind"}
+        elif key == "social_financing":
+            result["social_financing"] = {"aggregate": val, "_source": "wind"}
+        elif key == "forex_reserve":
+            result["forex_reserve"] = {"amount": val, "_source": "wind"}
+    result["_source"] = "wind"
+    result["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    result["indicator_count"] = len(result) - 2
+    return result
+
+
 def main():
     print(f"[{datetime.now()}] 宏观数据采集开始...")
 
+    # 1) Wind MCP (HTTP) 优先 — 一次拉全量
+    wind_data = _fetch_all_via_wind_mcp()
+    if wind_data:
+        print(json.dumps(wind_data, ensure_ascii=False, indent=2))
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        (DATA_DIR / "macro_data.json").write_text(
+            json.dumps(wind_data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print("[macro_data] ✅ Wind MCP 数据已写入 macro_data.json")
+        return wind_data
+
+    # 2) 降级：AKShare + AnySearch
+    print("[macro_data] Wind MCP 不可用，降级 AKShare...", file=sys.stderr)
     data = {}
 
     # 核心指标
