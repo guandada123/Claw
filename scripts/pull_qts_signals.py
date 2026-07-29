@@ -100,7 +100,7 @@ def _connect() -> dict:
         for line in reversed(output.split("\n")):
             line = line.strip()
             if line.startswith("{"):
-                return json.loads(line)
+                return json.loads(line)  # type: ignore[no-any-return]
 
         return {"error": f"no JSON in output: {output[:200]}"}
     finally:
@@ -142,20 +142,46 @@ def pull(min_stability: float = 50, top_n: int = 10) -> dict[str, Any]:
             deduped.append(s)
             seen_codes.add(code)
 
+    # ── 质量闸门（A-side 护栏，2026-07-29 加）──
+    # ⚠️ DO NOT REVERT: 当日回测日报 WF 全部未通过(或样本严重污染)时，
+    # 写 quarantine 文件(ok:false)而非空"有效"文件，阻断下游 signal_consensus 消费。
+    total = len(signals)
+    wf_pass_rate = (len(passed) / total) if total else 0.0
+    # ST 污染检测：原始信号里出现 ST/*ST 股票名
+    st_hits = [s for s in signals if "ST" in str(s.get("name", "")).upper()]
+    quarantine = False
+    q_reason = ""
+    if total > 0 and len(passed) == 0:
+        quarantine = True
+        q_reason = f"WF验证全部未通过({len(passed)}/{total})，回测不可信，已隔离"
+    elif st_hits:
+        quarantine = True
+        q_reason = f"回测池含ST股票({len(st_hits)}只，如{st_hits[0].get('name','?')})，样本污染，已隔离"
+    elif wf_pass_rate < 0.01 and total >= 100:
+        # 万级以上样本却近乎0通过 → 策略库整体失效
+        quarantine = True
+        q_reason = f"WF通过率{wf_pass_rate:.1%}过低(样本{total})，策略库整体失效，已隔离"
+
     result = {
         "generated_at": datetime.now().isoformat(),
         "source": "QTS回测日报",
         "report_date": raw.get("report_date"),
         "report_type": raw.get("report_type"),
-        "total_signals": len(signals),
+        "total_signals": total,
         "wf_passed_signals": len(passed),
         "deduped_signals": len(deduped),
         "min_stability": min_stability,
-        "signals": deduped[:top_n],
+        "ok": not quarantine,
+        "quarantine": quarantine,
+        "quarantine_reason": q_reason,
+        "signals": deduped[:top_n] if not quarantine else [],
     }
 
     _OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     _OUTPUT.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    if quarantine:
+        print(f"[QUARANTINE] {q_reason}")
 
     return result
 
