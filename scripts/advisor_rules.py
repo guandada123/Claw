@@ -28,8 +28,9 @@ advisor_rules.py — 炒股助理操作纪律规则引擎
   diag = advisor.diagnose_holding(holding_dict, quotes_dict)
 
 数据源:
-  - calc_rsi.py (RSI14, 腾讯 ifzq 前复权)
-  - 腾讯 qt.gtimg.cn (实时行情/MA20 用日K近似)
+  - Wind 万得 (优先: 实时行情/K线/技术指标)
+  - calc_rsi.py (RSI14, 腾讯 ifzq 前复权, Wind 不可用时)
+  - 腾讯 qt.gtimg.cn (实时行情/MA20, Wind 不可用时)
   - portfolio.json (持仓 + broker 标记)
 
 设计原则: 纯函数式规则，不修改外部状态；网络失败降级为 null 不阻断主流程。
@@ -43,6 +44,29 @@ import sys
 import urllib.request
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
+
+# Wind 万得（优先数据源）
+try:
+    from claw.feeds.wind_analytics import WindAnalytics
+    from claw.feeds.wind_utils import get_wind_ma, get_wind_realtime_price, wind_available
+except ImportError:
+    # 降级：没有 claw 包时所有 Wind 方法返回 None
+    def wind_available() -> bool:  # type: ignore[misc]
+        return False
+
+    def get_wind_realtime_price(code: str) -> None:  # type: ignore[misc]
+        return None
+
+    def get_wind_ma(code: str, period: int = 20) -> None:  # type: ignore[misc]
+        return None
+
+    class WindAnalytics:  # type: ignore[no-redef]
+        def get_technicals(self, code: str, period: str = "") -> None:
+            return None
+        @property
+        def available(self) -> bool:
+            return False
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CALC_RSI = PROJECT_ROOT / "scripts" / "calc_rsi.py"
@@ -160,7 +184,7 @@ class AdvisorRules:
 
         holding 需含: bought_date(ISO str) / avg_cost / current_price / shares
         """
-        flags = []
+        flags: list[dict] = []
         today = today or date.today()
         bought = holding.get("bought_date")
         if not bought:
@@ -268,7 +292,7 @@ class AdvisorRules:
         loss_sells = [t for t in recent if t.get("side") == "sell" and (t.get("pnl") or 0) < 0]
         buys = [t for t in recent if t.get("side") == "buy"]
 
-        result = {"triggered": False, "reasons": []}
+        result: dict[str, Any] = {"triggered": False, "reasons": []}
 
         # B1: 30天内≥2次亏卖 → 冷却
         if len(loss_sells) >= 2:
@@ -369,18 +393,34 @@ class AdvisorRules:
         return f"sh{code}" if code.startswith("6") else f"sz{code}"
 
     def _get_rsi(self, code_prefixed: str) -> float | None:
+        """RSI(14)。Wind 万得直接返回，降级 calc_rsi.py 子进程。"""
+        bare = code_prefixed[2:] if code_prefixed.startswith(("sh", "sz")) else code_prefixed
+        # 1) Wind 万得 — 直接获取 RSI 技术指标
+        _wa = WindAnalytics()
+        if _wa.available:
+            try:
+                rsi_data = _wa.get_technicals(bare, "近60日RSI")
+                if rsi_data and len(rsi_data) >= 1:
+                    row = rsi_data[-1]
+                    # 搜索可能的 RSI 列名
+                    rsi_key = next((k for k in row if ("RSI" in k or "相对强弱" in k)), None)
+                    if rsi_key:
+                        v = row[rsi_key]
+                        if v is not None and isinstance(v, (int, float)):
+                            return round(float(v), 1)
+            except Exception:
+                pass
+        # 2) calc_rsi.py 子进程
         try:
             out = subprocess.run(
                 [sys.executable, str(CALC_RSI), code_prefixed],
                 capture_output=True, text=True, timeout=30
             )
-            # 解析 JSON 行
             for line in out.stdout.splitlines():
                 if line.startswith("JSON:"):
                     data = json.loads(line[5:].strip())
                     if data and data[0].get("rsi14") is not None:
                         return float(data[0]["rsi14"])
-            # 退化解析: sh600522: RSI(14)=37.4
             for line in out.stdout.splitlines():
                 if "RSI(14)=" in line:
                     return float(line.split("=")[1].strip())
@@ -389,12 +429,22 @@ class AdvisorRules:
         return None
 
     def _get_day_change(self, code_prefixed: str) -> float | None:
+        """当日涨跌幅（%）。Wind 优先，降级腾讯 gtimg。"""
+        # 1) Wind 万得
+        bare = code_prefixed[2:] if code_prefixed.startswith(("sh", "sz")) else code_prefixed
+        if wind_available():
+            try:
+                r = get_wind_realtime_price(bare)
+                if r and r.get("change_pct") is not None:
+                    return r["change_pct"]  # type: ignore[no-any-return]
+            except Exception:
+                pass
+        # 2) 腾讯 gtimg
         try:
             url = f"https://qt.gtimg.cn/q={code_prefixed}"
             req = urllib.request.Request(url)
             with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: URL scheme is hardcoded https
                 text = resp.read().decode("gbk", errors="replace")
-            # 字段 [32] = 涨跌幅%
             vals = text.split('"')[1].split("~")
             if len(vals) > 32:
                 return float(vals[32])
@@ -403,7 +453,17 @@ class AdvisorRules:
         return None
 
     def _get_live_price(self, code_prefixed: str) -> dict | None:
-        """拉取实时价（price + change_pct），供 diagnose 自动注入"""
+        """拉取实时价（price + change_pct）。Wind 优先，降级腾讯 gtimg。"""
+        bare = code_prefixed[2:] if code_prefixed.startswith(("sh", "sz")) else code_prefixed
+        # 1) Wind 万得
+        if wind_available():
+            try:
+                r = get_wind_realtime_price(bare)
+                if r:
+                    return {"price": r.get("price"), "change_pct": r.get("change_pct")}
+            except Exception:
+                pass
+        # 2) 腾讯 gtimg
         try:
             url = f"https://qt.gtimg.cn/q={code_prefixed}"
             req = urllib.request.Request(url)
@@ -420,8 +480,17 @@ class AdvisorRules:
         return None
 
     def _get_ma20(self, code_prefixed: str) -> float | None:
-        """拉日K收盘价算 MA20（优先腾讯ifzq前复权，失败回退新浪）"""
-        # 1) 腾讯 ifzq 前复权
+        """MA20。Wind 优先，降级腾讯 ifzq → 新浪。"""
+        bare = code_prefixed[2:] if code_prefixed.startswith(("sh", "sz")) else code_prefixed
+        # 1) Wind 万得
+        if wind_available():
+            try:
+                ma = get_wind_ma(bare, period=20)
+                if ma is not None:
+                    return ma
+            except Exception:
+                pass
+        # 2) 腾讯 ifzq 前复权
         try:
             url = (f"https://web.ifzq.gtimg.cn/appstuff/app/fqkline/get"
                    f"?param={code_prefixed},day,,,60,qfq")
@@ -437,7 +506,7 @@ class AdvisorRules:
                         return sum(closes) / len(closes[-20:])
         except Exception:
             pass
-        # 2) 新浪回退
+        # 3) 新浪回退
         try:
             url = (f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
                    f"/CN_MarketData.getKLineData?symbol={code_prefixed}&scale=240&ma=no&datalen=60")
@@ -457,7 +526,7 @@ class AdvisorRules:
             return {}
         try:
             with open(path, encoding="utf-8") as f:
-                return json.load(f)
+                return json.load(f)  # type: ignore[no-any-return]
         except (OSError, json.JSONDecodeError):
             return {}
 

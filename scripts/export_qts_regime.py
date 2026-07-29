@@ -104,7 +104,7 @@ def export() -> dict:
 
     _OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     _OUTPUT.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    return data
+    return data  # type: ignore[no-any-return]
 
 
 if __name__ == "__main__":

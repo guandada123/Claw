@@ -6,7 +6,7 @@
     python3 scripts/calc_rsi.py sh600522 sz000636  # 多只
     python3 scripts/calc_rsi.py 600522 000636      # 裸代码自动加前缀(6→sh, 其他→sz)
 
-数据源: 腾讯财经前复权日K (web.ifzq.gtimg.cn)，本地计算 Wilder RSI(14)
+数据源: Wind 万得(优先) → 腾讯财经前复权日K (web.ifzq.gtimg.cn) → 新浪
 降级: 网络失败/数据不足 → 输出 null + 原因，不抛异常（供自动化安全调用）
 """
 from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
@@ -23,6 +23,17 @@ try:
 except Exception:
     _CTX = None  # type: ignore[assignment]
 
+# Wind 万得（可选依赖 — claw 包不存在也不阻断）
+try:
+    sys.path.insert(0, __file__ + "/../../src")
+    from claw.feeds.wind_utils import get_wind_kline, wind_available
+except ImportError:
+    def wind_available() -> bool:  # type: ignore[misc]
+        return False
+
+    def get_wind_kline(code: str, days: int = 60, kline_type: str = "日K") -> None:  # type: ignore[misc]
+        return None
+
 
 def _prefix(code: str) -> str:
     code = code.strip().lower()
@@ -34,8 +45,23 @@ def _prefix(code: str) -> str:
 def fetch_close(code_prefixed: str, n: int = 60) -> list[float]:
     """拉前复权日K收盘价序列（远端取 n+1 根，本地算 RSI）。
 
-    优先腾讯 ifzq，失败回退新浪 K 线（稳定、无需证书）。
+    Wind → 腾讯 ifzq → 新浪 K 线。
     """
+    # 0) Wind 万得（优先）
+    bare = code_prefixed[2:] if code_prefixed.startswith(("sh", "sz")) else code_prefixed
+    if wind_available():
+        try:
+            klines = get_wind_kline(bare, days=n + 5)
+            if klines and len(klines) >= n:
+                closes = []
+                for k in klines:
+                    v = k.get("MATCH") or k.get("match") or k.get("close") or k.get("收盘价")
+                    if v is not None:
+                        closes.append(float(v))
+                if len(closes) >= n:
+                    return closes[-n:]
+        except Exception:
+            pass
     # 1) 腾讯 ifzq（前复权）
     try:
         url = (
@@ -53,8 +79,8 @@ def fetch_close(code_prefixed: str, n: int = 60) -> list[float]:
     except Exception:
         pass
 
-    # 2) 新浪回退（深证=sz 前缀去 0 补 1? 新浪用 sh600522 / sz000636）
-    sina_code = code_prefixed  # 新浪同样用 sh/sz 前缀
+    # 2) 新浪回退
+    sina_code = code_prefixed
     url = (
         f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
         f"/CN_MarketData.getKLineData?symbol={sina_code}&scale=240&ma=no&datalen={n+1}"
@@ -63,7 +89,6 @@ def fetch_close(code_prefixed: str, n: int = 60) -> list[float]:
     resp = urllib.request.urlopen(req, timeout=6)  # nosec B310: sina finance
     raw = resp.read().decode("utf-8", errors="replace")
     arr = json.loads(raw)
-    # 新浪: [{"day":"2026-07-10","close":"45.91",...}, ...]
     closes = [float(row["close"]) for row in arr if row.get("close")]
     return closes
 

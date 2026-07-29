@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import contextlib
 from typing import Any
 
 from claw.feeds.wind_analytics import WindAnalytics
@@ -51,27 +50,29 @@ class WindStrategy:
 
         # MACD
         macd_data = self._wa.get_technicals(self.code, "近60日MACD走势")
+        if not macd_data:
+            macd_data = self._wa.get_technicals(self.code, "近60日MACD")
         if macd_data and len(macd_data) >= 2:
-            lt = macd_data[-1]
-            pv = macd_data[-2]
-            # 遍历可能的列名
-            macd_key = next(
-                (k for k in lt if "MACD" in k),
-                None,
-            )
-            prev_key = next(
-                (k for k in pv if "MACD" in k),
-                None,
-            )
-            if macd_key and prev_key:
-                cur = lt[macd_key]
-                prv = pv[prev_key]
-                if isinstance(cur, (int, float)) and isinstance(prv, (int, float)):
-                    result["macd_trend"] = "↑" if cur > prv else "↓"
-                    result["macd_val"] = round(cur, 2)
+            def _macd_of(row):
+                k = next((kk for kk in row if "MACD" in kk and "时间" not in kk), None)
+                if k and isinstance(row.get(k), (int, float)):
+                    return float(row[k])
+                return None
+            vals = [v for v in (_macd_of(r) for r in reversed(macd_data)) if v is not None]
+            if len(vals) >= 2:
+                cur, prv = vals[0], vals[1]
+                result["macd_val"] = round(cur, 2)
+                if cur > prv:
+                    result["macd_trend"] = "↑"
+                elif cur < prv:
+                    result["macd_trend"] = "↓"
+                else:
+                    result["macd_trend"] = "→"
 
         # RSI
         rsi_data = self._wa.get_technicals(self.code, "近60日RSI")
+        if not rsi_data:
+            rsi_data = self._wa.get_technicals(self.code, "近60日每日RSI")
         if rsi_data:
             rsi_row = rsi_data[-1]
             rsi_key = next((k for k in rsi_row if ("RSI" in k or "相对强弱" in k)), None)
@@ -107,8 +108,19 @@ class WindStrategy:
         ]
 
     def risk_snapshot(self) -> dict[str, Any]:
-        """风险快照"""
-        result: dict[str, Any] = {"beta": None, "volatility": None}
+        """风险快照
+
+        注意：Wind 风险指标口径不稳定（Beta 偶发负值、波动率失真），
+        当 ``beta_suspect`` / ``vol_suspect`` 为 True 时，对应值仅供参考，
+        勿直接用于仓位/风险预算。
+        """
+        result: dict[str, Any] = {
+            "beta": None,
+            "volatility": None,
+            "beta_suspect": False,
+            "vol_suspect": False,
+            "risk_note": "",
+        }
         if not self._wa.available:
             return result
         risk = self._wa.get_risk_metrics(self.code, "过去1年Beta和波动率")
@@ -116,22 +128,17 @@ class WindStrategy:
             r = risk[0]
             for bk in ["过去1年BETA", "过去1年Beta"]:
                 v = r.get(bk)
-                if v is not None and isinstance(v, (int, float)):
+                if isinstance(v, (int, float)):
                     result["beta"] = round(float(v), 2)
-                    break
-                elif v is not None:
-                    with contextlib.suppress(ValueError, TypeError):
-                        result["beta"] = round(float(v), 2)
                     break
             for vk in ["过去1年波动率", "过去1年年化波动率"]:
                 v = r.get(vk)
-                if v is not None and isinstance(v, (int, float)):
+                if isinstance(v, (int, float)):
                     result["volatility"] = round(float(v), 2)
                     break
-                elif v is not None:
-                    with contextlib.suppress(ValueError, TypeError):
-                        result["volatility"] = round(float(v), 2)
-                    break
+            result["beta_suspect"] = bool(r.get("beta_suspect", False))
+            result["vol_suspect"] = bool(r.get("vol_suspect", False))
+            result["risk_note"] = r.get("risk_note", "")
         return result
 
 

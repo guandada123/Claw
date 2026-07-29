@@ -36,7 +36,7 @@ SCRIPTS_DIR = Path(__file__).parent.resolve()
 # ============================================================
 
 DEFAULT_CHAT_ID = "oc_9ee5303497f5e0e71666b610d6bdc346"  # 盘面信息
-LARK_DOMAIN = "bytedance.feishu.cn"  # 飞书域名
+LARK_DOMAIN = "feishu.cn"  # 飞书域名（普通飞书域，须与 lark-cli 登录域一致；bytedance.feishu.cn 为字节域，群成员打不开）
 LARK_CLI_PATH: str = ""  # 初始化后由 find_lark_cli() 填充
 
 # ============================================================
@@ -123,72 +123,52 @@ def generate_dashboard() -> str | None:
 
 
 # ============================================================
-# 步骤2: 上传到飞书Drive
+# 步骤2: 作为群文件直接发送到飞书群（替代 Drive 链接，规避权限/跨域 404）
 # ============================================================
 
 
-def upload_to_drive(file_path: str) -> dict | None:
-    """上传文件到飞书Drive，返回结果字典"""
-    date_str = today_str()
-    file_name = f"AI成本仪表盘-{date_str}.html"
+def send_dashboard_as_file(file_path: str, chat_id: str) -> bool:
+    """把成本仪表盘 HTML 作为群文件直接发送到群，群成员天然有权限打开，无需 Drive 链接分享。
 
-    print(f"  ☁️  上传到飞书Drive (文件名: {file_name})...")
+    返回是否发送成功。失败时不阻断主流程（卡片消息仍会发，仅缺附件）。
+    """
+    file_name = f"AI成本仪表盘-{today_str()}.html"
 
-    # lark-cli 要求相对路径，复制到当前目录后用相对路径上传
+    # lark-cli --file 只接受 cwd 相对路径（绝对路径会被拒），故复制到 cwd 后用相对名
     local_copy = Path.cwd() / file_name
     shutil.copy2(file_path, local_copy)
-    print(f"  📄 本地副本: {local_copy}")
+    print(f"  📎 作为群文件发送: {file_name} → {chat_id}")
 
     result = run_cmd(
         [
             LARK_CLI_PATH,
-            "drive",
-            "+upload",
+            "im",
+            "+messages-send",
+            "--chat-id",
+            chat_id,
             "--file",
             file_name,
-            "--name",
-            file_name,
             "--as",
-            "user",
+            "bot",
         ],
-        timeout=30,
+        timeout=60,
     )
 
     # 清理本地副本
     if local_copy.exists():
         local_copy.unlink()
 
-    if result.returncode != 0:
-        print(f"  ⚠️  上传返回码 {result.returncode}")
-        print(f"  stderr: {result.stderr[:500]}")
-        # 尝试解析 JSON 输出中的错误信息
-        try:
-            err_data = json.loads(result.stdout) if result.stdout.strip() else {}
-            if not err_data:
-                err_data = json.loads(result.stderr) if result.stderr.strip() else {}
-            err_msg = err_data.get("error", {}).get("message", "未知错误")
-            err_type = err_data.get("error", {}).get("type", "")
-            print(f"  ❌ 上传失败: {err_type} — {err_msg}")
-        except (json.JSONDecodeError, IndexError):
-            print("  ❌ 上传失败")
-        return None
+    if result.returncode == 0:
+        print("  ✅ 仪表盘文件已发到群")
+        return True
 
-    try:
-        data = json.loads(result.stdout)
-        print("  ✅ 上传成功!")
-        return data  # type: ignore[no-any-return]
-    except json.JSONDecodeError:
-        print("  ⚠️  无法解析上传结果")
-        print(f"  stdout: {result.stdout[:300]}")
-        return None
+    err = (result.stderr or result.stdout).strip()
+    print(f"  ⚠️  群文件发送失败: {err[:300]}")
+    return False
 
 
-def build_file_url(upload_result: dict) -> str:
-    """从上传结果构建文件URL"""
-    data = upload_result.get("data", {})
-    file_token = data.get("file_token", "")
-    if file_token:
-        return f"https://{LARK_DOMAIN}/drive/{file_token}"
+def build_file_url(upload_result: dict) -> str:  # noqa: D401 - 保留签名兼容（不再使用）
+    """[已废弃] 原 Drive 链接构造；现改发群文件，此函数保留仅作兼容占位。"""
     return ""
 
 
@@ -239,7 +219,6 @@ def build_message(daily_summary: str, file_url: str, cost_stats: dict) -> str:
     date_display = f"{today} 周{weekday_cn}"
 
     msg = f"""💰 **AI 成本监控日报** | {date_display}
-
 ━━━━━━━━━━━━━━━━
 
 📊 **今日预估成本**: ¥{total_cost_today:.2f}
@@ -253,7 +232,7 @@ def build_message(daily_summary: str, file_url: str, cost_stats: dict) -> str:
 {daily_summary[:1500]}
 
 ━━━━━━━━━━━━━━━━
-📎 **[查看完整仪表盘]({file_url})** — 含趋势图/模型分布/烧钱任务Top
+📎 **完整仪表盘已作为群文件发送** — 含趋势图/模型分布/烧钱任务Top，请查收本群附件
 
 > ⏱ {datetime.datetime.now().strftime("%H:%M")} 自动生成
 """
@@ -368,19 +347,15 @@ def main():
         print("\n✅ DRY RUN 完成\n")
         return
 
-    # === 步骤2: 上传到飞书Drive ===
+    # === 步骤2: 作为群文件发送到飞书群（替代 Drive 链接） ===
     file_url = ""
     if not skip_upload:
-        print("\n☁️  [2/4] 上传到飞书Drive...")
-        upload_result = upload_to_drive(html_path)
-        if upload_result:
-            file_url = build_file_url(upload_result)
-            if file_url:
-                print(f"  🔗 仪表盘链接: {file_url}")
-        else:
-            print("  ⚠️  上传失败，消息中将不包含仪表盘链接")
+        print("\n📎 [2/4] 发送仪表盘到群（群文件）...")
+        ok = send_dashboard_as_file(html_path, chat_id)
+        if not ok:
+            print("  ⚠️  群文件发送失败，消息中将提示手动查收")
     else:
-        print("\n☁️  [2/4] 已跳过上传 (--no-upload)")
+        print("\n📎 [2/4] 已跳过群文件发送 (--no-upload)")
 
     # === 步骤3: 获取成本摘要 ===
     print("\n📋 [3/4] 获取成本摘要...")
@@ -408,8 +383,6 @@ def main():
         print("  🎉 飞书推送完成!")
     else:
         print("  ⚠️  推送完成但消息发送可能有异常")
-    if file_url:
-        print(f"  🔗 仪表盘: {file_url}")
     print(f"{'=' * 50}\n")
 
 

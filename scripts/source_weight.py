@@ -110,9 +110,9 @@ def compute_weights() -> dict[str, Any]:
     result = {
         "generated_at": datetime.now().isoformat(),
         "source": f"signal_verify_report ({data.get('generated_at', 'N/A')})",
-        "verified_accounts": len(weights),
+        "verified_accounts": len(weights),  # type: ignore[dict-item]
         "weights": final_weights,
-        "details": details,
+        "details": details,  # type: ignore[dict-item]
     }
 
     _write_output(result)

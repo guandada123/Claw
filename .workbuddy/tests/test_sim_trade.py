@@ -196,50 +196,58 @@ class TestCheckStopLoss:
         import sim_trade
         from sim_trade import check_stop_loss
 
+        original_save = sim_trade.save_portfolio
         sim_trade.save_portfolio = lambda pf: None
-        pf = {
-            "cash": 15000,
-            "positions": {
-                "600519": {
-                    "shares": 100,
-                    "avg_cost": 100.0,
-                    "current_price": 91.0,
-                    "highest_price": 100.0,
-                    "buy_date": "2025-01-01",
-                    "take_profit_level": 0,
-                }
-            },
-            "config": {"updated_at": ""},
-        }
-        result = check_stop_loss(pf, "600519")
-        assert result["should_sell"] is True
-        assert "固定止损" in result["reason"]
-        assert result["shares_to_sell"] == 100
+        try:
+            pf = {
+                "cash": 15000,
+                "positions": {
+                    "600519": {
+                        "shares": 100,
+                        "avg_cost": 100.0,
+                        "current_price": 91.0,
+                        "highest_price": 100.0,
+                        "buy_date": "2025-01-01",
+                        "take_profit_level": 0,
+                    }
+                },
+                "config": {"updated_at": ""},
+            }
+            result = check_stop_loss(pf, "600519")
+            assert result["should_sell"] is True
+            assert "固定止损" in result["reason"]
+            assert result["shares_to_sell"] == 100
+        finally:
+            sim_trade.save_portfolio = original_save
 
     def test_trailing_stop_loss_trigger(self):
         """追踪止损：从最高价回落15%"""
         import sim_trade
         from sim_trade import check_stop_loss
 
+        original_save = sim_trade.save_portfolio
         sim_trade.save_portfolio = lambda pf: None
-        pf = {
-            "cash": 15000,
-            "positions": {
-                "600519": {
-                    "shares": 100,
-                    "avg_cost": 80.0,
-                    "current_price": 95.0,
-                    "highest_price": 120.0,
-                    "buy_date": "2025-01-01",
-                    "take_profit_level": 0,
-                }
-            },
-            "config": {"updated_at": ""},
-        }
-        # 盈利 (95-80)/80=18.75% > 0, 但从最高120回落到95 = -20.8% > -15%
-        result = check_stop_loss(pf, "600519")
-        assert result["should_sell"] is True
-        assert "追踪止损" in result["reason"]
+        try:
+            pf = {
+                "cash": 15000,
+                "positions": {
+                    "600519": {
+                        "shares": 100,
+                        "avg_cost": 80.0,
+                        "current_price": 95.0,
+                        "highest_price": 120.0,
+                        "buy_date": "2025-01-01",
+                        "take_profit_level": 0,
+                    }
+                },
+                "config": {"updated_at": ""},
+            }
+            # 盈利 (95-80)/80=18.75% > 0, 但从最高120回落到95 = -20.8% > -15%
+            result = check_stop_loss(pf, "600519")
+            assert result["should_sell"] is True
+            assert "追踪止损" in result["reason"]
+        finally:
+            sim_trade.save_portfolio = original_save
 
 
 # ═══════════════════════════════════════
@@ -411,26 +419,30 @@ class TestAutoCheck:
         import sim_trade
         from sim_trade import auto_check_all_positions
 
+        original_save = sim_trade.save_portfolio
         sim_trade.save_portfolio = lambda pf: None
-        pf = {
-            "cash": 15000,
-            "positions": {
-                "000001": {
-                    "shares": 500,
-                    "avg_cost": 100.0,
-                    "name": "测试股",
-                    "current_price": 85.0,
-                    "highest_price": 100.0,
-                    "buy_date": "2025-01-01",
-                    "take_profit_level": 1,
-                }
-            },
-            "config": {"updated_at": ""},
-        }
-        result = auto_check_all_positions(pf)
-        assert len(result) >= 1
-        assert result[0]["action"] == "SELL"
-        assert result[0]["priority"] == "high"
+        try:
+            pf = {
+                "cash": 15000,
+                "positions": {
+                    "000001": {
+                        "shares": 500,
+                        "avg_cost": 100.0,
+                        "name": "测试股",
+                        "current_price": 85.0,
+                        "highest_price": 100.0,
+                        "buy_date": "2025-01-01",
+                        "take_profit_level": 1,
+                    }
+                },
+                "config": {"updated_at": ""},
+            }
+            result = auto_check_all_positions(pf)
+            assert len(result) >= 1
+            assert result[0]["action"] == "SELL"
+            assert result[0]["priority"] == "high"
+        finally:
+            sim_trade.save_portfolio = original_save
 
 
 # ═══════════════════════════════════════

@@ -308,6 +308,7 @@ class TestSimTradeWorkflow:
         import sim_trade
 
         original_file = sim_trade.PORTFOLIO_FILE
+        original_save = sim_trade.save_portfolio  # 保存原函数待恢复
         sim_trade.PORTFOLIO_FILE = portfolio_with_position
         # Mock save_portfolio
         sim_trade.save_portfolio = lambda pf: portfolio_with_position.write_text(
@@ -325,3 +326,4 @@ class TestSimTradeWorkflow:
             assert result["should_sell"] is True
         finally:
             sim_trade.PORTFOLIO_FILE = original_file
+            sim_trade.save_portfolio = original_save  # 恢复原函数，防止污染后续测试

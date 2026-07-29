@@ -13,8 +13,10 @@
 import json
 import sys
 from datetime import date, datetime
+from pathlib import Path
 
-HOLIDAYS_FILE = "data/astock_holidays.json"
+# cwd 无关：基于脚本位置推导 holiday 日历，不再要求“必须在 Claw 根目录运行”（F13 修复）
+HOLIDAYS_FILE = str(Path(__file__).resolve().parent.parent / "data" / "astock_holidays.json")
 
 
 def load_holidays(path: str = HOLIDAYS_FILE) -> set:

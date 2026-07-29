@@ -12,7 +12,10 @@ read_yupen_data 优先采用 primary 文件；Wind 未覆盖的缺口板块（�
 
 退出码: 0（即使部分板块缺失也成功，由下游决定是否告警）
 """
-import subprocess, sys, os, json
+import json
+import os
+import subprocess
+import sys
 from datetime import date
 
 CLAW = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

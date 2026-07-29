@@ -2,15 +2,15 @@
 signal_verify.py — 公众号信号行情验证（v4 新增）
 
 为 .workbuddy/data/article_signals.json 中每条信号补充实时行情验证：
-  - realtime_chg_pct : 当日涨跌幅（腾讯 gtimg 实时快照，稳定可靠）
+  - realtime_chg_pct : 当日涨跌幅（Wind 优先，腾讯 gtimg 降级）
   - realtime_price   : 最新价
-  - final_return_pct : 自信号发布日至今的累计收益率（新浪日线 qfq）
+  - final_return_pct : 自信号发布日至今的累计收益率（Wind K线优先，akshare 降级）
   - verified         : 是否成功取得行情并可计算累计收益
   - hit              : 看多信号且累计收益>0 记为命中；看空则收益<0 命中
 
 数据源说明：
-  - 实时行情走腾讯 gtimg（单只快照，极少失败）
-  - 历史收益走新浪日线 stock_zh_a_daily（东财 kline 在本环境连接不稳定，已弃用）
+  - 实时行情：Wind 万得（优先）→ 腾讯 gtimg（降级）
+  - 历史收益：Wind K线（优先）→ 新浪日线 akshare stock_zh_a_daily（降级）
 
 输出：
   - 增量写回 article_signals.json（保留原有字段，新增验证字段）
@@ -32,7 +32,31 @@ for _k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
 
 import urllib.request  # noqa: E402 (proxy must be cleared first)
 
-import akshare as ak  # noqa: E402
+try:
+    import akshare as ak  # noqa: E402
+except ImportError:
+    ak = None  # type: ignore[assignment]
+
+# Wind 万得（优先数据源）
+try:
+    from claw.feeds.wind_utils import (
+        get_wind_kline,
+        get_wind_realtime_price,
+        plain_code_to_windcode,
+        wind_available,
+    )
+except ImportError:
+    def wind_available() -> bool:  # type: ignore[misc]
+        return False
+
+    def get_wind_realtime_price(code: str) -> None:  # type: ignore[misc]
+        return None
+
+    def get_wind_kline(code: str, days: int = 60) -> None:  # type: ignore[misc]
+        return None
+
+    def plain_code_to_windcode(code: str) -> str:  # type: ignore[misc]
+        return code
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SIGNALS_FILE = PROJECT_ROOT / ".workbuddy" / "data" / "article_signals.json"
@@ -68,7 +92,16 @@ def gtimg_prefix(code: str) -> str:
 
 
 def fetch_realtime(code: str) -> dict:
-    """腾讯 gtimg 单只实时快照。返回 price / chg_pct / ok"""
+    """实时行情。Wind 优先，降级腾讯 gtimg。返回 price / chg_pct / ok"""
+    # 1) Wind 万得
+    if wind_available():
+        try:
+            r = get_wind_realtime_price(code)
+            if r and r.get("price") is not None:
+                return {"price": r["price"], "chg_pct": r.get("change_pct"), "ok": True}
+        except Exception as _:  # noqa: S110 — 降级到腾讯
+            pass
+    # 2) 腾讯 gtimg
     url = f"http://qt.gtimg.cn/q={gtimg_prefix(code)}{code}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -82,18 +115,44 @@ def fetch_realtime(code: str) -> dict:
 
 
 def fetch_history(code: str, start: str, end: str, retries: int = 5):
-    """新浪日线 qfq，返回 DataFrame 或 None。proxy 已禁用。"""
+    """历史日线收盘价。Wind K线优先，降级 akshare 新浪日线 qfq。"""
+    # 1) Wind 万得 K线（无需前缀，裸 6 位代码）
+    if wind_available():
+        try:
+            klines = get_wind_kline(code, days=400)
+            if klines:
+                m = {}
+                for k in klines:
+                    dt = str(k.get("TIME", ""))[:10]
+                    if dt:
+                        close = k.get("MATCH") or k.get("match") or k.get("close") or k.get("收盘价")
+                        if close is not None:
+                            m[dt] = float(close)
+                if m:
+                    # 过滤 start~end 范围
+                    filtered = {k: v for k, v in m.items() if start[:8] <= k.replace("-", "")[:8] <= end[:8]}
+                    if filtered:
+                        last_close = list(filtered.values())[-1]
+                        return (filtered, last_close)
+        except Exception as _:  # noqa: S110 — 降级到 akshare
+            pass
+    # 2) akshare 新浪日线 qfq（降级）
+    if ak is None:
+        return (None, None)
     sym = gtimg_prefix(code) + code
     last = None
     for attempt in range(retries):
         try:
             df = ak.stock_zh_a_daily(symbol=sym, start_date=start, end_date=end, adjust="qfq")
             if df is not None and not df.empty:
-                return df
+                date_col = "date" if "date" in df.columns else df.columns[0]
+                m = {str(row[date_col])[:10]: float(row["close"]) for _, row in df.iterrows()}
+                last_close = float(df["close"].iloc[-1])
+                return (m, last_close)
         except Exception as e:  # noqa: BLE001
             last = e
             time.sleep(1.5 + attempt * 0.5)
-    return None
+    return (None, None)
 
 
 def verify_signals() -> dict:
@@ -110,12 +169,10 @@ def verify_signals() -> dict:
         start = (min(recent) - datetime.timedelta(days=10)).strftime("%Y%m%d") if recent \
             else (today - datetime.timedelta(days=40)).strftime("%Y%m%d")
         start_map[code] = start
-        df = fetch_history(code, start, end)
-        if df is not None:
-            date_col = "date" if "date" in df.columns else df.columns[0]
-            m = {str(row[date_col])[:10]: float(row["close"]) for _, row in df.iterrows()}
-            last_close = float(df["close"].iloc[-1])
-            hist_cache[code] = (m, last_close)
+        result = fetch_history(code, start, end)
+        # fetch_history 返回 (m, last_close) 或 (None, None)
+        if result and result[0] is not None:
+            hist_cache[code] = result
         else:
             hist_cache[code] = (None, None)
 

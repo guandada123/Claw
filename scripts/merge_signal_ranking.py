@@ -108,6 +108,7 @@ if __name__ == "__main__":
     # 对比：外部高命中 vs RSS 低命中
     print(f"\n{'='*60}")
     print("📊 对比建议：外部号命中率 >= RSS 最低命中号 → 推荐接入")
+    rss_names = {x['name'].strip().lower() for x in r['ranking'] if x['source'] == 'RSS付费订阅'}
     rss_with_hr = [x for x in r['ranking'] if x['source'] == 'RSS付费订阅' and x['win_rate']]
     ext_with_hr = [x for x in r['ranking'] if x['source'] == '红狐发现'
                    and x['win_rate'] and x['win_rate'] >= 30

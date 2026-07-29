@@ -10,6 +10,9 @@ import pytest
 
 # 确保 lib 模块可导入
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
+# 确保 Claw 核心脚本目录可导入（router.py / cost_tracker.py 等在 ../../scripts/）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
+# .workbuddy/scripts/ 由各测试文件自行添加，以避免全局污染预期
 
 
 @pytest.fixture
