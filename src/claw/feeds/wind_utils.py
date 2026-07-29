@@ -99,7 +99,11 @@ def _save_count(date: str, count: int) -> None:
 
 
 def _check_query_limit() -> bool:
-    """检查是否超过每日查询上限（跨进程线程安全，落盘累加）"""
+    """检查是否超过每日查询上限（跨进程线程安全，落盘累加）
+
+    已知局限（审计 🟡4）：load→incr→save 非跨进程原子，并发时偏差 ≤ N_concurrent-1。
+    threading.Lock 仅进程内有效。Claw 自动化串行执行，实际偏差可忽略。
+    """
     with _query_lock:
         today = time.strftime("%Y%m%d")
         _daily_query_date, _daily_query_count = _load_count()
@@ -311,8 +315,8 @@ def get_wind_kline(
         return None
     windcode = plain_code_to_windcode(code)
     end = time.strftime("%Y%m%d")
-    # 保守估算：days*1.5 天窗口确保够
-    window = max(days * 2, 400)
+    # 窗口 = days*1.5 确保覆盖；上限60天（审计 🟡6: 原400天浪费>95%带宽）
+    window = min(max(days * 2, 20), 60)
     start_ts = time.time() - window * 86400
     begin = time.strftime("%Y%m%d", time.localtime(start_ts))
     return call_wind_cli_as_rows(

@@ -19,6 +19,8 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# 审计 🟡5: 优先用 preamble 指定的 $PYTHON（自动化沙箱中 sys.executable 可能无依赖）
+PY = os.environ.get("PYTHON", sys.executable)
 
 
 def main():
@@ -26,7 +28,7 @@ def main():
     today = dt.date.today().isoformat()
     print(f"[1/2] 生成 yupen 主表 (YUPEN_USE_EM={'1' if use_em else '0'}, date={today}) ...")
     r = subprocess.run(
-        [sys.executable, "scripts/build_yupen_from_market.py",
+        [PY, "scripts/build_yupen_from_market.py",
          "--date", today, "--no-selfcheck"],
         cwd=ROOT,
     )
@@ -36,7 +38,7 @@ def main():
 
     print("[2/2] 读取合并产物，检查 RSS 兜底项 ...")
     out = json.loads(subprocess.run(
-        [sys.executable, ".workbuddy/scripts/read_yupen_data.py"],
+        [PY, ".workbuddy/scripts/read_yupen_data.py"],
         cwd=ROOT, capture_output=True, text=True,
     ).stdout)
     sr = out.get("sector_rotation") or {}
