@@ -134,3 +134,42 @@
 - 备份14个旧日志(6/05-6/19~108KB)→蒸馏入MEMORY.md→删除
 - MEMORY.md 7.3KB→13KB，覆盖全部长效信息
 - 云记忆缓存10.9KB（非本地可治，需客户端删旧对话）
+
+---
+
+## 07-23：QTS 日线数据架构固化 + 鱼盆双推根治
+- **QTS 日线回填主源**：`qts_daily_backfill.py`（腾讯K线，32线程~41s，无限频）→ upsert `127.0.0.1:15432` daily_quote；自动化 1784811393302 每交易日 16:30 跑
+- **容器日常任务**：`daily_data_refresh`(15:10 cron) 修 await bug + limit=10000，但 tushare 50次/分限频→全量太慢(~70min)，仅适增量更新，**不能替代本地 backfill**
+- **容器挂载**：`./strategy-service:/app` → 代码改即时生效无需重建
+- **删 scan_broad_pool.py**（功能被 scan_mainboard_local.py 覆盖，备份 `_archive/`）；**scan_expanded_pool.py 迁移**统一架构（expanded_pool.json 38只科技+红利）
+- **daily_quote 表加 `updated_at` 列**（ALTER TABLE 对齐 ORM）；.BJ 股票容器同步(920000.BJ)upsert 成功，不再跳过北交所
+- **鱼盆 v5 双重推送根治**：`read_yupen_data.py` 加 `_latest_raw()` 读真实抓取信号；软失败判定改「rss_updated==False 才推未推进」→ 双推消除
+
+---
+
+## 07-29：选股池自动化 + 记忆系统重构
+
+### 选股池定时增量补全
+- `refill_cyb_pool.py`(仅创业板) → `refill_scan_pool.py`(泛化：主板+创业板全允许板块)
+- 腾讯 qt 接口枚举新上市/遗漏标的，过滤退/PT/零成交/ST，增量写回不覆盖
+- 池 2471→4439（0 垃圾，0 科创/北交污染）；自动化 1785309382755@08:30 交易日静默跑
+- 旧 refill_cyb_pool.py 经用户确认删除（备份 /tmp）
+
+### 实时行情优先级反转（演化链）
+- **supersedes 早期「Wind 优先」习惯**：wind_quote.py 改为「腾讯实时优先→Wind降级」
+- 根因：Wind MATCH 盘中滞后 5.8%（华天 17.41 vs 腾讯 16.22）；加 DO NOT REVERT 注释
+
+### 创业板放开（演化链）
+- **supersedes 07-14「禁创/科/北/ST」**：仅放开 300/301；sim_trade RESTRICTED 去 300/301
+- 创业板单独 CYB_STOP_LOSS_PCT=0.15（主板仍 0.08）
+
+### StockInsight 依赖修复（外部仓库）
+- #30 react/react-dom 不匹配根因：react-dom 卡 v18；远程 vite-rebase(a0beec2) 已有完整修复(react-dom v19+tsc+eslint)
+- 本地 cli.py ImportError 修复(get_stock_sector→get_stock_sector_full) cherry-pick 补推 c214537
+- 本地与远程同步(a0beec2)，351 tests 绿；#30 可安全合并
+
+### 记忆系统对齐 Hy-Memory（L1-L6）
+- MEMORY.md 加演化链规范 + supersedes 指针（创业板/Wind优先级已标）
+- 新增 SCHEMA.md(L5 行为规律)｜INTENT.md(L6 前瞻意图)
+- 固化蒸馏规则：>30天日志蒸馏入 FACT 层→移 .backups/；单文件>15KB 优先蒸馏
+- CHRONICLE.md 补 07-29 编年史 + 演化链标记
