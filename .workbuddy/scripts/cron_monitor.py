@@ -29,7 +29,7 @@ FEISHU_USER_ID = os.getenv("FEISHU_CHAT_ID", "")
 if __name__ == "__main__" and not FEISHU_USER_ID:
     print("[ERROR] 环境变量 FEISHU_CHAT_ID 未设置，无法发送飞书通知", file=sys.stderr)
 
-INITIAL_CAPITAL = 30000
+INITIAL_CAPITAL = 50000.0  # 07-14 从 30000 放宽至 50000（与 sim_trade.py 保持一致）
 STOP_LOSS = -0.08
 TAKE_PROFIT = 0.30
 

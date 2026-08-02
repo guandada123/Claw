@@ -108,7 +108,7 @@ STOCK_NAMES = {
 }
 
 # 受限板块前缀
-RESTRICTED_PREFIXES = ["300", "301", "688", "689", "8", "4"]
+RESTRICTED_PREFIXES = ["688", "689", "8", "4"]  # 科创板/北交所禁入；创业板(300/301)07-29放开
 
 # 策略库路径
 STRATEGY_LIBRARY_FILE = DATA_DIR / "strategy_library.json"

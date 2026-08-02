@@ -159,6 +159,39 @@ def _send_via_markdown_fallback(text: str, chat_id: str, timeout: int = 30) -> b
     return r.returncode == 0
 
 
+def _compress_sections_for_size(card: dict, budget: int = 26000):
+    """卡片超 30KB 时压缩正文 div，但**保留按钮(action)与页脚(note)**。
+
+    策略：对 elements 里含 lark_md 正文的 div 区块，按长度降序逐轮把最长块
+    对半截断（统一加「已压缩」尾缀），直到整卡 JSON ≤ budget 或所有正文
+    已压到最小阈值。这样即使正文被挤掉，完整报告按钮/链接也绝不会丢。
+    """
+    elements = card.get("elements", [])
+    div_idx = [i for i, e in enumerate(elements)
+               if e.get("tag") == "div"
+               and isinstance(e.get("text"), dict)
+               and e["text"].get("tag") == "lark_md"]
+
+    def _size() -> int:
+        return len(json.dumps(card, ensure_ascii=False).encode("utf-8"))
+
+    MIN_BLOCK = 400  # 单块最低保留字数
+    TAIL = "\n…(内容过长已压缩，详见完整报告)"
+    guard = 0
+    while _size() > budget and div_idx and guard < 200:
+        guard += 1
+        sized = sorted(div_idx,
+                       key=lambda i: len(elements[i]["text"]["content"]),
+                       reverse=True)
+        longest = sized[0]
+        content = elements[longest]["text"]["content"]
+        if len(content) <= MIN_BLOCK:
+            break  # 所有可压块都到最小，尽力了
+        new_len = max(MIN_BLOCK, len(content) // 2)
+        elements[longest]["text"]["content"] = content[:new_len] + TAIL
+    return card
+
+
 def send_card(title, level="info", sections=None, table=None, buttons=None,
               footer=None, chat_id=DEFAULT_CHAT, max_retries=3) -> bool:
     """对外主函数：发卡片，带 429 退避 + markdown 兜底"""
@@ -168,13 +201,11 @@ def send_card(title, level="info", sections=None, table=None, buttons=None,
     footer = _strip_surrogates(footer) if footer else footer
     card = build_card(title, level, sections, table, buttons, footer)
 
-    # 卡片 body 大小检查（≤30KB）
+    # 卡片 body 大小检查（≤30KB）：压缩正文区块但保留按钮/页脚，杜绝"废话+丢链接"
     card_str = json.dumps(card, ensure_ascii=False)
     if len(card_str.encode("utf-8")) > 30000:
-        print(f"  ⚠️ 卡片超 30KB({len(card_str)}B)，截断 footer/按钮避免发送失败")
-        card.pop("elements", None)
-        card["elements"] = [{"tag": "div", "text": {"tag": "lark_md",
-                                         "content": f"**{title}**\n\n内容过长，请查看完整报告链接。"}}]
+        print(f"  ⚠️ 卡片超 30KB({len(card_str)}B)，压缩正文区块（保留完整报告按钮/页脚）")
+        _compress_sections_for_size(card, budget=26000)
 
     backoff = [5, 10, 20]
     last_err = ""

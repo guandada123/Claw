@@ -21,6 +21,7 @@ wx_rss_auth.py — 微信公众号 RSS 认证与数据访问层 (v1.0)
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -189,46 +190,81 @@ def _parse_rss_xml(xml_text: str, fakeid: str, limit: int) -> list:
     return arts
 
 
-def fetch_article_content(art_id: str) -> str:
-    """获取单篇文章正文（纯文本优先，适合 LLM 摘要）
+_RETRY_SEC_RE = re.compile(r"(\d+)\s*秒后重试")
 
-    付费 RSS (Basic 套餐) 单篇接口稳定、无限流（实测 500次/小时配额，
-    早报单次仅十余篇，远不会触发）。仅当接口返回失败 / 触发微信安全验证时降级为空。
+
+def fetch_article_content_ex(art_id: str, max_retry: int = 4, base_gap: float = 1.5) -> tuple[str, str]:
+    """获取单篇文章正文，返回 (正文, 错误原因)。
+
+    2026-07-31 根因修复：付费 RSS 服务端**有防风控限流**（原注释「无限流」是错的）。
+    实测失败返回 success=False + error 文案：
+      - "请求过于频繁，请 N 秒后重试"   → 可退避重试，解析 N 秒后重试
+      - "文章获取过快，请1秒后重试（防风控）" → 同上
+      - "触发微信安全验证..."           → 需人工/等待30分钟，不重试
+    旧实现 `except: return ""` 把限流与真失败一律吞成空正文，
+    上游 sync_wx_articles 又把空正文当成功落盘 → 全库 94% 空正文（600/641）。
 
     Returns:
-        正文文本（plain_content 优先，回退 content HTML），失败返回空字符串
+        (content, err)。成功时 err="" ；失败时 content="" 且 err 为原因文案。
     """
     if not WX_RSS_API_BASE or not art_id:
-        return ""
+        return "", "no_api_base_or_id"
 
     url = _ARTICLE_URL_MAP.get(art_id)
     if not url:
-        # 尝试把 art_id 当 url 直接用
         if art_id.startswith("http"):
             url = art_id
         else:
-            return ""
+            return "", "unresolvable_id"
 
-    try:
-        resp = requests.post(
-            f"{WX_RSS_API_BASE}/api/article",
-            headers={**_headers(), "Content-Type": "application/json"},
-            json={"url": url},
-            timeout=15,
-            verify=False,  # noqa: S501  # nosec 同上本地RSS代理自签证书
-        )
-        data = resp.json()
-        if data.get("success") and data.get("data"):
-            d = data["data"]
-            if isinstance(d, dict):
-                # plain_content 纯文本最适 LLM；回退 content(HTML)
-                return d.get("plain_content") or d.get("content") or d.get("text") or ""
-            return str(d)
-        else:
-            # 触发安全验证等极少情况：静默降级
-            return ""
-    except Exception:
-        return ""
+    last_err = ""
+    for attempt in range(max_retry):
+        try:
+            resp = requests.post(
+                f"{WX_RSS_API_BASE}/api/article",
+                headers={**_headers(), "Content-Type": "application/json"},
+                json={"url": url},
+                timeout=20,
+                verify=False,  # noqa: S501  # nosec 同上本地RSS代理自签证书
+            )
+            data = resp.json()
+            if data.get("success") and data.get("data"):
+                d = data["data"]
+                if isinstance(d, dict):
+                    return (d.get("plain_content") or d.get("content") or d.get("text") or ""), ""
+                return str(d), ""
+
+            last_err = str(data.get("error") or data.get("message") or "unknown_error")
+
+            # 微信安全验证：重试无用，立即返回
+            if "安全验证" in last_err:
+                return "", last_err
+
+            # 限流：解析「请 N 秒后重试」，退避后再试
+            m = _RETRY_SEC_RE.search(last_err)
+            if m or "过快" in last_err or "频繁" in last_err:
+                wait = int(m.group(1)) + 1 if m else base_gap * (attempt + 1)
+                wait = min(wait, 40)  # 上限保护，避免单篇卡死
+                if attempt < max_retry - 1:
+                    time.sleep(wait)
+                    continue
+            return "", last_err
+        except Exception as e:  # noqa: BLE001
+            last_err = f"{type(e).__name__}: {e}"
+            if attempt < max_retry - 1:
+                time.sleep(base_gap * (attempt + 1))
+                continue
+    return "", last_err or "max_retry_exhausted"
+
+
+def fetch_article_content(art_id: str) -> str:
+    """向后兼容包装：只要正文，失败返回空字符串。
+
+    新代码请优先用 fetch_article_content_ex() 以拿到失败原因，
+    避免把「限流失败」误当成「文章无正文」落盘。
+    """
+    content, _err = fetch_article_content_ex(art_id)
+    return content
 
 
 # ── 兼容旧接口（若有直接调用）─────────────────────────────

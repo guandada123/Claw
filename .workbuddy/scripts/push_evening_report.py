@@ -31,28 +31,55 @@ WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"
 
 
 def _create_feishu_doc(title: str, content: str) -> str | None:
-    """生成飞书文档，返回 url（失败返回 None）"""
-    for identity in ["user", "bot"]:
-        args = [LARK_CLI, "docs", "+create", "--as", identity,
-                 "--doc-format", "markdown", "--title", title, "--content", content]
+    """生成飞书文档（仅 user 身份，确保创建者即用户、文档可直接打开）。
+
+    放弃 bot 兜底：bot 身份创建的文档因 app 缺 docs:permission.member:create scope
+    无法授权给用户，链接打不开。user 失败时由调用方走群文件兜底。
+    """
+    identity = "user"
+    args = [LARK_CLI, "docs", "+create", "--as", identity,
+            "--doc-format", "markdown", "--title", title, "--content", content]
+    try:
+        r = subprocess.run(args, capture_output=True, text=True, timeout=120)
+        out = r.stdout.strip()
         try:
-            r = subprocess.run(args, capture_output=True, text=True, timeout=120)
-            out = r.stdout.strip()
-            try:
-                res = json.loads(out)
-            except Exception:
-                print(f"  [{identity}] raw: {out[:300]}", file=sys.stderr)
-                continue
-            if res.get("ok"):
-                d = res["data"]["document"]
-                url = d.get("url")
-                print(f"  ✅ 文档已建 ({identity}): {url}")
-                return url
-            else:
-                print(f"  [{identity}] not ok: {json.dumps(res, ensure_ascii=False)[:200]}", file=sys.stderr)
-        except Exception as e:
-            print(f"  [{identity}] exc: {e}", file=sys.stderr)
+            res = json.loads(out)
+        except Exception:
+            print(f"  [{identity}] raw: {out[:300]}", file=sys.stderr)
+            return None
+        if res.get("ok"):
+            url = res["data"]["document"].get("url")
+            print(f"  ✅ 文档已建 (user): {url}")
+            return url
+        print(f"  [{identity}] not ok: {json.dumps(res, ensure_ascii=False)[:200]}", file=sys.stderr)
+    except Exception as e:
+        print(f"  [{identity}] exc: {e}", file=sys.stderr)
     return None
+
+
+def _send_full_report_file(md: str, chat_id: str, ymd: str) -> bool:
+    """群文件兜底：完整 md 写 output/wx_reports/{ymd}_full.md 并作为群文件发送。
+
+    用于 user 文档生成失败（如自动化环境 user 凭据不可用），确保完整报告始终可读。
+    lark-cli --file 要求 cwd-relative 路径，故用相对 output/ 路径（cwd=Claw）。
+    """
+    rel = f"output/wx_reports/{ymd}_full.md"
+    try:
+        with open(rel, "w", encoding="utf-8") as f:
+            f.write(md)
+    except Exception as e:
+        print(f"  ⚠️ 写群文件失败: {e}", file=sys.stderr)
+        return False
+    args = [LARK_CLI, "im", "+messages-send", "--as", "bot",
+            "--chat-id", chat_id, "--file", rel, "--msg-type", "file"]
+    try:
+        r = subprocess.run(args, capture_output=True, text=True, timeout=60)
+        ok = ('"ok":true' in r.stdout) or ('"ok": true' in r.stdout)
+        print(f"  {'✅' if ok else '🔴'} 群文件兜底 {'成功' if ok else '失败'}: {r.stdout[:120]}")
+        return ok
+    except Exception as e:
+        print(f"  ⚠️ 群文件兜底异常: {e}", file=sys.stderr)
+        return False
 
 
 def _parse_md_to_sections(md: str) -> tuple:
@@ -120,11 +147,9 @@ def main():
 
     title = f"📊 炒股助理·收盘晚报 — {ymd[:4]}-{ymd[4:6]}-{ymd[6:]}（{weekday}）"
 
-    # 1) 生成飞书文档（真实可点链接）
+    # 1) 生成飞书文档（仅 user 身份，确保可打开）
     print(f"📄 生成飞书文档: {title}")
     doc_url = _create_feishu_doc(title, md)
-    if not doc_url:
-        print("⚠️ 文档生成失败，卡片仍发（按钮降级为文字链接）")
 
     # 2) 解析 md → 卡片区块
     _, sections, level = _parse_md_to_sections(md)
@@ -133,10 +158,17 @@ def main():
     if first_line:
         title = first_line
 
-    # 3) 按钮（真实 docx 链接）
+    # 3) 按钮 + 失败兜底（doc 失败 → 群文件兜底，保证完整报告可读）
     buttons = []
+    footer = "本报告仅供参考，不构成投资建议"
     if doc_url:
         buttons = [{"text": "📄 完整报告", "url": doc_url}]
+    else:
+        print("⚠️ 飞书文档生成失败 → 群文件兜底发送完整报告")
+        if _send_full_report_file(md, DEFAULT_CHAT, ymd):
+            footer = "完整报告已作为群文件发送（飞书文档生成失败，请查收群文件）"
+        else:
+            footer = "⚠️ 完整报告生成失败（文档+群文件均失败），请检查 lark-cli 权限"
 
     # 4) 发卡片
     sys.path.insert(0, SCRIPT_DIR)
@@ -147,7 +179,7 @@ def main():
         level=level,
         sections=sections,
         buttons=buttons,
-        footer="本报告仅供参考，不构成投资建议",
+        footer=footer,
         chat_id=DEFAULT_CHAT,
     )
     print("✅ 晚报卡片推送完成" if ok else "🔴 晚报推送失败")

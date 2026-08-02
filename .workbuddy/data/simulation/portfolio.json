@@ -1,46 +1,52 @@
 {
   "config": {
-    "initial_capital": 30000.0,
+    "initial_capital": 50000.0,
+    "capital_additions": [
+      {
+        "amount": 20000.0,
+        "date": "2026-07-14",
+        "note": "模拟盘资金放宽授权"
+      }
+    ],
     "created_at": "2026-07-05",
-    "updated_at": "2026-07-17 14:16:50"
+    "updated_at": "2026-08-01 14:31:00"
   },
-  "cash": 13073.0,
+  "cash": 31035.24,
   "positions": {
     "000333": {
       "name": "美的集团",
       "shares": 100,
       "avg_cost": 78.72,
       "total_cost": 7872.0,
-      "current_price": 82.97,
-      "highest_price": 83.45,
+      "current_price": 87.35,
+      "highest_price": 89.39,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-07-17 14:16:50"
-    },
-    "600900": {
-      "name": "长江电力",
-      "shares": 200,
-      "avg_cost": 27.585,
-      "total_cost": 5517.0,
-      "current_price": 28.09,
-      "highest_price": 28.76,
-      "take_profit_level": 1,
-      "entry_mode": "normal",
-      "first_buy_date": "2026-07-09",
-      "updated": "2026-07-17 14:16:50"
+      "updated": "2026-07-31T11:36"
     },
     "601899": {
       "name": "紫金矿业",
       "shares": 200,
       "avg_cost": 27.565,
       "total_cost": 5513.0,
-      "current_price": 28.6,
-      "highest_price": 29.59,
+      "current_price": 32.64,
+      "highest_price": 33.68,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-07-17 14:16:50"
+      "updated": "2026-07-31T11:36"
+    },
+    "600036": {
+      "name": "招商银行",
+      "shares": 200,
+      "avg_cost": 38.935,
+      "total_cost": 7787.0,
+      "current_price": 39.81,
+      "highest_price": 40.55,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-07-23",
+      "updated": "2026-07-31T11:36"
     }
   },
   "transactions": [
@@ -79,6 +85,34 @@
       "total": 5513.0,
       "time": "2026-07-09 01:45:25",
       "date": "2026-07-09"
+    },
+    {
+      "id": "B1753347897000",
+      "type": "BUY",
+      "code": "600036",
+      "name": "招商银行",
+      "shares": 200,
+      "price": 38.91,
+      "commission": 5.0,
+      "total": 7787.0,
+      "time": "2026-07-23 14:04:57",
+      "date": "2026-07-23"
+    },
+    {
+      "id": "S1753971107000",
+      "type": "SELL",
+      "code": "600900",
+      "name": "长江电力",
+      "shares": 200,
+      "price": 28.8,
+      "commission": 5.0,
+      "stamp_tax": 5.76,
+      "net_proceeds": 5749.24,
+      "realized_pnl": 232.24,
+      "pnl_pct": 4.21,
+      "reason": "现金不足主动调仓释放:满仓85%锁死选股执行,减防御性最弱仓(长电+4.4%非主线)腾现金参与科技反弹",
+      "time": "2026-07-31 12:51:47",
+      "date": "2026-07-31"
     }
   ],
   "holdings": [
@@ -90,18 +124,18 @@
       "updated": "2026-07-09"
     },
     {
-      "code": "600900",
-      "name": "长江电力",
-      "shares": 200,
-      "avg_cost": 27.585,
-      "updated": "2026-07-09"
-    },
-    {
       "code": "601899",
       "name": "紫金矿业",
       "shares": 200,
       "avg_cost": 27.565,
       "updated": "2026-07-09"
+    },
+    {
+      "code": "600036",
+      "name": "招商银行",
+      "shares": 200,
+      "avg_cost": 38.935,
+      "updated": "2026-07-23"
     }
   ],
   "daily_snapshot": {

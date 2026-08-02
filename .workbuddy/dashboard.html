@@ -36,6 +36,8 @@ tr:hover td{background:#0f172a}
 .position-row .bar{flex:1;height:6px;border-radius:3px;background:#334155;overflow:hidden}
 .position-row .bar .fill{height:100%;border-radius:3px;background:#3b82f6}
 .gauge-container{display:flex;justify-content:center;align-items:center;padding:10px}
+.live-divider{margin:24px 30px 0;padding:10px 16px;background:linear-gradient(90deg,#7c2d12,#1e293b);border:1px solid #b45309;border-radius:8px}
+.live-divider span{color:#fbbf24;font-size:15px;font-weight:600;letter-spacing:.5px}
 </style>
 </head>
 <body>
@@ -54,20 +56,22 @@ let charts = {};
 
 async function loadData() {
   try {
-    const [pfResp, dlResp, slResp] = await Promise.allSettled([
+    const [pfResp, dlResp, slResp, liveResp] = await Promise.allSettled([
       fetch(`${BASE}/data/simulation/portfolio.json`).then(r => r.json()),
       fetch(`${BASE}/data/simulation/decision_log.json`).then(r => r.json()).catch(() => []),
-      fetch(`${BASE}/data/simulation/strategy_library.json`).then(r => r.json()).catch(() => null)
+      fetch(`${BASE}/data/simulation/strategy_library.json`).then(r => r.json()).catch(() => null),
+      fetch(`${BASE}/data/user/portfolio.json`).then(r => r.json()).catch(() => null)
     ]);
     const portfolio = pfResp.status === 'fulfilled' ? pfResp.value : null;
     const decisions = dlResp.status === 'fulfilled' ? dlResp.value : [];
     const strategyLib = slResp.status === 'fulfilled' ? slResp.value : null;
+    const live = liveResp.status === 'fulfilled' ? liveResp.value : null;
 
     if (!portfolio) {
       showError('无法加载持仓数据。请在 .workbuddy 目录下运行: python3 -m http.server 8080');
       return;
     }
-    render(portfolio, decisions, strategyLib);
+    render(portfolio, decisions, strategyLib, live);
   } catch (e) {
     showError('数据加载失败: ' + e.message);
   }
@@ -77,7 +81,7 @@ function showError(msg) {
   document.getElementById('content').innerHTML = `<div class="error">${msg}</div>`;
 }
 
-function render(pf, decisions, strategyLib) {
+function render(pf, decisions, strategyLib, live) {
   const cash = pf.cash || 0;
   const positions = pf.positions || {};
   const txns = pf.transactions || [];
@@ -92,8 +96,61 @@ function render(pf, decisions, strategyLib) {
     unrealizedPnl += val - (pos.total_cost || 0);
   }
   const totalAsset = cash + stockValue;
-  const totalPnl = totalAsset - (pf.config?.initial_capital || 30000);
-  const totalPnlPct = (totalPnl / (pf.config?.initial_capital || 30000)) * 100;
+  // Effective capital = initial_capital + sum(capital_additions) — 对齐 sim_trade.get_effective_capital()
+  const additions = (pf.config?.capital_additions || []).reduce((s, a) => s + (a.amount || 0), 0);
+  const effCapital = (pf.config?.initial_capital || 50000) + additions;
+  const totalPnl = totalAsset - effCapital;
+  const totalPnlPct = (totalPnl / effCapital) * 100;
+
+  // 公允口径(2026-07-23补): 已投资金收益率 + 资金利用率
+  // 持仓成本合计 = sum(shares*avg_cost); 投入本金=持仓成本+现金(已投+未投全算)
+  let investedCost = 0;
+  for (const [code, pos] of Object.entries(positions)) {
+    investedCost += pos.shares * (pos.avg_cost || 0);
+  }
+  const investedPnl = stockValue - investedCost;          // 已投部分浮动盈亏
+  const investedPnlPct = investedCost > 0 ? (investedPnl / investedCost) * 100 : 0;
+  const utilization = effCapital > 0 ? (investedCost / effCapital) * 100 : 0;  // 资金利用率
+
+  // 实盘公允口径(2026-07-23补): 直接读取 user/portfolio.json 已算好的公允字段
+  // 避免 dashboard 重算与 JSON 口径不一致；src 明确标注为"国金APP截图"时点值，非实时
+  let liveHtml = '';
+  if (live && live.summary) {
+    const ls = live.summary;
+    const retStocks = ls.invested_return_pct_stocks ?? 0;      // 已投资金收益率(股票)
+    const utilStocks = (ls.utilization_stocks ?? 0) * 100;     // 资金利用率(股票)
+    const utilTotal = (ls.utilization_total ?? 0) * 100;       // 资金利用率(含非股票)
+    const totalAssets = ls.total_assets ?? 0;
+    const cashActual = ls.cash_available_actual ?? 0;
+    const frozen = ls.cash_frozen_by_orders ?? 0;
+    const srcDate = (live.data_source || '').match(/(\d{4}-\d{2}-\d{2})/) ? RegExp.$1 : '截图';
+    const retCls = retStocks >= 0 ? 'green' : 'red';
+    const utilCls = utilTotal >= 80 ? 'green' : utilTotal >= 50 ? '' : 'red';
+    liveHtml = `
+    <div class="live-divider"><span>📱 实盘（国金 · ${srcDate} 截图）</span></div>
+    <div class="grid">
+      <div class="card">
+        <h3>💰 实盘总资产</h3>
+        <div class="value">¥${totalAssets.toLocaleString()}</div>
+        <div class="sub">可用 ¥${cashActual.toLocaleString()} | 冻结委托 ¥${frozen.toLocaleString()}</div>
+      </div>
+      <div class="card">
+        <h3>💹 实盘已投资金收益率</h3>
+        <div class="value ${retCls}">${retStocks >= 0 ? '+' : ''}${retStocks.toFixed(2)}%</div>
+        <div class="sub">公允口径(股票) | 已投 ¥${(ls.invested_cost_stocks||0).toLocaleString()}</div>
+      </div>
+      <div class="card">
+        <h3>🔋 实盘资金利用率(股票)</h3>
+        <div class="value ${utilStocks >= 80 ? 'green' : utilStocks >= 50 ? '' : 'red'}">${utilStocks.toFixed(1)}%</div>
+        <div class="sub">已投股票/总资产 | 含非股票 ${utilTotal.toFixed(1)}%</div>
+      </div>
+      <div class="card">
+        <h3>⚠️ 实盘浮动盈亏</h3>
+        <div class="value ${ls.floating_pnl >= 0 ? 'green' : 'red'}">${ls.floating_pnl >= 0 ? '+' : ''}¥${(ls.floating_pnl||0).toLocaleString()}</div>
+        <div class="sub">日 ${ls.daily_pnl >= 0 ? '+' : ''}¥${(ls.daily_pnl||0).toLocaleString()} (${ls.daily_pct>=0?'+':''}${ls.daily_pct||0}%)</div>
+      </div>
+    </div>`;
+  }
 
   // Win rate
   const sellTxns = txns.filter(t => t.type === 'SELL');
@@ -126,6 +183,16 @@ function render(pf, decisions, strategyLib) {
         <h3>📚 策略库</h3>
         <div class="value">${patterns + avoids}</div>
         <div class="sub">${patterns}条高胜率模式 | ${avoids}条避坑规则</div>
+      </div>
+      <div class="card">
+        <h3>💹 已投资金收益率</h3>
+        <div class="value ${investedPnl >= 0 ? 'green' : 'red'}">${investedPnl >= 0 ? '+' : ''}${investedPnlPct.toFixed(2)}%</div>
+        <div class="sub">公允口径 | 已投 ¥${investedCost.toLocaleString()} | 浮动 ${investedPnl >= 0 ? '+' : ''}¥${investedPnl.toFixed(0)}</div>
+      </div>
+      <div class="card">
+        <h3>🔋 资金利用率</h3>
+        <div class="value ${utilization >= 80 ? 'green' : utilization >= 50 ? '' : 'red'}">${utilization.toFixed(1)}%</div>
+        <div class="sub">已投/总本金 | 空仓 ¥${(effCapital - investedCost).toLocaleString()}</div>
       </div>
     </div>
 
@@ -183,6 +250,8 @@ function render(pf, decisions, strategyLib) {
         }).join('')}
       </table>
     </div>` : ''}
+
+    ${liveHtml}
   `;
 
   document.getElementById('content').innerHTML = html;

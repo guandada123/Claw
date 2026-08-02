@@ -51,6 +51,36 @@ check_trading_day() {
     return $?
 }
 
+# ============================================================
+# LLM 本地代理保活（2026-07-31 新增，根治 #74/#78 故障）
+# ============================================================
+# 根因：com.workbuddy.proxy-deepseek 与 proxy-watchdog 两个 launchd 作业
+#       可能被 WorkBuddy/Marvis 内存守卫重启时连带 unload，看门狗自身也被摘
+#       → 自愈链断裂，代理 :9999 失联，所有走 router 的自动化命中错误 key → 401。
+# 治本：把自愈下沉到每次自动化的入口——source 本 preamble 即探测 :9999，
+#       DOWN 则自动 launchctl load -w 恢复。比 watchdog 更可靠（watchdog 也会死，
+#       而本入口每次执行都跑）。正常情况 :9999 已监听 → 直接返回，零开销零副作用。
+# 注意：恢复失败也 return 0（不阻断自动化），由后续 LLM 调用暴露问题，避免误杀任务。
+ensure_proxy() {
+    local plist_deepseek="$HOME/Library/LaunchAgents/com.workbuddy.proxy-deepseek.plist"
+    local plist_watchdog="$HOME/Library/LaunchAgents/com.workbuddy.proxy-watchdog.plist"
+    # 无代理配置则跳过（不影响非 LLM 自动化）
+    [ -f "$plist_deepseek" ] || return 0
+    # 已监听则无需动作
+    nc -z 127.0.0.1 9999 2>/dev/null && return 0
+
+    echo "[preamble] ⚠️ LLM 代理 :9999 未监听，尝试自动恢复..." >&2
+    launchctl load -w "$plist_deepseek" 2>/dev/null
+    [ -f "$plist_watchdog" ] && launchctl load -w "$plist_watchdog" 2>/dev/null
+    sleep 2
+    if nc -z 127.0.0.1 9999 2>/dev/null; then
+        echo "[preamble] ✅ LLM 代理已自动恢复 (:9999)" >&2
+    else
+        echo "[preamble] ❌ LLM 代理 :9999 仍不可达，自动化可能命中 401（请检查代理进程）" >&2
+    fi
+    return 0
+}
+
 # 飞书推送（基于 push_feishu.sh 封装，兼容新旧两种调用方式）
 # 新用法: push_feishu "标题" "内容"
 # 旧用法: push_feishu "event" "message" "dedup-key" [cooldown] — 自动兼容
@@ -238,3 +268,9 @@ mutex_unlock() {
     # 清除 EXIT trap（可选，正常退出后不再需要）
     trap - EXIT
 }
+
+# ============================================================
+# LLM 本地代理保活：每次 source 本 preamble 自动探测并自愈（见 ensure_proxy 定义）
+# 放在末尾确保函数已定义。失败不阻断（return 0）。
+# ============================================================
+ensure_proxy 2>/dev/null || true

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""本地全主板 COMBO 选股扫描（gtimg 兜底源）
+"""本地全市场 COMBO 选股扫描（gtimg 兜底源 · 含创业板）
+
+扫描范围：主板(60xxxx/SH, 00xxxx/SZ) + 中小板(002/003) + 创业板(300/301)。
+池文件 mainboard_scan_pool.json 已含上述所有标的（07-29 创业板放开后含 300/301）。
 
 背景：QTS daily_quote 全市场日线拉取在 2026-06 中断，仅 ~50 只样本仍更新到 7 月。
 原 scan_mainboard_full.py 硬编码连容器名 quant-postgres:5432 且 scan_date 写死 2026-07-13，
 本地跑不通、且结论基于 6 月旧数据 → "死水期"假象。
 
-本脚本（2026-07-23 新增）：
+本脚本（2026-07-23 新增, 07-30 扩展含创业板）：
   1. 连本地映射端口 127.0.0.1:15432 读 daily_quote 历史（到 6 月仍有 100+ 日序列）
   2. 用 qt.gtimg.cn 实时行情补「今日一根 K 线」(open/high/low/close)，让信号基于最新价
   3. scan_date 动态取真实日期，不再硬编码
@@ -243,7 +246,7 @@ def decide(combo, adx, rsi):
 
 # ---------------------------------------------------------------------------
 def main():
-    ap = argparse.ArgumentParser(description="本地全主板 COMBO 选股扫描")
+    ap = argparse.ArgumentParser(description="本地全市场(含创业板) COMBO 选股扫描")
     ap.add_argument("--limit", type=int, default=None,
                     help="仅扫描前 N 只（按池顺序），默认全池")
     ap.add_argument("--no-gtimg", action="store_true",
@@ -298,7 +301,7 @@ def main():
 
     buys = [r for r in rows if r[8] in ("BUY", "STRONG_BUY")]
     print(f"\n=== 买入候选 (COMBO>={COMBO_BUY} & ADX>={ADX_FILTER} & RSI<={RSI_BLOCK}) ===")
-    print(f"全主板扫描 {len(rows)} 只有效; 买入候选 {len(buys)} 只\n")
+    print(f"全市场(含创业板)扫描 {len(rows)} 只有效; 买入候选 {len(buys)} 只\n")
     for r in buys:
         code, name, close = r[0], r[1], r[2]
         price = close

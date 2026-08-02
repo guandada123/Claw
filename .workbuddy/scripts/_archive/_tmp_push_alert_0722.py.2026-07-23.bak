@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+import json
+import subprocess
+import sys
+from datetime import datetime
+
+PY = "/Users/guan/.workbuddy/binaries/python/envs/default/bin/python"
+PUSH = "/Users/guan/WorkBuddy/Claw/.workbuddy/scripts/push_card.py"
+NOW = datetime.now().strftime("%H:%M")
+TODAY = datetime.now().strftime("%Y-%m-%d")
+
+# 来自 fetch_holdings_quotes.py + advisor_rules.py diagnose
+stocks = [
+    {
+        "name": "长电科技", "code": "600584",
+        "price": 77.49, "cost": 98.126, "pnl_pct": -21.03, "day_pct": 10.0,
+        "sl_price": 90.28, "rr": 0.62, "drawdown": -13.7,
+        "flags": [
+            "🚨 持仓12天 回撤-13.7% 破止损线(-8%) → 紧急减仓",
+            "📌 持仓12天 超短线周期 → 每日到期复盘：达到预期？未达则减仓",
+            "⚠️ 盈亏比 0.62:1 < 1.5:1，风险收益不划算",
+        ],
+    },
+    {
+        "name": "华天科技", "code": "002185",
+        "price": 16.56, "cost": 23.985, "pnl_pct": -30.96, "day_pct": 8.9,
+        "sl_price": 22.07, "rr": 0.62, "drawdown": -23.5,
+        "flags": [
+            "🚨 持仓12天 回撤-23.5% 破止损线(-8%) → 紧急减仓",
+            "📌 持仓12天 超短线周期 → 每日到期复盘：达到预期？未达则减仓",
+            "⚠️ 盈亏比 0.62:1 < 1.5:1，风险收益不划算",
+        ],
+    },
+]
+
+alerted = []
+for s in stocks:
+    card = {
+        "title": "📊炒股助理【止损止盈告警】" + NOW,
+        "level": "alert",
+        "table": {
+            "headers": ["项目", "数值"],
+            "rows": [
+                ["股票", f"{s['name']}({s['code']})"],
+                ["现价", f"¥{s['price']}"],
+                ["成本", f"¥{s['cost']}"],
+                ["累计盈亏", f"{s['pnl_pct']}%"],
+                ["当日涨跌", f"+{s['day_pct']}%"],
+                ["止损线", f"¥{s['sl_price']}(已破)"],
+                ["盈亏比", f"{s['rr']}:1"],
+            ],
+        },
+        "sections": [
+            ["🚨 触发", f"破 -8% 止损线（回撤{s['drawdown']}%），当日 +{s['day_pct']}% 仍处深度亏损"],
+            ["📋 纪律标记", "\n".join(s["flags"])],
+            ["💼 建议", "紧急减仓。累计亏损已远超-8%止损纪律，反弹为减仓窗口而非加仓信号；盈亏比"
+                       f"{s['rr']}:1风险收益不划算，应控制敞口。本自动化仅监测不交易。"],
+        ],
+        "footer": f"📊炒股助理 | 盘中监控 {NOW} | 仅监测不交易",
+    }
+    dedupe = f"助理告警-{TODAY}-{s['code']}"
+    p = subprocess.run(
+        [PY, PUSH, "--title", card["title"], "--json-stdin", "--dedupe-key", dedupe],
+        input=json.dumps(card, ensure_ascii=False),
+        capture_output=True, text=True,
+    )
+    print(f"[{s['code']}] rc={p.returncode} stdout={p.stdout.strip()} stderr={p.stderr.strip()}")
+    if p.returncode == 0 and "去重" not in p.stdout:
+        alerted.append(s["code"])
+
+# 写 dedup 记录（与 automation 目录既有格式一致）
+import os
+
+dedup_path = "/Users/guan/WorkBuddy/Claw/.workbuddy/automations/automation-1784039316540/dedup_" + TODAY + ".json"
+with open(dedup_path, "w") as f:
+    json.dump({"alert": alerted, "info": alerted, "northbound": []}, f, ensure_ascii=False, indent=2)
+print("DEDUP_WRITTEN:", dedup_path, "alerted=", alerted)
