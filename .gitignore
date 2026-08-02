@@ -98,8 +98,8 @@ lark-auth-qr*.png
 .benchmarks/
 
 # 运行时数据 (不提交)
-data/
-reports/
+/data/
+/reports/
 claw.egg-info/
 .uv/
 *.egg-info/
