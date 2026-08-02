@@ -52,9 +52,11 @@ def calc_dashboard() -> dict:
     if not pf:
         return result
 
-    # 总量
+    # 总量（含 capital_additions 加仓，与 sim_trade.py 口径一致）
     cfg = pf.get("config", {})
-    capital = cfg.get("initial_capital", 50000)
+    capital = cfg.get("initial_capital", 50000) + sum(
+        float(a.get("amount", 0)) for a in cfg.get("capital_additions", [])
+    )
     cash = pf.get("cash", 0)
     positions = pf.get("positions", {})
     transactions = pf.get("transactions", [])
