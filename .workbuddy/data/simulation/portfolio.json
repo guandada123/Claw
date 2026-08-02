@@ -1,6 +1,6 @@
 {
   "config": {
-    "initial_capital": 50000.0,
+    "initial_capital": 30000.0,
     "capital_additions": [
       {
         "amount": 20000.0,
