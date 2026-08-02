@@ -18,35 +18,38 @@
       "shares": 100,
       "avg_cost": 78.72,
       "total_cost": 7872.0,
-      "current_price": 87.35,
+      "current_price": 87.6,
       "highest_price": 89.39,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-07-31T11:36"
+      "updated": "2026-08-02T20:21",
+      "price_source": "腾讯qt.gtimg.cn·最近收盘2026-07-31"
     },
     "601899": {
       "name": "紫金矿业",
       "shares": 200,
       "avg_cost": 27.565,
       "total_cost": 5513.0,
-      "current_price": 32.64,
+      "current_price": 32.95,
       "highest_price": 33.68,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-07-31T11:36"
+      "updated": "2026-08-02T20:21",
+      "price_source": "腾讯qt.gtimg.cn·最近收盘2026-07-31"
     },
     "600036": {
       "name": "招商银行",
       "shares": 200,
       "avg_cost": 38.935,
       "total_cost": 7787.0,
-      "current_price": 39.81,
+      "current_price": 39.62,
       "highest_price": 40.55,
       "take_profit_level": 1,
       "first_buy_date": "2026-07-23",
-      "updated": "2026-07-31T11:36"
+      "updated": "2026-08-02T20:21",
+      "price_source": "腾讯qt.gtimg.cn·最近收盘2026-07-31"
     }
   },
   "transactions": [

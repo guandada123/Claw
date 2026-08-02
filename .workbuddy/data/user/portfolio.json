@@ -1,1 +1,62 @@
-{"broker": "国金证券", "account_type": "人民币账户A股", "created": "2026-06-05", "updated": "2026-07-31T12:31", "data_source": "国金证券APP持仓页截图 OCR 2026-07-31 12:31 (clipboard-image)", "rules": {"stop_loss": -0.08, "take_profit": null, "max_positions": null, "note": "止损8%，止盈不设"}, "summary": {"total_assets": 48721.95, "cash_available": 14229.89, "cash_withdrawable": 14229.89, "floating_pnl": -7498.36, "daily_pnl": 1228.0, "daily_pct": 2.59, "position_pct": 0.5449, "total_market_value": 26545.0, "invested_cost_stocks": 34018.9, "invested_return_pct_stocks": -22.04, "return_basis": "国金APP截图OCR(2026-07-31 12:31): 总资产含股票市值+可用现金; 收益率=浮动盈亏/已投成本; 日收益率=当日参考盈亏/总资产"}, "holdings": [{"code": "600584", "name": "长电科技", "shares": 300, "shares_available": 200, "avg_cost": 84.203, "current_price": 67.55, "market_value": 20265.0, "floating_pnl": -5011.68, "pnl_pct": -19.78, "broker": "GJ", "updated": "2026-07-31T12:31", "price_source": "国金APP持仓页OCR", "note": "成本84.203/现价67.55浮亏-19.78%; 已击穿-8%止损线(77.39)约11.8pp", "bought_date": "2026-07-15", "bought_date_note": "最早可证持有日; 用于A规则T+N判定"}, {"code": "002185", "name": "华天科技", "shares": 400, "shares_available": 300, "avg_cost": 21.895, "current_price": 15.70, "market_value": 6280.0, "floating_pnl": -2486.68, "pnl_pct": -28.29, "broker": "GJ", "updated": "2026-07-31T12:31", "price_source": "国金APP持仓页OCR", "note": "成本21.895/现价15.70浮亏-28.29%; 已深度击穿-8%止损线(20.14)约20.3pp", "bought_date": "2026-07-15", "bought_date_note": "最早可证持有日; 用于A规则T+N判定"}]}
+{
+  "broker": "国金证券",
+  "account_type": "人民币账户A股",
+  "created": "2026-06-05",
+  "updated": "2026-08-02T21:00",
+  "data_source": "国金证券APP持仓页截图 OCR 2026-08-02 21:00 (clipboard-image)",
+  "rules": {
+    "stop_loss": -0.08,
+    "take_profit": null,
+    "max_positions": null,
+    "note": "止损8%，止盈不设"
+  },
+  "summary": {
+    "total_assets": 48077.95,
+    "cash_available": 22176.95,
+    "cash_withdrawable": 22176.95,
+    "floating_pnl": -8142.04,
+    "daily_pnl": 584.0,
+    "daily_pct": 1.23,
+    "position_pct": 0.539,
+    "total_market_value": 25901.0,
+    "invested_cost_stocks": 34018.9,
+    "invested_return_pct_stocks": -23.93,
+    "return_basis": "国金APP截图OCR(2026-08-02 21:00): 总资产=可用+市值自洽; 收益率=浮动盈亏/已投成本; 日收益率=当日参考盈亏/总资产"
+  },
+  "holdings": [
+    {
+      "code": "600584",
+      "name": "长电科技",
+      "shares": 300,
+      "shares_available": 300,
+      "avg_cost": 84.203,
+      "current_price": 65.71,
+      "market_value": 19713.0,
+      "floating_pnl": -5563.41,
+      "pnl_pct": -21.96,
+      "broker": "GJ",
+      "updated": "2026-08-02T21:00",
+      "price_source": "国金APP持仓页OCR 2026-08-02 21:00",
+      "note": "成本84.203/现价65.71浮亏-21.96%(含佣基数); 已深穿-8%止损线(77.39)约12.4pp; shares_available=300 全流通",
+      "bought_date": "2026-07-15",
+      "bought_date_note": "最早可证持有日; 用于A规则T+N判定"
+    },
+    {
+      "code": "002185",
+      "name": "华天科技",
+      "shares": 400,
+      "shares_available": 400,
+      "avg_cost": 21.895,
+      "current_price": 15.47,
+      "market_value": 6188.0,
+      "floating_pnl": -2578.63,
+      "pnl_pct": -29.34,
+      "broker": "GJ",
+      "updated": "2026-08-02T21:00",
+      "price_source": "国金APP持仓页OCR 2026-08-02 21:00",
+      "note": "成本21.895/现价15.47浮亏-29.34%(含佣基数); 已深穿-8%止损线(20.14)约20.5pp; shares_available=400 全流通",
+      "bought_date": "2026-07-15",
+      "bought_date_note": "最早可证持有日; 用于A规则T+N判定"
+    }
+  ]
+}
