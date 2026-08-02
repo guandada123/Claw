@@ -131,20 +131,42 @@ def load_name_map():
         return {}
 
 
+def file_key(name: str) -> str:
+    """已读清单主键 = md5(文件名)[:12]。
+
+    2026-07-31 修复：原先直接用文件名做主键，但部分文件名含**字面换行符**
+    （如小李哥系列），写入清单后被 splitlines() 拆成两行垃圾数据，
+    比对永远不命中 → 这些文章每 6h 被当"新文"重读，白烧 LLM 算力。
+    改用定长 hash 后彻底免疫文件名里的任何特殊字符。
+    """
+    return hashlib.md5(name.encode(), usedforsecurity=False).hexdigest()[:12]
+
+
 def load_processed() -> set:
+    """返回已读文件的 key 集合。兼容旧格式（整行是文件名）与新格式（12位hash）。"""
     if not PROCESSED_FILE.exists():
         return set()
     try:
-        return {ln.strip() for ln in PROCESSED_FILE.read_text(encoding="utf-8").splitlines() if ln.strip()}
+        lines = [ln.strip() for ln in PROCESSED_FILE.read_text(encoding="utf-8").splitlines() if ln.strip()]
     except Exception:
         return set()
+    keys = set()
+    for ln in lines:
+        # 新格式：12 位十六进制 hash，直接用
+        if len(ln) == 12 and all(c in "0123456789abcdef" for c in ln):
+            keys.add(ln)
+        else:
+            # 旧格式：文件名 → 转成 hash（含换行符的残行转出来是废 key，无害）
+            keys.add(file_key(ln))
+    return keys
 
 
 def save_processed(names):
+    """写入已读清单，存 hash 而非原始文件名（防换行符污染）。"""
     PROCESSED_FILE.parent.mkdir(parents=True, exist_ok=True)
     with PROCESSED_FILE.open("a", encoding="utf-8") as fh:
         for n in names:
-            fh.write(n + "\n")
+            fh.write(file_key(n) + "\n")
 
 
 def _extract_json(text: str) -> dict | None:
@@ -244,8 +266,8 @@ def insight_to_signals(insight: dict, meta: dict) -> list:
             code = name_map[name]
         if not code:
             continue
-        # 与交易约束一致：信号层也过滤不可交易标的（创/科/北/ST），避免误导
-        if code[:3] in ("300", "301", "688", "689") or code[:1] in ("4", "8"):
+        # 与交易约束一致：信号层也过滤不可交易标的（科创/北/ST）。创业板(300/301)已于 07-29 放开，不再过滤
+        if code[:3] in ("688", "689") or code[:1] in ("4", "8"):
             continue
         if "ST" in name.upper():
             continue
@@ -338,7 +360,7 @@ def main():
     else:
         files = sorted(WX_DIR.glob("*.json"), reverse=True)  # 新文章优先
         files = [f for f in files if f.name not in (".cache.json", "fetched_cache.json")]
-        files = [f for f in files if f.name not in processed][: args.max]
+        files = [f for f in files if file_key(f.name) not in processed][: args.max]
 
     print(f"[gate] 待读 {len(files)} 篇（已读清单 {len(processed)} 篇，本次上限 {args.max}）")
     if not files:
@@ -364,10 +386,11 @@ def main():
             continue
         print(f"[{idx}/{len(files)}] 阅读《{title[:26]}》· {account}")
         insight = read_one_article(title, content, account)
-        done_names.append(f.name)
         if not insight:
+            # LLM 调用失败/解析失败 → 不标记 processed，下次自动重试，避免静默丢数据
             continue
-        article_id = hashlib.md5(f.name.encode(), usedforsecurity=False).hexdigest()[:12]
+        done_names.append(f.name)
+        article_id = file_key(f.name)  # 与 processed 主键同源，避免两套 id 漂移
         rec_date = (pub[:10] if pub else datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d"))
         rec = {
             "article_id": article_id,

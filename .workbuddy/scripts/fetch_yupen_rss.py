@@ -57,6 +57,35 @@ YUPEN_BODY_STRONG = ["鱼盆模型回测数据", "贴下最新鱼盆", "鱼盆�
 # 鱼盆数据帖正文弱信号（累计加分）
 YUPEN_BODY_WEAK = ["板块", "轮动", "偏离", "MA20", "历史回测", "区间涨幅", "量比", "排名", "临界值", "No区域", "转No"]
 
+# v5.2：OCR 关键词白名单 — 下游只需识别命中这些词的图，其余为杂物图（段子/新闻截图/美股行情）
+OCR_KEYWORDS = ["板块轮动", "鱼盆趋势", "历史回测", "鱼盆模型", "区间涨幅", "偏离MA20"]
+
+
+def _find_prev_raw(target_date: str, art_id: str, lookback_days: int = 7):
+    """v5.2 去重：回溯近 N 天 raw.json，若命中相同 article_id 则返回 (date, raw dict)。
+
+    背景：猫笔叨未发新文时 RSS 会连续多日推同一篇（7/29~7/31 实测同文同图），
+    旧逻辑每天重下图 + 重跑 LLM OCR，纯浪费且易误判为"数据已更新"。
+    """
+    if not art_id:
+        return None
+    try:
+        base = datetime.strptime(target_date, "%Y-%m-%d")
+    except ValueError:
+        return None
+    for i in range(1, lookback_days + 1):
+        d = (base - timedelta(days=i)).strftime("%Y-%m-%d")
+        p = OUT_DIR / f"yupen_{d}_raw.json"
+        if not p.exists():
+            continue
+        try:
+            prev = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if prev.get("article_id") == art_id:
+            return d, prev
+    return None
+
 
 def _now_beijing():
     return datetime.now(UTC) + timedelta(hours=8)
@@ -160,6 +189,8 @@ def _write_no_data(target_date, note):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=None, help="数据日期 YYYY-MM-DD（默认今天）")
+    ap.add_argument("--force", action="store_true",
+                    help="v5.2: 忽略 article_id 去重，强制重下图片并重跑 OCR")
     ap.add_argument("--article-id", default=None,
                     help="直接指定文章 URL 或 id 进行补抓（跳过 RSS 列表，只下载该文图片）")
     args = ap.parse_args()
@@ -281,6 +312,34 @@ def main():
     print(f"📄 选定文章 [{chosen_nick}]: {title}  (评分 {best[0]})")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # ── v5.2 article_id 去重：同一篇文章不重复下图/重跑 OCR ──────────
+    dup = None if args.force else _find_prev_raw(target_date, art_id)
+    if dup:
+        prev_date, prev_raw = dup
+        raw = {
+            "date": target_date,
+            "source": chosen_nick,
+            "article_title": title,
+            "article_id": art_id,
+            "has_text_table": any(k in body for k in YUPEN_BODY_STRONG),
+            "images": images,
+            "image_paths": prev_raw.get("image_paths", []),
+            "fetch_time": datetime.now(UTC).isoformat(),
+            "status": "duplicate_article",
+            "duplicate_of": prev_date,
+            "duplicate_note": (
+                f"与 {prev_date} 为同一篇文章(article_id 相同)，作者未发新文。"
+                f"已跳过图片重下与 LLM OCR，沿用 {prev_date} 的结构化结果。"
+                f"如需强制重跑加 --force。"
+            ),
+            "ocr_keywords": OCR_KEYWORDS,
+        }
+        raw_path = OUT_DIR / f"yupen_{target_date}_raw.json"
+        raw_path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"⏭️  重复文章（同 {prev_date}），跳过下载与 OCR → {raw_path.name}")
+        return
+
     img_paths = []
     if images:
         for i, url in enumerate(images[:8]):
@@ -301,6 +360,8 @@ def main():
         "image_paths": img_paths,
         "fetch_time": datetime.now(UTC).isoformat(),
         "status": "pending_ocr" if img_paths else "no_image",
+        # v5.2：下游 LLM OCR 只需处理命中这些关键词的图，其余为杂物图（段子/新闻/美股截图）
+        "ocr_keywords": OCR_KEYWORDS,
     }
     raw_path = OUT_DIR / f"yupen_{target_date}_raw.json"
     raw_path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")

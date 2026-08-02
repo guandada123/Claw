@@ -40,6 +40,10 @@ SYS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SYS))
 import wx_rss_auth as rss  # noqa: E402
 
+# 单篇正文接口的请求间隔（秒）。服务端有防风控限流，实测 0.3s 会大量触发
+# 「文章获取过快 / 请求过于频繁」，1.5s 起步较稳（2026-07-31 实测定标）。
+GAP_SEC = 1.5
+
 
 def _safe_name(s: str, max_len: int = 40) -> str:
     s = re.sub(r"[\\/:*?\"<>|]", "_", s).strip()
@@ -84,6 +88,8 @@ def main() -> int:
     since_ts = int((datetime.now(timezone.utc) - timedelta(days=args.days)).timestamp())
     total_new = 0
     total_skip = 0
+    total_failed = 0
+    failed_detail: list[tuple[str, str, str]] = []
 
     for acc in accounts:
         fid = acc.get("fakeid", "")
@@ -101,8 +107,22 @@ def main() -> int:
             if url in existing:
                 total_skip += 1
                 continue
-            # 拉正文
-            content = rss.fetch_article_content(url) if url.startswith("http") else ""
+            # 拉正文（2026-07-31：改用 _ex 版本区分「限流失败」与「真无正文」）
+            if url.startswith("http"):
+                content, err = rss.fetch_article_content_ex(url)
+            else:
+                content, err = "", "non_http_url"
+
+            title_preview = (art.get("title") or "")[:24]
+            if not content.strip():
+                # 🔴 关键修复：抓取失败绝不落盘空壳，否则该 url 进入 existing 集合后
+                #    永远不会被重抓，正文永久丢失（全库 94% 空正文的根因）。
+                total_failed += 1
+                failed_detail.append((nickname, title_preview, err or "empty_content"))
+                print(f"  ✗ {nickname}《{title_preview}》抓取失败 → {err or 'empty'}（不落盘，留待下轮重抓）")
+                time.sleep(GAP_SEC)
+                continue
+
             pub_ts = art.get("publish_time", 0) or 0
             pub_dt = datetime.fromtimestamp(pub_ts, tz=timezone.utc) if pub_ts else datetime.now(tz=timezone.utc)
             # 用发布时间命名（无则当前）
@@ -129,10 +149,17 @@ def main() -> int:
                 existing.add(url)
                 total_new += 1
                 print(f"  + {nickname}《{title[:24]}》{len(content)}字")
-            # 轻限流，避免触发 RSS 单篇接口峰值
-            time.sleep(0.3)
+            # 限流：服务端有防风控（实测 0.3s 必触发「获取过快」），提到 1.5s
+            time.sleep(GAP_SEC)
 
-    print(f"[sync] 完成 | 新增 {total_new} 篇 | 跳过已存在 {total_skip} 篇" + (" (dry-run)" if args.dry_run else ""))
+    print(
+        f"[sync] 完成 | 新增 {total_new} 篇 | 跳过已存在 {total_skip} 篇 | 抓取失败 {total_failed} 篇"
+        + (" (dry-run)" if args.dry_run else "")
+    )
+    if failed_detail:
+        print("[sync] 失败明细（未落盘，下轮自动重抓）：")
+        for acct, title, err in failed_detail[:20]:
+            print(f"   - {acct}《{title}》{err}")
     return 0
 
 
