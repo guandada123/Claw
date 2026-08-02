@@ -72,6 +72,11 @@ logs/*.log
 .workbuddy/data/simulation/backups/
 .workbuddy/data/simulation/decision_log*/
 .workbuddy/data/simulation/trading_memory.*
+.workbuddy/data/simulation/_orphan_*
+.workbuddy/data/simulation/*.bak-*
+.workbuddy/data/simulation/*.migrated*
+.workbuddy/data/simulation/experiments/
+.workbuddy/data/user/*.bak-*
 .workbuddy/automations/*/memory.md
 .workbuddy/archive/
 archive/
@@ -108,6 +113,10 @@ claw.egg-info/
 .agents/
 .brv/
 .claude/
+
+# 运行时输出 (不提交)
+src/claw/strategies/data/
+src/claw/strategies/reports/
 
 # 备份文件
 *.bak.*
