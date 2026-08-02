@@ -166,6 +166,13 @@ def debate_from_holdings(path: str):
 
     positions = pf.get("positions", {})
     if not positions:
+        # 兼容实盘结构：holdings 为 array（user/portfolio.json）
+        holdings = pf.get("holdings", [])
+        if isinstance(holdings, list) and holdings:
+            positions = {
+                h["code"]: h for h in holdings if isinstance(h, dict) and h.get("code")
+            }
+    if not positions:
         print("无持仓")
         return
 

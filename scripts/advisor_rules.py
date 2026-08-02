@@ -535,6 +535,8 @@ class AdvisorRules:
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="炒股助理纪律规则引擎")
+    parser.add_argument("--verbose", action="store_true",
+                        help="显示依赖库日志（默认静音，防止 2>&1 时 Wind 提示污染 JSON 输出）")
     sub = parser.add_subparsers(dest="cmd")
 
     p_entry = sub.add_parser("check-entry", help="入场价过滤(规则E)")
@@ -546,6 +548,13 @@ def main():
     p_diag.add_argument("--code", default=None, help="只诊断指定代码")
 
     args = parser.parse_args()
+
+    # 默认静音第三方 logger（如 wind_utils 的"每日查询上限已达"warning），
+    # 避免自动化里 2>&1 合流时污染 stdout 的 JSON。--verbose 可恢复。
+    if not args.verbose:
+        import logging as _logging
+        for _name in ("claw", "wind"):
+            _logging.getLogger(_name).setLevel(_logging.ERROR)
     advisor = AdvisorRules()
 
     if args.cmd == "check-entry":

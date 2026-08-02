@@ -290,31 +290,41 @@ def _convergence_phase(
             + "\n".join(short_stances)
             + "\n\n【牛熊研究员对抗】\n"
             + ("\n".join(debate_lines) if debate_lines else "  无辩论")
-            + "\n\n输出 JSON: {\"consensus\":\"BUY|HOLD|SELL\","
-            + "\"weighted_score\":0-1,\"confidence\":0-1,"
-            + "\"summary\":\"<=120字理由\",\"risk_flags\":[\"风险1\"],"
-            + "\"stop_loss_pct\":-8.0,"
-            + "\"factor_scores\":{\"value\":0-100,\"quality\":0-100,\"growth\":0-100,\"momentum\":0-100}}"
-            + f"\nstop_loss_pct: 根据行情波动({vol_hint})和辩论置信度动态调整"
-            + "（高波动/-10至-15, 低波动/-5至-8, 正常/-8）。"
+            + "\n\n必须输出严格 JSON（不能省略任何字段）：\n"
+            + '{"cs":"BUY|HOLD|SELL","ws":0-1,"cf":0-1,"sm":"<=120字理由",'
+            + '"rf":["风险1"],"sl":-8.0,"fs":"V75/Q80/G55/M60"}'
+            + "\n字段说明: cs=共识 ws=加权分 cf=置信度 sm=总结 rf=风险清单"
+            + " sl=动态止损%(高波动-10~-15/低波动-5~-8/正常-8) fs=四因子(V价值/Q质量/G增长/M动量 0-100)"
         )
 
-        raw = _call_llm(system, convergence_prompt, temperature=0.2, max_tokens=700)
+        raw = _call_llm(system, convergence_prompt, temperature=0.2, max_tokens=500)
         parsed = _parse_json_response(raw)
         if not parsed:
             logger.warning("convergence JSON解析失败, raw[:200]=%s", raw[:200])
             return _fallback_verdict(stances)
-        consensus = parsed.get("consensus", "HOLD").upper()
+        consensus = parsed.get("cs", parsed.get("consensus", "HOLD")).upper()
         if consensus not in ("BUY", "HOLD", "SELL"):
             consensus = "HOLD"
-        factor = parsed.get("factor_scores", {})
+
+        # 解析因子分简写格式 "V75/Q80/G55/M60"
+        fs_raw = parsed.get("fs", "")
+        fs_parts = {}
+        if isinstance(fs_raw, str) and "/" in fs_raw:
+            import re as _re
+            for m in _re.finditer(r"([VGQM])(\d+)", fs_raw):
+                key_map = {"V": "value", "Q": "quality", "G": "growth", "M": "momentum"}
+                fs_parts[key_map.get(m.group(1), m.group(1))] = int(m.group(2))
+        elif isinstance(fs_raw, dict):
+            fs_parts = fs_raw
+
+        factor = parsed.get("factor_scores", fs_parts) if isinstance(parsed.get("factor_scores"), dict) else fs_parts
         return {
             "consensus": consensus,
-            "weighted_score": min(max(float(parsed.get("weighted_score", 0.5)), 0), 1),
-            "confidence": min(max(float(parsed.get("confidence", 0.5)), 0), 1),
-            "summary": parsed.get("summary", "")[:150],
-            "risk_flags": parsed.get("risk_flags", [])[:5],
-            "stop_loss_pct": float(parsed.get("stop_loss_pct", -8.0)),
+            "weighted_score": min(max(float(parsed.get("ws", parsed.get("weighted_score", 0.5))), 0), 1),
+            "confidence": min(max(float(parsed.get("cf", parsed.get("confidence", 0.5))), 0), 1),
+            "summary": parsed.get("sm", parsed.get("summary", ""))[:150],
+            "risk_flags": parsed.get("rf", parsed.get("risk_flags", []))[:5],
+            "stop_loss_pct": float(parsed.get("sl", parsed.get("stop_loss_pct", -8.0))),
             "factor_scores": {
                 "value": int(factor.get("value", 50)),
                 "quality": int(factor.get("quality", 50)),
