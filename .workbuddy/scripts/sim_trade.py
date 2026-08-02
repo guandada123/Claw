@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 模拟炒股引擎 — AI 自主决策买卖，跟踪收益与胜率
-总资金：¥30,000 | 不可买科创板/北交所（创业板已于 07-29 放开）
+总资金：¥50,000（07-14 从 30,000 放宽）| 不可买科创板/北交所（创业板已于 07-29 放开）
 
 优化说明（2026-06-06）：
 1. 修复所有语法错误（字典缺少逗号）
@@ -93,6 +93,11 @@ TAKE_PROFIT_LEVELS = [  # 分级止盈
     {"pct": 0.25, "sell_ratio": 0.33, "desc": "+25%再卖1/3"},
     {"pct": 0.35, "sell_ratio": 0.34, "desc": "+35%清仓"},
 ]
+
+# 现金不足主动减仓规则（07/31 讨论，08/02 落地引擎）
+CASH_CRITICAL_PCT = 0.15  # 现金<总资产15% → 触发主动减仓
+CASH_TARGET_PCT = 0.25  # 减仓后目标现金占比 ≥25%
+CASH_SELL_MAX_RATIO = 0.50  # 单次最多减仓原持仓的50%
 
 # star_signal 集成 (v2.1)
 try:
@@ -339,6 +344,89 @@ def check_take_profit(pf: dict, code: str) -> dict:
     return {"should_sell": False, "reason": "未触发止盈"}
 
 
+def check_cash_insufficient(pf: dict) -> dict | None:
+    """
+    检查现金是否不足，若是则选出最弱持仓建议减仓。
+
+    规则（与午间选股/策略执行 prompt 对齐）：
+    - 触发条件：现金占比 < CASH_CRITICAL_PCT（15%）且有持仓
+    - 减仓优先级：亏损最多(距止损最近) > 盈利最薄 > 市值最小
+    - 减仓量：释放至现金≥25%总资产；单次仅减1只、不超原仓50%
+    - 返回 None 表示无需操作
+
+    优先级：低于止损/止盈强制线 — 调用方应仅在无强制卖出时启用。
+    """
+    total = calc_total_asset(pf)
+    cash_ratio = pf["cash"] / total if total > 0 else 1.0
+
+    if cash_ratio >= CASH_CRITICAL_PCT or not pf["positions"]:
+        return None
+
+    # 计算需要释放的现金量（目标：现金≥25%总资产）
+    target_cash = total * CASH_TARGET_PCT
+    need_release = target_cash - pf["cash"]
+
+    # 评估每只持仓的「弱势分」— 分数越低越该减
+    weakest = None
+    weakest_score = float("inf")
+
+    for code, pos in pf["positions"].items():
+        cur_price = pos.get("current_price", pos["avg_cost"])
+        pnl_pct = (cur_price - pos["avg_cost"]) / pos["avg_cost"]
+        mkt_value = pos["shares"] * cur_price
+
+        # 弱势分 = 亏损幅度(负值越大越弱) + 小市值权重(越小越可弃)
+        # 亏损每1%计-1分，市值每低于¥5000计-0.5分
+        score = pnl_pct * 100  # 亏损为负分
+        # 市值惩罚：市值<¥3000额外-2分，<¥5000额外-1分
+        if mkt_value < 3000:
+            score -= 2.0
+        elif mkt_value < 5000:
+            score -= 1.0
+
+        if score < weakest_score:
+            weakest_score = score
+            weakest = (code, pos, cur_price, pnl_pct, mkt_value)
+
+    if weakest is None:
+        return None
+
+    code, pos, cur_price, pnl_pct, mkt_value = weakest
+
+    # 计算减仓量：释放 need_release 现金，但不超过原仓50%
+    max_sell_shares = int(pos["shares"] * CASH_SELL_MAX_RATIO)
+    # 向下取整到100的整数倍
+    max_sell_shares = (max_sell_shares // 100) * 100
+    if max_sell_shares < 100:
+        max_sell_shares = pos["shares"]  # 持仓太少，全卖
+
+    # 需要卖出的股数（按当前价算，取整百）
+    shares_needed = int(need_release / cur_price)
+    shares_needed = ((shares_needed // 100) + 1) * 100  # 向上取整百
+    shares_to_sell = min(shares_needed, max_sell_shares, pos["shares"])
+    shares_to_sell = (shares_to_sell // 100) * 100  # 确保整百
+
+    if shares_to_sell < 100:
+        return None  # 连一手都卖不了
+
+    expected_release = shares_to_sell * cur_price * 0.998  # 扣约0.2%税费
+    new_cash_ratio = (pf["cash"] + expected_release) / total
+
+    return {
+        "code": code,
+        "name": pos["name"],
+        "action": "SELL",
+        "reason": (
+            f"现金不足主动调仓释放（当前现金占比 {cash_ratio:.1%}<{CASH_CRITICAL_PCT:.0%}，"
+            f"卖出{pos['name']}({code}) {shares_to_sell}股，"
+            f"盈亏{pnl_pct:.1%}，释放约¥{expected_release:.0f}，"
+            f"预计现金占比→{new_cash_ratio:.1%}）"
+        ),
+        "shares": shares_to_sell,
+        "priority": "cash_rebalance",
+    }
+
+
 def auto_check_all_positions(pf: dict) -> list:
     """
     自动检查所有持仓的止损止盈条件
@@ -377,9 +465,15 @@ def auto_check_all_positions(pf: dict) -> list:
                 }
             )
 
-    # 按优先级排序：high > low
-    priority_order = {"high": 0, "medium": 1, "low": 2}
+    # 按优先级排序：high > medium > low > cash_rebalance
+    priority_order = {"high": 0, "medium": 1, "low": 2, "cash_rebalance": 3}
     suggestions.sort(key=lambda x: priority_order.get(x["priority"], 99))
+
+    # 现金不足检查（仅无强制止损止盈时启用，优先级最低）
+    if not suggestions:
+        cash_check = check_cash_insufficient(pf)
+        if cash_check:
+            suggestions.append(cash_check)
 
     return suggestions
 
@@ -448,7 +542,7 @@ def cmd_buy(code: str, shares: int, price: float, name: str = ""):
 
     # 记录交易
     txn = {
-        "id": f"B{len(pf['transactions']) + 1:04d}",
+        "id": f"B{int(datetime.now().timestamp() * 1000)}",
         "type": "BUY",
         "code": code,
         "name": name,
@@ -510,7 +604,7 @@ def cmd_sell(code: str, shares: int, price: float, reason: str = ""):
 
     # 记录交易
     txn = {
-        "id": f"S{len(pf['transactions']) + 1:04d}",
+        "id": f"S{int(datetime.now().timestamp() * 1000)}",
         "type": "SELL",
         "code": code,
         "name": pos["name"],
