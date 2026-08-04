@@ -49,6 +49,7 @@ ignore = [
     "F841",    # unused-variable (部分为调试/模板变量)
     "PLR0911", # too-many-return-statements
     "TRY003",  # raise-vanilla-args
+    "PLR0917", # too-many-positional-arguments (数据/信号函数天然多参，与 PLR0913 同理)
 ]
 
 [lint.per-file-ignores]

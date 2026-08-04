@@ -853,4 +853,3 @@ def build_evening_report():
         f.write(report)
 
     return report
-

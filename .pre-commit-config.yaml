@@ -9,7 +9,9 @@ repos:
       - id: trailing-whitespace
         exclude: ^(\.workbuddy/(automations|memory|data|reports|templates|docs)/|archive/)
       - id: end-of-file-fixer
-        exclude: ^(\.workbuddy/(automations|memory|data|reports|templates|docs)/|archive/)
+        # 机器生成的数据 JSON 常被脚本重写且不带结尾换行，排除以避免 CI 抖动；
+        # 源码 .py 仍强制结尾换行（见下方单独修正）
+        exclude: ^(\.workbuddy/(automations|memory|data|reports|templates|docs)/|archive/|\.workbuddy/scripts/.*\.json$|src/claw/strategies/.*\.json$|experiments/.*\.json$)
       - id: check-yaml
         args: [--allow-multiple-documents]
       - id: check-toml
