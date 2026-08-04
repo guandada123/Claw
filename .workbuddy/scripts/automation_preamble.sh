@@ -81,7 +81,86 @@ ensure_proxy() {
     return 0
 }
 
-# 飞书推送（基于 push_feishu.sh 封装，兼容新旧两种调用方式）
+# ============================================================
+# 🔴 stateful backoff 统一入口（08-04 T3 落地）
+# 读取全局状态锚 ~/.workbuddy/cross_project_state.json 的 backoff_state，
+# 供外部 API 依赖类自动化（anysearch/微信RSS/tushare/Wind等）判断是否处于退避期。
+# 用法（source preamble 后）:
+#   check_backoff <identity>        # 退避中 → echo 剩余分钟+return 1；可执行 → return 0
+#   record_backoff_fail <identity>  # 记录一次连续失败（幂等，供状态锚更新）
+# 规则（对齐 long-running-agent-control-plane skill）：
+#   同 identity 连续失败共享退避 15→30→60→120min；任一 todo/gate/evidence 变化即重置。
+# ============================================================
+_STATE_ANCHOR="$HOME/.workbuddy/cross_project_state.json"
+
+check_backoff() {
+    local identity="$1"
+    [ -f "$_STATE_ANCHOR" ] || return 0
+    local last_fail now_ts interval_min elapsed
+    last_fail=$("$PYTHON" - "$identity" <<'PYEOF' 2>/dev/null || echo ""
+import json, os, sys, time
+identity = sys.argv[1]
+p = os.path.expanduser("~/.workbuddy/cross_project_state.json")
+try:
+    d = json.load(open(p))
+    bs = d.get("backoff_state", {}).get("shared_identities", {}).get(identity, {})
+    lf = bs.get("last_fail")
+    iv = bs.get("current_interval_min", 30)
+    print(f"{lf or ''}|{iv}")
+except Exception:
+    pass
+PYEOF
+)
+    [ -n "$last_fail" ] || return 0
+    local lf="${last_fail%%|*}" iv="${last_fail##*|}"
+    [ -n "$lf" ] && [ "$lf" != "null" ] || return 0
+    now_ts=$(date +%s)
+    # last_fail 形如 2026-08-04T07:45+08:00（ISO）——取日期+时间转 epoch
+    elapsed=$("$PYTHON" - "$lf" <<'PYEOF' 2>/dev/null || echo 99999
+import sys, datetime
+s = sys.argv[1].strip()
+try:
+    dt = datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
+    print(int(datetime.datetime.now().timestamp() - dt.timestamp()))
+except Exception:
+    print(99999)
+PYEOF
+)
+    if [ "$elapsed" -lt "$((iv * 60))" ]; then
+        echo "[backoff] ⚠️ $identity 处于退避期(剩 $((iv * 60 - elapsed))s)，跳过本次执行"
+        return 1
+    fi
+    return 0
+}
+
+# 记录一次退避失败（写回状态锚，幂等）。identity + 可选 note
+record_backoff_fail() {
+    local identity="$1"
+    [ -f "$_STATE_ANCHOR" ] || return 0
+    "$PYTHON" - "$identity" <<'PYEOF' 2>/dev/null || true
+import json, os, sys, datetime
+identity = sys.argv[1]
+p = os.path.expanduser("~/.workbuddy/cross_project_state.json")
+try:
+    with open(p) as f:
+        d = json.load(f)
+    bs = d.setdefault("backoff_state", {}).setdefault("shared_identities", {}).setdefault(identity, {})
+    cf = bs.get("consecutive_failures", 0) + 1
+    iv = bs.get("current_interval_min", 30)
+    # 退避阶梯: 15→30→60→120（上限240）
+    step = [15, 30, 60, 120, 240]
+    idx = min(cf - 1, len(step) - 1)
+    bs["consecutive_failures"] = cf
+    bs["current_interval_min"] = step[idx]
+    bs["last_fail"] = datetime.datetime.now().astimezone().isoformat(timespec="minutes")
+    d["updated_at"] = datetime.datetime.now().astimezone().isoformat(timespec="minutes")
+    with open(p, "w") as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
+    print(f"[backoff] {identity} 连续失败 {cf} 次 → 退避 {step[idx]}min")
+except Exception:
+    pass
+PYEOF
+}
 # 新用法: push_feishu "标题" "内容"
 # 旧用法: push_feishu "event" "message" "dedup-key" [cooldown] — 自动兼容
 push_feishu() {

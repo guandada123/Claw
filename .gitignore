@@ -85,6 +85,7 @@ archive/
 .workbuddy/artifacts/
 .workbuddy/knowledge/
 .workbuddy/memory/.backups/
+.workbuddy/automations/*/.backups/
 
 # 密钥（本地使用，不上传 GitHub）
 scripts/secrets.py
@@ -120,6 +121,7 @@ src/claw/strategies/reports/
 
 # 备份文件
 *.bak.*
+*.bak-*
 
 # Stray 文件防回归（源自两日变更审计）
 $DB

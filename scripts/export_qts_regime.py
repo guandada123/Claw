@@ -24,29 +24,46 @@ _OUTPUT = _PROJECT_ROOT / "data" / "qts_regime.json"
 _QTS_SCRIPT = r"""
 import json
 try:
-    from services.market_regime import MarketRegimeFilter, Regime
+    from services.market_regime import MarketRegimeFilter
     from models.database import get_db_session
     from sqlalchemy import text
 
     # 从 daily_quote 直接取沪深300收盘价（最近500日）
+    rows_rev = []
     with get_db_session() as db:
         rows = db.execute(text(
             "SELECT close, high, low FROM daily_quote "
             "WHERE ts_code = '000300.SH' "
-            "ORDER BY trade_date DESC LIMIT 500"
+            "ORDER BY trade_date ASC LIMIT 500"
         )).fetchall()
+        # rows: 升序 (close, high, low)
+        rows_rev = [(float(r[0]), float(r[1]), float(r[2])) for r in rows]
 
-    if rows and len(rows) >= 50:
-        rows_rev = list(reversed(rows))
-        closes = [float(r[0]) for r in rows_rev]
-        highs = [float(r[1]) for r in rows_rev]
-        lows = [float(r[2]) for r in rows_rev]
+    if len(rows_rev) < 50:
+        # 🔴 治本(08-04)：daily_quote 无指数数据时，腾讯源直拉沪深300兜底，不落库不污染回测池
+        import urllib.request
+        url = ("https://web.ifzq.gtimg.cn/appstock/app/kline/kline?"
+               "param=sh000300,day,2025-01-01,2026-08-04,500")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        raw = urllib.request.urlopen(req, timeout=10).read().decode("utf-8")
+        node = json.loads(raw).get("data", {}).get("sh000300", {})
+        days = node.get("day") or node.get("qfqday") or []
+        # 腾讯指数K线: [日期, 开, 收, 高, 低, 量] → (close, low, high) 升序
+        rows_rev = [(float(k[2]), float(k[4]), float(k[3]))
+                    for k in sorted(days, key=lambda x: x[0]) if len(k) >= 5]
+
+    if len(rows_rev) >= 50:
+        closes = [r[0] for r in rows_rev]
+        highs = [r[2] for r in rows_rev]
+        lows = [r[1] for r in rows_rev]
 
         rf = MarketRegimeFilter()
         regime = rf.classify(closes, highs, lows)
         pos_mult = MarketRegimeFilter.get_position_mult(regime)
+        regime_val = regime.value
     else:
-        regime = Regime.OSCILLATE
+        # 🔴 数据不足时禁止硬编码震荡(曾致连续多日误报震荡0.5x)：诚实输出 unknown
+        regime_val = "unknown"
         pos_mult = 0.5
 
     desc = {
@@ -54,17 +71,18 @@ try:
         "oscillate": "🟡 震荡 — 建议半仓(0.5x)",
         "bear": "🔴 熊市 — 建议25%仓(0.25x)",
         "transition": "⚠️ 过渡态 — 建议40%仓(0.4x)，等方向明确",
+        "unknown": "⚪ 数据不足 — 无法判定，保守半仓(0.5x)",
     }
 
     result = {
-        "regime": regime.value,
-        "regime_label": desc.get(regime.value, str(regime)),
+        "regime": regime_val,
+        "regime_label": desc.get(regime_val, str(regime_val)),
         "position_multiplier": pos_mult,
-        "data_points": len(rows) if rows else 0,
+        "data_points": len(rows_rev) if rows_rev else 0,
     }
     print(json.dumps(result, ensure_ascii=False))
 except Exception as e:
-    print(json.dumps({"error": str(e), "regime": "oscillate", "position_multiplier": 0.5}))
+    print(json.dumps({"error": str(e), "regime": "unknown", "regime_label": "⚪ QTS异常 — 无法判定（保守半仓）", "position_multiplier": 0.5}))
 """
 
 
@@ -92,12 +110,12 @@ def export() -> dict:
                 data["generated_at"] = datetime.now().isoformat()
                 break
         else:
-            data = {"error": "no JSON output", "regime": "oscillate", "position_multiplier": 0.5,
-                    "regime_label": "🟡 震荡（QTS无响应，默认保守）",
+            data = {"error": "no JSON output", "regime": "unknown", "position_multiplier": 0.5,
+                    "regime_label": "⚪ QTS无响应 — 无法判定（保守半仓）",
                     "generated_at": datetime.now().isoformat()}
     except Exception as e:
-        data = {"error": str(e), "regime": "oscillate", "position_multiplier": 0.5,
-                "regime_label": "🟡 震荡（连接失败，默认保守）",
+        data = {"error": str(e), "regime": "unknown", "position_multiplier": 0.5,
+                "regime_label": "⚪ 连接失败 — 无法判定（保守半仓）",
                 "generated_at": datetime.now().isoformat()}
     finally:
         os.unlink(tmp)

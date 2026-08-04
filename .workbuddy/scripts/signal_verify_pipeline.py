@@ -19,6 +19,10 @@ THRESHOLD = 5.0  # 胜率波动阈值（百分点）
 
 
 def main():
+    if not REPORT.exists():
+        print(json.dumps({"decision": "skip", "reason": "signal_verify_report.json 不存在",
+                          "msg_file": str(MSG_FILE)}, ensure_ascii=False))
+        return "skip"
     report = json.loads(REPORT.read_text(encoding="utf-8"))
     today = report["trade_date"]
     overall = report["overall"]
@@ -34,6 +38,8 @@ def main():
         except Exception:
             hist = {}
     snapshots = hist.get("snapshots", [])
+    # 去掉与今日同日期快照（幂等：signal_verify.py 已在报告生成时追加），再取上一个
+    snapshots = [s for s in snapshots if s.get("date") != today]
     last = snapshots[-1] if snapshots else None
 
     decision = "push"
@@ -58,10 +64,10 @@ def main():
         if max_delta < THRESHOLD:
             decision = "silent"
 
-    # 保存快照
+    # 保存快照（幂等追加：同日期覆盖，不重复累积；保留最近 60 个）
     snap = {"date": today, "overall_win": cur_overall, "per_account": cur}
     snapshots.append(snap)
-    hist["snapshots"] = snapshots[-12:]
+    hist["snapshots"] = snapshots[-60:]
     HISTORY.write_text(json.dumps(hist, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # 生成推送文案

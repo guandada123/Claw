@@ -9,7 +9,7 @@
       }
     ],
     "created_at": "2026-07-05",
-    "updated_at": "2026-08-01 14:31:00"
+    "updated_at": "2026-08-04 10:57:52"
   },
   "cash": 31035.24,
   "positions": {
@@ -18,26 +18,28 @@
       "shares": 100,
       "avg_cost": 78.72,
       "total_cost": 7872.0,
-      "current_price": 87.6,
+      "current_price": 85.06,
       "highest_price": 89.39,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-08-02T20:21",
-      "price_source": "腾讯qt.gtimg.cn·最近收盘2026-07-31"
+      "updated": "2026-08-04T11:10",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-04 11:10",
+      "mode": "normal"
     },
     "601899": {
       "name": "紫金矿业",
       "shares": 200,
       "avg_cost": 27.565,
       "total_cost": 5513.0,
-      "current_price": 32.95,
+      "current_price": 32.02,
       "highest_price": 33.68,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-08-02T20:21",
-      "price_source": "腾讯qt.gtimg.cn·最近收盘2026-07-31"
+      "updated": "2026-08-04T11:10",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-04 11:10",
+      "mode": "normal"
     },
     "600036": {
       "name": "招商银行",
@@ -48,8 +50,9 @@
       "highest_price": 40.55,
       "take_profit_level": 1,
       "first_buy_date": "2026-07-23",
-      "updated": "2026-08-02T20:21",
-      "price_source": "腾讯qt.gtimg.cn·最近收盘2026-07-31"
+      "updated": "2026-08-04T11:10",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-04 11:10",
+      "mode": "normal"
     }
   },
   "transactions": [
@@ -221,6 +224,33 @@
         }
       },
       "time": "2026-07-14 15:30:00"
+    },
+    "2026-08-02": {
+      "total_asset": 54309.24,
+      "cash": 31035.24,
+      "pnl": 4309.24,
+      "pnl_pct": 8.62,
+      "positions": {
+        "000333": {
+          "name": "美的集团",
+          "shares": 100,
+          "price": 87.6,
+          "market_value": 8760.0
+        },
+        "601899": {
+          "name": "紫金矿业",
+          "shares": 200,
+          "price": 32.95,
+          "market_value": 6590.0
+        },
+        "600036": {
+          "name": "招商银行",
+          "shares": 200,
+          "price": 39.62,
+          "market_value": 7924.0
+        }
+      },
+      "time": "2026-08-02 23:05:19"
     }
   }
 }

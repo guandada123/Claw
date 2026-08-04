@@ -6,7 +6,7 @@
 优化说明（2026-06-06）：
 1. 修复所有语法错误（字典缺少逗号）
 2. 添加智能追踪止损（trailing stop）
-3. 添加分级止盈策略（+15%卖1/3, +25%卖1/3, +35%全平）
+3. 添加分级止盈策略（双模式：冲刺期5/10/15%、正常期15/25/35%，由日期自动判定）
 4. 添加风险管理（单只持仓≤50%，行业分散）
 5. 添加自动止损止盈检查函数
 """
@@ -88,11 +88,30 @@ STOP_LOSS_PCT = 0.08  # 固定止损线 -8%（主板/中小板，降级方案）
 # 创业板(300/301)单独更宽止损：20%涨跌停，单日波动大，-8%易被穿透。07-29放开创业板后增设。
 CYB_STOP_LOSS_PCT = 0.15  # 创业板固定止损线 -15%
 TRAILING_STOP_PCT = 0.15  # 追踪止损：从最高价回落 15% 触发
-TAKE_PROFIT_LEVELS = [  # 分级止盈
-    {"pct": 0.15, "sell_ratio": 0.33, "desc": "+15%卖出1/3"},
-    {"pct": 0.25, "sell_ratio": 0.33, "desc": "+25%再卖1/3"},
-    {"pct": 0.35, "sell_ratio": 0.34, "desc": "+35%清仓"},
-]
+# 分级止盈（双模式：冲刺期/正常期，由日期自动判定）
+#   冲刺期（每月20号后 或 6月14号后）：5%/10%/15% 快速轮动锁定利润
+#   正常期（其余日期）：15%/25%/35% 耐心持有追求高收益
+# 与 trading-dual-mode-seamless skill 对齐；check_take_profit 运行时调用，
+# 模式切换时自动重置 take_profit_level（见 check_take_profit）。
+def _is_sprint_period() -> bool:
+    """判断当前是否处于冲刺期（每月20号后 或 6月14号后）。"""
+    today = date.today()
+    return (today.month == 6 and today.day >= 14) or (today.day >= 20)
+
+
+def _get_take_profit_levels() -> list:
+    """返回当前模式的止盈分级（运行时判定，非模块级静态）。"""
+    if _is_sprint_period():
+        return [
+            {"pct": 0.05, "sell_ratio": 0.33, "desc": "+5%卖出1/3(冲刺)"},
+            {"pct": 0.10, "sell_ratio": 0.33, "desc": "+10%再卖1/3(冲刺)"},
+            {"pct": 0.15, "sell_ratio": 0.34, "desc": "+15%清仓(冲刺)"},
+        ]
+    return [
+        {"pct": 0.15, "sell_ratio": 0.33, "desc": "+15%卖出1/3"},
+        {"pct": 0.25, "sell_ratio": 0.33, "desc": "+25%再卖1/3"},
+        {"pct": 0.35, "sell_ratio": 0.34, "desc": "+35%清仓"},
+    ]
 
 # 现金不足主动减仓规则（07/31 讨论，08/02 落地引擎）
 CASH_CRITICAL_PCT = 0.15  # 现金<总资产15% → 触发主动减仓
@@ -312,22 +331,34 @@ def check_stop_loss(pf: dict, code: str) -> dict:
 
 def check_take_profit(pf: dict, code: str) -> dict:
     """
-    检查是否需要止盈（分级止盈）
+    检查是否需要止盈（分级止盈，双模式）
     返回：{"should_sell": bool, "reason": str, "shares_to_sell": int}
     """
     pos = pf["positions"].get(code)
     if not pos:
         return {"should_sell": False, "reason": "无持仓"}
 
+    # 检测止盈模式切换（冲刺期 ↔ 正常期），自动重置止盈层级
+    current_mode = "sprint" if _is_sprint_period() else "normal"
+    last_mode = pos.get("mode")
+    if last_mode and last_mode != current_mode:
+        logger.info(
+            "%s 止盈模式切换: %s → %s，重置 take_profit_level 为 1",
+            code, last_mode, current_mode,
+        )
+        pos["take_profit_level"] = 1
+    pos["mode"] = current_mode
+
     current_price = pos.get("current_price", pos["avg_cost"])
     avg_cost = pos["avg_cost"]
     pnl_pct = (current_price - avg_cost) / avg_cost * 100
 
     current_level = pos.get("take_profit_level", 1)
+    levels = _get_take_profit_levels()
 
     # 检查当前级别是否需要止盈
-    if current_level <= len(TAKE_PROFIT_LEVELS):
-        level = TAKE_PROFIT_LEVELS[current_level - 1]
+    if current_level <= len(levels):
+        level = levels[current_level - 1]
         if pnl_pct >= level["pct"] * 100:
             shares_to_sell = int(pos["shares"] * level["sell_ratio"])
             if shares_to_sell < 100:  # A股最小交易单位100股
