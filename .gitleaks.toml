@@ -1,0 +1,17 @@
+# gitleaks 配置 — 精确豁免历史泄漏（2026-08-04 处置，不重写历史）
+#
+# 背景：scripts/.prompt_cache_config.json 曾在提交 dd5df15c 中提交真实 DeepSeek API key；
+# 后经 afac54b(2026-06-20) 移出 git 跟踪并加入 .gitignore，当前工作区已无此文件。
+# gitleaks 扫描 --all 全历史仍命中该提交 → 按提交哈希精确豁免，使 CI 转绿。
+# 铁律约束：不 force/压历史，故不做 filter-repo 类历史重写。
+#
+# ⚠️ 安全提示：该密钥已暴露于公开仓库(guandada123/Claw, PUBLIC)历史，
+#    豁免仅消除 CI 红灯，不消除暴露 —— 须轮换 DeepSeek API key，
+#    并在轮换后（经用户确认）用历史重写彻底清除。
+title = "Claw gitleaks config"
+
+[allowlist]
+  description = "historical DeepSeek api_key in scripts/.prompt_cache_config.json (committed dd5df15c, untracked since 2026-06-20, rotation pending)"
+  commits = [
+    "dd5df15c5a0726116da2e691f994fa01940a5334",
+  ]
