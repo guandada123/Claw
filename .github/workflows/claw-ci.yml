@@ -118,7 +118,11 @@ jobs:
           restore-keys: benchmark-${{ github.ref_name }}-
       - name: Run benchmark
         run: |
-          cd .workbuddy && python -m pytest tests/test_benchmark.py --benchmark-only --benchmark-json=../benchmark-results.json -v
+          if [ -f .workbuddy/tests/test_benchmark.py ]; then
+            cd .workbuddy && python -m pytest tests/test_benchmark.py --benchmark-only --benchmark-json=../benchmark-results.json -v
+          else
+            echo "::warning::tests/test_benchmark.py 不存在，跳过基准回归检测（新增该文件即自动启用）"
+          fi
       - name: Compare with baseline (warning only)
         run: |
           if [ -f .workbuddy/.benchmarks/baseline.json ]; then
