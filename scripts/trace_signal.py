@@ -20,7 +20,7 @@ DEBATE_DIR = PROJECT_ROOT / ".workbuddy" / "data" / "debate"
 def load_json(path: Path) -> dict | list:
     if not path.exists():
         return {} if path.suffix == ".json" else []
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
 
 
 def trace(code: str | None = None):

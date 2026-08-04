@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).parent.parent
 SIM_DIR = PROJECT_ROOT / ".workbuddy" / "data" / "simulation"
@@ -21,20 +22,20 @@ MEMORY_FILE = SIM_DIR / "trading_memory.json"
 def load_portfolio() -> dict:
     if not PORTFOLIO_FILE.exists():
         return {}
-    return json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8"))
+    return json.loads(PORTFOLIO_FILE.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
 
 
 def load_memory() -> list[dict]:
     if not MEMORY_FILE.exists():
         return []
-    return json.loads(MEMORY_FILE.read_text(encoding="utf-8"))
+    return json.loads(MEMORY_FILE.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
 
 
 def calc_dashboard() -> dict:
     pf = load_portfolio()
     memories = load_memory()
 
-    result = {
+    result: dict[str, Any] = {
         "total_asset": 0,
         "total_pnl": 0,
         "total_pnl_pct": 0,

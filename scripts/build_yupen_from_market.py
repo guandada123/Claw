@@ -157,7 +157,7 @@ def em_kline(secid, beg, end):
                         "ut": "fa5fd1943c7b386f172d6893dbfba10b"},
                 headers={"User-Agent": "Mozilla/5.0",
                           "Referer": "http://quote.eastmoney.com/"},
-                timeout=20, proxies={"http": None, "https": None} if clear else None)
+                timeout=20, proxies={"http": None, "https": None} if clear else None)  # type: ignore[dict-item]
             d = r.json().get("data")
             if not d or not d.get("klines"):
                 continue
@@ -185,7 +185,7 @@ def yf_kline(ticker, beg, end):
         url = ("https://query1.finance.yahoo.com/v8/finance/chart/"
                f"{urllib.parse.quote(ticker)}?period1={p1}&period2={p2}&interval=1d")
         r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20,
-                         proxies={"http": None, "https": None})
+                         proxies={"http": None, "https": None})  # type: ignore[dict-item]
         d = r.json().get("chart", {}).get("result")
         if not d:
             return None
@@ -203,7 +203,7 @@ def yf_kline(ticker, beg, end):
             rows.append({"date": dstr, "open": float(opens[i] or c),
                          "close": float(c), "high": float(highs[i] or c),
                          "low": float(lows[i] or c), "vol": float(vols[i] or 0)})
-        rows.sort(key=lambda x: x["date"])
+        rows.sort(key=lambda x: str(x["date"]))
         return rows or None
     except Exception:
         return None

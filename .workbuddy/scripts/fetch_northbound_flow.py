@@ -2,7 +2,10 @@
 """
 fetch_northbound_flow.py — 获取北向资金（沪深股通北上净买额），支持多日历史
 
-数据源: 东方财富
+⚠️ 已降级(2024-05起): 北向实时净买额停止披露，东财 kamt 接口恒为0，数据源失效。
+   本脚本现直接返回 {"ok": false, "discontinued": true}，不再请求死源，下游监控跳过该维度。
+
+数据源(已失效，保留仅供历史参考): 东方财富
   当日实时:  push2.eastmoney.com/api/qt/kamt/get
     hk2sh.dayNetAmtIn = 北向(沪股通)当日净买额(元)
     hk2sz.dayNetAmtIn = 北向(深股通)当日净买额(元)
@@ -60,6 +63,11 @@ KLINE_URL = (
 )
 
 _TIMEOUT = 8
+
+# ⚠️ 北向实时净买额自 2024-05 起停止披露（沪深交易所不再公布沪深股通北上实时净买额），
+#    东财 kamt 接口虽存活但 dayNetAmtIn 恒为 0。数据源已失效 → 降级：直接返回 discontinued，
+#    不再请求死源（省一次无效网络调用，也避免把恒0误读为"当日净流出0亿"）。
+NORTHBOUND_DISCONTINUED = True
 
 
 def _http_get(url: str) -> str | None:
@@ -148,6 +156,21 @@ def _consecutive(recent: list[dict]) -> tuple[int, float, str | None]:
 
 def main(days: int = 5) -> dict:
     today = date.today().isoformat()
+    if NORTHBOUND_DISCONTINUED:
+        # 数据源已失效（2024-05 起停止披露），直接降级返回，不再请求死源
+        return {
+            "ok": False,
+            "net_flow": None,
+            "discontinued": True,
+            "source": "discontinued",
+            "date": today,
+            "error": ("北向资金(沪深股通北上净买额)实时披露自 2024-05 起已停止，"
+                      "东财 kamt 接口数据恒为0，数据源失效；监控跳过该维度。"),
+            "recent": [],
+            "consecutive_days": 0,
+            "consecutive_sum": 0.0,
+            "consecutive_dir": None,
+        }
     sh_north, sz_north = _fetch_today()
     recent = _fetch_recent(days)
     cons_days, cons_sum, cons_dir = _consecutive(recent)

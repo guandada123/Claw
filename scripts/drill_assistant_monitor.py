@@ -224,8 +224,9 @@ def main():
     # ── PHASE4 北向 ──
     nf = nb_flow
     cond_single = nf is not None and abs(nf) > 30
-    cond_consec = (isinstance(north, dict) and north.get("consecutive_days", 0) >= 3
-                   and abs(north.get("consecutive_sum", 0)) > 80)
+    nb_consec_days = north.get("consecutive_days", 0) if isinstance(north, dict) else 0
+    nb_consec_sum = north.get("consecutive_sum", 0) if isinstance(north, dict) else 0
+    cond_consec = isinstance(north, dict) and nb_consec_days >= 3 and abs(nb_consec_sum) > 80
     if cond_single or cond_consec:
         # 取今日沪/深分项（若有）
         sh = sz = None
@@ -240,14 +241,16 @@ def main():
         if sh is not None and sz is not None:
             body += f"\n沪股通：{sh}亿 | 深股通：{sz}亿"
         if cond_consec:
-            body += f"\n连续 {north.get('consecutive_days')} 日同向累计 {north.get('consecutive_sum')}亿"
+            body += f"\n连续 {nb_consec_days} 日同向累计 {nb_consec_sum}亿"
         print(f"【北向推送】📊炒股助理【北向资金】{now}")
         print(f"今日净流入/流出：{nf}亿" + (f" (沪{sh}/深{sz})" if sh is not None else ""))
         if cond_consec:
-            print(f"连续 {north.get('consecutive_days')} 日同向累计 {north.get('consecutive_sum')}亿")
+            print(f"连续 {nb_consec_days} 日同向累计 {nb_consec_sum}亿")
         push(title, body)
         print("-" * 60)
         triggered += 1
+    elif isinstance(north, dict) and north.get("discontinued"):
+        print("北向：DISCONTINUED (自2024-05停止披露，跳过该维度)")
     else:
         cd = north.get("consecutive_days", 0) if isinstance(north, dict) else 0
         cs = north.get("consecutive_sum", 0) if isinstance(north, dict) else 0
