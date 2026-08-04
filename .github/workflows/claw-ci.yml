@@ -44,7 +44,7 @@ jobs:
           cache: pip
           cache-dependency-path: "pyproject.toml"
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.15.17  # 锁定与本地/根 pre-commit 一致的版本，避免新版规则(如 PLR0917)漂移致 CI 红灯
       - name: Ruff lint
         run: ruff check .workbuddy/ --config ${{ env.RUFF_CONFIG }}
       - name: Ruff format check
