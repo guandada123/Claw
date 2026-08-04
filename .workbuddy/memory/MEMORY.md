@@ -50,6 +50,8 @@
 - 存储=致态SSD(/Volumes/ZHITAI)+Colima，~/.workbuddy等符号链接禁删/移；公众号双轨=付费RSS+本地API(localhost:5001)
 - ✅断链已澄清(07-20误报07-29更正)：1781778427910已DELETED死问题；1782741941693引绝对路径/Users/guan/WorkBuddy/Claw/scripts/calc_rsi.py（存在无断链）；审计prompt-LIKE须排除DELETED状态
 - 🔧proxy看门狗(07-26)：com.workbuddy.proxy-watchdog(StartInterval=30, python3跑proxy_watchdog.py自动load回，防外部unload空窗)；launchd后台agent禁/bash脚本须managed python3直跑.py
+- 🔧自动化运维排障(08-04)：①查 `automation_runs` 表**必须用带 `automation-` 前缀的 ID**（如 `automation-1785506975961`），裸 ID 必误报"无运行记录"（曾误判7/8管家自动化静默失败）；②该表全451行 status 恒为 `PENDING_REVIEW`（0条SUCCESS/FAILED），属默认记录态非失败，勿据此判静默失败；③验真运行看 `last_run_at`/`created_at` 时间戳；④**Claw 本地助手工作区禁止托管新定时自动化**（守卫报错），新建须用其他项目工作区宿主（如QTS），git 命令用 `git -C <abs>` 绝对路径不依赖 cwd
+- 🔧备份清理缺口核实(08-04→supersedes早期「需建prune自动化」判断)：**不成立，不建**。output/.backups/daily/ 15个tar.gz(07-21~08-04)是每日备份脚本14天滚动清理正常结果(156M为预期)；`.bak-*` 全文0个；其余 `.backups`(memory288K/data8K)是记忆蒸馏归档(文件移入非复制)删了丢历史且已有🧹记忆体检(1780769419635)在跑，禁自动prune
 
 ## QTS日线数据架构（07-23，详情CHRONICLE）
 - 本地回填主源 qts_daily_backfill.py(腾讯K线32线程→upsert 127.0.0.1:15432 daily_quote，自动化1784811393302@16:30)；容器daily_data_refresh仅增量(tushare限频慢)；./strategy-service:/app挂载即时生效；daily_quote加updated_at列
