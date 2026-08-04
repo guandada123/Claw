@@ -487,7 +487,7 @@ class AdvisorRules:
             try:
                 ma = get_wind_ma(bare, period=20)
                 if ma is not None:
-                    return ma
+                    return float(ma)
             except Exception:
                 pass
         # 2) 腾讯 ifzq 前复权
