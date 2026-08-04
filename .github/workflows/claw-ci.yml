@@ -133,8 +133,12 @@ jobs:
       - name: Save baseline (main branch only)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
-          cp benchmark-results.json .workbuddy/.benchmarks/baseline.json
-          echo "Baseline updated on main"
+          if [ -f benchmark-results.json ]; then
+            cp benchmark-results.json .workbuddy/.benchmarks/baseline.json
+            echo "Baseline updated on main"
+          else
+            echo "::warning::无基准结果（test_benchmark.py 缺失或未运行），跳过 baseline 保存"
+          fi
 
   security:
     name: Security Scan
