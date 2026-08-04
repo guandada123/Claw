@@ -10,6 +10,7 @@
 运行：python3 .workbuddy/scripts/scan_expanded_pool.py [--no-gtimg]
 依赖：QTS strategy-service 指标包 (本文件自带 sys.path) + psycopg2 + urllib
 """
+
 from __future__ import annotations
 
 # ── QTS 指标（本地路径，importlib 绕过 services/__init__ 副作用）──
@@ -30,8 +31,7 @@ _SERVICES_PKG = os.path.join(QTS_SERVICES, "services")
 
 
 def _load_qts(mod_file, mod_name):
-    spec = importlib.util.spec_from_file_location(
-        mod_name, os.path.join(_SERVICES_PKG, mod_file))
+    spec = importlib.util.spec_from_file_location(mod_name, os.path.join(_SERVICES_PKG, mod_file))
     mod = importlib.util.module_from_spec(spec)
     sys.modules[mod_name] = mod
     spec.loader.exec_module(mod)
@@ -59,8 +59,13 @@ WINDOW = 10  # 信号聚合窗口(最近 N 日)
 
 # ── 数据源 ──
 POOL_PATH = os.path.join(os.path.dirname(__file__), "expanded_pool.json")
-DB_CFG = {"host": "127.0.0.1", "port": 15432, "dbname": "quant_trading",
-          "user": "quant_user", "password": "quant_pass"}  # noqa: S106
+DB_CFG = {
+    "host": "127.0.0.1",
+    "port": 15432,
+    "dbname": "quant_trading",
+    "user": "quant_user",
+    "password": "quant_pass",
+}  # noqa: S106
 GTIMG_BASE = "https://qt.gtimg.cn/q="
 
 
@@ -73,6 +78,7 @@ def load_pool():
 def fetch_history(codes):
     """从本地 QTS Postgres 读每只标的最近 75 日历史日线。"""
     import psycopg2
+
     bars = defaultdict(list)
     try:
         conn = psycopg2.connect(**DB_CFG, connect_timeout=8)
@@ -82,9 +88,9 @@ def fetch_history(codes):
     try:
         cur = conn.cursor()
         placeholders = ",".join(["%s"] * len(codes))
-        sql = (
+        sql = (  # nosec B608
             "SELECT ts_code, high, low, close, trade_date FROM daily_quote "
-            "WHERE ts_code IN (" + placeholders + ") "
+            "WHERE ts_code IN (" + placeholders + ") "  # nosec B608
             "AND trade_date >= (SELECT MAX(trade_date) FROM daily_quote) - INTERVAL '75 day' "
             "ORDER BY ts_code, trade_date"
         )
@@ -106,12 +112,13 @@ def fetch_gtimg_batch(codes):
     out = {}
     today = date.today().isoformat()
     for i in range(0, len(codes), 40):
-        batch = codes[i:i + 40]
+        batch = codes[i : i + 40]
         q = ",".join(f"{'sh' if x.endswith('.SH') else 'sz'}{x.split('.')[0]}" for x in batch)
         url = GTIMG_BASE + q
         try:  # noqa
-            req = urllib.request.Request(url, headers={
-                "User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"})
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"}
+            )
             raw = urllib.request.urlopen(req, timeout=20).read().decode("gbk", "ignore")
         except Exception as e:  # noqa: BLE001
             print(f"[WARN] gtimg 批次 {i} 拉取失败({e})")
@@ -129,8 +136,10 @@ def fetch_gtimg_batch(codes):
                 if not ts_code:
                     continue
                 out[ts_code] = {
-                    "high": float(f[33]), "low": float(f[34]),
-                    "close": float(f[3]), "date": today,
+                    "high": float(f[33]),
+                    "low": float(f[34]),
+                    "close": float(f[3]),
+                    "date": today,
                 }
             except (ValueError, IndexError):
                 continue
@@ -139,8 +148,7 @@ def fetch_gtimg_batch(codes):
 
 def calc_combo(series):
     """series: [(high,low,close,td)] -> COMBO 信号(窗口聚合)。"""
-    dicts = [{"close": r[2], "high": r[0], "low": r[1], "volume": 0, "open": r[2]}
-             for r in series]
+    dicts = [{"close": r[2], "high": r[0], "low": r[1], "volume": 0, "open": r[2]} for r in series]
     cl = [r[2] for r in series]
     hi = [r[0] for r in series]
     lo = [r[1] for r in series]
@@ -156,8 +164,7 @@ def calc_combo(series):
         v = v[-1] if v else 0.0
         return 0.0 if (isinstance(v, float) and math.isnan(v)) else float(v)
 
-    return (combo_val, int(vw), int(bb),
-            round(sl(adx), 1), round(sl(rsi), 1), cl[-1])
+    return (combo_val, int(vw), int(bb), round(sl(adx), 1), round(sl(rsi), 1), cl[-1])
 
 
 def decide(combo, adx, rsi):
@@ -183,8 +190,10 @@ def main():
 
     pool = load_pool()
     codes = list(pool.keys())
-    print(f"[INFO] 扩大池 {len(pool)} 只(科技+红利); 本次扫 {len(codes)} 只; "
-          f"gtimg兜底={'开' if use_gtimg else '关'}")
+    print(
+        f"[INFO] 扩大池 {len(pool)} 只(科技+红利); 本次扫 {len(codes)} 只; "
+        f"gtimg兜底={'开' if use_gtimg else '关'}"
+    )
 
     bars = fetch_history(codes)
     rt = fetch_gtimg_batch(codes) if use_gtimg else {}
@@ -203,21 +212,46 @@ def main():
         s = s[-LOOKBACK:]
         combo, vwm, bbr, adx, rsi, close = calc_combo(s)
         act = decide(combo, adx, rsi)
-        rows.append((code, pool[code]["name"], close, combo, vwm, bbr, adx, rsi, act,
-                     "history+gtimg" if snap else "history-only"))
+        rows.append(
+            (
+                code,
+                pool[code]["name"],
+                close,
+                combo,
+                vwm,
+                bbr,
+                adx,
+                rsi,
+                act,
+                "history+gtimg" if snap else "history-only",
+            )
+        )
 
-    scan_date = today if use_gtimg else (
-        s[-1][3] if (s := bars.get(codes[0], [("","","","")])) else today)
+    scan_date = (
+        today
+        if use_gtimg
+        else (s[-1][3] if (s := bars.get(codes[0], [("", "", "", "")])) else today)
+    )
     print(f"[DEBUG] 有效 {len(rows)} 只; 跳过(数据不足) {skipped} 只; scan_date={scan_date}")
 
-    order = {"STRONG_BUY": 0, "BUY": 1, "HOLD": 2, "HOLD_ADX_WEAK": 3,
-             "HOLD_OVERBOUGHT": 4, "SELL": 5}
+    order = {
+        "STRONG_BUY": 0,
+        "BUY": 1,
+        "HOLD": 2,
+        "HOLD_ADX_WEAK": 3,
+        "HOLD_OVERBOUGHT": 4,
+        "SELL": 5,
+    }
     rows.sort(key=lambda r: (order.get(r[8], 9), -r[3]))
 
-    print(f"{'CODE':<10}{'NAME':<10}{'CLOSE':>9}{'COMBO':>8}{'VWM':>5}{'BBR':>5}{'ADX':>7}{'RSI':>7}  ACTION")
+    print(
+        f"{'CODE':<10}{'NAME':<10}{'CLOSE':>9}{'COMBO':>8}{'VWM':>5}{'BBR':>5}{'ADX':>7}{'RSI':>7}  ACTION"
+    )
     print("-" * 96)
     for r in rows:
-        print(f"{r[0]:<10}{r[1]:<10}{r[2]:>9.2f}{r[3]:>8.2f}{r[4]:>5}{r[5]:>5}{r[6]:>7.1f}{r[7]:>7.1f}  {r[8]}")
+        print(
+            f"{r[0]:<10}{r[1]:<10}{r[2]:>9.2f}{r[3]:>8.2f}{r[4]:>5}{r[5]:>5}{r[6]:>7.1f}{r[7]:>7.1f}  {r[8]}"
+        )
 
     buys = [r for r in rows if r[8] in ("BUY", "STRONG_BUY")]
     print(f"\n=== 买入候选 (COMBO>={COMBO_BUY} & ADX>={ADX_FILTER} & RSI<={RSI_BLOCK}) ===")
@@ -225,19 +259,39 @@ def main():
     for r in buys:
         code, name, close = r[0], r[1], r[2]
         print(f"■ {code} {name}")
-        print(f"  现价 {close:.2f} | COMBO {r[3]:.2f}(VWM{r[4]}/BBR{r[5]}) ADX {r[6]} RSI {r[7]} [{r[8]}]")
+        print(
+            f"  现价 {close:.2f} | COMBO {r[3]:.2f}(VWM{r[4]}/BBR{r[5]}) ADX {r[6]} RSI {r[7]} [{r[8]}]"
+        )
         print()
 
-    cand = [{"code": r[0], "name": r[1], "close": r[2], "combo": r[3],
-             "vwm": r[4], "bbr": r[5], "adx": r[6], "rsi": r[7], "action": r[8],
-             "src": r[9]} for r in buys]
+    cand = [
+        {
+            "code": r[0],
+            "name": r[1],
+            "close": r[2],
+            "combo": r[3],
+            "vwm": r[4],
+            "bbr": r[5],
+            "adx": r[6],
+            "rsi": r[7],
+            "action": r[8],
+            "src": r[9],
+        }
+        for r in buys
+    ]
     dist = defaultdict(int)
     for r in rows:
         dist[r[8]] += 1
     dist_str = dict(sorted(dist.items(), key=lambda x: -x[1]))
-    out = {"scan_date": scan_date, "total": len(rows), "skipped": skipped,
-           "pool_size": len(pool), "buys": cand, "action_dist": dist_str,
-           "data_source": "QTS daily_quote(history) + gtimg(realtime today)"}
+    out = {
+        "scan_date": scan_date,
+        "total": len(rows),
+        "skipped": skipped,
+        "pool_size": len(pool),
+        "buys": cand,
+        "action_dist": dist_str,
+        "data_source": "QTS daily_quote(history) + gtimg(realtime today)",
+    }
     with open("/tmp/expanded_pool_scan_result.json", "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
     print("候选结果已写 /tmp/expanded_pool_scan_result.json")

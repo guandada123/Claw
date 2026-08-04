@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """公众号信号溯源报告生成器"""
+
 from __future__ import annotations
 
 import json

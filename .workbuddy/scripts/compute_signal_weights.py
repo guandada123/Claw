@@ -22,8 +22,20 @@ SIGNALS_FILE = os.path.join(DATA_DIR, "article_signals.json")
 WEIGHTS_FILE = os.path.join(DATA_DIR, "signal_weights.json")
 
 _WEEKDAY = {"Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6}
-_MONTH_NAMES = [(1, "Jan"), (2, "Feb"), (3, "Mar"), (4, "Apr"), (5, "May"), (6, "Jun"),
-                (7, "Jul"), (8, "Aug"), (9, "Sep"), (10, "Oct"), (11, "Nov"), (12, "Dec")]
+_MONTH_NAMES = [
+    (1, "Jan"),
+    (2, "Feb"),
+    (3, "Mar"),
+    (4, "Apr"),
+    (5, "May"),
+    (6, "Jun"),
+    (7, "Jul"),
+    (8, "Aug"),
+    (9, "Sep"),
+    (10, "Oct"),
+    (11, "Nov"),
+    (12, "Dec"),
+]
 # 与 signal_verify.py 保持一致：收益率异常默认过滤
 EXCLUDE_SUSPECT = os.environ.get("SIGNAL_EXCLUDE_SUSPECT_RETURN", "1") != "0"
 
@@ -140,7 +152,9 @@ def main():
             ar = acc["ret_sum"] / acc["ret_count"] if acc["ret_count"] > 0 else 0.0
             mult = 3 if wr > 50 else 2 if wr > 30 else 1 if wr > 10 else 0.5
             # 单票主导降权：同一标的≥50%验证样本时，权重倍数封顶为 1（✅正常）
-            top_stock, top_cnt = acc["stock_counts"].most_common(1)[0] if acc["stock_counts"] else ("", 0)
+            top_stock, top_cnt = (
+                acc["stock_counts"].most_common(1)[0] if acc["stock_counts"] else ("", 0)
+            )
             top_pct = round(top_cnt / acc["total"] * 100, 1) if acc["total"] else 0.0
             if top_pct >= 50:
                 mult = min(mult, 1)
@@ -176,7 +190,9 @@ def main():
 
     print(f"✅ 权重表已更新 ({len(weights)} 个公众号 ≥3验证信号)")
     for a, w in sorted(weights.items(), key=lambda x: -x[1]["weighted_hit_rate"]):
-        print(f"  {a}: 加权命中{w['weighted_hit_rate']}% 收益{w['avg_return']:+.1f}% ×{w['weight_multiplier']}")
+        print(
+            f"  {a}: 加权命中{w['weighted_hit_rate']}% 收益{w['avg_return']:+.1f}% ×{w['weight_multiplier']}"
+        )
 
 
 if __name__ == "__main__":

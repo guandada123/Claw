@@ -6,6 +6,7 @@ signal_verify_pipeline.py — 公众号信号溯源 v4 编排（步骤2~3）
   - 生成飞书推送 markdown 到 /tmp/signal_verify_msg.md
   - 打印决策 JSON：{decision, max_delta, changed, msg_file}
 """
+
 import json
 import pathlib
 
@@ -20,8 +21,16 @@ THRESHOLD = 5.0  # 胜率波动阈值（百分点）
 
 def main():
     if not REPORT.exists():
-        print(json.dumps({"decision": "skip", "reason": "signal_verify_report.json 不存在",
-                          "msg_file": str(MSG_FILE)}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "decision": "skip",
+                    "reason": "signal_verify_report.json 不存在",
+                    "msg_file": str(MSG_FILE),
+                },
+                ensure_ascii=False,
+            )
+        )
         return "skip"
     report = json.loads(REPORT.read_text(encoding="utf-8"))
     today = report["trade_date"]
@@ -74,15 +83,20 @@ def main():
     msg = build_message(report)
     MSG_FILE.write_text(msg, encoding="utf-8")
 
-    print(json.dumps({
-        "decision": decision,
-        "max_delta": round(max_delta, 1),
-        "changed": changed,
-        "chat_id": CHAT_ID,
-        "msg_file": str(MSG_FILE),
-        "overall_win": cur_overall,
-        "verify_cov": overall["verify_cov"],
-    }, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "decision": decision,
+                "max_delta": round(max_delta, 1),
+                "changed": changed,
+                "chat_id": CHAT_ID,
+                "msg_file": str(MSG_FILE),
+                "overall_win": cur_overall,
+                "verify_cov": overall["verify_cov"],
+            },
+            ensure_ascii=False,
+        )
+    )
     return decision
 
 
@@ -92,7 +106,9 @@ def build_message(report):
     lines.append("📚【知识库】公众号信号溯源")
     lines.append("")
     lines.append(f"**行情验证总览**（{report['trade_date']}）")
-    lines.append(f"- 信号总量：{o['total']} 条，已验证：{o['verified']} 条（覆盖 {o['verify_cov']}%）")
+    lines.append(
+        f"- 信号总量：{o['total']} 条，已验证：{o['verified']} 条（覆盖 {o['verify_cov']}%）"
+    )
     lines.append(f"- 看多信号命中率：**{o['win_rate']}%**（命中 {o['hits']}/{o['with_return']}）")
     lines.append(f"- 已验证信号平均收益：**{o['avg_return']}%**（自推荐日起算，前复权）")
     lines.append("")
@@ -101,7 +117,9 @@ def build_message(report):
         wr = "—" if x["win_rate"] is None else f"{x['win_rate']}%"
         ar = "—" if x["avg_return"] is None else f"{x['avg_return']}%"
         cov = "—" if x["win_rate"] is None else f"{x['verify_cov']}%"
-        lines.append(f"▸ {x['account']}：信号{x['total']} / 验证{x['verified']}({cov}) / 命中率{wr} / 均收益{ar}")
+        lines.append(
+            f"▸ {x['account']}：信号{x['total']} / 验证{x['verified']}({cov}) / 命中率{wr} / 均收益{ar}"
+        )
     lines.append("")
     lines.append("⚠️ 掌门小才女、股德猫停 信号均来自 2019–2020，超出验证窗口(>1年)未计入命中率。")
     lines.append("📊 行情验证结果已更新（实时行情：腾讯；历史收益：新浪日线）")

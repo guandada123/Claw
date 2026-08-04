@@ -1,6 +1,7 @@
 """
 summarize_batch.py 单元测试
 """
+
 import sys
 from pathlib import Path
 
@@ -17,8 +18,8 @@ class TestSummarizeArticleContent:
         article = {
             "title": "科技板块午后走强",
             "content": "今日科技板块午后大幅走强，半导体和AI概念股领涨。中天科技盘中涨幅超过5%，"
-                       "成交量较昨日放大近一倍。有研新材半导体材料订单增长明显。市场分析师指出，"
-                       "三季度是科技股传统旺季，叠加国产替代政策推进，板块有望持续活跃。",
+            "成交量较昨日放大近一倍。有研新材半导体材料订单增长明显。市场分析师指出，"
+            "三季度是科技股传统旺季，叠加国产替代政策推进，板块有望持续活跃。",
         }
         summary = summarize_article_content(article)
         assert len(summary) > 0

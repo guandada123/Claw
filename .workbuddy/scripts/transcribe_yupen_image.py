@@ -18,6 +18,7 @@ transcribe_yupen_image.py — 将鱼盆截图 OCR 转录为结构化 JSON
   python3 transcribe_yupen_image.py
   python3 transcribe_yupen_image.py --date 2026-07-14
 """
+
 import argparse
 import json
 import os
@@ -129,7 +130,9 @@ def _write_json(data_date, table_type, rows, source, article_title, article_id):
     payload = {
         "date": data_date,
         "source": source,
-        "data_type": "板块轮动历史回测数据" if table_type == "sector_rotation" else "鱼盆趋势模型历史回测数据",
+        "data_type": "板块轮动历史回测数据"
+        if table_type == "sector_rotation"
+        else "鱼盆趋势模型历史回测数据",
         "article_title": article_title,
         "article_id": article_id,
         "fetch_time": datetime.now(UTC).isoformat(),
@@ -190,7 +193,7 @@ def main():
     if not any(parsed.values()):
         print("⚠️ OCR 未能自动解析表格，ocr_texts 已写入 raw，需人工/视觉模型复核")
     else:
-        print(f"✅ OCR 完成：{ {k: ('已解析' if v else '未解析') for k,v in parsed.items()} }")
+        print(f"✅ OCR 完成：{ {k: ('已解析' if v else '未解析') for k, v in parsed.items()} }")
 
 
 if __name__ == "__main__":

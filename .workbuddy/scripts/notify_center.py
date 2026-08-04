@@ -6,6 +6,7 @@ v2 (2026-07-17): 委托 push_card.py 发 interactive 卡片（经 push_feishu.sh
 新增 --level 显式指定配色（alert/warning/info/success）；
 未指定时按 event-type 关键词推断，兜底 info。
 """
+
 import argparse
 import os
 import subprocess
@@ -41,9 +42,12 @@ def main():
     push_parser.add_argument("--message", required=True)
     push_parser.add_argument("--dedupe-key", default="")
     push_parser.add_argument("--cooldown", type=int, default=1440)
-    push_parser.add_argument("--level", default="",
-                             choices=["", "alert", "warning", "info", "success"],
-                             help="显式配色；缺省按 event-type 关键词推断")
+    push_parser.add_argument(
+        "--level",
+        default="",
+        choices=["", "alert", "warning", "info", "success"],
+        help="显式配色；缺省按 event-type 关键词推断",
+    )
 
     args = parser.parse_args()
 
@@ -71,8 +75,11 @@ def main():
     try:
         subprocess.run(
             ["bash", PUSH_SCRIPT, args.event_type, args.message],
-            env=env, check=True, timeout=30,
-            capture_output=True, text=True,
+            env=env,
+            check=True,
+            timeout=30,
+            capture_output=True,
+            text=True,
         )
         print(f"✅ 推送成功: {args.event_type} (level={level})")
     except Exception as e:
@@ -80,10 +87,19 @@ def main():
         print(f"⚠️ push_feishu.sh 失败: {e}，降级 push_card")
         try:
             subprocess.run(
-                [sys.executable, os.path.join(SCRIPT_DIR, "push_card.py"),
-                 "--title", args.event_type, "--level", level,
-                 "--section", "", (args.message or "")[:2000]],
-                check=False, timeout=15,
+                [
+                    sys.executable,
+                    os.path.join(SCRIPT_DIR, "push_card.py"),
+                    "--title",
+                    args.event_type,
+                    "--level",
+                    level,
+                    "--section",
+                    "",
+                    (args.message or "")[:2000],
+                ],
+                check=False,
+                timeout=15,
             )
         except Exception as e2:
             print(f"🔴 兜底也失败: {e2}", file=sys.stderr)

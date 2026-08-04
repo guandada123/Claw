@@ -36,7 +36,12 @@ sys.modules["cost_tracker"] = mock_cost_tracker
 # --- mock local_model ---
 mock_local_model = MagicMock()
 mock_local_model.call = MagicMock(
-    return_value={"success": True, "response": "本地模型回复", "prompt_tokens": 10, "response_tokens": 5}
+    return_value={
+        "success": True,
+        "response": "本地模型回复",
+        "prompt_tokens": 10,
+        "response_tokens": 5,
+    }
 )
 mock_local_model.is_available = MagicMock(return_value=False)
 sys.modules["local_model"] = mock_local_model
@@ -840,7 +845,9 @@ class TestTryLogCall:
     def test_log_call_receives_cache_tokens(self):
         """cache hit/miss token 正确传递。"""
         mock_cost_tracker.log_call.reset_mock()
-        _try_log_call("deepseek-v4-flash", 100, 50, "task", "project", hit_tokens=30, miss_tokens=70)
+        _try_log_call(
+            "deepseek-v4-flash", 100, 50, "task", "project", hit_tokens=30, miss_tokens=70
+        )
         call_kwargs = mock_cost_tracker.log_call.call_args.kwargs
         assert call_kwargs["prompt_cache_hit_tokens"] == 30
         assert call_kwargs["prompt_cache_miss_tokens"] == 70
@@ -901,7 +908,12 @@ class TestParseSuccessResponse:
         """cache hit/miss token 正确传递。"""
         body = {
             "choices": [{"message": {"content": "x"}}],
-            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "prompt_cache_hit_tokens": 10, "prompt_cache_miss_tokens": 5},
+            "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "prompt_cache_hit_tokens": 10,
+                "prompt_cache_miss_tokens": 5,
+            },
         }
         result = _parse_success_response(body, "m", "p", 0.5, "t", "Claw")
         assert result["prompt_cache_hit_tokens"] == 10

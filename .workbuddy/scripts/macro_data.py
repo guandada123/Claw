@@ -52,12 +52,20 @@ def _fetch_wind_mcp_macro(indicator: str) -> dict | None:
     Returns:
         {"status": "ok", "latest_12": [{"日期": ..., "值": ...}]} 或 None
     """
-    payload = json.dumps({
-        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-        "params": {"name": "get_financial_data", "arguments": {"question": indicator, "lang": "CNS"}},
-    }).encode("utf-8")
+    payload = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "get_financial_data",
+                "arguments": {"question": indicator, "lang": "CNS"},
+            },
+        }
+    ).encode("utf-8")
     req = urllib.request.Request(
-        WIND_MCP_URL, data=payload,
+        WIND_MCP_URL,
+        data=payload,
         headers={
             "Authorization": WIND_MCP_AUTH,
             "Content-Type": "application/json",
@@ -89,18 +97,26 @@ def _fetch_wind_mcp_macro(indicator: str) -> dict | None:
                             continue
                         cols = rows[0].get("columns", [])
                         # 找日期列和第一个数值列
-                        date_idx = next((i for i, col in enumerate(cols) if "日期" in col.get("name", "")), 0)
-                        val_idx = min(i for i, col in enumerate(cols) if i != date_idx and "累计" not in col.get("name", ""))
+                        date_idx = next(
+                            (i for i, col in enumerate(cols) if "日期" in col.get("name", "")), 0
+                        )
+                        val_idx = min(
+                            i
+                            for i, col in enumerate(cols)
+                            if i != date_idx and "累计" not in col.get("name", "")
+                        )
                         name = cols[val_idx].get("name", indicator)
                         unit = cols[val_idx].get("unit", "")
                         flat = []
                         for row in data_rows:
-                            flat.append({
-                                "指标": name,
-                                "单位": unit,
-                                "日期": str(row[date_idx])[:10],
-                                "值": row[val_idx],
-                            })
+                            flat.append(
+                                {
+                                    "指标": name,
+                                    "单位": unit,
+                                    "日期": str(row[date_idx])[:10],
+                                    "值": row[val_idx],
+                                }
+                            )
                         if flat:
                             return {"status": "ok", "latest_12": flat, "_source": "wind"}
             except (json.JSONDecodeError, IndexError, KeyError, TypeError):
@@ -180,23 +196,21 @@ def _with_fallback(name: str, fn, as_type: str, mapper, **kwargs) -> dict:
 
     # 3) AnySearch（末级降级）
     if _anysearch_helper is None or as_type not in _AKSHARE_TO_ANYSEARCH:
-        return {"error": ak_result.get("error", "wind+akshare_failed"),
-                "_source": "none"}
+        return {"error": ak_result.get("error", "wind+akshare_failed"), "_source": "none"}
     try:
         alt = _anysearch_helper.macro_indicator(_AKSHARE_TO_ANYSEARCH[as_type])
         if "error" in alt:
-            return {"error": f"akshare_failed+anysearch_{alt['error']}",
-                    "_source": "none"}
+            return {"error": f"akshare_failed+anysearch_{alt['error']}", "_source": "none"}
         d = mapper({"_raw": {"latest_12": [alt]}, "status": "ok"}, alt=alt)
         d["_source"] = "anysearch"
         return d
     except Exception as e:
-        return {"error": f"akshare_failed+anysearch_exc({e})",
-                "_source": "none"}
+        return {"error": f"akshare_failed+anysearch_exc({e})", "_source": "none"}
 
 
 def fetch_gdp() -> dict:
     """GDP 数据（季度）— AKShare 优先 + AnySearch 降级"""
+
     def _map(ak_result, alt=None):
         if alt is not None:
             # AnySearch 回退：{gdp, gdp_yoy, pi, pi_yoy, quarter, si, si_yoy, ti, ti_yoy}
@@ -219,11 +233,13 @@ def fetch_gdp() -> dict:
             "tertiary_yoy": latest.get("第三产业-同比增长", None),
             "history": ak_result["latest_12"],
         }
+
     return _with_fallback("GDP", ak.macro_china_gdp, "gdp", _map)
 
 
 def fetch_cpi() -> dict:
     """CPI 数据（月度）— AKShare 优先 + AnySearch 降级"""
+
     def _map(ak_result, alt=None):
         if alt is not None:
             # AnySearch: {month, cnt_yoy, cnt_mom, nt_yoy, nt_mom, town_yoy, town_mom}
@@ -244,6 +260,7 @@ def fetch_cpi() -> dict:
             "cpi_rural_yoy": latest.get("农村-同比增长", None),
             "history": ak_result["latest_12"],
         }
+
     return _with_fallback("CPI", ak.macro_china_cpi, "cpi", _map)
 
 
@@ -266,6 +283,7 @@ def fetch_pmi() -> dict:
 
 def fetch_money_supply() -> dict:
     """货币供应量 M0/M1/M2（月度）— AKShare 优先 + AnySearch 降级"""
+
     def _map(ak_result, alt=None):
         if alt is not None:
             # AnySearch: {month, m0, m0_yoy, m1, m1_yoy, m2, m2_yoy}
@@ -290,11 +308,13 @@ def fetch_money_supply() -> dict:
             "m0_yoy": latest.get("流通中的现金(M0)-同比增长", None),
             "history": ak_result["latest_12"],
         }
+
     return _with_fallback("MoneySupply", ak.macro_china_money_supply, "money_supply", _map)
 
 
 def fetch_shibor() -> dict:
     """Shibor 利率（日度）— AKShare 优先 + AnySearch 降级"""
+
     def _map(ak_result, alt=None):
         if alt is not None:
             # AnySearch: {date, on, 1w, 1m, 2w, 3m, 6m, 9m, 1y}
@@ -317,16 +337,28 @@ def fetch_shibor() -> dict:
             return {
                 "latest_date": str(latest_date),
                 "overnight": float(latest_row["O/N-定价"].values[0])
-                if "O/N-定价" in df.columns else None,
-                "week_1": float(latest_row["1W-定价"].values[0]) if "1W-定价" in df.columns else None,
-                "month_1": float(latest_row["1M-定价"].values[0]) if "1M-定价" in df.columns else None,
-                "month_3": float(latest_row["3M-定价"].values[0]) if "3M-定价" in df.columns else None,
-                "month_6": float(latest_row["6M-定价"].values[0]) if "6M-定价" in df.columns else None,
-                "year_1": float(latest_row["1Y-定价"].values[0]) if "1Y-定价" in df.columns else None,
+                if "O/N-定价" in df.columns
+                else None,
+                "week_1": float(latest_row["1W-定价"].values[0])
+                if "1W-定价" in df.columns
+                else None,
+                "month_1": float(latest_row["1M-定价"].values[0])
+                if "1M-定价" in df.columns
+                else None,
+                "month_3": float(latest_row["3M-定价"].values[0])
+                if "3M-定价" in df.columns
+                else None,
+                "month_6": float(latest_row["6M-定价"].values[0])
+                if "6M-定价" in df.columns
+                else None,
+                "year_1": float(latest_row["1Y-定价"].values[0])
+                if "1Y-定价" in df.columns
+                else None,
                 "total_days": len(df),
             }
         except Exception as e:
             return {"error": str(e), "_source": "none"}
+
     # shibor 原逻辑用 try/except 而非 safe_fetch，故单独处理回退
     ak_d = _map(None)
     if "error" not in ak_d:
@@ -477,12 +509,12 @@ def calculate_macro_score(data: dict) -> dict:
 
 # ── Wind MCP 全量指标映射（一次拉全部，失败即降级）──
 _WIND_INDICATOR_MAP = {
-    "gdp":  {"q": "中国GDP当季同比 最近8期"},
-    "cpi":  {"q": "中国CPI当月同比 最近12期"},
-    "pmi":  {"q": "中国制造业PMI 最近12期"},
+    "gdp": {"q": "中国GDP当季同比 最近8期"},
+    "cpi": {"q": "中国CPI当月同比 最近12期"},
+    "pmi": {"q": "中国制造业PMI 最近12期"},
     "money_supply": {"q": "中国M2同比 最近12期"},
     "shibor": {"q": "Shibor隔夜利率 最近12期"},
-    "lpr":  {"q": "贷款市场报价利率LPR 最近12期"},
+    "lpr": {"q": "贷款市场报价利率LPR 最近12期"},
     "social_financing": {"q": "中国社会融资规模增量 最近12期"},
     "forex_reserve": {"q": "中国外汇储备 最近12期"},
 }
@@ -503,8 +535,11 @@ def _fetch_all_via_wind_mcp() -> dict | None:
         if key == "gdp":
             result["gdp"] = {
                 "latest_quarter": str(rows[0].get("日期", ""))[:7],
-                "gdp_yoy": val, "gdp_absolute": None,
-                "primary_yoy": None, "secondary_yoy": None, "tertiary_yoy": None,
+                "gdp_yoy": val,
+                "gdp_absolute": None,
+                "primary_yoy": None,
+                "secondary_yoy": None,
+                "tertiary_yoy": None,
                 "_source": "wind",
             }
         elif key == "cpi":
@@ -576,14 +611,16 @@ def main():
     data["macro_score"] = score
 
     # 元数据
-    sources = [v.get("_source", "akshare") for v in data.values()
-               if isinstance(v, dict) and "_source" in v]
+    sources = [
+        v.get("_source", "akshare") for v in data.values() if isinstance(v, dict) and "_source" in v
+    ]
     data["_meta"] = {
         "updated_at": datetime.now().isoformat(),
         "source": "AKShare+AnySearch(降级)",
         "akshare_only": all(s == "akshare" for s in sources) if sources else False,
-        "anysearch_fallback": [k for k, v in data.items()
-                               if isinstance(v, dict) and v.get("_source") == "anysearch"],
+        "anysearch_fallback": [
+            k for k, v in data.items() if isinstance(v, dict) and v.get("_source") == "anysearch"
+        ],
         "indicators_ok": sum(1 for v in data.values() if isinstance(v, dict) and "error" not in v),
         "indicators_total": 8,
     }

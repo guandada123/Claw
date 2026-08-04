@@ -10,6 +10,7 @@ schedule_utils.py — 调度稳态检查（幂等/熔断/排他锁）
   python3 schedule_utils.py done --name "任务名" --interval-hours 6   # 6h槽位标记
   python3 schedule_utils.py stats                   # 输出统计摘要
 """
+
 import argparse
 import os
 import sys
@@ -56,6 +57,7 @@ def cmd_stats() -> int:
     """统计摘要（含每日锁 + 6h槽位锁）"""
     import glob
     import re
+
     locks = sorted(glob.glob("/tmp/claw_lock_*"))
     today = date.today().strftime("%Y%m%d")
     today_locks = [l for l in locks if today in l]
@@ -69,7 +71,9 @@ def cmd_stats() -> int:
     for l in slot_locks:
         m = re.search(r"_h(\d+)_s(\d+)$", l)
         h, s = m.group(1), m.group(2)
-        print(f"    🔒 {os.path.basename(l)}  (槽位 s{s}, 覆盖 {int(s)*int(h):02d}:00-{int(s)*int(h)+int(h)-1:02d}:59)")
+        print(
+            f"    🔒 {os.path.basename(l)}  (槽位 s{s}, 覆盖 {int(s) * int(h):02d}:00-{int(s) * int(h) + int(h) - 1:02d}:59)"
+        )
     return 0
 
 

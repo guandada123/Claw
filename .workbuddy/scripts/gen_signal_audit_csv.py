@@ -3,6 +3,7 @@
 用法: python3 gen_signal_audit_csv.py
 输出: data/signal_audit_YYYY-MM-DD.csv
 """
+
 import csv
 import datetime
 import json
@@ -79,26 +80,39 @@ for d in ws.get("details", []):
         change = STABLE[acct]
     else:
         change = "维持"
-    rows.append({
-        "account": acct,
-        "win_rate": wr,
-        "signals": d["signals"],
-        "avg_return": d["avg_return"],
-        "weight": weight,
-        "grade": grade_of(wr),
-        "change_vs_0723": change,
-    })
+    rows.append(
+        {
+            "account": acct,
+            "win_rate": wr,
+            "signals": d["signals"],
+            "avg_return": d["avg_return"],
+            "weight": weight,
+            "grade": grade_of(wr),
+            "change_vs_0723": change,
+        }
+    )
 
 # 按 win_rate 降序
-rows.sort(key=lambda r: (r["win_rate"] if r["win_rate"] is not None else -1), reverse=True)
+rows.sort(key=lambda r: r["win_rate"] if r["win_rate"] is not None else -1, reverse=True)
 
 with open(OUT, "w", newline="", encoding="utf-8-sig") as f:
     w = csv.writer(f)
     w.writerow(["账号", "加权命中率%", "验证信号数", "平均收益%", "权重", "评级", "vs_7-23变化"])
     for r in rows:
-        w.writerow([r["account"], r["win_rate"], r["signals"], r["avg_return"],
-                    r["weight"], r["grade"], r["change_vs_0723"]])
+        w.writerow(
+            [
+                r["account"],
+                r["win_rate"],
+                r["signals"],
+                r["avg_return"],
+                r["weight"],
+                r["grade"],
+                r["change_vs_0723"],
+            ]
+        )
 
 print(f"✅ CSV 已生成: {OUT}")
-print(f"   行数={len(rows)} | 共识: 总配对={summary.get('total_pairs')} 双源={summary.get('dual_source')} "
-      f"强共识={summary.get('strong_consensus')} 分歧={summary.get('conflict')}")
+print(
+    f"   行数={len(rows)} | 共识: 总配对={summary.get('total_pairs')} 双源={summary.get('dual_source')} "
+    f"强共识={summary.get('strong_consensus')} 分歧={summary.get('conflict')}"
+)

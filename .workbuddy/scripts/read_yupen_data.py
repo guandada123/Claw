@@ -17,6 +17,7 @@
   "yupen_trend": { ... } | null
 }
 """
+
 from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
 
 import argparse
@@ -67,8 +68,7 @@ def _latest(glob_pat: str, exclude_sub: str | None, days: int = 30, rich: bool =
     if not cands:
         return None, None
     if rich:
-        cands.sort(key=lambda x: (len(x[0].get("sectors", [])), x[0].get("date", "")),
-                   reverse=True)
+        cands.sort(key=lambda x: (len(x[0].get("sectors", [])), x[0].get("date", "")), reverse=True)
     else:
         cands.sort(key=lambda x: x[0].get("date", ""), reverse=True)
     return cands[0]
@@ -184,9 +184,7 @@ def read_yupen_data(days: int = 30) -> dict:
 
     stale_note = None
     if freshness == "stale" and data_date:
-        stale_note = (
-            f"⚠️ 鱼盆模型数据日期为 {data_date}，滞后于文章发布日期（通常滞后1天），以下为最新有效数据"
-        )
+        stale_note = f"⚠️ 鱼盆模型数据日期为 {data_date}，滞后于文章发布日期（通常滞后1天），以下为最新有效数据"
 
     return {
         "status": "ok",
@@ -203,23 +201,27 @@ def read_yupen_data(days: int = 30) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="鱼盆数据读取器")
-    parser.add_argument("--freshness-only", action="store_true",
-                        help="仅输出新鲜度状态")
-    parser.add_argument("--days", type=int, default=30,
-                        help="查找最近N天内的有效数据")
+    parser.add_argument("--freshness-only", action="store_true", help="仅输出新鲜度状态")
+    parser.add_argument("--days", type=int, default=30, help="查找最近N天内的有效数据")
     args = parser.parse_args()
 
     result = read_yupen_data(days=args.days)
 
     if args.freshness_only:
-        print(json.dumps({
-            "freshness": result["freshness"],
-            "data_date": result["data_date"],
-            "rss_updated": result.get("rss_updated"),
-            "raw_date": result.get("raw_date"),
-            "raw_has_images": result.get("raw_has_images"),
-            "stale_note": result["stale_note"],
-        }, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "freshness": result["freshness"],
+                    "data_date": result["data_date"],
+                    "rss_updated": result.get("rss_updated"),
+                    "raw_date": result.get("raw_date"),
+                    "raw_has_images": result.get("raw_has_images"),
+                    "stale_note": result["stale_note"],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
     else:
         print(json.dumps(result, ensure_ascii=False, indent=2))
 

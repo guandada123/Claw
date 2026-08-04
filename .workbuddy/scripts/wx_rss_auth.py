@@ -143,7 +143,7 @@ def _parse_rss_xml(xml_text: str, fakeid: str, limit: int) -> list:
 
     arts = []
     try:
-        root = ET.fromstring(xml_text)  # noqa: S314  # RSS源为可信付费服务, 非用户不可信输入
+        root = ET.fromstring(xml_text)  # noqa: S314  # nosec B314  # RSS源为可信付费服务, 非用户不可信输入
     except ET.ParseError as e:
         print(f"  ⚠️ RSS XML 解析失败: {e}", file=sys.stderr)
         return arts
@@ -193,7 +193,9 @@ def _parse_rss_xml(xml_text: str, fakeid: str, limit: int) -> list:
 _RETRY_SEC_RE = re.compile(r"(\d+)\s*秒后重试")
 
 
-def fetch_article_content_ex(art_id: str, max_retry: int = 4, base_gap: float = 1.5) -> tuple[str, str]:
+def fetch_article_content_ex(
+    art_id: str, max_retry: int = 4, base_gap: float = 1.5
+) -> tuple[str, str]:
     """获取单篇文章正文，返回 (正文, 错误原因)。
 
     2026-07-31 根因修复：付费 RSS 服务端**有防风控限流**（原注释「无限流」是错的）。

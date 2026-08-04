@@ -11,6 +11,7 @@ push_evening_report.py — 微信晚报统一推送脚本（卡片化 + 可点�
 依赖：push_card.py（同目录）、lark-cli
 支持 --date YYYYMMDD 覆盖（调试/补推）
 """
+
 from __future__ import annotations
 
 import json
@@ -23,7 +24,9 @@ from datetime import datetime
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LARK_CLI = (
     os.path.expanduser("~/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli")
-    if os.path.isfile(os.path.expanduser("~/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli"))
+    if os.path.isfile(
+        os.path.expanduser("~/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli")
+    )
     else "lark-cli"
 )
 DEFAULT_CHAT = "oc_9ee5303497f5e0e71666b610d6bdc346"
@@ -37,8 +40,19 @@ def _create_feishu_doc(title: str, content: str) -> str | None:
     无法授权给用户，链接打不开。user 失败时由调用方走群文件兜底。
     """
     identity = "user"
-    args = [LARK_CLI, "docs", "+create", "--as", identity,
-            "--doc-format", "markdown", "--title", title, "--content", content]
+    args = [
+        LARK_CLI,
+        "docs",
+        "+create",
+        "--as",
+        identity,
+        "--doc-format",
+        "markdown",
+        "--title",
+        title,
+        "--content",
+        content,
+    ]
     try:
         r = subprocess.run(args, capture_output=True, text=True, timeout=120)
         out = r.stdout.strip()
@@ -51,7 +65,9 @@ def _create_feishu_doc(title: str, content: str) -> str | None:
             url = res["data"]["document"].get("url")
             print(f"  ✅ 文档已建 (user): {url}")
             return url
-        print(f"  [{identity}] not ok: {json.dumps(res, ensure_ascii=False)[:200]}", file=sys.stderr)
+        print(
+            f"  [{identity}] not ok: {json.dumps(res, ensure_ascii=False)[:200]}", file=sys.stderr
+        )
     except Exception as e:
         print(f"  [{identity}] exc: {e}", file=sys.stderr)
     return None
@@ -70,8 +86,19 @@ def _send_full_report_file(md: str, chat_id: str, ymd: str) -> bool:
     except Exception as e:
         print(f"  ⚠️ 写群文件失败: {e}", file=sys.stderr)
         return False
-    args = [LARK_CLI, "im", "+messages-send", "--as", "bot",
-            "--chat-id", chat_id, "--file", rel, "--msg-type", "file"]
+    args = [
+        LARK_CLI,
+        "im",
+        "+messages-send",
+        "--as",
+        "bot",
+        "--chat-id",
+        chat_id,
+        "--file",
+        rel,
+        "--msg-type",
+        "file",
+    ]
     try:
         r = subprocess.run(args, capture_output=True, text=True, timeout=60)
         ok = ('"ok":true' in r.stdout) or ('"ok": true' in r.stdout)
@@ -173,6 +200,7 @@ def main():
     # 4) 发卡片
     sys.path.insert(0, SCRIPT_DIR)
     import push_card as pc
+
     print(f"📨 发送卡片 (level={level}, {len(sections)}区块)")
     ok = pc.send_card(
         title=title[:50],

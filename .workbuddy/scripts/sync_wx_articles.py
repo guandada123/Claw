@@ -23,6 +23,7 @@ sync_wx_articles.py — 公众号文章全量同步（落盘 output/wx_articles/
 
 依赖：wx_rss_auth（付费云 RSS，凭证 ~/.workbuddy/auth/wx_rss_api.sh）
 """
+
 from __future__ import annotations
 
 import argparse
@@ -119,12 +120,18 @@ def main() -> int:
                 #    永远不会被重抓，正文永久丢失（全库 94% 空正文的根因）。
                 total_failed += 1
                 failed_detail.append((nickname, title_preview, err or "empty_content"))
-                print(f"  ✗ {nickname}《{title_preview}》抓取失败 → {err or 'empty'}（不落盘，留待下轮重抓）")
+                print(
+                    f"  ✗ {nickname}《{title_preview}》抓取失败 → {err or 'empty'}（不落盘，留待下轮重抓）"
+                )
                 time.sleep(GAP_SEC)
                 continue
 
             pub_ts = art.get("publish_time", 0) or 0
-            pub_dt = datetime.fromtimestamp(pub_ts, tz=timezone.utc) if pub_ts else datetime.now(tz=timezone.utc)
+            pub_dt = (
+                datetime.fromtimestamp(pub_ts, tz=timezone.utc)
+                if pub_ts
+                else datetime.now(tz=timezone.utc)
+            )
             # 用发布时间命名（无则当前）
             stamp = pub_dt.strftime("%Y%m%d_%H%M%S")
             title = (art.get("title") or "").strip() or "untitled"

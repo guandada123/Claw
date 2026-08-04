@@ -19,6 +19,7 @@ signal_weights_update.py — 公众号信号权重 + 升降级（v7.1 STEP 1 核
 升降级变化检测：与上一版 signal_weights.json 逐账户比较 weight_multiplier，
 任何账户倍数变动 / 新增 / 移除均记为 change，供 STEP 3 推送判定。
 """
+
 from __future__ import annotations
 
 import datetime
@@ -84,25 +85,43 @@ def main():
     for a, info in accounts.items():
         pm = prev_acct.get(a, {}).get("weight_multiplier")
         if pm is None:
-            changes.append({"account": a, "from": "新增", "to": info["weight_multiplier"],
-                            "status": info["status"]})
+            changes.append(
+                {
+                    "account": a,
+                    "from": "新增",
+                    "to": info["weight_multiplier"],
+                    "status": info["status"],
+                }
+            )
         elif pm != info["weight_multiplier"]:
-            changes.append({"account": a, "from": pm, "to": info["weight_multiplier"],
-                            "status": info["status"]})
+            changes.append(
+                {
+                    "account": a,
+                    "from": pm,
+                    "to": info["weight_multiplier"],
+                    "status": info["status"],
+                }
+            )
     for a, info in prev_acct.items():
         if a not in accounts:
-            changes.append({"account": a, "from": info.get("weight_multiplier"),
-                            "to": "移除", "status": "—"})
+            changes.append(
+                {"account": a, "from": info.get("weight_multiplier"), "to": "移除", "status": "—"}
+            )
 
     out = {"updated": today, "accounts": accounts}
     WEIGHTS.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(json.dumps({
-        "updated": today,
-        "accounts_tracked": len(accounts),
-        "changes": changes,
-        "changed": len(changes) > 0,
-    }, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "updated": today,
+                "accounts_tracked": len(accounts),
+                "changes": changes,
+                "changed": len(changes) > 0,
+            },
+            ensure_ascii=False,
+        )
+    )
     return out
 
 

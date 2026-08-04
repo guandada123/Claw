@@ -19,6 +19,7 @@ read_wx_articles.py — 公众号文章「阅读理解」层（v1）
 增量闸：复用 mine_wx 的思路，用 read_wx_articles_processed.txt 清单比对。
 成本：逐篇调 deepseek-v4-flash（~¥0.06/篇量级），默认限速 + 每次最多处理 N 篇。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,7 +31,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent          # /Users/guan/WorkBuddy/Claw
+ROOT = Path(__file__).resolve().parent.parent.parent  # /Users/guan/WorkBuddy/Claw
 WX_DIR = ROOT / "output" / "wx_articles"
 INSIGHTS_FILE = ROOT / ".workbuddy" / "data" / "article_insights.json"
 SIGNALS_FILE = ROOT / ".workbuddy" / "data" / "article_signals.json"
@@ -46,6 +47,7 @@ except Exception as e:  # pragma: no cover
     print(f"[fatal] 无法导入 router.call_llm: {e}")
     raise
 
+
 def _build_flash_cfg():
     """构造 deepseek-v4-flash 调用配置。
     优先走本地代理 proxy-deepseek(127.0.0.1:9999)——它持有正确的 DEEPSEEK_API_KEY 并自动注入，
@@ -53,6 +55,7 @@ def _build_flash_cfg():
     代理不可达时降级为 deepseek 直连（依赖环境 key）。
     """
     import socket
+
     base = {"model": "deepseek-v4-flash", "cost_per_10k": 0.06}
     with contextlib.suppress(Exception):
         s = socket.create_connection(("127.0.0.1", 9999), timeout=1.5)
@@ -100,7 +103,7 @@ def normalize_account(acc: str) -> str:
     if not acc:
         return "未知"
     n = len(acc)
-    if n % 2 == 0 and acc[: n // 2] == acc[n // 2:]:
+    if n % 2 == 0 and acc[: n // 2] == acc[n // 2 :]:
         acc = acc[: n // 2]
     return acc
 
@@ -109,6 +112,7 @@ def extract_content(art: dict) -> str:
     """兼容多种抓取字段名提取正文（content 优先，回退 content_text / content_html 去标签）。
     抓取层不同版本落盘字段名不一致（content / content_text / content_html），统一兜底避免漏读。"""
     import re as _re
+
     c = (art.get("content") or "").strip()
     if c:
         return c
@@ -147,7 +151,11 @@ def load_processed() -> set:
     if not PROCESSED_FILE.exists():
         return set()
     try:
-        lines = [ln.strip() for ln in PROCESSED_FILE.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        lines = [
+            ln.strip()
+            for ln in PROCESSED_FILE.read_text(encoding="utf-8").splitlines()
+            if ln.strip()
+        ]
     except Exception:
         return set()
     keys = set()
@@ -181,7 +189,7 @@ def _extract_json(text: str) -> dict | None:
     i, j = t.find("{"), t.rfind("}")
     if i == -1 or j == -1 or j <= i:
         return None
-    frag = t[i:j + 1]
+    frag = t[i : j + 1]
     try:
         return json.loads(frag)
     except Exception:
@@ -193,9 +201,7 @@ def read_one_article(title: str, content: str, account: str) -> dict | None:
     # 控制输入长度：正文超长截断（保留开头与结尾，观点常在这两处）
     if len(content) > 6000:
         content = content[:4500] + "\n……（中略）……\n" + content[-1200:]
-    user_prompt = (
-        f"【公众号】{account}\n【标题】{title}\n【正文】\n{content}\n\n{SCHEMA_HINT}"
-    )
+    user_prompt = f"【公众号】{account}\n【标题】{title}\n【正文】\n{content}\n\n{SCHEMA_HINT}"
     for attempt in (1, 2):
         res = call_llm(
             user_prompt,
@@ -223,8 +229,7 @@ def _normalize_insight(ins: dict) -> dict:
     - 兜底：LLM 漏填 is_actionable 时按是否有明确态度推导。"""
     actionable_att = {"recommend", "caution"}
     has_opinion = any(
-        (s.get("attitude") or "").strip() in actionable_att
-        for s in ins.get("stocks", [])
+        (s.get("attitude") or "").strip() in actionable_att for s in ins.get("stocks", [])
     )
     if not has_opinion:
         ins["is_actionable"] = False
@@ -271,47 +276,56 @@ def insight_to_signals(insight: dict, meta: dict) -> list:
             continue
         if "ST" in name.upper():
             continue
-        out.append({
-            "article_id": meta["article_id"],
-            "account": meta["account"],
-            "title": meta["title"],
-            "stock_code": code,
-            "stock_name": name,
-            "signal": signal,
-            "target_price": None,
-            "confidence": {"high": 5, "medium": 3, "low": 2}.get(insight.get("confidence"), 3),
-            "recorded_at": meta["rec_date"],
-            "verified": False,
-            "hit_target": None,
-            "hit_stop": None,
-            "final_return_pct": None,
-            "source_file": meta["source_file"],
-            "realtime_chg_pct": None,
-            "realtime_price": None,
-            "hit": None,
-            "verify_note": None,
-            "verify_at": None,
-            "source": "微信文章(LLM阅读)",
-            "reason": st.get("reason", ""),
-            "catalyst": st.get("catalyst", ""),
-            "time_window": st.get("time_window", ""),
-        })
+        out.append(
+            {
+                "article_id": meta["article_id"],
+                "account": meta["account"],
+                "title": meta["title"],
+                "stock_code": code,
+                "stock_name": name,
+                "signal": signal,
+                "target_price": None,
+                "confidence": {"high": 5, "medium": 3, "low": 2}.get(insight.get("confidence"), 3),
+                "recorded_at": meta["rec_date"],
+                "verified": False,
+                "hit_target": None,
+                "hit_stop": None,
+                "final_return_pct": None,
+                "source_file": meta["source_file"],
+                "realtime_chg_pct": None,
+                "realtime_price": None,
+                "hit": None,
+                "verify_note": None,
+                "verify_at": None,
+                "source": "微信文章(LLM阅读)",
+                "reason": st.get("reason", ""),
+                "catalyst": st.get("catalyst", ""),
+                "time_window": st.get("time_window", ""),
+            }
+        )
     return out
 
 
 def build_digest(new_insights: list, today: str) -> str:
     """把当日读完的文章汇总成人类可读的「公众号精华」。"""
     actionable = [x for x in new_insights if x["insight"].get("is_actionable")]
-    actionable.sort(key=lambda x: {"high": 0, "medium": 1, "low": 2}.get(
-        x["insight"].get("confidence"), 3))
-    lines = [f"📰 公众号精华 · {today}", f"共读 {len(new_insights)} 篇，其中有明确观点 {len(actionable)} 篇", "━━━━━━━━━━━━"]
+    actionable.sort(
+        key=lambda x: {"high": 0, "medium": 1, "low": 2}.get(x["insight"].get("confidence"), 3)
+    )
+    lines = [
+        f"📰 公众号精华 · {today}",
+        f"共读 {len(new_insights)} 篇，其中有明确观点 {len(actionable)} 篇",
+        "━━━━━━━━━━━━",
+    ]
     if not actionable:
         lines.append("今日文章多为行情复盘，无明确前瞻观点。")
         return "\n".join(lines), []
     for x in actionable[:8]:
         ins = x["insight"]
         conf = {"high": "高", "medium": "中", "low": "低"}.get(ins.get("confidence"), "?")
-        stance = {"bullish": "偏多", "bearish": "偏空", "neutral": "中性"}.get(ins.get("market_stance"), "")
+        stance = {"bullish": "偏多", "bearish": "偏空", "neutral": "中性"}.get(
+            ins.get("market_stance"), ""
+        )
         lines.append(f"\n【{x['account']}】{stance}·置信{conf}")
         lines.append(f"  主旨：{ins.get('gist', '')}")
         views = ins.get("core_views") or []
@@ -332,13 +346,13 @@ def build_digest(new_insights: list, today: str) -> str:
                 if name and name not in seen_in_article:
                     seen_in_article.add(name)
                     rec_accounts.setdefault(name, set()).add(acct)
-    hot = sorted([(k, len(v)) for k, v in rec_accounts.items() if k and len(v) >= 2],
-                 key=lambda t: -t[1])
+    hot = sorted(
+        [(k, len(v)) for k, v in rec_accounts.items() if k and len(v) >= 2], key=lambda t: -t[1]
+    )
     if hot:
         lines.append("\n🔥 多篇共振推荐（≥2账号）：" + "、".join(f"{k}×{v}" for k, v in hot[:5]))
     resonance = [
-        {"stock_name": k, "count": v, "accounts": sorted(rec_accounts[k])}
-        for k, v in hot[:10]
+        {"stock_name": k, "count": v, "accounts": sorted(rec_accounts[k])} for k, v in hot[:10]
     ]
     return "\n".join(lines), resonance
 
@@ -391,7 +405,9 @@ def main():
             continue
         done_names.append(f.name)
         article_id = file_key(f.name)  # 与 processed 主键同源，避免两套 id 漂移
-        rec_date = (pub[:10] if pub else datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d"))
+        rec_date = (
+            pub[:10] if pub else datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d")
+        )
         rec = {
             "article_id": article_id,
             "account": account,
@@ -403,8 +419,12 @@ def main():
         }
         new_insights.append(rec)
         meta = {
-            "article_id": article_id, "account": account, "title": title,
-            "rec_date": rec_date, "source_file": f.name, "name_map": name_map,
+            "article_id": article_id,
+            "account": account,
+            "title": title,
+            "rec_date": rec_date,
+            "source_file": f.name,
+            "name_map": name_map,
         }
         new_signals.extend(insight_to_signals(insight, meta))
         gist = insight.get("gist", "")
@@ -419,8 +439,12 @@ def main():
         print(digest)
         if resonance:
             print("\n[resonance] 共振股:", json.dumps(resonance, ensure_ascii=False))
-        return {"read": len(new_insights), "actionable": len(actionable),
-                "resonance": resonance, "digest": digest}
+        return {
+            "read": len(new_insights),
+            "actionable": len(actionable),
+            "resonance": resonance,
+            "digest": digest,
+        }
 
     # 落 insights（累积去重）
     existing = []
@@ -438,7 +462,9 @@ def main():
             old_sig = json.loads(SIGNALS_FILE.read_text(encoding="utf-8"))
     sig_seen = {(s.get("article_id"), s.get("stock_code")) for s in old_sig}
     truly_new_sig = [s for s in new_signals if (s["article_id"], s["stock_code"]) not in sig_seen]
-    SIGNALS_FILE.write_text(json.dumps(old_sig + truly_new_sig, ensure_ascii=False, indent=2), encoding="utf-8")
+    SIGNALS_FILE.write_text(
+        json.dumps(old_sig + truly_new_sig, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     # 落共振结果（供选股自动化直接消费，P2-⑥）
     if resonance:
@@ -455,12 +481,15 @@ def main():
             else:
                 merged_res[r["stock_name"]] = r
         RESONANCE_FILE.write_text(
-            json.dumps(list(merged_res.values()), ensure_ascii=False, indent=2), encoding="utf-8")
+            json.dumps(list(merged_res.values()), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     if done_names:
         save_processed(done_names)
 
-    print(f"\n[archive] 新读 insight {len(new_insights)} | 有效信号 {len(truly_new_sig)} | insight库累计 {len(merged)} | 共振 {len(resonance)}")
+    print(
+        f"\n[archive] 新读 insight {len(new_insights)} | 有效信号 {len(truly_new_sig)} | insight库累计 {len(merged)} | 共振 {len(resonance)}"
+    )
     print("\n" + digest)
     return {
         "read": len(new_insights),
@@ -473,4 +502,7 @@ def main():
 
 if __name__ == "__main__":
     summary = main()
-    print("\nSUMMARY:", json.dumps({k: v for k, v in summary.items() if k != "digest"}, ensure_ascii=False))
+    print(
+        "\nSUMMARY:",
+        json.dumps({k: v for k, v in summary.items() if k != "digest"}, ensure_ascii=False),
+    )

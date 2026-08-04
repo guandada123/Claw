@@ -36,8 +36,12 @@ def _load_portfolio(path: Path) -> list[dict]:
     positions = data.get("positions")
     if isinstance(positions, dict) and positions:
         return [
-            {"code": code, "name": p.get("name", ""), "shares": p.get("shares", 0),
-             "avg_cost": p.get("avg_cost", 0)}
+            {
+                "code": code,
+                "name": p.get("name", ""),
+                "shares": p.get("shares", 0),
+                "avg_cost": p.get("avg_cost", 0),
+            }
             for code, p in positions.items()
         ]
     return data.get("holdings", [])  # type: ignore[no-any-return]
@@ -85,7 +89,11 @@ if __name__ == "__main__":
 
     holdings = _load_portfolio(portfolio_path)
     if not holdings:
-        print(json.dumps({"quotes": [], "source": str(portfolio_path), "note": "无持仓"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"quotes": [], "source": str(portfolio_path), "note": "无持仓"}, ensure_ascii=False
+            )
+        )
         sys.exit(0)
 
     codes = [h["code"] for h in holdings]
@@ -93,8 +101,14 @@ if __name__ == "__main__":
     data_source = quotes.pop("_source", "tencent")
     output = _merge(holdings, quotes)
 
-    print(json.dumps({
-        "quotes": output,
-        "source": str(portfolio_path),
-        "data_source": data_source,
-    }, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "quotes": output,
+                "source": str(portfolio_path),
+                "data_source": data_source,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )

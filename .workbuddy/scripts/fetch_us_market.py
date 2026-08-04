@@ -45,6 +45,7 @@
   "source": "腾讯行情API | WebSearch fallback"
 }
 """
+
 from __future__ import annotations
 
 import argparse
@@ -64,7 +65,7 @@ QQ_CODES = {
     "dow": "usDJI",
     "nasdaq": "usIXIC",
     "sp500": "usINX",
-    "kospi": "KOSPI",       # 腾讯无韩股行情,始终 none_match,保留原值
+    "kospi": "KOSPI",  # 腾讯无韩股行情,始终 none_match,保留原值
     "kosdaq": "KOSDAQ",
 }
 
@@ -86,15 +87,15 @@ WIND_INDICES = {
 # 美股环境字段代码映射
 # 腾讯 hf 期货格式（v_hf_xxx="价,涨跌幅,..."，逗号分隔）：金银油（实时可靠）
 QQ_ENV = {
-    "gold": "hf_GC",       # 黄金期货
-    "silver": "hf_SI",     # 白银期货
-    "oil": "hf_CL",        # WTI 原油期货
+    "gold": "hf_GC",  # 黄金期货
+    "silver": "hf_SI",  # 白银期货
+    "oil": "hf_CL",  # WTI 原油期货
 }
 
 # Wind 万得环境指数（权威源）。注：DXY/US10Y 经实测 Wind 无对应标的
 # （MARKET_TARGET_NOT_FOUND），免费源(eastmoney限流/Yahoo封/Tencent无)亦不可靠，故标 [缺失]。
 WIND_ENV = {
-    "vix": "VIX.GI",       # 恐慌指数 CBOE VIX（Wind 实测可用）
+    "vix": "VIX.GI",  # 恐慌指数 CBOE VIX（Wind 实测可用）
 }
 
 
@@ -104,10 +105,14 @@ def _fetch_wind_index(name: str, windcode: str) -> dict | None:
     if not WIND_CLI.exists():
         return None
     try:
-        params = json.dumps({"windcode": windcode, "indexes": "最新成交价,涨跌幅"}, ensure_ascii=False)
+        params = json.dumps(
+            {"windcode": windcode, "indexes": "最新成交价,涨跌幅"}, ensure_ascii=False
+        )
         r = subprocess.run(
             ["node", str(WIND_CLI), "call", "index_data", "get_index_price_indicators", params],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
             cwd=str(WIND_CLI.parent.parent),
         )
         if r.returncode != 0:
@@ -141,7 +146,8 @@ def _fetch_tencent_qq(codes: list[str]) -> str:
     try:
         result = subprocess.run(
             ["curl", "-s", url],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         raw = result.stdout  # bytes
         try:
@@ -234,8 +240,7 @@ def _fetch_environment() -> dict:
     }
     for key in ("vix", "dollar_index", "us10y"):
         if key not in env:
-            env[key] = {"price": None, "change_pct": None,
-                        "source": "[缺失]", "note": notes[key]}
+            env[key] = {"price": None, "change_pct": None, "source": "[缺失]", "note": notes[key]}
 
     return env
 
@@ -330,7 +335,9 @@ def fetch_market_data(session: str = "auto", no_cache: bool = False) -> dict:
         if idx:
             chg = idx.get("change_pct", 0)
             sign = "+" if chg > 0 else ""
-            parts.append(f"{'道' if key == 'dow' else '标' if key == 'sp500' else '纳'}{sign}{chg}%")
+            parts.append(
+                f"{'道' if key == 'dow' else '标' if key == 'sp500' else '纳'}{sign}{chg}%"
+            )
     result["summary"] = "/".join(parts) if parts else "数据获取中"
 
     save_cache(result)
@@ -339,12 +346,11 @@ def fetch_market_data(session: str = "auto", no_cache: bool = False) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="美股市场数据获取器")
-    parser.add_argument("--session", choices=["premarket", "closing", "auto"],
-                        default="auto", help="数据模式")
-    parser.add_argument("--no-cache", action="store_true",
-                        help="跳过缓存，强制刷新")
-    parser.add_argument("--summary-only", action="store_true",
-                        help="仅输出摘要行")
+    parser.add_argument(
+        "--session", choices=["premarket", "closing", "auto"], default="auto", help="数据模式"
+    )
+    parser.add_argument("--no-cache", action="store_true", help="跳过缓存，强制刷新")
+    parser.add_argument("--summary-only", action="store_true", help="仅输出摘要行")
     args = parser.parse_args()
 
     data = fetch_market_data(session=args.session, no_cache=args.no_cache)

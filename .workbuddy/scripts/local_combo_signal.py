@@ -10,6 +10,7 @@
   python3 local_combo_signal.py <kline_json_file>
   python3 local_combo_signal.py   # 默认读 /tmp/kline_cache.json
 """
+
 from __future__ import annotations
 
 import json
@@ -24,9 +25,9 @@ from services.indicators import calculate_adx, calculate_rsi  # noqa: E402
 from services.signals import generate_signals  # noqa: E402
 
 # ── 投顾规则常量（对齐 STRATEGY.md v2.0）──
-ADX_TREND_FILTER = 25       # ADX >= 25 才允许建仓
-RSI_OVERBOUGHT = 80         # RSI(14) > 80 禁止追入
-BUY_THRESHOLD = 0.2         # COMBO 综合得分买入阈值
+ADX_TREND_FILTER = 25  # ADX >= 25 才允许建仓
+RSI_OVERBOUGHT = 80  # RSI(14) > 80 禁止追入
+BUY_THRESHOLD = 0.2  # COMBO 综合得分买入阈值
 STRONG_BUY = 0.4
 
 NAME_MAP = {"sz000333": "美的集团", "sh600900": "长江电力", "sh601899": "紫金矿业"}
@@ -40,13 +41,15 @@ def to_merged_series(nodes: list[dict]) -> list[dict]:
     """westock nodes -> QTS 期望的 {close,high,low,vol} 序列（按时间升序）"""
     rows = []
     for n in sorted(nodes, key=lambda x: x["date"]):
-        rows.append({
-            "trade_date": n["date"],
-            "close": float(n["last"]),
-            "high": float(n["high"]),
-            "low": float(n["low"]),
-            "vol": int(n.get("volume", 0)),
-        })
+        rows.append(
+            {
+                "trade_date": n["date"],
+                "close": float(n["last"]),
+                "high": float(n["high"]),
+                "low": float(n["low"]),
+                "vol": int(n.get("volume", 0)),
+            }
+        )
     return rows
 
 
@@ -113,17 +116,29 @@ def fetch_db_history(ts_code: str) -> list[dict]:
     import os
 
     import psycopg2
-    url = os.environ.get("QTS_DB_URL",
-                         "postgresql://quant_user:quant_pass@quant-postgres:5432/quant_trading")
+
+    url = os.environ.get(
+        "QTS_DB_URL", "postgresql://quant_user:quant_pass@quant-postgres:5432/quant_trading"
+    )
     try:
         c = psycopg2.connect(url, connect_timeout=5)
         cur = c.cursor()
         cur.execute(
             "SELECT trade_date, open, high, low, close, volume FROM daily_quote "
-            "WHERE ts_code=%s ORDER BY trade_date ASC LIMIT 120", (ts_code,))
-        rows = [{"trade_date": str(r[0]), "open": float(r[1]), "high": float(r[2]),
-                 "low": float(r[3]), "close": float(r[4]), "vol": int(r[5])}
-                for r in cur.fetchall()]
+            "WHERE ts_code=%s ORDER BY trade_date ASC LIMIT 120",
+            (ts_code,),
+        )
+        rows = [
+            {
+                "trade_date": str(r[0]),
+                "open": float(r[1]),
+                "high": float(r[2]),
+                "low": float(r[3]),
+                "close": float(r[4]),
+                "vol": int(r[5]),
+            }
+            for r in cur.fetchall()
+        ]
         c.close()
         return rows
     except Exception as e:
@@ -136,14 +151,18 @@ def fetch_realtime(symbol: str) -> dict | None:
     # 1) Wind 万得
     try:
         from wind_quote import fetch_wind_price, wind_available
+
         if wind_available():
             wp = fetch_wind_price(symbol)
             if wp and wp.get("price") is not None:
                 from datetime import date
+
                 return {
                     "trade_date": date.today().isoformat(),
-                    "open": None, "high": None,
-                    "low": None, "close": wp["price"],
+                    "open": None,
+                    "high": None,
+                    "low": None,
+                    "close": wp["price"],
                     "vol": None,
                     "_source": "wind",
                 }
@@ -152,19 +171,24 @@ def fetch_realtime(symbol: str) -> dict | None:
 
     # 2) 腾讯 gtimg 降级
     import urllib.request
+
     url = f"https://qt.gtimg.cn/q={symbol}"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0",
-                                                    "Referer": "https://gu.qq.com/"})
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"}
+        )
         raw = urllib.request.urlopen(req, timeout=10).read().decode("gbk", "ignore")
         fields = raw.split('="')[-1].rstrip('"').split("~")
         if len(fields) < 30:
             return None
         from datetime import date
+
         return {
             "trade_date": date.today().isoformat(),
-            "open": float(fields[5]), "high": float(fields[33]),
-            "low": float(fields[34]), "close": float(fields[3]),
+            "open": float(fields[5]),
+            "high": float(fields[33]),
+            "low": float(fields[34]),
+            "close": float(fields[3]),
             "vol": int(float(fields[6]) * 100),
         }
     except Exception as e:
@@ -175,10 +199,14 @@ def fetch_realtime(symbol: str) -> dict | None:
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--db":
         # DB历史 + 实时补全模式（可重复、不依赖 mcp 手动复制）
-        targets = [("sz000333", "000333.SZ", "美的集团"),
-                   ("sh600900", "600900.SH", "长江电力"),
-                   ("sh601899", "601899.SH", "紫金矿业")]
-        print(f"{'代码':<10}{'名称':<8}{'收盘':>9}{'COMBO':>8}{'VWM':>6}{'BBR':>6}{'ADX':>7}{'RSI':>7}  动作")
+        targets = [
+            ("sz000333", "000333.SZ", "美的集团"),
+            ("sh600900", "600900.SH", "长江电力"),
+            ("sh601899", "601899.SH", "紫金矿业"),
+        ]
+        print(
+            f"{'代码':<10}{'名称':<8}{'收盘':>9}{'COMBO':>8}{'VWM':>6}{'BBR':>6}{'ADX':>7}{'RSI':>7}  动作"
+        )
         print("-" * 78)
         for sym, ts_code, name in targets:
             hist = fetch_db_history(ts_code)
@@ -194,9 +222,11 @@ def main():
                 continue
             sig = compute_combo(hist)
             act = decide(sig)
-            print(f"{sym:<10}{name:<8}{sig['close_last']:>9.2f}{sig['combo_last']:>8.2f}"
-                  f"{sig['vwm_last']:>6}{sig['bbr_last']:>6}{sig['adx_last']:>7.1f}"
-                  f"{sig['rsi_last']:>7.1f}  {act}")
+            print(
+                f"{sym:<10}{name:<8}{sig['close_last']:>9.2f}{sig['combo_last']:>8.2f}"
+                f"{sig['vwm_last']:>6}{sig['bbr_last']:>6}{sig['adx_last']:>7.1f}"
+                f"{sig['rsi_last']:>7.1f}  {act}"
+            )
         return
     if len(sys.argv) > 1 and sys.argv[1] != "--stdin":
         path = sys.argv[1]
@@ -208,7 +238,9 @@ def main():
     if not items:
         print("⚠️ 无 K 线数据（data.data 为空）")
         return
-    print(f"{'代码':<10}{'名称':<8}{'收盘':>9}{'COMBO':>8}{'VWM':>6}{'BBR':>6}{'ADX':>7}{'RSI':>7}  动作")
+    print(
+        f"{'代码':<10}{'名称':<8}{'收盘':>9}{'COMBO':>8}{'VWM':>6}{'BBR':>6}{'ADX':>7}{'RSI':>7}  动作"
+    )
     print("-" * 78)
     for it in items:
         symbol = it["symbol"]
@@ -219,9 +251,11 @@ def main():
         sig = compute_combo(series)
         name = NAME_MAP.get(symbol, symbol)
         act = decide(sig)
-        print(f"{symbol:<10}{name:<8}{sig['close_last']:>9.2f}{sig['combo_last']:>8.2f}"
-              f"{sig['vwm_last']:>6}{sig['bbr_last']:>6}{sig['adx_last']:>7.1f}"
-              f"{sig['rsi_last']:>7.1f}  {act}")
+        print(
+            f"{symbol:<10}{name:<8}{sig['close_last']:>9.2f}{sig['combo_last']:>8.2f}"
+            f"{sig['vwm_last']:>6}{sig['bbr_last']:>6}{sig['adx_last']:>7.1f}"
+            f"{sig['rsi_last']:>7.1f}  {act}"
+        )
 
 
 if __name__ == "__main__":

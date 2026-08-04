@@ -39,6 +39,7 @@ def fetch_tencent_quote(symbol: str) -> dict | None:
     # 1) Wind 万得
     try:
         from wind_quote import fetch_wind_quote, wind_available
+
         if wind_available():
             wq = fetch_wind_quote(symbol)
             if wq and wq.get("price") is not None:
