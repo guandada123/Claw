@@ -3,6 +3,7 @@
 knowledge_push.py - 将本次新增文章摘要推送至飞书主群（替代缺失的 notify_center.py）
 仅当新增数 > 3 时推送，消息含总数/标签分布/来源/重点速览。
 """
+
 import datetime
 import json
 import os
@@ -49,21 +50,22 @@ def main():
         f"📖 本次新增 {n} 篇文章（首次全量索引）\n"
         f"📊 标签分布：{tag_str}\n"
         f"📰 来源：{src_str}\n\n"
-        "📌 重点速览：\n"
-        + "\n".join(picks)
-        + "\n━━━━━━━━━━━━━"
+        "📌 重点速览：\n" + "\n".join(picks) + "\n━━━━━━━━━━━━━"
     )
 
     # write message for record
     os.makedirs("/Users/guan/WorkBuddy/Claw/.workbuddy/knowledge/index", exist_ok=True)
-    with open("/Users/guan/WorkBuddy/Claw/.workbuddy/knowledge/index/last_push.md", "w", encoding="utf-8") as fh:
+    with open(
+        "/Users/guan/WorkBuddy/Claw/.workbuddy/knowledge/index/last_push.md", "w", encoding="utf-8"
+    ) as fh:
         fh.write(msg + f"\n\n(dedupe-key: 知识库索引-{today})\n")
 
     try:
         r = subprocess.run(
-            [LARK, "im", "+messages-send", "--as", "bot",
-             "--chat-id", CHAT_ID, "--markdown", msg],
-            capture_output=True, text=True, timeout=60,
+            [LARK, "im", "+messages-send", "--as", "bot", "--chat-id", CHAT_ID, "--markdown", msg],
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         print("PUSH exit:", r.returncode)
         print(r.stdout[-500:] if r.stdout else "")

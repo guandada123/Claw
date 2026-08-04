@@ -15,6 +15,7 @@ security_scanner.py — 工程安全扫描薄壳（封装 bandit）
   python3 security_scanner.py --quiet         # 仅输出汇总行
   python3 security_scanner.py --paths a.py b.py
 """
+
 import argparse
 import subprocess
 import sys
@@ -119,9 +120,7 @@ def high_details(text: str) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="工程安全扫描薄壳 (bandit)")
     parser.add_argument("--quiet", action="store_true", help="仅输出汇总行")
-    parser.add_argument(
-        "--paths", nargs="*", default=None, help="自定义扫描路径(覆盖默认)"
-    )
+    parser.add_argument("--paths", nargs="*", default=None, help="自定义扫描路径(覆盖默认)")
     args = parser.parse_args()
 
     paths = args.paths if args.paths else DEFAULT_SCAN_PATHS
@@ -134,9 +133,7 @@ def main() -> int:
     highs = high_details(out)
 
     print(f"扫描范围: {', '.join(paths)}")
-    print(
-        f"bandit: 高危 {summary['High']} | 中危 {summary['Medium']} | 低危 {summary['Low']}"
-    )
+    print(f"bandit: 高危 {summary['High']} | 中危 {summary['Medium']} | 低危 {summary['Low']}")
     if highs:
         print(f"\n🚨 高危明细 ({summary['High']}):")
         for d in highs:

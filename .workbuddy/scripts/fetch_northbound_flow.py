@@ -44,6 +44,7 @@ PHASE 4 触发判定（调用方据此推送）:
   - 单日: abs(net_flow) > 30
   - 连续: consecutive_days >= 3 且 abs(consecutive_sum) > 80
 """
+
 from __future__ import annotations
 
 import json
@@ -85,7 +86,7 @@ def _fetch_today() -> tuple[float | None, float | None]:
     if not raw:
         return None, None
     try:
-        data = (json.loads(raw).get("data") or {})
+        data = json.loads(raw).get("data") or {}
     except (json.JSONDecodeError, ValueError):
         return None, None
     sh = data.get("hk2sh", {}).get("dayNetAmtIn")
@@ -101,7 +102,7 @@ def _fetch_recent(days: int) -> list[dict]:
     if not raw:
         return []
     try:
-        data = (json.loads(raw).get("data") or {})
+        data = json.loads(raw).get("data") or {}
     except (json.JSONDecodeError, ValueError):
         return []
 
@@ -121,8 +122,7 @@ def _fetch_recent(days: int) -> list[dict]:
     sz_map = _parse(data.get("hk2sz"))
     all_dates = sorted(set(sh_map) | set(sz_map))
     recent = [
-        {"date": d, "net": round(sh_map.get(d, 0.0) + sz_map.get(d, 0.0), 2)}
-        for d in all_dates
+        {"date": d, "net": round(sh_map.get(d, 0.0) + sz_map.get(d, 0.0), 2)} for d in all_dates
     ]
     return recent[-days:]
 
@@ -164,8 +164,10 @@ def main(days: int = 5) -> dict:
             "discontinued": True,
             "source": "discontinued",
             "date": today,
-            "error": ("北向资金(沪深股通北上净买额)实时披露自 2024-05 起已停止，"
-                      "东财 kamt 接口数据恒为0，数据源失效；监控跳过该维度。"),
+            "error": (
+                "北向资金(沪深股通北上净买额)实时披露自 2024-05 起已停止，"
+                "东财 kamt 接口数据恒为0，数据源失效；监控跳过该维度。"
+            ),
             "recent": [],
             "consecutive_days": 0,
             "consecutive_sum": 0.0,
@@ -185,18 +187,19 @@ def main(days: int = 5) -> dict:
     }
 
     if sh_north is None and sz_north is None:
-        base.update({"ok": False, "net_flow": None,
-                     "error": "北向当日数据缺失(可能非交易日或接口未更新)"})
+        base.update(
+            {"ok": False, "net_flow": None, "error": "北向当日数据缺失(可能非交易日或接口未更新)"}
+        )
         return base
 
     net = round((sh_north or 0.0) + (sz_north or 0.0), 2)
     if net == 0.0:
-        base.update({"ok": False, "net_flow": None,
-                     "error": "北向资金当日为0(可能休市或接口未更新)"})
+        base.update(
+            {"ok": False, "net_flow": None, "error": "北向资金当日为0(可能休市或接口未更新)"}
+        )
         return base
 
-    base.update({"ok": True, "net_flow": net,
-                 "sh_north": sh_north, "sz_north": sz_north})
+    base.update({"ok": True, "net_flow": net, "sh_north": sh_north, "sz_north": sz_north})
     return base
 
 

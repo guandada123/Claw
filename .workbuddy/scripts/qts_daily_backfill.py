@@ -17,6 +17,7 @@
   python3 .workbuddy/scripts/qts_daily_backfill.py --limit 100 # 调试前100只
   python3 .workbuddy/scripts/qts_daily_backfill.py --dry-run  # 不写库，只统计
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,7 +39,9 @@ DB_CFG = {
     "user": os.environ.get("QTS_DB_USER", "quant_user"),
     "password": os.environ["QTS_DB_PASS"],  # 必填，未设置时 KeyError 提前失败
 }
-TX_KLINE = "https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param={sym},day,{start},{end},{limit}"
+TX_KLINE = (
+    "https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param={sym},day,{start},{end},{limit}"
+)
 POOL_PATH = os.path.join(os.path.dirname(__file__), "mainboard_scan_pool.json")
 
 # 全市场股票列表也可从 DB stock_pool 取；主板池仅1076只，不够全。
@@ -49,6 +52,7 @@ DB_POOL_QUERY = "SELECT ts_code FROM stock_pool ORDER BY ts_code"
 def fetch_stock_pool_from_db():
     """从 quant-postgres stock_pool 取全量标的（3521只）。"""
     import psycopg2
+
     try:
         conn = psycopg2.connect(**DB_CFG, connect_timeout=8)
         cur = conn.cursor()
@@ -80,7 +84,8 @@ def fetch_tx_kline(ts_code: str, start: str, end: str, limit: int = 120) -> list
     url = TX_KLINE.format(sym=sym, start=start, end=end, limit=limit)
     try:
         req = urllib.request.Request(
-            url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"})
+            url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"}
+        )
         raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8")
         d = json.loads(raw)
         node = d.get("data", {}).get(sym, {})
@@ -99,7 +104,7 @@ def kline_to_rows(ts_code: str, klines: list[list]) -> list[tuple]:
         tdate = k[0]
         o, c, h, l = float(k[1]), float(k[2]), float(k[3]), float(k[4])
         vol_shares = int(float(k[5]) * 100)  # 手 → 股
-        amount = round(c * vol_shares, 2)     # 腾讯K线不含额，用 收×量 估算
+        amount = round(c * vol_shares, 2)  # 腾讯K线不含额，用 收×量 估算
         rows.append((ts_code, tdate, o, h, l, c, vol_shares, amount))
     return rows
 
@@ -107,6 +112,7 @@ def kline_to_rows(ts_code: str, klines: list[list]) -> list[tuple]:
 def upsert_rows(rows: list[tuple]) -> int:
     """批量 UPSERT 到 daily_quote。返回写入行数。"""
     import psycopg2
+
     if not rows:
         return 0
     conn = psycopg2.connect(**DB_CFG, connect_timeout=8)
@@ -121,7 +127,8 @@ def upsert_rows(rows: list[tuple]) -> int:
                    ON CONFLICT (ts_code, trade_date) DO UPDATE SET
                      open=EXCLUDED.open, high=EXCLUDED.high, low=EXCLUDED.low,
                      close=EXCLUDED.close, volume=EXCLUDED.volume, amount=EXCLUDED.amount""",
-                r + (datetime.now(),))
+                r + (datetime.now(),),
+            )
             n += 1
         conn.commit()
     finally:
@@ -154,10 +161,12 @@ def main():
 
     codes = load_pool()
     if args.limit:
-        codes = codes[:args.limit]
+        codes = codes[: args.limit]
     end = date.today().isoformat()
     start = (date.today() - timedelta(days=args.days)).isoformat()
-    print(f"[INFO] 标的 {len(codes)} 只; 区间 {start}~{end}; workers={args.workers}; dry_run={args.dry_run}")
+    print(
+        f"[INFO] 标的 {len(codes)} 只; 区间 {start}~{end}; workers={args.workers}; dry_run={args.dry_run}"
+    )
 
     t0 = time.time()
     total_written = 0
@@ -167,8 +176,7 @@ def main():
     lock = threading.Lock()
 
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
-        futures = {ex.submit(process_one, code, start, end, args.dry_run): code
-                   for code in codes}
+        futures = {ex.submit(process_one, code, start, end, args.dry_run): code for code in codes}
         for fut in as_completed(futures):
             kc, wn, fstr = fut.result()
             with lock:
@@ -178,12 +186,16 @@ def main():
                 if fstr:
                     failed.append(fstr)
                 if done % 200 == 0:
-                    print(f"  [{done}/{len(codes)}] 已写 {total_written} 行, 失败 {len(failed)}, "
-                          f"耗时 {time.time()-t0:.0f}s")
+                    print(
+                        f"  [{done}/{len(codes)}] 已写 {total_written} 行, 失败 {len(failed)}, "
+                        f"耗时 {time.time() - t0:.0f}s"
+                    )
 
     elapsed = time.time() - t0
-    print(f"\n[完成] 标的 {len(codes)} | K线 {total_klines} 根 | 写入 {total_written} 行 | "
-          f"失败 {len(failed)} | 耗时 {elapsed:.0f}s ({elapsed/60:.1f}min)")
+    print(
+        f"\n[完成] 标的 {len(codes)} | K线 {total_klines} 根 | 写入 {total_written} 行 | "
+        f"失败 {len(failed)} | 耗时 {elapsed:.0f}s ({elapsed / 60:.1f}min)"
+    )
     if failed:
         print(f"[失败样例] {failed[:10]}")
 

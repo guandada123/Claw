@@ -11,6 +11,7 @@
   · 投顾模拟盘 -> .workbuddy/data/simulation/portfolio.json (sim)
 本脚本据此合并，保持与下周前瞻消费端兼容的字段结构。
 """
+
 import json
 import urllib.request
 from datetime import datetime
@@ -41,20 +42,28 @@ with open(SIM_PF, encoding="utf-8") as f:
 
 live_holdings = []
 for h in user_pf.get("holdings", []):
-    live_holdings.append({
-        "code": h["code"], "name": h.get("name", ""),
-        "shares": h.get("shares", 0), "avg_cost": h.get("avg_cost", 0),
-        "current_price": h.get("current_price", 0),
-    })
+    live_holdings.append(
+        {
+            "code": h["code"],
+            "name": h.get("name", ""),
+            "shares": h.get("shares", 0),
+            "avg_cost": h.get("avg_cost", 0),
+            "current_price": h.get("current_price", 0),
+        }
+    )
 
 sim_holdings = []
 # 用 positions 字典(含 600036 招商银行)，比 holdings 数组更全
 for code, pos in sim_pf.get("positions", {}).items():
-    sim_holdings.append({
-        "code": code, "name": pos.get("name", ""),
-        "shares": pos.get("shares", 0), "avg_cost": pos.get("avg_cost", 0),
-        "current_price": pos.get("current_price", 0),
-    })
+    sim_holdings.append(
+        {
+            "code": code,
+            "name": pos.get("name", ""),
+            "shares": pos.get("shares", 0),
+            "avg_cost": pos.get("avg_cost", 0),
+            "current_price": pos.get("current_price", 0),
+        }
+    )
 
 merged_portfolio = {"live": {"holdings": live_holdings}, "sim": {"holdings": sim_holdings}}
 
@@ -62,6 +71,7 @@ all_holding_codes = set([h["code"] for h in live_holdings] + [h["code"] for h in
 
 # 需获取行情的代码 = 池内 + 所有持仓
 need_codes = list(set(pool_codes) | all_holding_codes)
+
 
 # ----- 3. 批量获取行情（腾讯 gtimg） -----
 def fetch_quote(code):
@@ -86,6 +96,7 @@ def fetch_quote(code):
         "low": float(parts[34]) if parts[34] else 0,
     }
 
+
 quotes = {}
 for code in need_codes:
     try:
@@ -108,14 +119,19 @@ for sname, stocks in pool.get("sectors", {}).items():
     codes_in = [s["code"] for s in stocks]
     changes = [quotes.get(c, {}).get("change_pct", 0) for c in codes_in if c in quotes]
     avg_chg = round(sum(changes) / len(changes), 2) if changes else 0
-    sector_stats.append({
-        "name": sname, "count": count,
-        "stocks": "/".join([s.get("name", "") for s in stocks]),
-        "avg_change": avg_chg,
-    })
+    sector_stats.append(
+        {
+            "name": sname,
+            "count": count,
+            "stocks": "/".join([s.get("name", "") for s in stocks]),
+            "avg_change": avg_chg,
+        }
+    )
 
 # 涨跌排行（全池 + 持仓）
-all_changes = [(c, q.get("change_pct", 0), q.get("name", "")) for c, q in quotes.items() if c in pool_codes]
+all_changes = [
+    (c, q.get("change_pct", 0), q.get("name", "")) for c, q in quotes.items() if c in pool_codes
+]
 all_changes.sort(key=lambda x: x[1], reverse=True)
 top_gainers = [{"code": c, "name": n, "change_pct": p} for c, p, n in all_changes[:5]]
 top_losers = [{"code": c, "name": n, "change_pct": p} for c, p, n in all_changes[-5:]]
@@ -143,22 +159,35 @@ for code in all_holding_codes:
     chg = q["change_pct"] if q else 0
     status = "安全" if (price and price >= sl) else ("⚠️ 已破止损" if sl > 0 else "观察")
     in_pool = code in pool_codes
-    holdings_in_pool.append({
-        "code": code, "name": (q["name"] if q else h.get("name", "")),
-        "price": price, "change_pct": chg, "pnl_pct": pnl,
-        "avg_cost": avg_cost, "stop_loss": round(sl, 2),
-        "in_pool": in_pool, "status": status,
-    })
+    holdings_in_pool.append(
+        {
+            "code": code,
+            "name": (q["name"] if q else h.get("name", "")),
+            "price": price,
+            "change_pct": chg,
+            "pnl_pct": pnl,
+            "avg_cost": avg_cost,
+            "stop_loss": round(sl, 2),
+            "in_pool": in_pool,
+            "status": status,
+        }
+    )
 
 # HHI 集中度
 total = total_stocks or 1
 hhi = round(sum((s["count"] / total) ** 2 for s in sector_stats), 3)
 top_sector = max(sector_stats, key=lambda x: x["count"])
-top_sector_weight = f"{top_sector['count']}/{total} = {round(top_sector['count']/total*100,1)}%"
+top_sector_weight = (
+    f"{top_sector['count']}/{total} = {round(top_sector['count'] / total * 100, 1)}%"
+)
 
 # 风险/防御分类
-risk_sectors = sorted([s for s in sector_stats if s["avg_change"] < -2], key=lambda x: x["avg_change"])
-defensive_sectors = sorted([s for s in sector_stats if s["avg_change"] > 0.5], key=lambda x: x["avg_change"], reverse=True)
+risk_sectors = sorted(
+    [s for s in sector_stats if s["avg_change"] < -2], key=lambda x: x["avg_change"]
+)
+defensive_sectors = sorted(
+    [s for s in sector_stats if s["avg_change"] > 0.5], key=lambda x: x["avg_change"], reverse=True
+)
 
 # 全池均值
 all_pool_chg = [quotes[c]["change_pct"] for c in pool_codes if c in quotes]
@@ -166,9 +195,13 @@ pool_avg = round(sum(all_pool_chg) / len(all_pool_chg), 2) if all_pool_chg else 
 n_down5 = sum(1 for v in all_pool_chg if v < -5)
 n_up = sum(1 for v in all_pool_chg if v > 0)
 
-concentration_assessment = ("分散（HHI<0.1）" if hhi < 0.1 else
-                            "中等集中（HHI 0.1-0.15）" if hhi < 0.15 else
-                            "高度集中（HHI>0.15）")
+concentration_assessment = (
+    "分散（HHI<0.1）"
+    if hhi < 0.1
+    else "中等集中（HHI 0.1-0.15）"
+    if hhi < 0.15
+    else "高度集中（HHI>0.15）"
+)
 
 # 健康评分（0-10）
 # 基准: 全池均值越负越扣分; 持仓破止损扣分; 集中度适中加分
@@ -187,16 +220,18 @@ if 0.1 <= hhi <= 0.15:
     score += 1
 score = max(0, min(10, score))
 
-health_assessment = ("健康" if score >= 8 else "中等" if score >= 5 else "偏弱")
+health_assessment = "健康" if score >= 8 else "中等" if score >= 5 else "偏弱"
 
 # 持仓不在池的提示
 missing_in_pool = [h["code"] + h["name"] for h in holdings_in_pool if not h["in_pool"]]
 inpool_holdings = [h for h in holdings_in_pool if h["in_pool"]]
 
-summary = (f"全池{total_stocks}只/{len(sector_stats)}行业，HHI={hhi}({concentration_assessment})。"
-           f"最近交易日全池均值{('+' if pool_avg>=0 else '')}{pool_avg}%，{n_up}只上涨/{len(all_pool_chg)-n_up}只下跌，{n_down5}只单日跌超5%。"
-           f"持仓{len(holdings_in_pool)}只在池体检：{len(inpool_holdings)}只在池、{len(missing_in_pool)}只不在池。"
-           + (f"不在池：{ '、'.join(missing_in_pool) }。" if missing_in_pool else "全部持仓均纳入股票池。"))
+summary = (
+    f"全池{total_stocks}只/{len(sector_stats)}行业，HHI={hhi}({concentration_assessment})。"
+    f"最近交易日全池均值{('+' if pool_avg >= 0 else '')}{pool_avg}%，{n_up}只上涨/{len(all_pool_chg) - n_up}只下跌，{n_down5}只单日跌超5%。"
+    f"持仓{len(holdings_in_pool)}只在池体检：{len(inpool_holdings)}只在池、{len(missing_in_pool)}只不在池。"
+    + (f"不在池：{'、'.join(missing_in_pool)}。" if missing_in_pool else "全部持仓均纳入股票池。")
+)
 
 health = {
     "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -212,7 +247,9 @@ health = {
     "top_sector": top_sector["name"],
     "top_sector_weight": top_sector_weight,
     "risk_sectors": [{"name": s["name"], "avg_change": s["avg_change"]} for s in risk_sectors],
-    "defensive_sectors": [{"name": s["name"], "avg_change": s["avg_change"]} for s in defensive_sectors],
+    "defensive_sectors": [
+        {"name": s["name"], "avg_change": s["avg_change"]} for s in defensive_sectors
+    ],
     "top_gainers": top_gainers,
     "top_losers": top_losers,
     "pool_avg_change": pool_avg,
@@ -226,4 +263,6 @@ health = {
 
 with open(HEALTH_OUT, "w", encoding="utf-8") as f:
     json.dump(health, f, ensure_ascii=False, indent=2)
-print(f"✅ pool_health.json 已写入（{total_stocks}只/{len(sector_stats)}行业，HHI={hhi}，健康分={score}/{10}）")
+print(
+    f"✅ pool_health.json 已写入（{total_stocks}只/{len(sector_stats)}行业，HHI={hhi}，健康分={score}/{10}）"
+)

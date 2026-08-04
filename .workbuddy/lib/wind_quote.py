@@ -76,8 +76,12 @@ _local_counter = _DailyQueryCounter()
 
 # Wind 指数/市场代码别名（来自 normalization-rules.json）
 INDEX_ALIASES: dict[str, str] = {
-    "DJI": "DJI.GI", "SPX": "SPX.GI", "IXIC": "IXIC.GI",
-    "NDX": "NDX.GI", "SOX": "SOX.GI", "HSI": "HSI.HI",
+    "DJI": "DJI.GI",
+    "SPX": "SPX.GI",
+    "IXIC": "IXIC.GI",
+    "NDX": "NDX.GI",
+    "SOX": "SOX.GI",
+    "HSI": "HSI.HI",
     "HSTECH": "HSTECH.HI",
 }
 
@@ -85,6 +89,7 @@ INDEX_ALIASES: dict[str, str] = {
 # 每日查询上限 — 优先共享 claw 包的 wind_utils 计数器，不可用时退本地
 try:
     from claw.feeds.wind_utils import _check_query_limit as _shared_limit
+
     _shared_counter = True
 except ImportError:
     _shared_counter = False
@@ -102,6 +107,7 @@ def get_query_stats() -> dict:
     if _shared_counter:
         try:
             from claw.feeds.wind_utils import get_query_stats as _shared_qs
+
             return _shared_qs()
         except Exception:
             logger.warning("共享计数器查询失败，退本地计数器", exc_info=True)
@@ -163,9 +169,17 @@ def fetch_wind_quote(code: str) -> dict | None:
     wcode = _wind_code(code)
     try:
         r = subprocess.run(
-            ["node", str(WIND_CLI), "call", "stock_data", "get_stock_quote",
-             json.dumps({"windcode": wcode}, ensure_ascii=False)],
-            capture_output=True, text=True, timeout=15,
+            [
+                "node",
+                str(WIND_CLI),
+                "call",
+                "stock_data",
+                "get_stock_quote",
+                json.dumps({"windcode": wcode}, ensure_ascii=False),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if r.returncode != 0:
             return None
@@ -180,7 +194,7 @@ def fetch_wind_quote(code: str) -> dict | None:
         row = rows[0]
         # Wind 行情: TIME, OPEN, MATCH(=现价), HIGH, LOW, TURNOVER(=成交额), VOLUME(=成交量), CHANGEHANDRATE(=换手率), AVPRICE
         result: dict[str, Any] = {
-            "name": "",          # 实时行情不返回名称
+            "name": "",  # 实时行情不返回名称
             "code": code,
             "price": _to_float(row[2]),
             "prev_close": None,
@@ -207,9 +221,17 @@ def _fetch_wind_price_indicators(wcode: str) -> dict | None:
     """内部：调 get_stock_price_indicators 获取涨跌幅（不占日限额，嵌入 fetch_wind_quote 共用一次检查）"""
     try:
         r = subprocess.run(
-            ["node", str(WIND_CLI), "call", "stock_data", "get_stock_price_indicators",
-             json.dumps({"windcode": wcode, "indexes": "最新成交价,涨跌幅"}, ensure_ascii=False)],
-            capture_output=True, text=True, timeout=10,
+            [
+                "node",
+                str(WIND_CLI),
+                "call",
+                "stock_data",
+                "get_stock_price_indicators",
+                json.dumps({"windcode": wcode, "indexes": "最新成交价,涨跌幅"}, ensure_ascii=False),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if r.returncode != 0:
             return None
@@ -257,9 +279,19 @@ def fetch_wind_price(code: str) -> dict | None:
     for _attempt in range(MAX_RETRIES):
         try:
             r = subprocess.run(
-                ["node", str(WIND_CLI), "call", "stock_data", "get_stock_price_indicators",
-                 json.dumps({"windcode": wcode, "indexes": "最新成交价,涨跌幅"}, ensure_ascii=False)],
-                capture_output=True, text=True, timeout=15,
+                [
+                    "node",
+                    str(WIND_CLI),
+                    "call",
+                    "stock_data",
+                    "get_stock_price_indicators",
+                    json.dumps(
+                        {"windcode": wcode, "indexes": "最新成交价,涨跌幅"}, ensure_ascii=False
+                    ),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
             if r.returncode != 0:
                 return None

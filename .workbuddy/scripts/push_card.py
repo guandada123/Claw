@@ -39,6 +39,7 @@ push_card.py — 飞书 interactive 卡片推送中台
         --content '<card_json>' --msg-type interactive
   早期早报卡片失败(230001)即因误用 --card / actions 字段格式错。
 """
+
 import argparse
 import json
 import os
@@ -49,7 +50,9 @@ import time
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LARK_CLI = (
     os.path.expanduser("~/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli")
-    if os.path.isfile(os.path.expanduser("~/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli"))
+    if os.path.isfile(
+        os.path.expanduser("~/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli")
+    )
     else "lark-cli"
 )
 DEFAULT_CHAT = "oc_9ee5303497f5e0e71666b610d6bdc346"
@@ -75,8 +78,14 @@ def _strip_surrogates(s):
     return "".join(ch for ch in s if not (0xD800 <= ord(ch) <= 0xDFFF))
 
 
-def build_card(title: str, level: str, sections: list, table: dict = None,
-              buttons: list = None, footer: str = None) -> dict:
+def build_card(
+    title: str,
+    level: str,
+    sections: list,
+    table: dict = None,
+    buttons: list = None,
+    footer: str = None,
+) -> dict:
     """构造飞书 interactive card JSON"""
     template = LEVEL_TEMPLATE.get(level, "blue")
     elements = []
@@ -84,10 +93,12 @@ def build_card(title: str, level: str, sections: list, table: dict = None,
     for idx, (sec_title, sec_body) in enumerate(sections):
         # 区块标题 + 内容
         block = f"**{sec_title}**\n\n{sec_body}" if sec_title else sec_body
-        elements.append({
-            "tag": "div",
-            "text": {"tag": "lark_md", "content": block},
-        })
+        elements.append(
+            {
+                "tag": "div",
+                "text": {"tag": "lark_md", "content": block},
+            }
+        )
         # 区块间分割线（最后一块后不加）
         if idx < len(sections) - 1:
             elements.append({"tag": "hr"})
@@ -99,28 +110,30 @@ def build_card(title: str, level: str, sections: list, table: dict = None,
         for row in table["rows"]:
             md += "| " + " | ".join(str(c) for c in row) + " |\n"
         elements.append({"tag": "hr"})
-        elements.append({
-            "tag": "div",
-            "text": {"tag": "lark_md", "content": md},
-        })
+        elements.append(
+            {
+                "tag": "div",
+                "text": {"tag": "lark_md", "content": md},
+            }
+        )
 
     # 按钮（主操作入口，飞书当前点不动，仅展示+链接）
     if buttons:
         actions = []
         for i, b in enumerate(buttons):
-            actions.append({
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": b["text"]},
-                "type": "primary" if i == 0 else "default",
-                "url": b.get("url", ""),
-            })
+            actions.append(
+                {
+                    "tag": "button",
+                    "text": {"tag": "plain_text", "content": b["text"]},
+                    "type": "primary" if i == 0 else "default",
+                    "url": b.get("url", ""),
+                }
+            )
         elements.append({"tag": "action", "actions": actions})
 
     # 页脚
     if footer:
-        elements.append({"tag": "note", "elements": [
-            {"tag": "plain_text", "content": footer}
-        ]})
+        elements.append({"tag": "note", "elements": [{"tag": "plain_text", "content": footer}]})
 
     card = {
         "config": {"wide_screen_mode": True},
@@ -142,9 +155,22 @@ def _send_via_lark(card: dict, chat_id: str, timeout: int = 30) -> tuple:
     """
     payload = json.dumps(card, ensure_ascii=False)
     r = subprocess.run(
-        [LARK_CLI, "im", "+messages-send", "--as", "bot",
-         "--chat-id", chat_id, "--content", payload, "--msg-type", "interactive"],
-        capture_output=True, text=True, timeout=timeout,
+        [
+            LARK_CLI,
+            "im",
+            "+messages-send",
+            "--as",
+            "bot",
+            "--chat-id",
+            chat_id,
+            "--content",
+            payload,
+            "--msg-type",
+            "interactive",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
     )
     return r.returncode == 0, r.stdout, r.stderr
 
@@ -152,9 +178,10 @@ def _send_via_lark(card: dict, chat_id: str, timeout: int = 30) -> tuple:
 def _send_via_markdown_fallback(text: str, chat_id: str, timeout: int = 30) -> bool:
     """兜底：卡片失败 → 用 --markdown 发送（保留格式，绝不用 --text）"""
     r = subprocess.run(
-        [LARK_CLI, "im", "+messages-send", "--as", "bot",
-         "--chat-id", chat_id, "--markdown", text],
-        capture_output=True, text=True, timeout=timeout,
+        [LARK_CLI, "im", "+messages-send", "--as", "bot", "--chat-id", chat_id, "--markdown", text],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
     )
     return r.returncode == 0
 
@@ -167,10 +194,13 @@ def _compress_sections_for_size(card: dict, budget: int = 26000):
     已压到最小阈值。这样即使正文被挤掉，完整报告按钮/链接也绝不会丢。
     """
     elements = card.get("elements", [])
-    div_idx = [i for i, e in enumerate(elements)
-               if e.get("tag") == "div"
-               and isinstance(e.get("text"), dict)
-               and e["text"].get("tag") == "lark_md"]
+    div_idx = [
+        i
+        for i, e in enumerate(elements)
+        if e.get("tag") == "div"
+        and isinstance(e.get("text"), dict)
+        and e["text"].get("tag") == "lark_md"
+    ]
 
     def _size() -> int:
         return len(json.dumps(card, ensure_ascii=False).encode("utf-8"))
@@ -180,9 +210,7 @@ def _compress_sections_for_size(card: dict, budget: int = 26000):
     guard = 0
     while _size() > budget and div_idx and guard < 200:
         guard += 1
-        sized = sorted(div_idx,
-                       key=lambda i: len(elements[i]["text"]["content"]),
-                       reverse=True)
+        sized = sorted(div_idx, key=lambda i: len(elements[i]["text"]["content"]), reverse=True)
         longest = sized[0]
         content = elements[longest]["text"]["content"]
         if len(content) <= MIN_BLOCK:
@@ -192,11 +220,22 @@ def _compress_sections_for_size(card: dict, budget: int = 26000):
     return card
 
 
-def send_card(title, level="info", sections=None, table=None, buttons=None,
-              footer=None, chat_id=DEFAULT_CHAT, max_retries=3) -> bool:
+def send_card(
+    title,
+    level="info",
+    sections=None,
+    table=None,
+    buttons=None,
+    footer=None,
+    chat_id=DEFAULT_CHAT,
+    max_retries=3,
+) -> bool:
     """对外主函数：发卡片，带 429 退避 + markdown 兜底"""
     sections = [(_strip_surrogates(t), _strip_surrogates(b)) for t, b in (sections or [])]
-    buttons = [{"text": _strip_surrogates(b.get("text", "")), "url": b.get("url", "")} for b in (buttons or [])]
+    buttons = [
+        {"text": _strip_surrogates(b.get("text", "")), "url": b.get("url", "")}
+        for b in (buttons or [])
+    ]
     title = _strip_surrogates(title)
     footer = _strip_surrogates(footer) if footer else footer
     card = build_card(title, level, sections, table, buttons, footer)
@@ -233,9 +272,7 @@ def send_card(title, level="info", sections=None, table=None, buttons=None,
             print(f"  🔴 卡片重试{max_retries}次失败，转 markdown 兜底")
 
     # 兜底：markdown（保留格式）
-    md_text = f"**{title}**\n\n" + "\n\n".join(
-        f"**{t}**\n{b}" for t, b in sections
-    )
+    md_text = f"**{title}**\n\n" + "\n\n".join(f"**{t}**\n{b}" for t, b in sections)
     if table and table.get("headers"):
         md_text += "\n\n" + "| " + " | ".join(table["headers"]) + " |\n"
         md_text += "|" + "|".join(["------"] * len(table["headers"])) + "|\n"
@@ -250,8 +287,20 @@ def send_card(title, level="info", sections=None, table=None, buttons=None,
 
 # 防护：LLM 常把模板占位符当真实内容传入，导致卡片显示 {日期}/title/body 字面量
 # 只检测「花括号模板变量」和「孤立占位单词」，不碰正常换行/emoji/中文
-_PLACEHOLDER_HAZARDS = ("{日期}", "{周几}", "{date}", "{weekday}",
-                         "{{", "}}", "{x}", "{y}", "{n}", "{m}", "{code}", "{标的}")
+_PLACEHOLDER_HAZARDS = (
+    "{日期}",
+    "{周几}",
+    "{date}",
+    "{weekday}",
+    "{{",
+    "}}",
+    "{x}",
+    "{y}",
+    "{n}",
+    "{m}",
+    "{code}",
+    "{标的}",
+)
 
 
 def _looks_like_placeholder(text: str) -> bool:
@@ -271,24 +320,36 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--title", required=True)
     p.add_argument("--level", default="info", choices=list(LEVEL_TEMPLATE.keys()))
-    p.add_argument("--section", action="append", nargs=2, metavar=("TITLE", "BODY"),
-                   help="可重复：--section '标题' '内容'")
+    p.add_argument(
+        "--section",
+        action="append",
+        nargs=2,
+        metavar=("TITLE", "BODY"),
+        help="可重复：--section '标题' '内容'",
+    )
     p.add_argument("--table-headers", default="")
-    p.add_argument("--table-rows", action="append", default=[],
-                   help="可重复：--table-rows 'a|b|c'")
-    p.add_argument("--button", action="append", nargs=2, metavar=("TEXT", "URL"),
-                   help="可重复：--button '文字' 'url'")
+    p.add_argument("--table-rows", action="append", default=[], help="可重复：--table-rows 'a|b|c'")
+    p.add_argument(
+        "--button",
+        action="append",
+        nargs=2,
+        metavar=("TEXT", "URL"),
+        help="可重复：--button '文字' 'url'",
+    )
     p.add_argument("--footer", default="")
     p.add_argument("--chat-id", default=DEFAULT_CHAT)
     p.add_argument("--dedupe-key", default="")
-    p.add_argument("--json-stdin", action="store_true",
-                   help="从 stdin 读完整 JSON {title,level,sections,table,buttons,footer}")
+    p.add_argument(
+        "--json-stdin",
+        action="store_true",
+        help="从 stdin 读完整 JSON {title,level,sections,table,buttons,footer}",
+    )
     args = p.parse_args()
 
     # ── 占位符/空内容防护（防止 LLM 把模板变量当真实内容传出）──
     if _looks_like_placeholder(args.title):
         print(f"  🔴 拒绝发送：title 疑似占位符/空值 → '{args.title}'")
-        print("  💡 调用方须传入真实标题，如 --title \"📊 收盘晚报 — $(date +%Y-%m-%d)\"")
+        print('  💡 调用方须传入真实标题，如 --title "📊 收盘晚报 — $(date +%Y-%m-%d)"')
         return 2
     if not args.json_stdin and not args.section:
         print("  🔴 拒绝发送：未提供任何 --section 内容")
@@ -297,12 +358,13 @@ def main():
         for i, (t, b) in enumerate(args.section or []):
             # 空标题 "" 是合法设计（整块无小标题）；只拦截空 BODY 或占位符
             if _looks_like_placeholder(b):
-                print(f"  🔴 拒绝发送：第{i+1}个 section 内容疑似占位符或空 → "
-                      f"title='{t}' body='{b[:30]}...'")
+                print(
+                    f"  🔴 拒绝发送：第{i + 1}个 section 内容疑似占位符或空 → "
+                    f"title='{t}' body='{b[:30]}...'"
+                )
                 return 2
             if _looks_like_placeholder(t) and t.strip():
-                print(f"  🔴 拒绝发送：第{i+1}个 section 标题疑似占位符 → "
-                      f"title='{t}'")
+                print(f"  🔴 拒绝发送：第{i + 1}个 section 标题疑似占位符 → title='{t}'")
                 return 2
 
     # 去重（文件级，冷却 6h）

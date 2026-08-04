@@ -48,6 +48,7 @@ def fetch_kline_df(code: str, market: str = None, days: int = 200) -> pd.DataFra
     # 1) Wind 万得 K线
     try:
         from wind_quote import fetch_wind_kline, wind_available
+
         if wind_available():
             wdf = fetch_wind_kline(code, days=days)
             if wdf is not None and not wdf.empty:

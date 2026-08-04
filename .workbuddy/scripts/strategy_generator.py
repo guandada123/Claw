@@ -196,6 +196,7 @@ def generate_stock_strategy(symbol: str) -> dict:
     # 1) Wind 万得
     try:
         from wind_quote import fetch_wind_price, wind_available
+
         if wind_available():
             wp = fetch_wind_price(symbol)
             if wp and wp.get("price") is not None:

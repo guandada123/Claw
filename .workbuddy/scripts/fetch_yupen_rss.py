@@ -31,6 +31,7 @@ fetch_yupen_rss.py — 鱼盆数据 RSS 直连抓取器（替代失效的 WebSea
     / yupen_<data_date>_yupen_trend.json）。两者日期可能不一致（如 7/17 抓取的文章表头日期为 7/16），
     这是正常设计，不是 OCR 卡住或缺失。
 """
+
 import argparse
 import json
 import os
@@ -55,7 +56,19 @@ YUPEN_TITLE_KWS = ["鱼盆", "板块轮动", "关注目标", "明天", "下周",
 YUPEN_BODY_STRONG = ["鱼盆模型回测数据", "贴下最新鱼盆", "鱼盆回测模型", "最新鱼盆", "鱼盆模型"]
 
 # 鱼盆数据帖正文弱信号（累计加分）
-YUPEN_BODY_WEAK = ["板块", "轮动", "偏离", "MA20", "历史回测", "区间涨幅", "量比", "排名", "临界值", "No区域", "转No"]
+YUPEN_BODY_WEAK = [
+    "板块",
+    "轮动",
+    "偏离",
+    "MA20",
+    "历史回测",
+    "区间涨幅",
+    "量比",
+    "排名",
+    "临界值",
+    "No区域",
+    "转No",
+]
 
 # v5.2：OCR 关键词白名单 — 下游只需识别命中这些词的图，其余为杂物图（段子/新闻截图/美股行情）
 OCR_KEYWORDS = ["板块轮动", "鱼盆趋势", "历史回测", "鱼盆模型", "区间涨幅", "偏离MA20"]
@@ -127,6 +140,7 @@ def _find_mbd_fakeids():
 def _get_article_detail(art_id):
     """通过单篇接口取完整数据：含 images / plain_content / content（带重试）"""
     import requests
+
     url = art_id if str(art_id).startswith("http") else art_id
     for attempt in range(8):
         try:
@@ -165,6 +179,7 @@ def _download_image(url, dest):
     """下载图片到 dest，成功返回 True"""
     try:
         import requests
+
         resp = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
         resp.raise_for_status()
         dest.write_bytes(resp.content)
@@ -189,10 +204,14 @@ def _write_no_data(target_date, note):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", default=None, help="数据日期 YYYY-MM-DD（默认今天）")
-    ap.add_argument("--force", action="store_true",
-                    help="v5.2: 忽略 article_id 去重，强制重下图片并重跑 OCR")
-    ap.add_argument("--article-id", default=None,
-                    help="直接指定文章 URL 或 id 进行补抓（跳过 RSS 列表，只下载该文图片）")
+    ap.add_argument(
+        "--force", action="store_true", help="v5.2: 忽略 article_id 去重，强制重下图片并重跑 OCR"
+    )
+    ap.add_argument(
+        "--article-id",
+        default=None,
+        help="直接指定文章 URL 或 id 进行补抓（跳过 RSS 列表，只下载该文图片）",
+    )
     args = ap.parse_args()
 
     target_date = args.date or _now_beijing().strftime("%Y-%m-%d")

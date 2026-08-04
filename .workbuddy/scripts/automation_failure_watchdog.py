@@ -26,6 +26,7 @@ Marvis 内存守护（可用内存 <1G 重启 WorkBuddy）会 **terminate 进行
     python3 automation_failure_watchdog.py --hours 48
     python3 automation_failure_watchdog.py --dry-run      # 只打印不推送
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,7 +46,15 @@ STATE = Path(__file__).resolve().parent / ".watchdog_alerted.json"
 
 # 关键自动化（漏跑影响决策）→ 按名称前缀/关键词判定，避免硬编码 ID 导致新增自动化漏网
 CRITICAL_KEYWORDS = (
-    "早报", "晚报", "收盘", "盘中", "监控", "选股", "策略执行", "鱼盆", "账户",
+    "早报",
+    "晚报",
+    "收盘",
+    "盘中",
+    "监控",
+    "选股",
+    "策略执行",
+    "鱼盆",
+    "账户",
 )
 # 收尾被打断：产物通常已生成，降级为提示不算关键
 SOFT_FAIL_MARKERS = ("final wrap-up was interrupted",)
@@ -75,7 +84,10 @@ def push(title: str, content: str) -> bool:
     try:
         r = subprocess.run(
             ["bash", str(PUSH), title, content],
-            capture_output=True, text=True, timeout=90, env=env,
+            capture_output=True,
+            text=True,
+            timeout=90,
+            env=env,
         )
         print(r.stdout.strip()[-200:] or r.stderr.strip()[-200:])
         return r.returncode == 0
@@ -132,8 +144,7 @@ def main() -> int:
         name = name or aid
         level, reason = classify(title)
         when = datetime.fromtimestamp(ts / 1000).strftime("%m-%d %H:%M")
-        item = {"aid": aid, "name": name, "when": when, "ts": ts,
-                "level": level, "reason": reason}
+        item = {"aid": aid, "name": name, "when": when, "ts": ts, "level": level, "reason": reason}
         # 关键自动化 + 硬失败 才算关键；soft(收尾打断) 一律降级
         if is_critical(name) and level == "hard":
             critical.append(item)
@@ -145,10 +156,13 @@ def main() -> int:
 
     def key_of(it):
         return f"{it['aid']}@{it['ts']}"
+
     new_critical = [it for it in critical if key_of(it) not in alerted]
     skipped = len(critical) - len(new_critical)
 
-    print(f"[watchdog] 近 {args.hours}h 失败 {len(rows)} 条 | 关键 {len(critical)} | 次要 {len(minor)} | 已告警跳过 {skipped}")
+    print(
+        f"[watchdog] 近 {args.hours}h 失败 {len(rows)} 条 | 关键 {len(critical)} | 次要 {len(minor)} | 已告警跳过 {skipped}"
+    )
     for it in critical + minor:
         flag = "🔴" if it in critical else "·"
         print(f"  {flag} [{it['when']}] {it['name'][:34]} — {it['reason']}")
@@ -177,9 +191,18 @@ def main() -> int:
     else:
         print("[watchdog] 无关键失败 → SILENT（次要失败不打扰）")
 
-    print("SUMMARY: " + json.dumps(
-        {"failed": len(rows), "critical": len(critical),
-         "new_critical": len(new_critical), "pushed": pushed}, ensure_ascii=False))
+    print(
+        "SUMMARY: "
+        + json.dumps(
+            {
+                "failed": len(rows),
+                "critical": len(critical),
+                "new_critical": len(new_critical),
+                "pushed": pushed,
+            },
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 

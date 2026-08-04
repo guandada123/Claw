@@ -27,6 +27,7 @@
     - avg_amt 用腾讯当日成交额(万元)*10000 近似(原池为元)
     - 已存在于池中的代码直接跳过(增量)，不覆盖原有 avg_amt
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,9 +43,16 @@ BATCH = 50
 
 # (prefix3, exchange_suffix) — 仅允许板块，禁买板块不在此列
 ALLOWED = [
-    ("000", "SZ"), ("001", "SZ"), ("002", "SZ"), ("003", "SZ"),
-    ("600", "SH"), ("601", "SH"), ("603", "SH"), ("605", "SH"),
-    ("300", "SZ"), ("301", "SZ"),
+    ("000", "SZ"),
+    ("001", "SZ"),
+    ("002", "SZ"),
+    ("003", "SZ"),
+    ("600", "SH"),
+    ("601", "SH"),
+    ("603", "SH"),
+    ("605", "SH"),
+    ("300", "SZ"),
+    ("301", "SZ"),
 ]
 
 
@@ -126,11 +134,16 @@ def main():
             pool[ts_code] = info
             added += 1
         if not args.no_color:
-            print(f"  batch {i // BATCH + 1}/{total // BATCH + 1}: +{len(res)} 有效",
-                  end="\r", file=sys.stderr)
+            print(
+                f"  batch {i // BATCH + 1}/{total // BATCH + 1}: +{len(res)} 有效",
+                end="\r",
+                file=sys.stderr,
+            )
 
-    print(f"\n增量补全完成: 新增 {added} 只, 已存在跳过 {skipped_existing} 只, "
-          f"未上市/退市/ST 跳过 {skipped_invalid} 只")
+    print(
+        f"\n增量补全完成: 新增 {added} 只, 已存在跳过 {skipped_existing} 只, "
+        f"未上市/退市/ST 跳过 {skipped_invalid} 只"
+    )
     print(f"池规模: {before} -> {len(pool)}")
 
     if not args.dry:

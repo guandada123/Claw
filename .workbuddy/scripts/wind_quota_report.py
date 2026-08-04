@@ -9,6 +9,7 @@ Wind 万得积分及查询用量报告
     python3 wind_quota_report.py                      # 仅输出到 stdout
     python3 wind_quota_report.py --push               # 推送到飞书
 """
+
 from __future__ import annotations
 
 import json
@@ -20,18 +21,21 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # ── 查询统计（来自 wind_utils 和 wind_quote） ──
 
+
 def _get_query_stats() -> dict:
     """从两个计数器收集统计"""
     stats = {"wind_utils": None, "wind_quote": None}
     try:
         sys.path.insert(0, str(PROJECT_ROOT / "src"))
         from claw.feeds.wind_utils import get_query_stats as qs1
+
         stats["wind_utils"] = qs1()
     except Exception:
         pass
     try:
         sys.path.insert(0, str(PROJECT_ROOT / ".workbuddy" / "lib"))
         from wind_quote import get_query_stats as qs2
+
         stats["wind_quote"] = qs2()
     except Exception:
         stats["wind_quote"] = None
@@ -101,11 +105,17 @@ def push_to_feishu(report: dict):
     )
     try:
         import subprocess
+
         cmd = [
-            "lark-cli", "im", "+messages-send",
-            "--chat-id", "oc_9ee5303497f5e0e71666b610d6bdc346",
-            "--as", "bot",
-            "--markdown", msg,
+            "lark-cli",
+            "im",
+            "+messages-send",
+            "--chat-id",
+            "oc_9ee5303497f5e0e71666b610d6bdc346",
+            "--as",
+            "bot",
+            "--markdown",
+            msg,
         ]
         subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         print("[push] ✅ 已推送飞书")

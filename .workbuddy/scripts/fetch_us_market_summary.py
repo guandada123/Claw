@@ -5,6 +5,7 @@
 打印 LLM 可直接填入晚报模板「🌐 美股隔夜环境」段的简洁行。
 各源失败时优雅降级为「暂缺（数据源受限）」，绝不臆造。
 """
+
 import json
 import subprocess
 import sys
@@ -16,7 +17,9 @@ def _run() -> dict | None:
     try:
         r = subprocess.run(
             ["python3", SCRIPT, "--no-cache"],
-            capture_output=True, text=True, timeout=40,
+            capture_output=True,
+            text=True,
+            timeout=40,
         )
         return json.loads(r.stdout)
     except Exception as e:

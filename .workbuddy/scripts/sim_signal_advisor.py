@@ -550,7 +550,9 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
         # QTS 成熟规则接入：ADX 趋势过滤 + RSI 超买保护
         # COMBO 建仓需 ADX >= 25（趋势有效），否则降级为观察不买入
         adx_ok = (adx_value >= ADX_TREND_FILTER) if isinstance(adx_value, (int, float)) else True
-        rsi_overbought = (rsi_value > RSI_OVERBOUGHT_BLOCK) if isinstance(rsi_value, (int, float)) else False
+        rsi_overbought = (
+            (rsi_value > RSI_OVERBOUGHT_BLOCK) if isinstance(rsi_value, (int, float)) else False
+        )
 
         candidates.append(
             {
@@ -568,8 +570,12 @@ def analyze_candidates(signals: dict, portfolio: dict) -> dict:
                 "adx_signal": round(adx_signal, 3)
                 if isinstance(adx_signal, (int, float))
                 else adx_signal,
-                "adx_value": round(adx_value, 1) if isinstance(adx_value, (int, float)) else adx_value,
-                "rsi_value": round(rsi_value, 1) if isinstance(rsi_value, (int, float)) else rsi_value,
+                "adx_value": round(adx_value, 1)
+                if isinstance(adx_value, (int, float))
+                else adx_value,
+                "rsi_value": round(rsi_value, 1)
+                if isinstance(rsi_value, (int, float))
+                else rsi_value,
                 "adx_ok": adx_ok,
                 "rsi_overbought": rsi_overbought,
                 "current_price": s.get("current_price", 0),

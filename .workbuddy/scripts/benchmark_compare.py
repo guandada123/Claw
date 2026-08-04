@@ -15,8 +15,8 @@ import json
 import sys
 from pathlib import Path
 
-THRESHOLD_SLOW = 1.20   # 慢 20% 以上算回归
-THRESHOLD_FAST = 0.90   # 快 10% 以上算提升
+THRESHOLD_SLOW = 1.20  # 慢 20% 以上算回归
+THRESHOLD_FAST = 0.90  # 快 10% 以上算提升
 
 
 def load_benchmarks(path: str) -> dict:
@@ -45,15 +45,9 @@ def compare(baseline: dict, current: dict) -> list:
         ratio = cur_mean / base_mean if base_mean > 0 else 1.0
 
         if ratio >= THRESHOLD_SLOW:
-            warnings.append(
-                f"[回归] {name}: {base_mean:.6f}s → {cur_mean:.6f}s "
-                f"(慢 {ratio:.1%})"
-            )
+            warnings.append(f"[回归] {name}: {base_mean:.6f}s → {cur_mean:.6f}s (慢 {ratio:.1%})")
         elif ratio <= THRESHOLD_FAST:
-            print(
-                f"[提升] {name}: {base_mean:.6f}s → {cur_mean:.6f}s "
-                f"(快 {(1-ratio):.1%})"
-            )
+            print(f"[提升] {name}: {base_mean:.6f}s → {cur_mean:.6f}s (快 {(1 - ratio):.1%})")
     return warnings
 
 

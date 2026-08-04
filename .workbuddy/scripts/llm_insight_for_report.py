@@ -11,6 +11,7 @@
 用法:
   python3 llm_insight_for_report.py [--days 3]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -68,9 +69,11 @@ def main():
             ins = rec.get("insight", {})
             acc = rec.get("account", "")
             stance = {"bullish": "偏多", "bearish": "偏空", "neutral": "中性"}.get(
-                ins.get("market_stance"), "")
+                ins.get("market_stance"), ""
+            )
             conf = {"high": "高", "medium": "中", "low": "低", "recap": "复盘"}.get(
-                ins.get("confidence"), "?")
+                ins.get("confidence"), "?"
+            )
             print(f"- [{acc}] {stance}·置信{conf}：{ins.get('gist', '')}")
             views = ins.get("core_views") or []
             if views:
@@ -83,8 +86,7 @@ def main():
         print("（近几天公众号文章多为行情复盘，无明确前瞻观点）")
 
     if resonance:
-        items = "、".join(
-            f"{r['stock_name']}(×{r['count']})" for r in resonance[:6])
+        items = "、".join(f"{r['stock_name']}(×{r['count']})" for r in resonance[:6])
         print(f"🔥 多篇共振推荐（≥2账号）：{items}")
 
 

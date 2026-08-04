@@ -32,19 +32,17 @@ class TestCheckRestricted:
         assert check_restricted("000001") is None  # 平安银行
         assert check_restricted("002594") is None  # 比亚迪
 
-    def test_chinext_blocked(self):
+    def test_chinext_allowed(self):
+        # 创业板(300/301)自 07-29 起放开，不再受限
         from sim_trade import check_restricted
 
-        result = check_restricted("300750")  # 宁德时代
-        assert result is not None
-        assert "创业板" in result
+        assert check_restricted("300750") is None  # 宁德时代
+        assert check_restricted("301269") is None
 
-    def test_chinext_301_blocked(self):
+    def test_chinext_301_allowed(self):
         from sim_trade import check_restricted
 
-        result = check_restricted("301269")
-        assert result is not None
-        assert "创业板" in result
+        assert check_restricted("301269") is None
 
     def test_star_blocked(self):
         from sim_trade import check_restricted
@@ -281,9 +279,10 @@ class TestCheckTakeProfit:
         assert result["should_sell"] is False
 
     def test_level1_take_profit(self):
-        """一级止盈触发 (盈利>=15%)"""
-        from sim_trade import TAKE_PROFIT_LEVELS, check_take_profit
+        """一级止盈触发 (盈利>=首级阈值, 双模: 冲刺5%/正常15%)"""
+        from sim_trade import _get_take_profit_levels, check_take_profit
 
+        levels = _get_take_profit_levels()
         pf = {
             "positions": {
                 "600519": {
@@ -295,22 +294,23 @@ class TestCheckTakeProfit:
             }
         }
         result = check_take_profit(pf, "600519")
-        if TAKE_PROFIT_LEVELS[0]["pct"] * 100 <= 20:
+        if levels[0]["pct"] * 100 <= 20:
             assert result["should_sell"] is True
             assert result["shares_to_sell"] > 0
             assert "new_level" in result
 
     def test_all_levels_exhausted(self):
-        """所有止盈级别已用完"""
-        from sim_trade import TAKE_PROFIT_LEVELS, check_take_profit
+        """所有止盈级别已用完 (双模: 取当前模式层级数+1)"""
+        from sim_trade import _get_take_profit_levels, check_take_profit
 
+        levels = _get_take_profit_levels()
         pf = {
             "positions": {
                 "600519": {
                     "shares": 100,
                     "avg_cost": 100.0,
                     "current_price": 200.0,
-                    "take_profit_level": len(TAKE_PROFIT_LEVELS) + 1,
+                    "take_profit_level": len(levels) + 1,
                 }
             }
         }

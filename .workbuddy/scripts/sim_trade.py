@@ -70,6 +70,7 @@ RESTRICTED_PREFIXES = ["688", "689", "8", "4"]
 # 初始资金
 INITIAL_CAPITAL = 50000.0
 
+
 def get_effective_capital(pf: dict) -> float:
     """实际投入本金 = 初始本金 + 历次加仓合计。
 
@@ -81,6 +82,7 @@ def get_effective_capital(pf: dict) -> float:
     adds = sum(float(a.get("amount", 0)) for a in cfg.get("capital_additions", []))
     return round(base + adds, 2)
 
+
 # 风险管理参数
 MAX_POSITION_PCT = 0.50  # 单只股票最大仓位 50%
 MAX_SECTOR_PCT = 0.60  # 同行业最大仓位 60%
@@ -88,6 +90,8 @@ STOP_LOSS_PCT = 0.08  # 固定止损线 -8%（主板/中小板，降级方案）
 # 创业板(300/301)单独更宽止损：20%涨跌停，单日波动大，-8%易被穿透。07-29放开创业板后增设。
 CYB_STOP_LOSS_PCT = 0.15  # 创业板固定止损线 -15%
 TRAILING_STOP_PCT = 0.15  # 追踪止损：从最高价回落 15% 触发
+
+
 # 分级止盈（双模式：冲刺期/正常期，由日期自动判定）
 #   冲刺期（每月20号后 或 6月14号后）：5%/10%/15% 快速轮动锁定利润
 #   正常期（其余日期）：15%/25%/35% 耐心持有追求高收益
@@ -112,6 +116,7 @@ def _get_take_profit_levels() -> list:
         {"pct": 0.25, "sell_ratio": 0.33, "desc": "+25%再卖1/3"},
         {"pct": 0.35, "sell_ratio": 0.34, "desc": "+35%清仓"},
     ]
+
 
 # 现金不足主动减仓规则（07/31 讨论，08/02 落地引擎）
 CASH_CRITICAL_PCT = 0.15  # 现金<总资产15% → 触发主动减仓
@@ -162,7 +167,7 @@ def record_trade_memory(txn: dict) -> None:
             memory_records = []
 
     # 用 txn id + date 生成唯一指纹
-    raw = f"{txn.get('id','')}:{txn.get('date','')}:{txn.get('code','')}"
+    raw = f"{txn.get('id', '')}:{txn.get('date', '')}:{txn.get('code', '')}"
     fingerprint = hashlib.sha256(raw.encode()).hexdigest()[:16]
     if any(r.get("fingerprint") == fingerprint for r in memory_records):
         return  # 已存在，跳过
@@ -173,7 +178,7 @@ def record_trade_memory(txn: dict) -> None:
     action = "买入" if txn_type == "BUY" else "卖出"
 
     memory_entry = {
-        "id": f"mem_{txn.get('date','unknown')}_{txn.get('id','').lower()}",
+        "id": f"mem_{txn.get('date', 'unknown')}_{txn.get('id', '').lower()}",
         "fingerprint": fingerprint,
         "created_at": now(),
         "updated_at": now(),
@@ -181,7 +186,7 @@ def record_trade_memory(txn: dict) -> None:
         "title": f"{action} {name}({code})",
         "summary": (
             f"{action} {shares}股 @¥{price:.2f} | "
-            f"总金额 ¥{txn.get('total',txn.get('net_proceeds',0)):.2f}"
+            f"总金额 ¥{txn.get('total', txn.get('net_proceeds', 0)):.2f}"
             if (shares := txn.get("shares", 0)) and (price := txn.get("price", 0))
             else f"{action} {code}"
         ),
@@ -344,7 +349,9 @@ def check_take_profit(pf: dict, code: str) -> dict:
     if last_mode and last_mode != current_mode:
         logger.info(
             "%s 止盈模式切换: %s → %s，重置 take_profit_level 为 1",
-            code, last_mode, current_mode,
+            code,
+            last_mode,
+            current_mode,
         )
         pos["take_profit_level"] = 1
     pos["mode"] = current_mode

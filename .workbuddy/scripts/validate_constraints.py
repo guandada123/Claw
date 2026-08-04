@@ -10,6 +10,7 @@ A股交易约束校验器 — 统一整手规则、板块限制、止损/止盈�
 
 规则来源: llm_constraints.md（如存在则优先读取）
 """
+
 from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
 
 import argparse
@@ -20,14 +21,18 @@ from pathlib import Path
 
 # ── 默认约束 ──────────────────────────────────────────
 DEFAULT_CONSTRAINTS = {
-    "lot_size": 100,                    # A股最小交易单位
-    "max_positions": 5,                  # 最大持股数
-    "stop_loss_pct": -8.0,              # 止损线（模拟盘）
-    "stop_loss_pct_live": -5.0,         # 止损线（实盘）
+    "lot_size": 100,  # A股最小交易单位
+    "max_positions": 5,  # 最大持股数
+    "stop_loss_pct": -8.0,  # 止损线（模拟盘）
+    "stop_loss_pct_live": -5.0,  # 止损线（实盘）
     "take_profit_levels": [10, 15, 25],  # 止盈阶梯
     "banned_exchanges": ["科创板", "北交所"],  # 禁入板块（创业板 300/301 已放开 2026-07-29）
-    "banned_prefixes": ["688", "8", "4"],  # 科创板688、北交所8/4开头（创业板300/301已放开 2026-07-29）
-    "max_sector_concentration": 0.6,     # 行业集中度上限
+    "banned_prefixes": [
+        "688",
+        "8",
+        "4",
+    ],  # 科创板688、北交所8/4开头（创业板300/301已放开 2026-07-29）
+    "max_sector_concentration": 0.6,  # 行业集中度上限
 }
 
 # ── 模板 ──────────────────────────────────────────────
@@ -67,7 +72,9 @@ def load_constraints() -> dict:
             # Extract key values from template
             for key, default in result.items():
                 if isinstance(default, float):
-                    match = re.search(rf"{key.replace('_', '[-_ ]')}.*?([\d.]+)", text, re.IGNORECASE)
+                    match = re.search(
+                        rf"{key.replace('_', '[-_ ]')}.*?([\d.]+)", text, re.IGNORECASE
+                    )
                     if match:
                         result[key] = float(match.group(1))
             return result
@@ -179,8 +186,8 @@ def scan_text_for_violations(text: str) -> list[str]:
     # Find share count mentions
     # Pattern captures: trade action + optional "仓" + number + 股
     patterns = [
-        r'(?:减仓|加仓|减|加|买[入进]?|卖[出]?|建仓|清仓|持有)\s*(\d+)\s*股',
-        r'(\d+)\s*股\s*(?:减仓|加仓|减|加|买|卖)',
+        r"(?:减仓|加仓|减|加|买[入进]?|卖[出]?|建仓|清仓|持有)\s*(\d+)\s*股",
+        r"(\d+)\s*股\s*(?:减仓|加仓|减|加|买|卖)",
     ]
     for pattern in patterns:
         for match in re.finditer(pattern, text):
@@ -190,7 +197,7 @@ def scan_text_for_violations(text: str) -> list[str]:
                 issues.append(msg)
 
     # Find stock codes
-    code_pattern = r'[（(]?\b(\d{6})\b[）)]?'
+    code_pattern = r"[（(]?\b(\d{6})\b[）)]?"
     for match in re.finditer(code_pattern, text):
         code = match.group(1)
         valid, msg = validate_code(code)
@@ -202,14 +209,10 @@ def scan_text_for_violations(text: str) -> list[str]:
 
 def main():
     parser = argparse.ArgumentParser(description="A股交易约束校验器")
-    parser.add_argument("--template", action="store_true",
-                        help="输出约束模板文本")
-    parser.add_argument("--file", type=str,
-                        help="校验报告文件中的建议")
-    parser.add_argument("--text", type=str,
-                        help="校验文本内容")
-    parser.add_argument("--portfolio", action="store_true",
-                        help="校验当前持仓")
+    parser.add_argument("--template", action="store_true", help="输出约束模板文本")
+    parser.add_argument("--file", type=str, help="校验报告文件中的建议")
+    parser.add_argument("--text", type=str, help="校验文本内容")
+    parser.add_argument("--portfolio", action="store_true", help="校验当前持仓")
     args = parser.parse_args()
 
     if args.template:

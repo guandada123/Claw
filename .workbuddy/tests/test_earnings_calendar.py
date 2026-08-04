@@ -1,6 +1,7 @@
 """
 earnings_calendar.py 单元测试
 """
+
 import sys
 from pathlib import Path
 

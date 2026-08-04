@@ -193,8 +193,8 @@ class TestSimTradeWorkflow:
         for code in allowed:
             assert check_restricted(code) is None, f"{code} 应该被允许"
 
-        # 所有禁止的代码
-        blocked = ["300750", "301269", "688981", "833171"]
+        # 所有禁止的代码 (创业板300/301已放开, 仅科创/北交仍禁)
+        blocked = ["688981", "833171"]
         for code in blocked:
             result = check_restricted(code)
             assert result is not None, f"{code} 应该被禁止"

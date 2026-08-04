@@ -11,7 +11,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, date
+from datetime import date, datetime
 from pathlib import Path
 
 CACHE_DIR = Path.home() / ".workbuddy" / "cache" / "wx_articles"
@@ -77,8 +77,20 @@ def extract_stocks(content: str, title: str) -> list:
 
 # 08-03 修复：统一日期解析，避免 pub_time[:10] 把 RFC822 截断成 "Sat, 27 Ju"
 _WEEKDAY = {"Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6}
-_MONTH_NAMES = [(1, "Jan"), (2, "Feb"), (3, "Mar"), (4, "Apr"), (5, "May"), (6, "Jun"),
-                (7, "Jul"), (8, "Aug"), (9, "Sep"), (10, "Oct"), (11, "Nov"), (12, "Dec")]
+_MONTH_NAMES = [
+    (1, "Jan"),
+    (2, "Feb"),
+    (3, "Mar"),
+    (4, "Apr"),
+    (5, "May"),
+    (6, "Jun"),
+    (7, "Jul"),
+    (8, "Aug"),
+    (9, "Sep"),
+    (10, "Oct"),
+    (11, "Nov"),
+    (12, "Dec"),
+]
 
 
 def parse_pub_date(s: str, fallback_src: str = "") -> str:
@@ -228,7 +240,9 @@ def extract_signals():
             signals.append(
                 {
                     # article_id 仅用于去重标识, 非密码学用途
-                    "article_id": hashlib.md5(f.name.encode(), usedforsecurity=False).hexdigest()[:12],
+                    "article_id": hashlib.md5(f.name.encode(), usedforsecurity=False).hexdigest()[
+                        :12
+                    ],
                     # 08-03 修复：内容哈希，同文多文件名(重复拉取)也能去重
                     "content_id": hashlib.md5(
                         f"{account}|{title}|{content}".encode(), usedforsecurity=False

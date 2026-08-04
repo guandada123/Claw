@@ -21,6 +21,7 @@ wx_report_validator.py — 微信早/晚报结构校验器（A+C 两部分）
     python3 wx_report_validator.py --push          # 有关键错误才推送飞书
     python3 wx_report_validator.py --hours 24      # 扫近24h内所有报告
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,13 +43,23 @@ PUSH = ROOT / ".workbuddy" / "scripts" / "push_feishu.sh"
 SECTION_RE = re.compile(r"^##\s+(.+?)(?:[、：:]|\（|\()", re.MULTILINE)
 # 捕获编号（中文数字 + 可选的 ·五）
 CN_NUM = {
-    "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6,
-    "七": 7, "八": 8, "九": 9, "十": 10, "十一": 11, "十二": 12,
+    "一": 1,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+    "十一": 11,
+    "十二": 12,
 }
 # 匹配标题中的中文编号: 允许前缀 emoji/空格, 核心 `七·五` / `一` 等
 NUM_HEAD_RE = re.compile(r"(十?[一二三四五六七八九十]+)(?:·([一二三四五六七八九十]+))?")
 
-MORNING_EXPECT = list(range(1, 9)) + ["7·5"] + ["action"]   # 9 段
+MORNING_EXPECT = list(range(1, 9)) + ["7·5"] + ["action"]  # 9 段
 EVENING_EXPECT = list(range(1, 11)) + ["9·5"] + ["action"]  # 11 段
 WHITELIST_SUB = {"5"}  # 仅允许 ·五 插入中段
 
@@ -133,7 +144,9 @@ def check_holdings(name: str, text: str) -> list[str]:
         # 报告中模拟盘表格应含这些代码
         for code in sim_pos:
             if code not in text:
-                warn.append(f"[{name}] 模拟盘持仓 {code}({sim_pos[code].get('name','')}) 未在报告中出现")
+                warn.append(
+                    f"[{name}] 模拟盘持仓 {code}({sim_pos[code].get('name', '')}) 未在报告中出现"
+                )
     except Exception as e:  # noqa
         warn.append(f"[{name}] 读取模拟盘 portfolio 失败: {e}")
     return warn
@@ -150,11 +163,13 @@ def validate_report(path: Path, do_push: bool) -> dict:
 
 def push(title: str, content: str) -> bool:
     import os
+
     env = dict(os.environ)
     env.setdefault("FEISHU_CHAT_ID", "oc_9ee5303497f5e0e71666b610d6bdc346")
     try:
-        r = subprocess.run(["bash", str(PUSH), title, content],
-                           capture_output=True, text=True, timeout=90, env=env)
+        r = subprocess.run(
+            ["bash", str(PUSH), title, content], capture_output=True, text=True, timeout=90, env=env
+        )
         return r.returncode == 0
     except Exception:  # noqa
         return False
@@ -175,8 +190,11 @@ def main() -> int:
         pat = f"*{since.strftime('%Y%m%d')}*"
         candidates = list(REPORT_DIR.glob(pat))
         # 也覆盖跨日
-        files = [f for f in candidates if f.suffix == ".md"
-                 and ("morning" in f.name or "evening" in f.name)]
+        files = [
+            f
+            for f in candidates
+            if f.suffix == ".md" and ("morning" in f.name or "evening" in f.name)
+        ]
     else:
         # 最新一对
         m = sorted(REPORT_DIR.glob("*_morning.md"))[-1:]
@@ -191,7 +209,9 @@ def main() -> int:
     failed = [r for r in results if r["errors"]]
     warned = [r for r in results if not r["errors"] and r["warnings"]]
 
-    print(f"[validator] 校验 {len(results)} 份 | FAIL {len(failed)} | WARN {len(warned)} | OK {len(results)-len(failed)-len(warned)}")
+    print(
+        f"[validator] 校验 {len(results)} 份 | FAIL {len(failed)} | WARN {len(warned)} | OK {len(results) - len(failed) - len(warned)}"
+    )
     for r in results:
         tag = {"FAIL": "🔴", "WARN": "🟡", "OK": "✅"}[r["status"]]
         print(f"  {tag} {r['file']}")
@@ -210,9 +230,12 @@ def main() -> int:
         push("日报结构校验告警", "\n".join(lines))
         print("[validator] 已推送飞书告警")
 
-    print("SUMMARY: " + json.dumps(
-        {"checked": len(results), "fail": len(failed), "warn": len(warned)},
-        ensure_ascii=False))
+    print(
+        "SUMMARY: "
+        + json.dumps(
+            {"checked": len(results), "fail": len(failed), "warn": len(warned)}, ensure_ascii=False
+        )
+    )
     return 0
 
 

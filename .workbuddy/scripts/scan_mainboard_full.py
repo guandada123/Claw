@@ -4,6 +4,7 @@
 依赖: QTS daily_quote(全市场日线) + mainboard_scan_pool.json(流动性+ST过滤池)
 输出: 买入候选(代码+名称+价位+仓位+止损+周期+风险) 完整建议格式
 """
+
 import json
 import sys
 
@@ -12,17 +13,17 @@ from services.indicators import calculate_adx, calculate_rsi
 from services.signals import generate_signals
 
 # ---- 规则参数 (v2.0 体系, 贴合 USER.md: 中等风险/中短线/主板) ----
-ADX_FILTER = 25          # ADX>=25 才认为有趋势
-RSI_BLOCK = 80           # RSI(14)>80 超买拦截
-COMBO_BUY = 0.2          # 买入阈值
-COMBO_STRONG = 0.4       # 强买阈值
-MIN_BARS = 30            # 最少K线数(数据中位40天, 放宽到30)
-LOOKBACK = 60            # 取近60日
+ADX_FILTER = 25  # ADX>=25 才认为有趋势
+RSI_BLOCK = 80  # RSI(14)>80 超买拦截
+COMBO_BUY = 0.2  # 买入阈值
+COMBO_STRONG = 0.4  # 强买阈值
+MIN_BARS = 30  # 最少K线数(数据中位40天, 放宽到30)
+LOOKBACK = 60  # 取近60日
 
 # 用户实盘规模
 USER_CAPITAL = 15000
-MAX_SINGLE = USER_CAPITAL / 3   # 单只<=1/3 ≈ 5000
-STOP_LOSS = 0.08                 # 止损8%
+MAX_SINGLE = USER_CAPITAL / 3  # 单只<=1/3 ≈ 5000
+STOP_LOSS = 0.08  # 止损8%
 
 import math
 
@@ -46,7 +47,14 @@ def calc_combo(series):
         v = v[-1] if v else 0.0
         return 0.0 if (isinstance(v, float) and math.isnan(v)) else float(v)
 
-    return round(sl(combo), 3), int(sl(vwm)), int(sl(bbr)), round(sl(adx), 1), round(sl(rsi), 1), cl[-1]
+    return (
+        round(sl(combo), 3),
+        int(sl(vwm)),
+        int(sl(bbr)),
+        round(sl(adx), 1),
+        round(sl(rsi), 1),
+        cl[-1],
+    )
 
 
 def decide(combo, adx, rsi):
@@ -83,9 +91,9 @@ def main():
     # 批量取近60日K线: (high,low,close,ts_code,trade_date)
     # 参数化查询, 消除 SQL 注入风险 (codes 来自内部 mainboard_scan_pool.json, 非用户输入)
     placeholders = ",".join(["%s"] * len(codes))
-    sql = (
+    sql = (  # nosec B608
         "SELECT ts_code, high, low, close, trade_date FROM daily_quote "
-        "WHERE ts_code IN (" + placeholders + ") "
+        "WHERE ts_code IN (" + placeholders + ") "  # nosec B608
         "AND trade_date >= (SELECT MAX(trade_date) FROM daily_quote) - INTERVAL '75 day' "
         "ORDER BY ts_code, trade_date"
     )
@@ -108,13 +116,24 @@ def main():
         rows.append((code, pool[code]["name"], close, combo, vwm, bbr, adx, rsi, act))
     print(f"[DEBUG] 池 {len(codes)} 只; 有效 {len(rows)} 只; 跳过(数据不足) {skipped} 只")
 
-    order = {"STRONG_BUY": 0, "BUY": 1, "HOLD": 2, "HOLD_ADX_WEAK": 3, "HOLD_OVERBOUGHT": 4, "SELL": 5}
+    order = {
+        "STRONG_BUY": 0,
+        "BUY": 1,
+        "HOLD": 2,
+        "HOLD_ADX_WEAK": 3,
+        "HOLD_OVERBOUGHT": 4,
+        "SELL": 5,
+    }
     rows.sort(key=lambda r: (order.get(r[8], 9), -r[3]))
 
-    print(f"{'CODE':<10}{'NAME':<10}{'CLOSE':>9}{'COMBO':>8}{'VWM':>5}{'BBR':>5}{'ADX':>7}{'RSI':>7}  ACTION")
+    print(
+        f"{'CODE':<10}{'NAME':<10}{'CLOSE':>9}{'COMBO':>8}{'VWM':>5}{'BBR':>5}{'ADX':>7}{'RSI':>7}  ACTION"
+    )
     print("-" * 90)
     for r in rows[:60]:
-        print(f"{r[0]:<10}{r[1]:<10}{r[2]:>9.2f}{r[3]:>8.2f}{r[4]:>5}{r[5]:>5}{r[6]:>7.1f}{r[7]:>7.1f}  {r[8]}")
+        print(
+            f"{r[0]:<10}{r[1]:<10}{r[2]:>9.2f}{r[3]:>8.2f}{r[4]:>5}{r[5]:>5}{r[6]:>7.1f}{r[7]:>7.1f}  {r[8]}"
+        )
 
     buys = [r for r in rows if r[8] in ("BUY", "STRONG_BUY")]
     print(f"\n=== 买入候选 (COMBO>={COMBO_BUY} & ADX>={ADX_FILTER} & RSI<={RSI_BLOCK}) ===")
@@ -130,22 +149,39 @@ def main():
         lots = max_shares // 100
         cost = max_shares * price
         print(f"■ {code} {name}")
-        print(f"  现价 {price:.2f} | COMBO {r[3]:.2f}(VWM{r[4]}/BBR{r[5]}) ADX {r[6]} RSI {r[7]} [{r[8]}]")
+        print(
+            f"  现价 {price:.2f} | COMBO {r[3]:.2f}(VWM{r[4]}/BBR{r[5]}) ADX {r[6]} RSI {r[7]} [{r[8]}]"
+        )
         if lots > 0:
-            print(f"  建议: 买 {lots} 手({max_shares}股) ≈ ¥{cost:,.0f} | 止损价 {stop_px} (-8%) | 周期 3-10天")
-            print(f"  风险: 中等; 单只仓位 {cost/USER_CAPITAL*100:.0f}% ≤ 33%上限; 跌破止损立即走")
+            print(
+                f"  建议: 买 {lots} 手({max_shares}股) ≈ ¥{cost:,.0f} | 止损价 {stop_px} (-8%) | 周期 3-10天"
+            )
+            print(
+                f"  风险: 中等; 单只仓位 {cost / USER_CAPITAL * 100:.0f}% ≤ 33%上限; 跌破止损立即走"
+            )
         else:
             print(f"  建议: 现价 {price:.2f} 超单只上限(¥{MAX_SINGLE:,.0f}), 不推")
         print()
 
     # 写出候选JSON供飞书推送
     cand = [
-        {"code": r[0], "name": r[1], "close": r[2], "combo": r[3], "vwm": r[4], "bbr": r[5],
-         "adx": r[6], "rsi": r[7], "action": r[8]}
+        {
+            "code": r[0],
+            "name": r[1],
+            "close": r[2],
+            "combo": r[3],
+            "vwm": r[4],
+            "bbr": r[5],
+            "adx": r[6],
+            "rsi": r[7],
+            "action": r[8],
+        }
         for r in buys
     ]
     with open("/tmp/mainboard_scan_result.json", "w") as f:
-        json.dump({"scan_date": "2026-07-13", "total": len(rows), "buys": cand}, f, ensure_ascii=False)
+        json.dump(
+            {"scan_date": "2026-07-13", "total": len(rows), "buys": cand}, f, ensure_ascii=False
+        )
     print("候选结果已写 /tmp/mainboard_scan_result.json")
 
 

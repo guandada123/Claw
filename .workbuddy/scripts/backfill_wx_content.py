@@ -22,6 +22,7 @@ backfill_wx_content.py — 回填 output/wx_articles/ 中正文缺失的历史�
     不动 title/account/url/pub_time，不删除任何文件。
   - 抓取失败的文件原样保留，等下次再试（幂等，可反复执行）。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -122,7 +123,12 @@ def collect_empty(newest_first: bool = True) -> list[Path]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max", type=int, default=40, help="本轮最多回填篇数")
-    ap.add_argument("--gap", type=float, default=3.2, help="请求间隔秒（防风控，本地API约10次/分，<3s必触发限流）")
+    ap.add_argument(
+        "--gap",
+        type=float,
+        default=3.2,
+        help="请求间隔秒（防风控，本地API约10次/分，<3s必触发限流）",
+    )
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--oldest", action="store_true", help="优先回填最旧的（默认最新优先）")
     ap.add_argument(
@@ -193,7 +199,9 @@ def main() -> int:
         time.sleep(args.gap)
 
     src_desc = " ".join(f"{k}={v}" for k, v in ok_by_src.items()) or "-"
-    print(f"\n[backfill] 完成 | 成功 {ok} ({src_desc}) | 失败 {fail} | 剩余空正文约 {total_empty - ok}")
+    print(
+        f"\n[backfill] 完成 | 成功 {ok} ({src_desc}) | 失败 {fail} | 剩余空正文约 {total_empty - ok}"
+    )
     if fail_reasons:
         print("[backfill] 失败原因分布: " + ", ".join(f"{k}×{v}" for k, v in fail_reasons.items()))
     print(

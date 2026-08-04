@@ -5,6 +5,7 @@ knowledge_indexer.py - 知识库文章索引器
 写入 .workbuddy/knowledge/index/ 下的 JSON + Markdown 索引，并更新 last_scan.txt。
 支持增量：仅索引比 last_scan.txt 更晚修改的文章（首次运行则全量）。
 """
+
 import datetime
 import glob
 import json
@@ -23,38 +24,91 @@ os.makedirs(INDEX_DIR, exist_ok=True)
 def parse_meta(text):
     meta = {}
     for line in text.splitlines()[:40]:
-        m = re.match(r'-\s*\*\*(.+?)\*\*:\s*(.+)', line)
+        m = re.match(r"-\s*\*\*(.+?)\*\*:\s*(.+)", line)
         if m:
             meta[m.group(1).strip()] = m.group(2).strip()
     return meta
 
 
 def extract_summary(text, limit=SUMMARY_LIMIT):
-    parts = text.split('---', 2)
+    parts = text.split("---", 2)
     body = parts[-1] if len(parts) >= 2 else text
-    body = re.sub(r'!\[.*?\]\(.*?\)', '', body)          # 去图片
-    paras = [p.strip() for p in body.split('\n')
-             if p.strip() and not p.strip().startswith('#')]
-    summary = ''
+    body = re.sub(r"!\[.*?\]\(.*?\)", "", body)  # 去图片
+    paras = [p.strip() for p in body.split("\n") if p.strip() and not p.strip().startswith("#")]
+    summary = ""
     for para in paras:
-        cleaned = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', para)   # 去链接保留文字
-        cleaned = re.sub(r'[#*`>]', '', cleaned)            # 去 markdown 符号
+        cleaned = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", para)  # 去链接保留文字
+        cleaned = re.sub(r"[#*`>]", "", cleaned)  # 去 markdown 符号
         if len(cleaned) < 10:
             continue
         summary = cleaned
         break
     if not summary:
-        summary = re.sub(r'\s+', ' ', body)[:200]
+        summary = re.sub(r"\s+", " ", body)[:200]
     return summary[:limit].strip()
 
 
 TAG_RULES = [
-    ("AI", ["AI", "人工智能", "大模型", "GPT", "算力", "机器人", "智能体", "agent",
-            "深度学习", "神经网络", "机器学习"]),
-    ("投资", ["股", "涨", "跌", "仓", "策略", "金股", "龙头", "复盘", "券商", "盘",
-              "估值", "业绩", "买入", "目标价", "仓位", "A股", "指数", "板块", "利好", "利空"]),
-    ("技术", ["仓库", "代码", "github", "爬虫", "开源", "rust", "python", "开发",
-              "架构", "api", "前端", "后端", "数据库", "算法"]),
+    (
+        "AI",
+        [
+            "AI",
+            "人工智能",
+            "大模型",
+            "GPT",
+            "算力",
+            "机器人",
+            "智能体",
+            "agent",
+            "深度学习",
+            "神经网络",
+            "机器学习",
+        ],
+    ),
+    (
+        "投资",
+        [
+            "股",
+            "涨",
+            "跌",
+            "仓",
+            "策略",
+            "金股",
+            "龙头",
+            "复盘",
+            "券商",
+            "盘",
+            "估值",
+            "业绩",
+            "买入",
+            "目标价",
+            "仓位",
+            "A股",
+            "指数",
+            "板块",
+            "利好",
+            "利空",
+        ],
+    ),
+    (
+        "技术",
+        [
+            "仓库",
+            "代码",
+            "github",
+            "爬虫",
+            "开源",
+            "rust",
+            "python",
+            "开发",
+            "架构",
+            "api",
+            "前端",
+            "后端",
+            "数据库",
+            "算法",
+        ],
+    ),
     ("管理", ["管理", "组织", "中国式现代化", "科研", "学习语", "干部", "党建", "团队"]),
     ("效率", ["效率", "工具", "工作流", "自动化", "prompt", "提效", "方法论"]),
 ]
@@ -84,36 +138,38 @@ def main():
     for f in new_files:
         rel = os.path.relpath(f, ARCHIVE_ARTICLES)
         parts = rel.split(os.sep)
-        dir_date = parts[0] if re.match(r'\d{4}-\d{2}-\d{2}', parts[0]) else ''
+        dir_date = parts[0] if re.match(r"\d{4}-\d{2}-\d{2}", parts[0]) else ""
         fname = os.path.splitext(parts[-1])[0]
-        if '_' in fname:
-            source, title = fname.split('_', 1)
+        if "_" in fname:
+            source, title = fname.split("_", 1)
         else:
-            source, title = '未知', fname
-        with open(f, encoding='utf-8', errors='ignore') as fh:
+            source, title = "未知", fname
+        with open(f, encoding="utf-8", errors="ignore") as fh:
             text = fh.read()
         meta = parse_meta(text)
-        pub = meta.get('发布时间', '')
+        pub = meta.get("发布时间", "")
         pub_date = dir_date
-        m = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', pub)
+        m = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", pub)
         if m:
             pub_date = f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
-        link = meta.get('原文链接', '')
-        articles.append({
-            "title": title,
-            "source": source,
-            "pub_date": pub_date,
-            "archive_date": dir_date,
-            "tags": tag(text, title),
-            "summary": extract_summary(text),
-            "link": link,
-            "path": f,
-        })
+        link = meta.get("原文链接", "")
+        articles.append(
+            {
+                "title": title,
+                "source": source,
+                "pub_date": pub_date,
+                "archive_date": dir_date,
+                "tags": tag(text, title),
+                "summary": extract_summary(text),
+                "link": link,
+                "path": f,
+            }
+        )
 
-    articles.sort(key=lambda a: a['pub_date'], reverse=True)
+    articles.sort(key=lambda a: a["pub_date"], reverse=True)
 
     index = {
-        "generated_at": datetime.datetime.now().isoformat(timespec='seconds'),
+        "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "total": len(articles),
         "articles": articles,
     }
@@ -123,26 +179,28 @@ def main():
     md = f"# 知识库文章索引\n\n> 生成时间: {index['generated_at']} | 共 {len(articles)} 篇（本次新增）\n\n"
     for a in articles:
         md += f"## {a['title']}\n"
-        md += (f"- **来源**: {a['source']} | **发布**: {a['pub_date']} "
-               f"| **标签**: {', '.join(a['tags'])}\n")
+        md += (
+            f"- **来源**: {a['source']} | **发布**: {a['pub_date']} "
+            f"| **标签**: {', '.join(a['tags'])}\n"
+        )
         md += f"- **摘要**: {a['summary']}\n"
-        if a['link']:
+        if a["link"]:
             md += f"- **原文**: {a['link']}\n"
         md += f"- **路径**: `{a['path']}`\n\n"
     with open(os.path.join(INDEX_DIR, "articles_index.md"), "w", encoding="utf-8") as fh:
         fh.write(md)
 
-    now = datetime.datetime.now().isoformat(timespec='seconds')
+    now = datetime.datetime.now().isoformat(timespec="seconds")
     with open(LAST_SCAN, "w", encoding="utf-8") as fh:
         fh.write(f"{len(articles)} 篇新增 @ {now}\n")
 
     print(f"INDEXED {len(articles)} articles")
     cat = Counter()
     for a in articles:
-        for t in a['tags']:
+        for t in a["tags"]:
             cat[t] += 1
     print("Tags:", dict(cat.most_common()))
-    src = Counter(a['source'] for a in articles)
+    src = Counter(a["source"] for a in articles)
     print("Sources:", dict(src.most_common()))
 
 

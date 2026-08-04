@@ -20,6 +20,7 @@ execute_buy_plan.py — 盘中买入计划消费者（方案 A 最小可行修�
   python3 execute_buy_plan.py --execute       # 真下单
   python3 execute_buy_plan.py --force         # 忽略交易时段/大盘条件（手动兜底用）
 """
+
 from __future__ import annotations
 
 import argparse
@@ -58,6 +59,7 @@ def fetch_realtime(codes: list[str]) -> dict:
     url = "https://qt.gtimg.cn/q=" + ",".join(codes)
     try:
         import urllib.request
+
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         raw = urllib.request.urlopen(req, timeout=10).read().decode("gbk")
     except Exception as e:  # noqa: BLE001
@@ -72,7 +74,7 @@ def fetch_realtime(codes: list[str]) -> dict:
         for seg in line.split(";"):
             if "=" not in seg:
                 continue
-            var = seg.split("=", 1)[0]          # v_sh600036
+            var = seg.split("=", 1)[0]  # v_sh600036
             payload = seg.split("=", 1)[1].strip('"')
             f = payload.split("~")
             if len(f) < 33:
@@ -127,7 +129,9 @@ def mark_plan_done(plan: dict, txn: dict, price: float):
             d = json.load(f)
         d.setdefault("execution_plan", {})["status"] = "done"
         d.setdefault("execution_plan", {})["filled_price"] = price
-        d.setdefault("execution_plan", {})["filled_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        d.setdefault("execution_plan", {})["filled_at"] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         d.setdefault("execution_plan", {})["transaction"] = txn
         with open(exp_path, "w") as f:
             json.dump(d, f, ensure_ascii=False, indent=2)
@@ -167,7 +171,9 @@ def push_result(plan: dict, price: float, txn: dict, dry: bool):
         r = subprocess.run(
             ["python3", PUSH_CARD, "--title", "x", "--json-stdin"],
             input=json.dumps(payload),
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if r.returncode != 0:
             print(f"[WARN] 推送失败: {r.stderr[-300:]}", file=sys.stderr)
@@ -187,8 +193,13 @@ def do_buy(plan: dict, price: float, execute: bool) -> dict | None:
         gross = shares * price
         sim = {
             "ok": True,
-            "transaction": {"type": "BUY", "code": code, "shares": shares, "price": price,
-                            "total": round(gross + gross * 0.0003, 2)},
+            "transaction": {
+                "type": "BUY",
+                "code": code,
+                "shares": shares,
+                "price": price,
+                "total": round(gross + gross * 0.0003, 2),
+            },
             "cash_remaining": 5233.0,
             "total_asset": 34200.0,
         }
@@ -196,8 +207,18 @@ def do_buy(plan: dict, price: float, execute: bool) -> dict | None:
         return sim
     # 真实下单
     r = subprocess.run(
-        ["python3", os.path.join(SCRIPTS, "sim_trade.py"), "buy", code, str(shares), f"{price:.2f}", name],
-        capture_output=True, text=True, timeout=30,
+        [
+            "python3",
+            os.path.join(SCRIPTS, "sim_trade.py"),
+            "buy",
+            code,
+            str(shares),
+            f"{price:.2f}",
+            name,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     if r.returncode != 0:
         print(f"[ERR] sim_trade buy 失败: {r.stderr[-400:]}", file=sys.stderr)
@@ -240,7 +261,9 @@ def main():
     sh_pct = rt.get("sh000001", {}).get("pct", 0.0)
     low, high = plan["buy_zone"]
 
-    print(f"[INFO] {plan.get('name', code)}({code}) 现价={price} 上证={sh_pct:+.2f}% 买区=[{low},{high}]")
+    print(
+        f"[INFO] {plan.get('name', code)}({code}) 现价={price} 上证={sh_pct:+.2f}% 买区=[{low},{high}]"
+    )
 
     in_zone = low <= price <= high
     steady = args.force or sh_pct >= MARKET_STEADY_THRESHOLD
