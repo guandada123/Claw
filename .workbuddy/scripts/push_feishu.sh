@@ -36,5 +36,8 @@ if [ -n "$CHAT_ID" ]; then
     ARGS+=(--chat-id "$CHAT_ID")
 fi
 
-"${ARGS[@]}" 2>&1
-echo "exit_code: $?"
+# 透传 push_card.py 真实退出码（0=送达/兜底成功，非0=失败），供调用方验证回读
+"${ARGS[@]}"
+EXIT_CODE=$?
+echo "exit_code: $EXIT_CODE"
+exit $EXIT_CODE

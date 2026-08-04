@@ -197,3 +197,20 @@
 - **推送**：卡片推送飞书成功（message_id om_x100b69d9f6c974a4b489e15787c1f85，level=info），含 A/B 证据链与 3 条存量债修复建议（锁 ruff 版本 / 修 build-check PATH / 清 mypy 23 errors）
 - **⚠️ 需关注**：main 长期红灯已使「CI 全绿」判据失效，每轮都要人工比对基线；建议尽快修复以恢复自动化判读能力
 - **清理**：schedule_utils done 成功；cost_tracker 无估算配置（连续第 10+ 轮报同一提示，建议补配置或从 prompt 移除该步）
+
+## 2026-08-03
+- **凭据预检**：gh auth status 正常（GH_TOKEN 注入 + keyring 双通道），GitHub 可达
+- **调度稳态**：schedule_utils check 退出码 0，正常执行
+- **扫描结果**：三仓库开放 PR 全部为空（QTS [] / MarvisBridge [] / StockInsight []），无可合并桶、无冲突桶
+- **操作**：无合并动作且无真冲突 → [SILENT] 静默退出，未推送飞书
+- **✅ 基线核验（承接 08-02「main 长期红灯」跟踪，只读不推送）**：QTS main HEAD c5e8ad5 —— **08-02 记录的三条存量债已全部修复转绿**：lint/pre-commit ✅、type-check(mypy 23 errors) ✅、build-check(exit 127 csso/terser PATH) ✅，Quality Gate + Security Scan 均 success。ruff 仍装到 0.16.1 但不再报错，说明是代码侧修复而非锁版本
+- **🟡 唯一剩余红灯（新增，非依赖问题）**：`Test & Lint` → `unit-test (ai-scheduler)` 1 failed / 252 passed，覆盖率 98.21% 达标。根因=测试与实现契约不一致：`tests/test_config.py::TestSettingsDefaults::test_default_database_url` 断言 `"postgresql://" in s.DATABASE_URL`，而 Settings 实际 `DATABASE_URL=''`（实现侧默认值被移除/改空，测试未同步）。修法二选一：①实现补回 postgresql 默认串（若确需默认）②改测试断言为空串或必填校验（更符合「不硬编码连接串」的安全实践，推荐）
+- **判读基线更新**：下轮起 QTS main 期望态 = 仅 unit-test(ai-scheduler) 红，其余全绿。若 PR 出现 lint/type-check/build-check 红灯，**不再可归类为存量债**，须按新引入问题排查
+- **清理**：schedule_utils done 成功；cost_tracker 无估算配置（连续第 11+ 轮同一提示，建议补配置或从 prompt 移除该步）
+
+## 2026-08-04
+- **凭据预检**：gh auth status 正常（GH_TOKEN 注入），GitHub 可达
+- **调度稳态**：schedule_utils check 退出码 0，正常执行
+- **扫描结果**：三仓库开放 PR 全部为空（QTS [] / MarvisBridge [] / StockInsight []），无可合并桶、无冲突桶
+- **操作**：无合并动作且无真冲突 → [SILENT] 静默退出，未推送飞书
+- **清理**：schedule_utils done 成功；cost_tracker 无估算配置（连续第 12+ 轮同一提示，建议补配置或从 prompt 移除该步）

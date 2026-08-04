@@ -142,7 +142,9 @@ def main() -> int:
 
     # 去重：同一条失败 (automation_id@运行时间戳) 已推送过则不再重复轰炸
     alerted = load_alerted()
-    key_of = lambda it: f"{it['aid']}@{it['ts']}"
+
+    def key_of(it):
+        return f"{it['aid']}@{it['ts']}"
     new_critical = [it for it in critical if key_of(it) not in alerted]
     skipped = len(critical) - len(new_critical)
 

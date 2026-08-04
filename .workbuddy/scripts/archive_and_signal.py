@@ -4,13 +4,14 @@
 """
 
 import contextlib
+import email.utils
 import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 
 CACHE_DIR = Path.home() / ".workbuddy" / "cache" / "wx_articles"
@@ -72,6 +73,63 @@ def extract_stocks(content: str, title: str) -> list:
             found.append({"name": name, "code": code})
 
     return found
+
+
+# 08-03 修复：统一日期解析，避免 pub_time[:10] 把 RFC822 截断成 "Sat, 27 Ju"
+_WEEKDAY = {"Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6}
+_MONTH_NAMES = [(1, "Jan"), (2, "Feb"), (3, "Mar"), (4, "Apr"), (5, "May"), (6, "Jun"),
+                (7, "Jul"), (8, "Aug"), (9, "Sep"), (10, "Oct"), (11, "Nov"), (12, "Dec")]
+
+
+def parse_pub_date(s: str, fallback_src: str = "") -> str:
+    """把发布时间解析为 ISO 日期 YYYY-MM-DD；失败回退文件名前缀日期，再失败才返回今天。
+
+    🔴 08-04 修复：原实现失败一律返回"今天"，导致批量回填(pub_time缺失)时把入库日误写成
+    recorded_at，65条07-09/07-10文章被记成07-31/08-01，污染30日滚动胜率窗口。
+    现在优先回退 source_file 文件名前缀日期(如 20260709_...json → 2026-07-09)。
+    """
+    if not s:
+        return _fallback_date(fallback_src)
+    s = str(s).strip()
+    m = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日?", s)
+    if m:
+        return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    m = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", s)
+    if m:
+        return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    m = re.match(r"(Mon|Tue|Wed|Thu|Fri|Sat|Sun), (\d{1,2}) (\w+)", s)
+    if m:
+        wd, day, mon_p = m.group(1), int(m.group(2)), m.group(3)
+        cands = []
+        for y in (date.today().year - 1, date.today().year):
+            for month, monname in _MONTH_NAMES:
+                if monname.startswith(mon_p):
+                    try:
+                        d = date(y, month, day)
+                        if _WEEKDAY[wd] == d.weekday():
+                            cands.append(d)
+                    except ValueError:
+                        pass
+        if cands:
+            return min(cands, key=lambda d: abs((d - date.today()).days)).isoformat()
+    try:
+        t = email.utils.parsedate_to_datetime(s)
+        if t:
+            return t.date().isoformat()
+    except Exception:
+        pass
+    return _fallback_date(fallback_src)
+
+
+def _fallback_date(fallback_src: str) -> str:
+    """从文件名前缀(YYYYMMDD_...)提取日期；无则返回今天。"""
+    m = re.match(r"(\d{4})(\d{2})(\d{2})_", str(fallback_src))
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+        except ValueError:
+            pass
+    return datetime.now().strftime("%Y-%m-%d")
 
 
 def archive_articles():
@@ -171,6 +229,10 @@ def extract_signals():
                 {
                     # article_id 仅用于去重标识, 非密码学用途
                     "article_id": hashlib.md5(f.name.encode(), usedforsecurity=False).hexdigest()[:12],
+                    # 08-03 修复：内容哈希，同文多文件名(重复拉取)也能去重
+                    "content_id": hashlib.md5(
+                        f"{account}|{title}|{content}".encode(), usedforsecurity=False
+                    ).hexdigest()[:12],
                     "account": account,
                     "title": title,
                     "stock_code": stock["code"],
@@ -178,9 +240,7 @@ def extract_signals():
                     "signal": signal,
                     "target_price": None,
                     "confidence": 5,
-                    "recorded_at": pub_time[:10]
-                    if pub_time
-                    else datetime.now().strftime("%Y-%m-%d"),
+                    "recorded_at": parse_pub_date(pub_time, f.name),
                     "verified": False,
                     "hit_target": None,
                     "hit_stop": None,
@@ -251,9 +311,19 @@ def main():
             with contextlib.suppress(json.JSONDecodeError, OSError):
                 existing = json.loads(SIGNALS_FILE.read_text())
 
-        # 去重合并
+        # 去重合并：article_id(文件名) + content_id(内容，08-03 修复同文多文件名重复入库)
         existing_ids = {s.get("article_id", "") for s in existing}
-        new_signals = [s for s in signals if s["article_id"] not in existing_ids]
+        existing_content = {s.get("content_id", "") for s in existing if s.get("content_id")}
+        new_signals = []
+        seen_content = set()
+        for s in signals:
+            cid = s.get("content_id", "")
+            if cid and (cid in existing_content or cid in seen_content):
+                continue  # 同一篇文章重复缓存（不同文件名），跳过
+            if cid:
+                seen_content.add(cid)
+            if s["article_id"] not in existing_ids:
+                new_signals.append(s)
 
         all_signals = existing + new_signals
         SIGNALS_FILE.write_text(json.dumps(all_signals, ensure_ascii=False, indent=2))

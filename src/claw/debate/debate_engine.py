@@ -74,8 +74,13 @@ def _call_llm(
             )
             resp.raise_for_status()
             data = resp.json()
-            return data["choices"][0]["message"]["content"]
-        except (requests.Timeout, requests.ConnectionError, requests.HTTPError) as exc:
+            content = data["choices"][0]["message"].get("content", "")
+            # 🔴 08-04 加固：content 为空(仅reasoning_content被max_tokens吞掉/代理异常)视为失败重试，
+            # 避免静默返回空串 → 解析失败 → 全体降级(曾致15:50辩论0B/7H/0S)
+            if not content or not content.strip():
+                raise RuntimeError("LLM returned empty content (reasoning-only)")
+            return content
+        except (requests.Timeout, requests.ConnectionError, requests.HTTPError, RuntimeError) as exc:
             if attempt < 2:
                 time.sleep(1.5 ** attempt)
             else:

@@ -22,6 +22,7 @@
 
 ## 模拟炒股+选股
 - 总资¥50,000(07-14)，**禁科创/北交/ST**（创业板300/301已于07-29放开→supersedes 07-14禁创）；sim_trade.py: RESTRICTED_PREFIXES=["688","689","8","4"]+ST；MAX_POS=0.50/MAX_SECTOR=0.60/STOP_LOSS=0.08；创业板CYB_STOP_LOSS_PCT=0.15
+- 🔄分级止盈双模(08-04落地·对齐 trading-dual-mode-seamless skill): 冲刺期(每月20号后/6月14号后)=5/10/15%清仓；正常期(其余)=15/25/35%清仓；`_is_sprint_period()`+`_get_take_profit_levels()`运行时判定，模式切换自动重置take_profit_level；投顾 prompt 角色行/调仓规则须同步双模口径(禁写死「冲刺期止盈5%」或「+30%强制线」)
 - 助理主板选股：mainboard_scan_pool.json(COMBO=VWM0.6+BBR0.4,ADX≥25,RSI>80拦截)，单只≤¥5000止损-8%
 - 🔄选股池增量补全(07-29)：refill_scan_pool.py(泛化版，旧refill_cyb_pool.py已删)枚举所有允许板块(深主000/001/002/003+沪主600/601/603/605+创业300/301)腾讯qt增量拉新，过滤退/PT/零成交/ST，写回不覆盖；自动化1785309382755@08:30
 - 📈多智能体辩论(07-29)：run_debate.py→src/claw/debate/（7专家三环：stance→peer_review→convergence）；接入09:10策略(1784506600526)+15:50复盘(1782817769722)；测试18/18绿
