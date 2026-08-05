@@ -49,6 +49,9 @@ def parse_args():
     p.add_argument("--codes", help="逗号分隔的股票代码列表，自动拉行情后批量辩论")
     p.add_argument("--latest", action="store_true", help="查看最近辩论结果")
     p.add_argument("--dry-run", action="store_true", help="仅打印参数，不调 LLM")
+    p.add_argument("--learn", action="store_true",
+                   help="辩论后将「风险约束+高可靠因子」沉淀进 debate_memory.json，"
+                        "供后续辩论作为约束搜索锚点注入")
     return p.parse_args()
 
 
@@ -83,7 +86,7 @@ def build_data(args) -> dict:
     return data
 
 
-def debate_from_scan(path: str):
+def debate_from_scan(path: str, learn: bool = False):
     """从 scan 候选 JSON 批量辩论"""
     scan_file = Path(path)
     if not scan_file.exists():
@@ -105,11 +108,11 @@ def debate_from_scan(path: str):
         return
 
     print(f"开始对 {len(stocks)} 只候选股进行多智能体辩论...\n")
-    results = batch_debate(stocks)
+    results = batch_debate(stocks, learn=learn)
     _print_summary(results)
 
 
-def debate_from_codes(codes_str: str):
+def debate_from_codes(codes_str: str, learn: bool = False):
     """从逗号分隔的代码列表自动拉行情后批量辩论"""
     import re
     import subprocess
@@ -151,11 +154,11 @@ def debate_from_codes(codes_str: str):
         })
 
     print(f"开始对 {len(stocks)} 只股票进行多智能体辩论...\n")
-    results = batch_debate(stocks)
+    results = batch_debate(stocks, learn=learn)
     _print_summary(results)
 
 
-def debate_from_holdings(path: str):
+def debate_from_holdings(path: str, learn: bool = False):
     """从持仓 JSON 批量辩论，自动拉取实时行情和基本面数据"""
     pf_file = Path(path)
     if not pf_file.exists():
@@ -214,7 +217,7 @@ def debate_from_holdings(path: str):
         })
 
     print(f"开始对 {len(stocks)} 只持仓进行多智能体辩论...\n")
-    results = batch_debate(stocks)
+    results = batch_debate(stocks, learn=learn)
     _print_summary(results)
 
 
@@ -266,15 +269,15 @@ def main():
         return
 
     if args.from_scan:
-        debate_from_scan(args.from_scan)
+        debate_from_scan(args.from_scan, learn=args.learn)
         return
 
     if args.from_holdings:
-        debate_from_holdings(args.from_holdings)
+        debate_from_holdings(args.from_holdings, learn=args.learn)
         return
 
     if args.codes:
-        debate_from_codes(args.codes)
+        debate_from_codes(args.codes, learn=args.learn)
         return
 
     if not args.code:
@@ -287,7 +290,7 @@ def main():
         print(f"DRY RUN: {args.name}({args.code}), data={json.dumps(data, ensure_ascii=False)}")
         return
 
-    result = run_debate(args.code, args.name or args.code, data)
+    result = run_debate(args.code, args.name or args.code, data, learn=args.learn)
     _print_summary([result])
 
 

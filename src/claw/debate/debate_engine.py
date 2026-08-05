@@ -28,6 +28,7 @@ logger = logging.getLogger("debate")
 
 DATA_DIR = Path(__file__).parent.parent.parent.parent / ".workbuddy" / "data" / "debate"
 RESULT_FILE = DATA_DIR / "debate_result.json"
+DEBATE_MEMORY_FILE = DATA_DIR / "debate_memory.json"  # 约束搜索记忆库（--learn 沉淀）
 
 # ============================================================
 #  LLM 调用基础设施
@@ -132,6 +133,15 @@ def _stance_phase(code: str, name: str, data: dict) -> list[dict]:
     memory_ctx = data.get("memory_context", "")
     if memory_ctx:
         user_prompt += f"\n\n【历史参考案例（同股票/同板块）】\n{memory_ctx}"
+    # 注入历史辩论记忆（约束搜索锚点，--learn 沉淀，呼应中金「自由探索-约束搜索」）
+    debate_mem_ctx = data.get("debate_memory_context", "")
+    if debate_mem_ctx:
+        user_prompt += (
+            f"\n\n【历史辩论记忆（约束搜索锚点，须重点复核）】\n"
+            f"{debate_mem_ctx}\n"
+            f"→ 上述风险约束与高可靠因子须在当前分析中显式验证或推翻，"
+            f"不可视而不见（若已失效请说明原因）。"
+        )
     expert_keys = list(EXPERT_DEFINITIONS.keys())
 
     def _analyze_one(key: str) -> dict:
@@ -370,16 +380,25 @@ def _fallback_verdict(stances: list[dict]) -> dict:
 # ============================================================
 
 
-def run_debate(code: str, name: str, data: dict) -> dict:
-    """对单只股票运行三环辩论，返回结构化结果"""
+def run_debate(code: str, name: str, data: dict, learn: bool = False) -> dict:
+    """对单只股票运行三环辩论，返回结构化结果
+
+    learn: 若为 True，辩论后从结果中提炼「被确认的风险约束 + 高可靠因子」，
+           沉淀进 debate_memory.json，供后续辩论作为约束搜索锚点注入。
+    """
     t0 = time.time()
 
-    logger.info("辩论开始: %s %s", code, name)
+    logger.info("辩论开始: %s %s (learn=%s)", code, name, learn)
 
     # 分层记忆检索：从 trading_memory 中搜历史案例
     memory_ctx = _retrieve_memory_context(code, data)
     if memory_ctx:
         data["memory_context"] = memory_ctx
+
+    # 约束搜索记忆：注入历史辩论记忆（--learn 沉淀的锚点）
+    debate_mem_ctx = _load_debate_memory()
+    if debate_mem_ctx:
+        data["debate_memory_context"] = debate_mem_ctx
 
     # 第一环：Stance（含历史记忆上下文）
     stances = _stance_phase(code, name, data)
@@ -411,14 +430,18 @@ def run_debate(code: str, name: str, data: dict) -> dict:
     # 自我反思：提炼历史教训
     _reflect_and_learn(result)
 
+    # 约束搜索记忆沉淀（--learn）
+    if learn:
+        _learn_from_debate(result)
+
     return result
 
 
-def batch_debate(stocks: list[dict]) -> list[dict]:
+def batch_debate(stocks: list[dict], learn: bool = False) -> list[dict]:
     """批量辩论多只股票（顺序执行，节约 LLM 并发压力）"""
     results = []
     for stock in stocks:
-        result = run_debate(stock["code"], stock["name"], stock.get("data", {}))
+        result = run_debate(stock["code"], stock["name"], stock.get("data", {}), learn=learn)
         results.append(result)
     return results
 
@@ -449,6 +472,95 @@ PORTFOLIO_FILE = DATA_DIR.parent / "simulation" / "portfolio.json"
 DECISION_LOG_FILE = DATA_DIR.parent / "simulation" / "decision_log.json"
 EXPERIMENTS_DIR = Path(__file__).parent.parent.parent.parent / "experiments"
 USER_PORTFOLIO_FILE = DATA_DIR.parent / "user" / "portfolio.json"
+
+
+def _load_debate_memory(max_items: int = 3) -> str:
+    """读取 debate_memory.json，返回约束搜索锚点文本（--learn 沉淀）。
+
+    输出格式：「[code] 共识X → 风险约束: ...；高可靠因子: ...」，供 stance 阶段注入。
+    """
+    if not DEBATE_MEMORY_FILE.exists():
+        return ""
+    try:
+        records = json.loads(DEBATE_MEMORY_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return ""
+    if not isinstance(records, list):
+        return ""
+
+    lines = []
+    for r in records[-max_items:]:
+        parts = []
+        if r.get("constraint_risk"):
+            parts.append(f"风险约束: {r['constraint_risk'][:120]}")
+        if r.get("reliable_signals"):
+            parts.append(f"高可靠因子: {','.join(r['reliable_signals'])}")
+        if parts:
+            lines.append(
+                f"  [{r.get('code', '')}] 共识{r.get('consensus', '?')}"
+                f"(conf={r.get('confidence', 0):.0%}) → " + "；".join(parts)
+            )
+    return "\n".join(lines)
+
+
+def _learn_from_debate(result: dict):
+    """从辩论结果提炼「被确认的风险约束 + 高可靠因子」，沉淀进 debate_memory.json。
+
+    呼应调研 #4/#5：中金「自由探索-约束搜索」两阶段 + 历史辩论库作为共享记忆。
+    后续辩论通过 _load_debate_memory 注入 stance 阶段，形成可累积的约束搜索锚点。
+    同 code 去重，仅保留最新一条。
+    """
+    code = result.get("code", "")
+    name = result.get("name", "")
+    verdict = result.get("verdict", {})
+    reviews = result.get("peer_reviews", [])
+    fs = verdict.get("factor_scores", {})
+
+    # 熊方观点（被确认过的风险，下轮须复核）→ 约束锚点
+    constraint_risk = ""
+    for r in reviews:
+        if r.get("mode") == "bull_bear_opening" and r.get("bear_view"):
+            constraint_risk = r["bear_view"].strip()[:200]
+            break
+    # 高可靠因子（≥75 视为强信号维度，下轮作为约束搜索锚点）
+    reliable_signals = [
+        k for k, v in fs.items() if isinstance(v, int) and v >= 75
+    ]
+
+    entry = {
+        "code": code,
+        "name": name,
+        "consensus": verdict.get("consensus"),
+        "confidence": verdict.get("confidence"),
+        "constraint_risk": constraint_risk,
+        "reliable_signals": reliable_signals,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
+    }
+
+    DEBATE_MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = str(DEBATE_MEMORY_FILE) + ".lock"
+    with open(lock_path, "w") as lock_fd:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        try:
+            existing: list = []
+            if DEBATE_MEMORY_FILE.exists():
+                try:
+                    existing = json.loads(DEBATE_MEMORY_FILE.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    existing = []
+            if not isinstance(existing, list):
+                existing = []
+            # 同 code 去重，保留最新
+            existing = [e for e in existing if e.get("code") != code]
+            existing.append(entry)
+            if len(existing) > 100:
+                existing = existing[-100:]
+            DEBATE_MEMORY_FILE.write_text(
+                json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            logger.info("辩论记忆已沉淀: %s (约束锚点 %d 条)", code, len(existing))
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
 
 def _retrieve_memory_context(code: str, data: dict, max_items: int = 5) -> str:

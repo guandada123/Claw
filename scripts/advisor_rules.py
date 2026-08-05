@@ -313,9 +313,33 @@ class AdvisorRules:
     # ════════════════════════════════════════════════════════════
     # 规则 D: 盈亏比预演卡片
     # ════════════════════════════════════════════════════════════
+    def _calibrate_confidence(self, entry_price: float, stop_loss_pct: float,
+                              take_profit_pct: float, rsi: float | None = None) -> dict:
+        """置信度校准（呼应调研 #5：每条论断须可追溯 + 校准）。
+
+        依据盈亏比 + 是否处于超买区，给出 高/中/低 三级与可读依据，
+        避免 LLM「张口就给高置信」的无源结论。
+        """
+        rr = abs(take_profit_pct / stop_loss_pct) if stop_loss_pct != 0 else 0.0
+        if rr >= RISK_REWARD_MIN and (rsi is None or rsi <= RSI_OVERBOUGHT):
+            level, basis = "高", (
+                f"盈亏比 {rr:.2f}:1 ≥ {RISK_REWARD_MIN}:1 且非超买区"
+                + (f"（RSI={rsi:.0f}）" if rsi is not None else "")
+            )
+        elif rr >= 1.0:
+            level, basis = "中", (
+                f"盈亏比 {rr:.2f}:1 中性，需结合量价/板块确认后再加仓"
+            )
+        else:
+            level, basis = "低", (
+                f"盈亏比 {rr:.2f}:1 < {RISK_REWARD_MIN}:1，风险收益不划算，慎参与"
+            )
+        return {"level": level, "basis": basis}
+
     def risk_reward_card(self, entry_price: float, stop_loss_pct: float = DEFAULT_STOP_LOSS,
-                         take_profit_pct: float = DEFAULT_TAKE_PROFIT) -> dict:
-        """生成盈亏比预演卡片"""
+                         take_profit_pct: float = DEFAULT_TAKE_PROFIT,
+                         rsi: float | None = None) -> dict:
+        """生成盈亏比预演卡片（含置信度校准）"""
         stop_price = entry_price * (1 + stop_loss_pct)
         target_price = entry_price * (1 + take_profit_pct)
         rr = abs(take_profit_pct / stop_loss_pct) if stop_loss_pct != 0 else None
@@ -326,10 +350,73 @@ class AdvisorRules:
             "take_profit_price": round(target_price, 2),
             "risk_reward_ratio": round(rr, 2) if rr else None,
             "verdict": "风险收益良好" if (rr and rr >= RISK_REWARD_MIN) else "风险收益不佳",
+            "confidence": self._calibrate_confidence(entry_price, stop_loss_pct, take_profit_pct, rsi),
         }
         if rr and rr < RISK_REWARD_MIN:
             card["warn"] = f"⚠️ 盈亏比 {rr:.2f}:1 < {RISK_REWARD_MIN}:1，风险收益不划算"
         return card
+
+    # ════════════════════════════════════════════════════════════
+    # 规则 F: 双情景预案（乐观/中性/悲观，触发条件驱动）
+    # 呼应调研 #2/#3：盘后复盘→次日策略须含至少两套预案(触发条件驱动)
+    # ════════════════════════════════════════════════════════════
+    def scenario_plan(self, holding: dict, quotes: dict | None = None) -> dict:
+        """基于持仓 + 规则生成乐观/中性/悲观三情景预案。
+
+        每个情景含 触发条件(trigger) + 应对动作(action)，杜绝单线预判。
+        呼应「盘中只执行不决策」——预案在盘前/盘后定，盘中照触发条件执行。
+        """
+        code = holding.get("code", "")
+        cost = holding.get("avg_cost", 0) or 0
+        q = (quotes or {}).get(code, {})
+        price = holding.get("current_price") or q.get("price")
+        if price is None and cost:
+            price = cost
+        day_change = holding.get("day_change_pct")
+        if day_change is None:
+            day_change = q.get("change_pct")
+        day_change = day_change or 0.0
+
+        pnl_pct = (price - cost) / cost if (cost and price is not None) else 0.0
+        stop_price = cost * (1 + self.stop_loss) if cost else None
+        tp_price = cost * (1 + self.take_profit) if cost else None
+
+        optimistic = {
+            "bias": "持有/加仓",
+            "trigger": (
+                f"放量突破 ¥{price*1.03:.2f}（约 +3%）且所属板块续强、"
+                f"或大盘站上 MA20 转强"
+            ),
+            "action": (
+                f"持有待涨；浮盈达 +{self.take_profit*100:.0f}% 分批锁利，"
+                f"回踩 ¥{price*0.98:.2f} 可加仓 1/3（不超单只上限）"
+            ),
+        }
+        neutral = {
+            "bias": "持有",
+            "trigger": "区间震荡，无明确方向信号（量能持平、板块无催化）",
+            "action": "持有观察，设移动止损保护已得利润，不追涨不杀跌",
+        }
+        pessimistic = {
+            "bias": "减仓/清仓",
+            "trigger": (
+                (f"跌破 ¥{stop_price:.2f} 止损线（{self.stop_loss*100:.0f}%）"
+                 if stop_price else "触发纪律止损") +
+                " 或板块证伪/外围大跌破位"
+            ),
+            "action": "触发纪律止损，减仓/清仓不犹豫；永不摊平亏损仓（利弗莫尔铁律）",
+        }
+        return {
+            "code": code,
+            "name": holding.get("name", ""),
+            "current_price": price,
+            "pnl_pct": round(pnl_pct, 4),
+            "stop_loss_price": round(stop_price, 2) if stop_price else None,
+            "take_profit_price": round(tp_price, 2) if tp_price else None,
+            "optimistic": optimistic,
+            "neutral": neutral,
+            "pessimistic": pessimistic,
+        }
 
     # ════════════════════════════════════════════════════════════
     # 组合诊断（盘中监控主入口）
@@ -376,11 +463,15 @@ class AdvisorRules:
         if holding.get("avg_cost"):
             rr_card = self.risk_reward_card(holding["avg_cost"])
 
+        # F: 双情景预案（盘前/盘后定，盘中照触发条件执行）
+        scenario = self.scenario_plan(holding, quotes)
+
         return {
             "code": code,
             "name": holding.get("name", ""),
             "flags": flags,
             "risk_reward": rr_card,
+            "scenario_plan": scenario,
             "has_block": any(f["level"] == "block" for f in flags),
         }
 
