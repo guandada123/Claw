@@ -88,8 +88,12 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=3, help="拉取最近N天的文章")
     ap.add_argument("--limit", type=int, default=15, help="每账号最多拉几篇")
     ap.add_argument("--dry-run", action="store_true", help="只打印不写盘")
-    ap.add_argument("--source", choices=["cloud", "local"], default="cloud",
-                    help="数据源：cloud=付费云RSS(默认) | local=本地wechat-download-api")
+    ap.add_argument(
+        "--source",
+        choices=["cloud", "local"],
+        default="cloud",
+        help="数据源：cloud=付费云RSS(默认) | local=本地wechat-download-api",
+    )
     args = ap.parse_args()
 
     src = _load_source(args.source)

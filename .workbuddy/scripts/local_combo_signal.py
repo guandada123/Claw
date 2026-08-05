@@ -55,9 +55,7 @@ def get_market_state() -> str:
     import urllib.request
 
     try:
-        req = urllib.request.Request(
-            MARKET_INDEX_KLINE_URL, headers={"User-Agent": "Mozilla/5.0"}
-        )
+        req = urllib.request.Request(MARKET_INDEX_KLINE_URL, headers={"User-Agent": "Mozilla/5.0"})
         raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")
         d = json.loads(raw)
         data = d.get("data", {}).get("sh000001", {})

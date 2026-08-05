@@ -85,10 +85,16 @@ def fetch_all_articles(since: int = 0, limit: int = 200, fakeid: str = "") -> tu
         # 本地 RSS 无需 token；导入 _parse_rss_xml 复用（契约一致）
         import wx_rss_auth as cloud
 
-        xml_text = urlreq.urlopen(  # noqa: S310
-            urlreq.Request(f"{LOCAL_BASE}/api/rss/{fakeid}", headers={"Accept": "application/xml"}),
-            timeout=TIMEOUT,
-        ).read().decode("utf-8")
+        xml_text = (
+            urlreq.urlopen(  # noqa: S310
+                urlreq.Request(
+                    f"{LOCAL_BASE}/api/rss/{fakeid}", headers={"Accept": "application/xml"}
+                ),
+                timeout=TIMEOUT,
+            )
+            .read()
+            .decode("utf-8")
+        )
         arts = cloud._parse_rss_xml(xml_text, fakeid, limit)
         return arts, True
     except Exception as e:  # noqa: BLE001
@@ -153,11 +159,19 @@ def probe_status() -> dict:
 if __name__ == "__main__":
     # 自检：打印订阅数 + 登录状态 + 首个账号最新文章
     st = probe_status()
-    print("登录状态:", json.dumps({k: st.get(k) for k in ("authenticated", "isExpired", "status") if k in st}, ensure_ascii=False))
+    print(
+        "登录状态:",
+        json.dumps(
+            {k: st.get(k) for k in ("authenticated", "isExpired", "status") if k in st},
+            ensure_ascii=False,
+        ),
+    )
     subs = get_subscriptions().get("subscriptions", [])
     print(f"本地订阅: {len(subs)}")
     if subs:
         arts, ok = fetch_all_articles(limit=3, fakeid=subs[0]["fakeid"])
         print(f"首个账号《{subs[0]['nickname']}》ok={ok} 文章数={len(arts)}")
         for a in arts[:3]:
-            print(f"  - {datetime.fromtimestamp(a['publish_time'], tz=timezone.utc).strftime('%m-%d %H:%M')} {a['title'][:40]}")
+            print(
+                f"  - {datetime.fromtimestamp(a['publish_time'], tz=timezone.utc).strftime('%m-%d %H:%M')} {a['title'][:40]}"
+            )
