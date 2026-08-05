@@ -41,9 +41,24 @@ SYS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SYS))
 import wx_rss_auth as rss  # noqa: E402
 
-# 单篇正文接口的请求间隔（秒）。服务端有防风控限流，实测 0.3s 会大量触发
+# 数据源选择：cloud=付费云(默认) | local=本地 wechat-download-api(localhost:5001)
+# 2026-08-05：付费云停更 7+ 天，本地轨已可全链路（发现列表+正文）切换。
+# 单篇正文接口的请求间隔（秒）。云端有防风控限流，实测 0.3s 会大量触发
 # 「文章获取过快 / 请求过于频繁」，1.5s 起步较稳（2026-07-31 实测定标）。
+# 本地轨限流预算更紧（08-03 实测 gap 7.0s ≈8.5次/分 无限流），由 wx_rss_local 自带。
 GAP_SEC = 1.5
+
+
+def _load_source(name: str):
+    """按 --source 选择数据源模块（接口契约一致：get_subscriptions/
+    fetch_all_articles/fetch_article_content_ex）"""
+    if name == "local":
+        import wx_rss_local as mod
+
+        print("[sync] 数据源 = 本地 wechat-download-api (localhost:5001)")
+        return mod
+    print("[sync] 数据源 = 付费云 RSS (wechatrss.waytomaster.com)")
+    return rss
 
 
 def _safe_name(s: str, max_len: int = 40) -> str:
@@ -73,16 +88,19 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=3, help="拉取最近N天的文章")
     ap.add_argument("--limit", type=int, default=15, help="每账号最多拉几篇")
     ap.add_argument("--dry-run", action="store_true", help="只打印不写盘")
+    ap.add_argument("--source", choices=["cloud", "local"], default="cloud",
+                    help="数据源：cloud=付费云RSS(默认) | local=本地wechat-download-api")
     args = ap.parse_args()
 
+    src = _load_source(args.source)
     WX_DIR.mkdir(parents=True, exist_ok=True)
     existing = _existing_urls()
 
     # 订阅列表
-    subs = rss.get_subscriptions()
+    subs = src.get_subscriptions()
     accounts = subs.get("subscriptions", []) if isinstance(subs, dict) else []
     if not accounts:
-        print("⚠️ 无订阅账号（get_subscriptions 空），检查 wx_rss_auth 凭证")
+        print("⚠️ 无订阅账号（get_subscriptions 空），检查数据源凭证/服务")
         return 1
     print(f"[sync] 订阅账号 {len(accounts)} 个，拉最近 {args.days} 天")
 
@@ -97,7 +115,7 @@ def main() -> int:
         nickname = acc.get("nickname", fid[:8])
         if not fid:
             continue
-        arts, ok = rss.fetch_all_articles(since=since_ts, limit=args.limit, fakeid=fid)
+        arts, ok = src.fetch_all_articles(since=since_ts, limit=args.limit, fakeid=fid)
         if not ok or not arts:
             print(f"  ⚠️ {nickname}: 拉取失败/空")
             continue
@@ -110,7 +128,7 @@ def main() -> int:
                 continue
             # 拉正文（2026-07-31：改用 _ex 版本区分「限流失败」与「真无正文」）
             if url.startswith("http"):
-                content, err = rss.fetch_article_content_ex(url)
+                content, err = src.fetch_article_content_ex(url)
             else:
                 content, err = "", "non_http_url"
 

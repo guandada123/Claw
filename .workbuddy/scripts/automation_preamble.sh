@@ -24,9 +24,25 @@ export FEISHU_CHAT=oc_9ee5303497f5e0e71666b610d6bdc346
 # --- 工具函数 ---
 
 # 幂等锁（文件级，避免同一天重复执行）
+# 08-05 根治：支持 --interval-hours N → 转发 schedule_utils.py 真槽位锁。
+#   背景：6h 间隔自动化(FREQ=HOURLY;INTERVAL=6)用每日锁会被 stale 锁屏蔽后续槽位
+#   （8/2 日报静默丢失根因）。interval>0 时按 [当前小时//间隔] 槽位独立去重。
 check_schedule() {
-    local name today lockfile
+    local name interval_hours
     name="$1"
+    shift
+    interval_hours=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --interval-hours) interval_hours="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+    if [ "${interval_hours:-0}" -gt 0 ] 2>/dev/null; then
+        cd "$CLAW" && python3 .workbuddy/scripts/schedule_utils.py check --name "$name" --interval-hours "$interval_hours"
+        return $?
+    fi
+    local today lockfile
     today=$(date +%Y%m%d)
     lockfile="/tmp/claw_lock_${name}_${today}"
     if [ -f "$lockfile" ]; then
@@ -38,8 +54,22 @@ check_schedule() {
 
 # 调度完成标记 + 成本记录
 done_schedule() {
-    local name today
+    local name interval_hours
     name="$1"
+    shift
+    interval_hours=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --interval-hours) interval_hours="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+    if [ "${interval_hours:-0}" -gt 0 ] 2>/dev/null; then
+        cd "$CLAW" && python3 .workbuddy/scripts/schedule_utils.py done --name "$name" --interval-hours "$interval_hours"
+        cd "$CLAW" && python3 scripts/cost_tracker.py log_estimate "$name" 2>/dev/null
+        return 0
+    fi
+    local today
     today=$(date +%Y%m%d)
     touch "/tmp/claw_lock_${name}_${today}"
     cd $CLAW && python3 scripts/cost_tracker.py log_estimate "$name" 2>/dev/null

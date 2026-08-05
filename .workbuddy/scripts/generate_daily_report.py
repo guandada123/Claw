@@ -341,7 +341,7 @@ def generate_comprehensive_report():
             f"- 最大单只仓位：{max_weight:.1f}%（{'⚠️ 超过50%警戒线' if max_weight > 50 else '✅ 安全'}）"
         )
         lines.append(
-            f"- 持仓数量：{len(positions)}只（{'✅ 符合≤3只约束' if len(positions) <= 3 else '⚠️ 超过3只约束'}）"
+            f"- 持仓数量：{len(positions)}只（持仓数不限制，08-05起取消≤3只约束）"
         )
 
         # 最近的止损预警

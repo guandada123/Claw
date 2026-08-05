@@ -22,7 +22,7 @@ from pathlib import Path
 # ── 默认约束 ──────────────────────────────────────────
 DEFAULT_CONSTRAINTS = {
     "lot_size": 100,  # A股最小交易单位
-    "max_positions": 5,  # 最大持股数
+    "max_positions": 99,  # 最大持股数（08-05取消限制：原≤5，对齐STRATEGY"持仓数不限制"，99仅作安全上限）
     "stop_loss_pct": -8.0,  # 止损线（模拟盘）
     "stop_loss_pct_live": -5.0,  # 止损线（实盘）
     "take_profit_levels": [10, 15, 25],  # 止盈阶梯

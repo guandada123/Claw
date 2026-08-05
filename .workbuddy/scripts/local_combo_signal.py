@@ -30,11 +30,45 @@ RSI_OVERBOUGHT = 80  # RSI(14) > 80 禁止追入
 BUY_THRESHOLD = 0.2  # COMBO 综合得分买入阈值
 STRONG_BUY = 0.4
 
+# ── COMBO 权重两档自适应（08-05 新增，对齐全网方法论：国泰海通因子择时/双均衡）──
+# 趋势态（上证站上 MA20）：动量权重上调 → VWM 0.65 / BBR 0.35
+# 震荡态（上证跌破 MA20）：均值回归权重上调 → VWM 0.5 / BBR 0.5
+# 数据失败（unknown）：回退原静态 0.6/0.4，保证向后兼容
+WEIGHTS = {
+    "trend": (0.65, 0.35),
+    "choppy": (0.5, 0.5),
+    "unknown": (0.6, 0.4),
+}
+MARKET_INDEX_KLINE_URL = (
+    "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh000001,day,,,60,qfq"
+)
+
 NAME_MAP = {"sz000333": "美的集团", "sh600900": "长江电力", "sh601899": "紫金矿业"}
 
 
 def load_kline(path: str) -> dict:
     return json.loads(Path(path).read_text())
+
+
+def get_market_state() -> str:
+    """上证指数市场状态：'trend'(收盘站上MA20) / 'choppy'(跌破MA20) / 'unknown'(数据失败回退)"""
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(
+            MARKET_INDEX_KLINE_URL, headers={"User-Agent": "Mozilla/5.0"}
+        )
+        raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")
+        d = json.loads(raw)
+        data = d.get("data", {}).get("sh000001", {})
+        days = data.get("qfqday") or data.get("day") or []
+        if len(days) < 21:
+            return "unknown"
+        closes = [float(x[2]) for x in days]  # [date, open, close, high, low, vol]
+        ma20 = sum(closes[-20:]) / 20
+        return "trend" if closes[-1] >= ma20 else "choppy"
+    except Exception:
+        return "unknown"
 
 
 def to_merged_series(nodes: list[dict]) -> list[dict]:
@@ -53,7 +87,7 @@ def to_merged_series(nodes: list[dict]) -> list[dict]:
     return rows
 
 
-def compute_combo(series: list[dict]) -> dict:
+def compute_combo(series: list[dict], market_state: str | None = None) -> dict:
     closes = [r["close"] for r in series]
     highs = [r["high"] for r in series]
     lows = [r["low"] for r in series]
@@ -61,13 +95,16 @@ def compute_combo(series: list[dict]) -> dict:
 
     vwm = generate_signals(series, "vwm", {})
     bbr = generate_signals(series, "bollinger", {})
-    # COMBO 加权
+    # COMBO 加权（两档自适应：趋势/震荡/回退）
+    if market_state is None:
+        market_state = get_market_state()
+    w_vwm, w_bbr = WEIGHTS.get(market_state, WEIGHTS["unknown"])
     n = len(series)
     combo = [0] * n
     for i in range(n):
         s1 = vwm[i] if i < len(vwm) else 0
         s2 = bbr[i] if i < len(bbr) else 0
-        combo[i] = round(0.6 * s1 + 0.4 * s2, 3)
+        combo[i] = round(w_vwm * s1 + w_bbr * s2, 3)
 
     adx_tuple = calculate_adx(highs, lows, closes, 14)
     adx = adx_tuple[2] if isinstance(adx_tuple, tuple) else adx_tuple
@@ -89,6 +126,8 @@ def compute_combo(series: list[dict]) -> dict:
         "rsi_last": round(_safe_last(rsi), 1),
         "close_last": closes[-1],
         "date_last": series[-1]["trade_date"],
+        "market_state": market_state,
+        "weights": f"{w_vwm}/{w_bbr}",
     }
 
 
@@ -225,7 +264,7 @@ def main():
             print(
                 f"{sym:<10}{name:<8}{sig['close_last']:>9.2f}{sig['combo_last']:>8.2f}"
                 f"{sig['vwm_last']:>6}{sig['bbr_last']:>6}{sig['adx_last']:>7.1f}"
-                f"{sig['rsi_last']:>7.1f}  {act}"
+                f"{sig['rsi_last']:>7.1f}  {act}  [市态:{sig['market_state']} 权:{sig['weights']}]"
             )
         return
     if len(sys.argv) > 1 and sys.argv[1] != "--stdin":
@@ -254,7 +293,7 @@ def main():
         print(
             f"{symbol:<10}{name:<8}{sig['close_last']:>9.2f}{sig['combo_last']:>8.2f}"
             f"{sig['vwm_last']:>6}{sig['bbr_last']:>6}{sig['adx_last']:>7.1f}"
-            f"{sig['rsi_last']:>7.1f}  {act}"
+            f"{sig['rsi_last']:>7.1f}  {act}  [市态:{sig['market_state']} 权:{sig['weights']}]"
         )
 
 

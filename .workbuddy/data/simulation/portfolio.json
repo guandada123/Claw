@@ -9,36 +9,36 @@
       }
     ],
     "created_at": "2026-07-05",
-    "updated_at": "2026-08-04 14:07:43"
+    "updated_at": "2026-08-05 14:10:00"
   },
-  "cash": 31035.24,
+  "cash": 16069.37,
   "positions": {
     "000333": {
       "name": "美的集团",
       "shares": 100,
       "avg_cost": 78.72,
       "total_cost": 7872.0,
-      "current_price": 85.01,
+      "current_price": 85.13,
       "highest_price": 89.39,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-08-04T13:05",
-      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-04 13:05",
+      "updated": "2026-08-05T14:10",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-05 14:10",
       "mode": "normal"
     },
     "601899": {
       "name": "紫金矿业",
-      "shares": 200,
+      "shares": 100,
       "avg_cost": 27.565,
-      "total_cost": 5513.0,
-      "current_price": 32.16,
-      "highest_price": 33.68,
+      "total_cost": 2756.5,
+      "current_price": 34.1,
+      "highest_price": 34.22,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-08-04T13:05",
-      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-04 13:05",
+      "updated": "2026-08-05T14:10",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-05 14:10",
       "mode": "normal"
     },
     "600036": {
@@ -46,13 +46,26 @@
       "shares": 200,
       "avg_cost": 38.935,
       "total_cost": 7787.0,
-      "current_price": 39.25,
+      "current_price": 38.92,
       "highest_price": 40.55,
       "take_profit_level": 1,
       "first_buy_date": "2026-07-23",
-      "updated": "2026-08-04T13:05",
-      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-04 13:05",
+      "updated": "2026-08-05T14:10",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-05 14:10",
       "mode": "normal"
+    },
+    "601668": {
+      "name": "中国建筑",
+      "shares": 4000,
+      "avg_cost": 4.5814,
+      "total_cost": 18325.5,
+      "current_price": 4.59,
+      "highest_price": 4.65,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-08-05",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-05 14:10",
+      "updated": "2026-08-05T14:10",
+      "risk_note": "C1-20260805: 中金8月低配建筑与工程→跌破4.40减半(卖出2000股)，止损4.27不变；8月中报窗口业绩不及预期亦减半"
     }
   },
   "transactions": [
@@ -119,6 +132,34 @@
       "reason": "现金不足主动调仓释放:满仓85%锁死选股执行,减防御性最弱仓(长电+4.4%非主线)腾现金参与科技反弹",
       "time": "2026-07-31 12:51:47",
       "date": "2026-07-31"
+    },
+    {
+      "id": "S1785899480578",
+      "type": "SELL",
+      "code": "601899",
+      "name": "紫金矿业",
+      "shares": 100,
+      "price": 33.68,
+      "commission": 5.0,
+      "stamp_tax": 3.37,
+      "net_proceeds": 3359.63,
+      "realized_pnl": 603.13,
+      "pnl_pct": 21.88,
+      "reason": "触发+15%分级止盈卖出1/3(正常期双模·当前盈利+21.9%)",
+      "time": "2026-08-05 11:11:20",
+      "date": "2026-08-05"
+    },
+    {
+      "id": "B1785904040079",
+      "type": "BUY",
+      "code": "601668",
+      "name": "早盘选中7.8分+午间回踩买区触发：基建央企破净PB0.4价值修复，与现持(家电/黄金/银行)零行业重叠",
+      "shares": 4000,
+      "price": 4.58,
+      "commission": 5.5,
+      "total": 18325.5,
+      "time": "2026-08-05 12:27:20",
+      "date": "2026-08-05"
     }
   ],
   "holdings": [
@@ -202,10 +243,10 @@
       "time": "2026-07-10 15:30:00"
     },
     "2026-07-14": {
-      "total_asset": 32713.0,
-      "cash": 13073.0,
+      "total_asset": 52713.0,
+      "cash": 33073.0,
       "pnl": 2713.0,
-      "pnl_pct": 9.04,
+      "pnl_pct": 5.43,
       "positions": {
         "000333": {
           "shares": 100,
@@ -223,7 +264,8 @@
           "value": 5812.0
         }
       },
-      "time": "2026-07-14 15:30:00"
+      "time": "2026-07-14 15:30:00",
+      "note": "08-05修正: 补记07-14加仓¥20,000注入(cash+total), pnl_pct分母改effective_capital=¥50,000"
     },
     "2026-08-02": {
       "total_asset": 54309.24,

@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import sys
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -95,12 +96,50 @@ TRAILING_STOP_PCT = 0.15  # 追踪止损：从最高价回落 15% 触发
 # 分级止盈（双模式：冲刺期/正常期，由日期自动判定）
 #   冲刺期（每月20号后 或 6月14号后）：5%/10%/15% 快速轮动锁定利润
 #   正常期（其余日期）：15%/25%/35% 耐心持有追求高收益
+#   B3 市场状态驱动（08-05 新增）：正常期 + 大盘强修复（上证站上MA20且最近3日连涨）→ 第一档 +15% 上浮 +18%
 # 与 trading-dual-mode-seamless skill 对齐；check_take_profit 运行时调用，
 # 模式切换时自动重置 take_profit_level（见 check_take_profit）。
 def _is_sprint_period() -> bool:
     """判断当前是否处于冲刺期（每月20号后 或 6月14号后）。"""
     today = date.today()
     return (today.month == 6 and today.day >= 14) or (today.day >= 20)
+
+
+_MARKET_STRONG_CACHE = {"ts": 0.0, "strong": False}  # 5 分钟缓存，避免每持仓检查都拉网络
+MARKET_INDEX_KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh000001,day,,,30,qfq"
+
+
+def _market_strong_recovery() -> bool:
+    """大盘强修复判定：上证收盘站上 MA20 且最近 3 个交易日连涨（B3, 08-05）。失败回退 False 不阻断。"""
+    now = time.time()
+    if now - _MARKET_STRONG_CACHE["ts"] < 300:
+        return _MARKET_STRONG_CACHE["strong"]
+    strong = False
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(
+            MARKET_INDEX_KLINE_URL, headers={"User-Agent": "Mozilla/5.0"}
+        )
+        raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")
+        d = json.loads(raw)
+        days = (
+            d.get("data", {}).get("sh000001", {}).get("qfqday")
+            or d.get("data", {}).get("sh000001", {}).get("day")
+            or []
+        )
+        if len(days) >= 24:
+            closes = [float(x[2]) for x in days]
+            ma20 = sum(closes[-20:]) / 20
+            last3 = closes[-3:]
+            strong = closes[-1] >= ma20 and all(
+                last3[i] > last3[i - 1] for i in range(1, 3)
+            )
+    except Exception:
+        pass
+    _MARKET_STRONG_CACHE["ts"] = now
+    _MARKET_STRONG_CACHE["strong"] = strong
+    return strong
 
 
 def _get_take_profit_levels() -> list:
@@ -110,6 +149,12 @@ def _get_take_profit_levels() -> list:
             {"pct": 0.05, "sell_ratio": 0.33, "desc": "+5%卖出1/3(冲刺)"},
             {"pct": 0.10, "sell_ratio": 0.33, "desc": "+10%再卖1/3(冲刺)"},
             {"pct": 0.15, "sell_ratio": 0.34, "desc": "+15%清仓(冲刺)"},
+        ]
+    if _market_strong_recovery():
+        return [
+            {"pct": 0.18, "sell_ratio": 0.33, "desc": "+18%卖出1/3(大盘强修复上浮)"},
+            {"pct": 0.25, "sell_ratio": 0.33, "desc": "+25%再卖1/3"},
+            {"pct": 0.35, "sell_ratio": 0.34, "desc": "+35%清仓"},
         ]
     return [
         {"pct": 0.15, "sell_ratio": 0.33, "desc": "+15%卖出1/3"},

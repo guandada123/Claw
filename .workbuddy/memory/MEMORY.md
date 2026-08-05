@@ -26,6 +26,8 @@
 - 助理主板选股：mainboard_scan_pool.json(COMBO=VWM0.6+BBR0.4,ADX≥25,RSI>80拦截)，单只≤¥5000止损-8%
 - 🔄选股池增量补全(07-29)：refill_scan_pool.py(泛化版，旧refill_cyb_pool.py已删)枚举所有允许板块(深主000/001/002/003+沪主600/601/603/605+创业300/301)腾讯qt增量拉新，过滤退/PT/零成交/ST，写回不覆盖；自动化1785309382755@08:30
 - 📈多智能体辩论(07-29)：run_debate.py→src/claw/debate/（7专家三环：stance→peer_review→convergence）；接入09:10策略(1784506600526)+15:50复盘(1782817769722)；测试18/18绿
+- 🔄持仓数不限制(08-05)：智能选股1780738597945=v10.5/午间选股1782188906018=v6.3 取消≤3/≤5只（对齐STRATEGY"不限制"）；日报generate_daily_report.py取消≤3检查；validate_constraints.py max_positions 5→99安全上限；保留单只≤50%/行业≤60%/同日仅开1仓/留现≥15%风控
+- 🛡️策略风控体系升级(08-05,全网方法论落地)：①market_gate.py大盘门控(上证<MA20且连续3日缩量→DEFENSE暂停新开仓) ②correlation_monitor.py持仓相关性(>0.7且≥3只→单只上限50%→40%) ③position_coeff.py仓位系数(量价×估值利差0.6-1.0) ④sim_trade.py止盈市场状态驱动(正常期+大盘强修复→第一档15→18%) ⑤STRATEGY.md risk_note机制(持仓position含risk_note优先执行,当前中国建筑601668跌破4.40减半) ⑥选股C2风格平衡(持仓全价值/红利→加1只科技≤15%)；7处投顾prompt全部接入
 - 📊绩效面板(07-29)performance_dashboard.py｜🔍信号追溯(07-29)trace_signal.py｜📅绩效周报(07-29)自动化1785336744681@周日16:00
 
 ## 盘中监控双链（07-20方案B）
@@ -52,7 +54,7 @@
 - 🔧proxy看门狗(07-26)：com.workbuddy.proxy-watchdog(StartInterval=30, python3跑proxy_watchdog.py自动load回，防外部unload空窗)；launchd后台agent禁/bash脚本须managed python3直跑.py
 - 🔧自动化运维排障(08-04)：①查 `automation_runs` 表**必须用带 `automation-` 前缀的 ID**（如 `automation-1785506975961`），裸 ID 必误报"无运行记录"（曾误判7/8管家自动化静默失败）；②该表全451行 status 恒为 `PENDING_REVIEW`（0条SUCCESS/FAILED），属默认记录态非失败，勿据此判静默失败；③验真运行看 `last_run_at`/`created_at` 时间戳；④**Claw 本地助手工作区禁止托管新定时自动化**（守卫报错），新建须用其他项目工作区宿主（如QTS），git 命令用 `git -C <abs>` 绝对路径不依赖 cwd
 - 🔧备份清理缺口核实(08-04→supersedes早期「需建prune自动化」判断)：**不成立，不建**。output/.backups/daily/ 15个tar.gz(07-21~08-04)是每日备份脚本14天滚动清理正常结果(156M为预期)；`.bak-*` 全文0个；其余 `.backups`(memory288K/data8K)是记忆蒸馏归档(文件移入非复制)删了丢历史且已有🧹记忆体检(1780769419635)在跑，禁自动prune
-- ✅Claw CI 全绿(08-04收口)：ci.yml已删(原委托休眠engineering-audit-kit@v2→跨仓红)；ruff锁0.15.17+ignore PLR0917禁新版误报；pre-commit EOF排除机器JSON；benchmark缺test_benchmark.py优雅跳过+Save baseline加存在守卫；safety禁--full-report(--output互斥)；gitleaks .gitleaks.toml按commit豁免dd5df15c；🔴待办=公开仓库历史含DeepSeek key(sk-4***08)须轮换
+- ✅Claw CI 全绿(08-04收口)：ci.yml已删(原委托休眠engineering-audit-kit@v2→跨仓红)；ruff锁0.15.17+ignore PLR0917禁新版误报；pre-commit EOF排除机器JSON；benchmark缺test_benchmark.py优雅跳过+Save baseline加存在守卫；safety禁--full-report(--output互斥)；gitleaks .gitleaks.toml按commit豁免dd5df15c；🔐DeepSeek key轮换已完成(08-05用户平台吊销sk-443b…e408，活跃键sk-faaf…2796不受影响，本地明文已清，历史豁免保留)
 
 ## QTS日线数据架构（07-23，详情CHRONICLE）
 - 本地回填主源 qts_daily_backfill.py(腾讯K线32线程→upsert 127.0.0.1:15432 daily_quote，自动化1784811393302@16:30)；容器daily_data_refresh仅增量(tushare限频慢)；./strategy-service:/app挂载即时生效；daily_quote加updated_at列
