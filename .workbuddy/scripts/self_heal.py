@@ -16,6 +16,7 @@ Up 但不健康 → 仅告警不重启(防抖动)。stateful 容器(见各 surfa
 输出：JSON 报告到 stdout，供巡检/看门狗汇总 + 飞书告警。
 self_heal_log 回写 cross_project_state.json（原子写）。
 """
+
 from __future__ import annotations
 
 import datetime
@@ -25,8 +26,8 @@ import subprocess
 import sys
 
 STATE_FILE = "/Users/guan/.workbuddy/cross_project_state.json"
-COOLDOWN_MIN = 30          # 同目标冷却
-OSC_LIMIT = 2              # 60min 内 >2 次重启 → 震荡防护停手
+COOLDOWN_MIN = 30  # 同目标冷却
+OSC_LIMIT = 2  # 60min 内 >2 次重启 → 震荡防护停手
 OSC_WINDOW_MIN = 60
 
 
@@ -57,10 +58,16 @@ def docker_inspect(container: str):
     """返回 (status, health) 或 None（容器不存在 / docker 不可用）。"""
     try:
         out = subprocess.run(
-            ["docker", "inspect", "-f",
-             "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}n/a{{end}}",
-             container],
-            capture_output=True, text=True, timeout=15,
+            [
+                "docker",
+                "inspect",
+                "-f",
+                "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}n/a{{end}}",
+                container,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if out.returncode != 0 or not out.stdout.strip():
             return None
@@ -74,8 +81,9 @@ def docker_inspect(container: str):
 
 def docker_restart(container: str) -> bool:
     try:
-        r = subprocess.run(["docker", "restart", container],
-                            capture_output=True, text=True, timeout=60)
+        r = subprocess.run(
+            ["docker", "restart", container], capture_output=True, text=True, timeout=60
+        )
         return r.returncode == 0
     except Exception:
         return False
@@ -113,31 +121,51 @@ def main() -> int:
                 continue  # 健康，无需动作
             recent = [e for e in log if e.get("container") == c]
             if len(recent) >= OSC_LIMIT:
-                skipped.append({"container": c, "reason": "oscillation-guard",
-                                "status": status, "health": health})
-                alerts.append({"container": c, "issue": "oscillation-guard-stopped",
-                               "status": status})
+                skipped.append(
+                    {
+                        "container": c,
+                        "reason": "oscillation-guard",
+                        "status": status,
+                        "health": health,
+                    }
+                )
+                alerts.append(
+                    {"container": c, "issue": "oscillation-guard-stopped", "status": status}
+                )
                 continue
             if recent:
                 last = _parse_ts(recent[-1].get("ts", ""))
                 if (now_dt - last).total_seconds() < COOLDOWN_MIN * 60:
-                    skipped.append({"container": c, "reason": "cooldown",
-                                    "status": status, "health": health})
+                    skipped.append(
+                        {"container": c, "reason": "cooldown", "status": status, "health": health}
+                    )
                     continue
             if status != "running":
                 ok = docker_restart(c)
-                log.append({"ts": now_dt.isoformat(), "container": c,
-                            "action": "restart", "ok": ok,
-                            "status": status, "health": health})
+                log.append(
+                    {
+                        "ts": now_dt.isoformat(),
+                        "container": c,
+                        "action": "restart",
+                        "ok": ok,
+                        "status": status,
+                        "health": health,
+                    }
+                )
                 if ok:
                     restarted.append(c)
                 else:
-                    alerts.append({"container": c, "issue": "restart-failed",
-                                   "status": status})
+                    alerts.append({"container": c, "issue": "restart-failed", "status": status})
             else:
                 # running 但不健康 → 仅告警，不重启（防抖动）
-                alerts.append({"container": c, "issue": "unhealthy-but-running",
-                               "status": status, "health": health})
+                alerts.append(
+                    {
+                        "container": c,
+                        "issue": "unhealthy-but-running",
+                        "status": status,
+                        "health": health,
+                    }
+                )
 
     state.setdefault("monitoring", {})["self_heal_log"] = log
     try:
