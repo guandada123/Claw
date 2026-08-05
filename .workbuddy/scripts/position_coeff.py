@@ -43,30 +43,42 @@ PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/simulation/portfolio.jso
 
 # 持仓股息率静态映射（2026-08-05 基准，大盘蓝筹典型值）
 DIV_YIELD = {
-    "000333": 4.2, "600036": 5.1, "601899": 1.9, "601668": 3.6,
-    "600900": 3.9, "601088": 5.8, "600584": 0.5, "002185": 0.4,
-    "601398": 5.5, "601288": 5.2, "601857": 4.5, "600028": 5.0,
+    "000333": 4.2,
+    "600036": 5.1,
+    "601899": 1.9,
+    "601668": 3.6,
+    "600900": 3.9,
+    "601088": 5.8,
+    "600584": 0.5,
+    "002185": 0.4,
+    "601398": 5.5,
+    "601288": 5.2,
+    "601857": 4.5,
+    "600028": 5.0,
 }
 
 
 def _market_state() -> str:
     """量价状态：NORMAL/DEFENSE/UNKNOWN（与 market_gate 一致）"""
     try:
-        req = urllib.request.Request(
-            KLINE_URL, headers={"User-Agent": "Mozilla/5.0"}
-        )
+        req = urllib.request.Request(KLINE_URL, headers={"User-Agent": "Mozilla/5.0"})
         raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")
         d = json.loads(raw)
-        days = d.get("data", {}).get("sh000001", {}).get("qfqday") or d.get("data", {}).get("sh000001", {}).get("day") or []
+        days = (
+            d.get("data", {}).get("sh000001", {}).get("qfqday")
+            or d.get("data", {}).get("sh000001", {}).get("day")
+            or []
+        )
         if len(days) < 25:
             return "UNKNOWN"
         closes = [float(x[2]) for x in days]
         vols = [float(x[5]) for x in days]
         ma20 = sum(closes[-20:]) / 20
-        shrink = sum(
-            1 for i in range(-3, 0)
-            if (lambda avg: avg > 0 and vols[i] < avg * 0.9)(sum(vols[i - 3 : i]) / 3)
-        )
+        shrink = 0
+        for i in range(-3, 0):
+            avg = sum(vols[i - 3 : i]) / 3
+            if avg > 0 and vols[i] < avg * 0.9:
+                shrink += 1
         if closes[-1] < ma20 and shrink >= 3:
             return "DEFENSE"
         return "NORMAL"
@@ -109,8 +121,9 @@ def main() -> int:
         idx = sys.argv.index("--codes")
         codes = [c.strip() for c in sys.argv[idx + 1].split(",") if c.strip()]
     else:
-        sim = json.load(open(PORTFOLIO))
-        codes = [c for c in sim.get("positions", {}).keys() if c.isdigit()]
+        with open(PORTFOLIO) as f:
+            sim = json.load(f)
+        codes = [c for c in sim.get("positions", {}) if c.isdigit()]
     coeff, info = get_position_coeff(codes)
     print(coeff, flush=True)
     if verbose:

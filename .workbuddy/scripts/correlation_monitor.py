@@ -46,12 +46,14 @@ def _to_symbol(code: str) -> str:
 def _fetch_kline(symbol: str) -> list[float]:
     """拉取标的日线收盘价序列（腾讯）"""
     sym = _to_symbol(symbol)
-    req = urllib.request.Request(
-        KLINE_URL.format(sym=sym), headers={"User-Agent": "Mozilla/5.0"}
-    )
+    req = urllib.request.Request(KLINE_URL.format(sym=sym), headers={"User-Agent": "Mozilla/5.0"})
     raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")
     d = json.loads(raw)
-    days = d.get("data", {}).get(sym, {}).get("qfqday") or d.get("data", {}).get(sym, {}).get("day") or []
+    days = (
+        d.get("data", {}).get(sym, {}).get("qfqday")
+        or d.get("data", {}).get(sym, {}).get("day")
+        or []
+    )
     closes = [float(x[2]) for x in days]
     return closes
 
@@ -106,9 +108,10 @@ def main() -> int:
         idx = sys.argv.index("--codes")
         codes = [c.strip() for c in sys.argv[idx + 1].split(",") if c.strip()]
     else:
-        sim = json.load(open(PORTFOLIO))
+        with open(PORTFOLIO) as f:
+            sim = json.load(f)
         pos = sim.get("positions", {})
-        codes = [c for c in pos.keys() if c.isdigit()]
+        codes = [c for c in pos if c.isdigit()]
 
     state, pairs = get_correlation_state(codes)
     print(state, flush=True)
