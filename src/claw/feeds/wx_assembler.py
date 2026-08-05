@@ -16,6 +16,57 @@ _SELF = _Path(__file__).resolve()
 _PROJECT_ROOT = _SELF.parent.parent.parent.parent
 if str(_PROJECT_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT / "src"))
+# 对标基准辅助脚本位于 .workbuddy/scripts（纯 stdlib，无 claw 依赖）
+_WB_SCRIPTS = _PROJECT_ROOT / ".workbuddy" / "scripts"
+if str(_WB_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_WB_SCRIPTS))
+
+try:
+    from benchmark_helper import compute_holdings_benchmark  # noqa: E402
+    _HAS_BENCHMARK = True
+except Exception:  # pragma: no cover - 降级不影响主流程
+    _HAS_BENCHMARK = False
+
+
+# ── 对标基准速查块（C级增强：呼应调研 #1，供模板「对标基准」列填充）──
+def _build_benchmark_positions(sim_pos: dict, user_pos: dict) -> dict:
+    """从 sim/user 持仓构造 benchmark_helper 所需 {code: {name,cost,current,sector}}。"""
+    bp: dict = {}
+    for src in (sim_pos, user_pos):
+        if not isinstance(src, dict):
+            continue
+        for code, pos in src.items():
+            if not code or not isinstance(pos, dict):
+                continue
+            bp[code] = {
+                "name": pos.get("name", code),
+                "cost": pos.get("avg_cost", 0) or 0,
+                "current": pos.get("current_price", pos.get("avg_cost", 0)) or 0,
+                "sector": pos.get("sector", "未知"),
+            }
+    return bp
+
+
+def _emit_benchmark_block(sim_pos: dict, user_pos: dict, lines: list, days: int = 20):
+    """计算持仓对标基准并注入速查块（降级静默跳过，不阻断报告）。"""
+    if not _HAS_BENCHMARK:
+        return
+    bp = _build_benchmark_positions(sim_pos, user_pos)
+    if not bp:
+        return
+    try:
+        bench = compute_holdings_benchmark(bp, days=days)
+    except Exception:
+        return
+    if not bench:
+        return
+    lines.append(
+        "\n📐 对标基准速查（持仓近 %d 日 vs 沪深300 / 行业ETF，"
+        "供五路诊断表「对标基准」列直接引用）" % days
+    )
+    for code, r in bench.items():
+        label = r.get("benchmark_label", "数据缺失")
+        lines.append(f"  {r.get('name', code)}({code}): {label}")
 
 from claw.feeds.wx_collector import (  # noqa: E402
     _HAS_SUMMARIZE,
@@ -155,6 +206,9 @@ def build_morning_report():
         if code not in all_positions:
             all_positions[code] = {"name": pos["name"], "shares": pos["shares"],
                                     "cost": float(pos["avg_cost"]) if str(pos["avg_cost"]).strip() else 0.0, "source": "实盘"}
+
+    # ── 对标基准速查（C级增强：注入供模板「对标基准」列填充）──
+    _emit_benchmark_block(sim_pos, user_pos, lines)
 
     # ── 组装早报 ──────────────────────────────────────────
     lines = []
@@ -544,6 +598,9 @@ def build_evening_report():
         if code not in all_positions:
             all_positions[code] = {"name": pos["name"], "shares": pos["shares"],
                                     "cost": float(pos["avg_cost"]) if str(pos["avg_cost"]).strip() else 0.0, "source": "实盘"}
+
+    # ── 对标基准速查（C级增强：注入供模板「对标基准」列填充）──
+    _emit_benchmark_block(sim_pos, user_pos, lines)
 
     if not all_positions:
         lines.append("  当前无持仓")
