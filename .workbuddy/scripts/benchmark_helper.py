@@ -30,27 +30,56 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-HS300_CODE = "sh000300"          # 沪深300 指数（对标基准核心）
+HS300_CODE = "sh000300"  # 沪深300 指数（对标基准核心）
 DEFAULT_DAYS = 20
 
 # ── 行业 → ETF 映射（用于「vs 行业」相对强弱）──────────────────────
 # key=行业关键词(小写子串匹配)，value=ETF 代码(已带 sh/sz 前缀)
 SECTOR_ETF_MAP: dict[str, str] = {
-    "半导体": "sh512480", "芯片": "sh512760", "集成电路": "sh512760",
-    "银行": "sh512800", "券商": "sh512000", "非银": "sh512070", "保险": "sh512070",
-    "房地产": "sh512200", "地产": "sh512200",
-    "医药": "sh512010", "医疗": "sh159828", "生物医药": "sh512290",
-    "消费": "sh510150", "食品饮料": "sh515170", "白酒": "sh512690", "酒": "sh512690",
-    "家电": "sh561120", "家用电器": "sh561120",
-    "汽车": "sh516110", "新能源车": "sh515030", "新能源": "sh515030",
-    "军工": "sh512660", "国防": "sh512660",
-    "有色": "sh512400", "金属": "sh512400", "黄金": "sh518880",
-    "煤炭": "sh515220", "钢铁": "sh515210", "化工": "sh516020",
-    "电力": "sh561560", "光伏": "sh515790", "锂电": "sh515790",
-    "传媒": "sh512980", "通信": "sh515880", "5g": "sh515880",
-    "计算机": "sh159998", "软件": "sh515230", "信创": "sh515230",
-    "电子": "sh159997", "农业": "sh159825", "建材": "sh516750",
-    "机械": "sh516960", "工程机械": "sh516960", "建筑": "sh516970",
+    "半导体": "sh512480",
+    "芯片": "sh512760",
+    "集成电路": "sh512760",
+    "银行": "sh512800",
+    "券商": "sh512000",
+    "非银": "sh512070",
+    "保险": "sh512070",
+    "房地产": "sh512200",
+    "地产": "sh512200",
+    "医药": "sh512010",
+    "医疗": "sh159828",
+    "生物医药": "sh512290",
+    "消费": "sh510150",
+    "食品饮料": "sh515170",
+    "白酒": "sh512690",
+    "酒": "sh512690",
+    "家电": "sh561120",
+    "家用电器": "sh561120",
+    "汽车": "sh516110",
+    "新能源车": "sh515030",
+    "新能源": "sh515030",
+    "军工": "sh512660",
+    "国防": "sh512660",
+    "有色": "sh512400",
+    "金属": "sh512400",
+    "黄金": "sh518880",
+    "煤炭": "sh515220",
+    "钢铁": "sh515210",
+    "化工": "sh516020",
+    "电力": "sh561560",
+    "光伏": "sh515790",
+    "锂电": "sh515790",
+    "传媒": "sh512980",
+    "通信": "sh515880",
+    "5g": "sh515880",
+    "计算机": "sh159998",
+    "软件": "sh515230",
+    "信创": "sh515230",
+    "电子": "sh159997",
+    "农业": "sh159825",
+    "建材": "sh516750",
+    "机械": "sh516960",
+    "工程机械": "sh516960",
+    "建筑": "sh516970",
 }
 
 
@@ -80,7 +109,7 @@ def _interval_return(code_prefixed: str, days: int) -> float | None:
     closes = _fetch_qfq_closes(code_prefixed, days)
     if not closes or len(closes) < 2:
         return None
-    window = closes[-(days + 1):] if len(closes) > days else closes
+    window = closes[-(days + 1) :] if len(closes) > days else closes
     if len(window) < 2:
         return None
     return round((window[-1] - window[0]) / window[0] * 100, 2)
@@ -157,9 +186,7 @@ def compute_holdings_benchmark(
                     rel_i = round(holding_ret - ind_ret, 2)
                     rec["rel_vs_industry"] = rel_i
                     rec["benchmark_label"] += (
-                        f" / 跑赢行业 +{rel_i:.1f}%"
-                        if rel_i >= 0
-                        else f" / 跑输行业 {rel_i:.1f}%"
+                        f" / 跑赢行业 +{rel_i:.1f}%" if rel_i >= 0 else f" / 跑输行业 {rel_i:.1f}%"
                     )
         out[code] = rec
     return out
@@ -210,9 +237,7 @@ def main():
     args = ap.parse_args()
 
     if args.code:
-        positions = {
-            args.code: {"name": args.code, "cost": 0, "current": 0, "sector": args.sector}
-        }
+        positions = {args.code: {"name": args.code, "cost": 0, "current": 0, "sector": args.sector}}
     elif args.portfolio:
         positions = _load_positions_from_portfolio(Path(args.portfolio))
     else:

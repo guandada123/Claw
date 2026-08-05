@@ -32,9 +32,7 @@ VOL_RATIO = 0.9  # 当日量 < 前3日均量×0.9 视为缩量
 def get_gate_state() -> tuple[str, dict]:
     """返回 (state, metrics)"""
     try:
-        req = urllib.request.Request(
-            KLINE_URL, headers={"User-Agent": "Mozilla/5.0"}
-        )
+        req = urllib.request.Request(KLINE_URL, headers={"User-Agent": "Mozilla/5.0"})
         raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")
         d = json.loads(raw)
         days = (

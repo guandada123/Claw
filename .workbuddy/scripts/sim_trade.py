@@ -106,7 +106,9 @@ def _is_sprint_period() -> bool:
 
 
 _MARKET_STRONG_CACHE = {"ts": 0.0, "strong": False}  # 5 分钟缓存，避免每持仓检查都拉网络
-MARKET_INDEX_KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh000001,day,,,30,qfq"
+MARKET_INDEX_KLINE_URL = (
+    "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh000001,day,,,30,qfq"
+)
 
 
 def _market_strong_recovery() -> bool:
@@ -118,9 +120,7 @@ def _market_strong_recovery() -> bool:
     try:
         import urllib.request
 
-        req = urllib.request.Request(
-            MARKET_INDEX_KLINE_URL, headers={"User-Agent": "Mozilla/5.0"}
-        )
+        req = urllib.request.Request(MARKET_INDEX_KLINE_URL, headers={"User-Agent": "Mozilla/5.0"})
         raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")
         d = json.loads(raw)
         days = (
@@ -132,9 +132,7 @@ def _market_strong_recovery() -> bool:
             closes = [float(x[2]) for x in days]
             ma20 = sum(closes[-20:]) / 20
             last3 = closes[-3:]
-            strong = closes[-1] >= ma20 and all(
-                last3[i] > last3[i - 1] for i in range(1, 3)
-            )
+            strong = closes[-1] >= ma20 and all(last3[i] > last3[i - 1] for i in range(1, 3))
     except Exception:
         pass
     _MARKET_STRONG_CACHE["ts"] = now
