@@ -37,7 +37,9 @@ DB_CFG = {
     "port": int(os.environ.get("QTS_DB_PORT", "15432")),
     "dbname": os.environ.get("QTS_DB_NAME", "quant_trading"),
     "user": os.environ.get("QTS_DB_USER", "quant_user"),
-    "password": os.environ["QTS_DB_PASS"],  # 必填，未设置时 KeyError 提前失败
+    # 08-05 加固：环境变量缺失时回退 docker-compose 默认(本地dev)，防 KeyError 整链路失败
+    # （08-04 16:30 自动化启动失败致 daily_quote 缺 08-04 一整日，补跑时发现此脆弱点）
+    "password": os.environ.get("QTS_DB_PASS", "quant_pass"),
 }
 TX_KLINE = (
     "https://web.ifzq.gtimg.cn/appstock/app/kline/kline?param={sym},day,{start},{end},{limit}"

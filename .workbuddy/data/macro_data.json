@@ -21,7 +21,7 @@
     "_source": "wind"
   },
   "shibor": {
-    "overnight": 1.413,
+    "overnight": 1.366,
     "_source": "wind"
   },
   "lpr": {
@@ -37,6 +37,6 @@
     "_source": "wind"
   },
   "_source": "wind",
-  "generated_at": "2026-08-04 08:36:26",
+  "generated_at": "2026-08-05 08:38:03",
   "indicator_count": 8
 }

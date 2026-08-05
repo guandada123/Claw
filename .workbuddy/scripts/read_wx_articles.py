@@ -38,6 +38,16 @@ SIGNALS_FILE = ROOT / ".workbuddy" / "data" / "article_signals.json"
 RESONANCE_FILE = ROOT / ".workbuddy" / "data" / "article_resonance.json"
 NAME_DICT = ROOT / ".workbuddy" / "scripts" / "astock_code_name.json"
 PROCESSED_FILE = ROOT / ".workbuddy" / "knowledge" / "index" / "read_wx_articles_processed.txt"
+FAIL_FILE = ROOT / ".workbuddy" / "knowledge" / "index" / "wx_parse_failures.json"
+BLACKLIST_FILE = ROOT / ".workbuddy" / "knowledge" / "index" / "wx_blacklist.txt"
+
+# 2026-08-05 修复（第11轮提请，用户批准）:
+# 1) JSON 解析失败重试 3 次 + 正文逐次收紧截断，根治长文导致模型输出残缺 JSON 而丢文
+# 2) 死链黑名单：单篇连续解析失败 ≥ BLACKLIST_THRESHOLD 次 → 移出队列并归档，避免反复重入空烧算力
+MAX_PARSE_RETRY = 3
+BLACKLIST_THRESHOLD = 3
+# 逐次收紧的正文长度预算（字符）：第1次喂全量，第2/3次逐级砍半，逼模型吐出完整紧凑 JSON
+CONTENT_BUDGETS = [6000, 3000, 1500]
 
 # 复用项目统一 LLM 路由
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -177,6 +187,66 @@ def save_processed(names):
             fh.write(file_key(n) + "\n")
 
 
+def _truncate_content(content: str, max_chars: int) -> str:
+    """按预算截断正文：超长时保留开头与结尾（观点常在两处），中间省略。
+
+    逐次收紧：max_chars 越小，head/tail 同步缩，避免单次喂太多让模型吐残缺 JSON。
+    """
+    if len(content) <= max_chars:
+        return content
+    if max_chars >= 2400:
+        head, tail = 4500, 1200
+    elif max_chars >= 1200:
+        head, tail = 1800, 600
+    else:
+        head, tail = 1100, 400
+    if head + tail > max_chars:
+        tail = max(0, max_chars - head)
+    return content[:head] + "\n……（中略）……\n" + content[-tail:]
+
+
+def load_failures() -> dict:
+    """file_key -> 连续解析失败次数（跨运行持久化）。"""
+    if not FAIL_FILE.exists():
+        return {}
+    try:
+        d = json.loads(FAIL_FILE.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_failures(d: dict):
+    FAIL_FILE.parent.mkdir(parents=True, exist_ok=True)
+    # 只持久化还在计数的（>0），清零的丢弃，避免文件无限膨胀
+    FAIL_FILE.write_text(
+        json.dumps({k: v for k, v in d.items() if v > 0}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def load_blacklist() -> set:
+    if not BLACKLIST_FILE.exists():
+        return set()
+    try:
+        return {
+            ln.strip()
+            for ln in BLACKLIST_FILE.read_text(encoding="utf-8").splitlines()
+            if ln.strip()
+        }
+    except Exception:
+        return set()
+
+
+def add_blacklist(keys, reason=""):
+    """把连续解析失败的 file_key 移入死链黑名单（永久移出队列，除非手动重置）。"""
+    BLACKLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with BLACKLIST_FILE.open("a", encoding="utf-8") as fh:
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+        for k in keys:
+            fh.write(f"{k}\t{ts}\t{reason}\n")
+
+
 def _extract_json(text: str) -> dict | None:
     """从 LLM 回复里稳健地抠出 JSON 对象。"""
     if not text:
@@ -196,19 +266,30 @@ def _extract_json(text: str) -> dict | None:
         return None
 
 
-def read_one_article(title: str, content: str, account: str) -> dict | None:
-    """让 LLM 阅读单篇文章，返回结构化 insight（失败返回 None）。"""
-    # 控制输入长度：正文超长截断（保留开头与结尾，观点常在这两处）
-    if len(content) > 6000:
-        content = content[:4500] + "\n……（中略）……\n" + content[-1200:]
-    user_prompt = f"【公众号】{account}\n【标题】{title}\n【正文】\n{content}\n\n{SCHEMA_HINT}"
-    for attempt in (1, 2):
+def read_one_article(title: str, content: str, account: str):
+    """让 LLM 阅读单篇文章。
+
+    返回 (insight | None, parse_fail_count)：
+      - 成功 → (insight_dict, 0)
+      - 失败 → (None, 解析失败次数)
+
+    修复点（2026-08-05）：
+      - 最多 MAX_PARSE_RETRY(3) 次调用，每次正文预算按 CONTENT_BUDGETS 逐级收紧。
+        长文喂全量易让模型吐残缺 JSON，收紧后通常第 2/3 次能出完整紧凑 JSON。
+      - parse_fail_count 只统计「LLM 有回复但 JSON 解析失败」的次数；
+        LLM 调用本身失败（网络/超时/鉴权）属瞬时故障，不计入，不进黑名单。
+    """
+    parse_fail = 0
+    for attempt in range(1, MAX_PARSE_RETRY + 1):
+        budget = CONTENT_BUDGETS[min(attempt - 1, len(CONTENT_BUDGETS) - 1)]
+        c = _truncate_content(content, budget)
+        user_prompt = f"【公众号】{account}\n【标题】{title}\n【正文】\n{c}\n\n{SCHEMA_HINT}"
         res = call_llm(
             user_prompt,
             FLASH_CFG,
             system=SYSTEM_PROMPT,
             temperature=0.2,
-            max_tokens=2000,
+            max_tokens=2400,
             task="wx_article_read",
             project="Claw",
         )
@@ -217,9 +298,13 @@ def read_one_article(title: str, content: str, account: str) -> dict | None:
             continue
         parsed = _extract_json(res.get("response") or "")
         if parsed:
-            return _normalize_insight(parsed)
-        print(f"   ⚠️ 解析 JSON 失败(第{attempt}次)，前120字: {(res.get('response') or '')[:120]}")
-    return None
+            return _normalize_insight(parsed), 0
+        parse_fail += 1
+        print(
+            f"   ⚠️ 解析 JSON 失败(第{attempt}次, 预算{budget}字)，前120字: "
+            f"{(res.get('response') or '')[:120]}"
+        )
+    return None, parse_fail
 
 
 def _normalize_insight(ins: dict) -> dict:
@@ -366,6 +451,8 @@ def main():
 
     name_map = load_name_map()
     processed = load_processed()
+    failures = load_failures()
+    blacklist = load_blacklist()
     now = datetime.now()
     today = now.strftime("%Y-%m-%d")
 
@@ -374,7 +461,12 @@ def main():
     else:
         files = sorted(WX_DIR.glob("*.json"), reverse=True)  # 新文章优先
         files = [f for f in files if f.name not in (".cache.json", "fetched_cache.json")]
-        files = [f for f in files if file_key(f.name) not in processed][: args.max]
+        # 排除已读 + 死链黑名单（连续解析失败≥阈值已移出队列的）
+        files = [
+            f
+            for f in files
+            if file_key(f.name) not in processed and file_key(f.name) not in blacklist
+        ][: args.max]
 
     print(f"[gate] 待读 {len(files)} 篇（已读清单 {len(processed)} 篇，本次上限 {args.max}）")
     if not files:
@@ -398,12 +490,27 @@ def main():
         if account == "未知" or not (title + content).strip():
             done_names.append(f.name)
             continue
-        print(f"[{idx}/{len(files)}] 阅读《{title[:26]}》· {account}")
-        insight = read_one_article(title, content, account)
-        if not insight:
-            # LLM 调用失败/解析失败 → 不标记 processed，下次自动重试，避免静默丢数据
+        fkey = file_key(f.name)
+        if fkey in blacklist:
+            done_names.append(f.name)  # 已在死链黑名单，标记处理跳过，不重读
+            print(f"[{idx}/{len(files)}] 跳过(死链黑名单): 《{title[:20]}》")
             continue
-        done_names.append(f.name)
+        print(f"[{idx}/{len(files)}] 阅读《{title[:26]}》· {account}")
+        insight, parse_fail = read_one_article(title, content, account)
+        if insight:
+            failures[fkey] = 0  # 成功 → 清零连续解析失败计数
+            done_names.append(f.name)
+        else:
+            if parse_fail > 0:
+                failures[fkey] = failures.get(fkey, 0) + parse_fail
+                if failures[fkey] >= BLACKLIST_THRESHOLD:
+                    # 连续解析失败达阈值 → 死链，移出队列并归档黑名单，不再空烧算力
+                    blacklist.add(fkey)
+                    add_blacklist([fkey], f"连续{failures[fkey]}次解析失败")
+                    done_names.append(f.name)  # 标记已处理，彻底退出队列
+                    print(f"   🚫 连续 {failures[fkey]} 次解析失败 → 移入死链黑名单，移出队列")
+            # parse_fail==0 纯瞬时 LLM 故障：不计数、不标记，下轮重试
+            continue
         article_id = file_key(f.name)  # 与 processed 主键同源，避免两套 id 漂移
         rec_date = (
             pub[:10] if pub else datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d")
@@ -486,6 +593,7 @@ def main():
 
     if done_names:
         save_processed(done_names)
+    save_failures(failures)  # 持久化连续解析失败计数（清零项自动剔除）
 
     print(
         f"\n[archive] 新读 insight {len(new_insights)} | 有效信号 {len(truly_new_sig)} | insight库累计 {len(merged)} | 共振 {len(resonance)}"

@@ -214,3 +214,10 @@
 - **扫描结果**：三仓库开放 PR 全部为空（QTS [] / MarvisBridge [] / StockInsight []），无可合并桶、无冲突桶
 - **操作**：无合并动作且无真冲突 → [SILENT] 静默退出，未推送飞书
 - **清理**：schedule_utils done 成功；cost_tracker 无估算配置（连续第 12+ 轮同一提示，建议补配置或从 prompt 移除该步）
+
+## 2026-08-05
+- **凭据预检**：~/.github_token 文件 token 失效（"token invalid"），但 **keyring 登录有效**（guandada123，scopes: repo/workflow），gh api 实测可达 → 非 skip 场景，继续走正常流程（本轮起不复用无效文件 token，避免覆盖 keyring 登录）
+- **调度稳态**：schedule_utils check 退出码 0，正常执行
+- **扫描结果**：三仓库开放 PR 全部为空（QTS [] / MarvisBridge [] / StockInsight []），无可合并桶、无冲突桶
+- **操作**：无合并动作且无真冲突 → [SILENT] 静默退出，未推送飞书
+- **清理**：schedule_utils done 成功；cost_tracker 无估算配置（连续第 13+ 轮同一提示，建议补配置或从 prompt 移除该步）
