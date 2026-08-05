@@ -23,6 +23,7 @@ if str(_WB_SCRIPTS) not in sys.path:
 
 try:
     from benchmark_helper import compute_holdings_benchmark  # noqa: E402
+
     _HAS_BENCHMARK = True
 except Exception:  # pragma: no cover - 降级不影响主流程
     _HAS_BENCHMARK = False
@@ -61,12 +62,13 @@ def _emit_benchmark_block(sim_pos: dict, user_pos: dict, lines: list, days: int 
     if not bench:
         return
     lines.append(
-        "\n📐 对标基准速查（持仓近 %d 日 vs 沪深300 / 行业ETF，"
-        "供五路诊断表「对标基准」列直接引用）" % days
+        f"\n📐 对标基准速查（持仓近 {days} 日 vs 沪深300 / 行业ETF，"
+        "供五路诊断表「对标基准」列直接引用）"
     )
     for code, r in bench.items():
         label = r.get("benchmark_label", "数据缺失")
         lines.append(f"  {r.get('name', code)}({code}): {label}")
+
 
 from claw.feeds.wx_collector import (  # noqa: E402
     _HAS_SUMMARIZE,
@@ -101,8 +103,13 @@ def load_signal_weights():
             return {"best": [], "ranking": [], "updated": None}
         report = json.loads(VERIFY_REPORT.read_text(encoding="utf-8"))
         ranking = report.get("ranking", [])
-        best = [r for r in ranking if r.get("win_rate") and r["win_rate"] >= 40
-                and r.get("total", r.get("signals", 0)) >= 3]
+        best = [
+            r
+            for r in ranking
+            if r.get("win_rate")
+            and r["win_rate"] >= 40
+            and r.get("total", r.get("signals", 0)) >= 3
+        ]
         return {
             "best": best[:8],
             "ranking": ranking,
@@ -143,6 +150,7 @@ def resolve_stock_name(ts_code: str) -> str:
         return f"{name}({pure})"
     return pure
 
+
 def build_morning_report():
     now = datetime.now()
     articles = load_today_articles()
@@ -163,7 +171,7 @@ def build_morning_report():
     articles_stocks = []
     for i, art in enumerate(articles):
         content = art.get("content", "")
-        title   = art.get("title", "")
+        title = art.get("title", "")
         account = art.get("account", "")
 
         # 提取提及的股票
@@ -171,49 +179,60 @@ def build_morning_report():
 
         if stocks:
             # 包装为兼容格式（无LLM信号，让Agent分析）
-            signals = [{"code": s["code"], "name": s["name"],
-                        "signal": "neutral", "confidence": 0, "reason": "待Agent分析"}
-                       for s in stocks]
-            articles_stocks.append({
-                "title": title,
-                "account": account,
-                "signals": signals
-            })
+            signals = [
+                {
+                    "code": s["code"],
+                    "name": s["name"],
+                    "signal": "neutral",
+                    "confidence": 0,
+                    "reason": "待Agent分析",
+                }
+                for s in stocks
+            ]
+            articles_stocks.append({"title": title, "account": account, "signals": signals})
 
         # 进度提示（每分析5篇输出一次）
         if (i + 1) % 5 == 0:
             pass
 
     # 财经热讯 + 板块热度 + 宏观数据
-    cls_news    = fetch_cls_telegraph()
-    em_news     = fetch_eastmoney_news()
-    sector_hot  = fetch_sector_hot()
+    cls_news = fetch_cls_telegraph()
+    em_news = fetch_eastmoney_news()
+    sector_hot = fetch_sector_hot()
     macro_calendar = fetch_macro_calendar()
 
     # 持仓
     portfolios = load_portfolios()
-    sim_pos   = portfolios["sim"]["positions"]
-    user_pos  = portfolios["user"]["positions"]
-    sim_cash  = portfolios["sim"]["cash"]
+    sim_pos = portfolios["sim"]["positions"]
+    user_pos = portfolios["user"]["positions"]
+    sim_cash = portfolios["sim"]["cash"]
     user_cash = portfolios["user"]["cash"]
     total_cash = sim_cash + user_cash
 
     all_positions = {}
     for code, pos in sim_pos.items():
-        all_positions[code] = {"name": pos["name"], "shares": pos["shares"],
-                                "cost": pos["avg_cost"], "source": "模拟仓"}
+        all_positions[code] = {
+            "name": pos["name"],
+            "shares": pos["shares"],
+            "cost": pos["avg_cost"],
+            "source": "模拟仓",
+        }
     for code, pos in user_pos.items():
         if code not in all_positions:
-            all_positions[code] = {"name": pos["name"], "shares": pos["shares"],
-                                    "cost": float(pos["avg_cost"]) if str(pos["avg_cost"]).strip() else 0.0, "source": "实盘"}
-
-    # ── 对标基准速查（C级增强：注入供模板「对标基准」列填充）──
-    _emit_benchmark_block(sim_pos, user_pos, lines)
+            all_positions[code] = {
+                "name": pos["name"],
+                "shares": pos["shares"],
+                "cost": float(pos["avg_cost"]) if str(pos["avg_cost"]).strip() else 0.0,
+                "source": "实盘",
+            }
 
     # ── 组装早报 ──────────────────────────────────────────
     lines = []
     lines.append(f"📊 微信早报 — {now.strftime('%Y-%m-%d')}")
     lines.append("=" * 40)
+
+    # ── 对标基准速查（C级增强：注入供模板「对标基准」列填充）──
+    _emit_benchmark_block(sim_pos, user_pos, lines)
 
     # 监控中的公众号列表
     accounts = []
@@ -234,8 +253,9 @@ def build_morning_report():
             lines.append(
                 f"  {icon} {rank['account']}："
                 f"命中率 {rank['win_rate']}% / 均收益 {rank['avg_return']:+.1f}%"
-                f"（{sigs}条信号，高权重重点采信）" if rank["win_rate"] >= 60 else
-                f"  {icon} {rank['account']}："
+                f"（{sigs}条信号，高权重重点采信）"
+                if rank["win_rate"] >= 60
+                else f"  {icon} {rank['account']}："
                 f"命中率 {rank['win_rate']}% / 均收益 {rank['avg_return']:+.1f}%"
                 f"（{sigs}条信号，权重中等）"
             )
@@ -247,7 +267,9 @@ def build_morning_report():
         lines.append(f"\n⚠️ 信号权重最后更新：{sw['updated']}（>24h 为 STALE，需重新验证）")
 
     if not sw.get("best") or len(sw.get("best", [])) < 3:
-        untracked = [a for a in accounts[:6] if all(a != r["account"] for r in sw.get("ranking", []))]
+        untracked = [
+            a for a in accounts[:6] if all(a != r["account"] for r in sw.get("ranking", []))
+        ]
         if untracked:
             lines.append(f"⚪ 以下公众号尚无命中率数据，信号仅供参考：{'、'.join(untracked[:6])}")
 
@@ -256,8 +278,11 @@ def build_morning_report():
     if ranking_file.exists():
         try:
             ranking_full = json.loads(ranking_file.read_text(encoding="utf-8"))
-            discovered = [r for r in ranking_full.get("ranking", [])
-                          if r.get("win_rate") is None and r.get("source") == "红狐发现"]
+            discovered = [
+                r
+                for r in ranking_full.get("ranking", [])
+                if r.get("win_rate") is None and r.get("source") == "红狐发现"
+            ]
             if discovered:
                 lines.append(f"\n📡 **外部发现（{len(discovered)}个候选，待验证胜率）：**")
                 for d in discovered[:5]:
@@ -279,16 +304,14 @@ def build_morning_report():
                 lines.append("\n**🔗 双源信号共识（QTS回测 × 公众号，历史命中率加权）：**")
                 if strong:
                     strong_names = ", ".join(
-                        p["code"] + "(" + p.get("name", "") + ")"
-                        for p in strong[:3]
+                        p["code"] + "(" + p.get("name", "") + ")" for p in strong[:3]
                     )
                     lines.append(f"  🟢 强共识 {len(strong)}只：{strong_names}  权重×1.3")
                 if summary.get("weak_signal", 0) > 0:
                     lines.append(f"  🟡 弱信号 {summary['weak_signal']}只：QTS与公众号各自独立覆盖")
                 if conflict:
                     conflict_names = ", ".join(
-                        p["code"] + "(" + p.get("name", "") + ")"
-                        for p in conflict[:3]
+                        p["code"] + "(" + p.get("name", "") + ")" for p in conflict[:3]
                     )
                     lines.append(f"  🔴 分歧 {len(conflict)}只：{conflict_names}  建议观望")
                 lines.append("  __完整对比 → data/signal_consensus.json__")
@@ -303,7 +326,11 @@ def build_morning_report():
             pos_mult = regime_data.get("position_multiplier", 0.5)
             regime_label = regime_data.get("regime_label", "未知")
             lines.append(f"\n**📈 QTS 市场状态：**{regime_label}")
-            sizetip = "全仓" if pos_mult >= 1.0 else ("半仓" if pos_mult >= 0.5 else ("轻仓" if pos_mult >= 0.25 else "空仓"))
+            sizetip = (
+                "全仓"
+                if pos_mult >= 1.0
+                else ("半仓" if pos_mult >= 0.5 else ("轻仓" if pos_mult >= 0.25 else "空仓"))
+            )
             lines.append(f"  💰 建议仓位系数：{pos_mult:.1f}x（{sizetip}）")
         except Exception:
             pass
@@ -313,10 +340,10 @@ def build_morning_report():
     if articles_stocks:
         for i, art in enumerate(articles_stocks[:12]):
             signals_desc = ", ".join(
-                f"{sig['name']}({sig['code']})[{'多' if sig['signal']=='bullish' else '空' if sig['signal']=='bearish' else '中'}]"
+                f"{sig['name']}({sig['code']})[{'多' if sig['signal'] == 'bullish' else '空' if sig['signal'] == 'bearish' else '中'}]"
                 for sig in art["signals"][:4]
             )
-            lines.append(f"  {i+1}. [{art['account']}] {art['title'][:28]}...")
+            lines.append(f"  {i + 1}. [{art['account']}] {art['title'][:28]}...")
             lines.append(f"     提及：{signals_desc}")
     else:
         lines.append("  （今日文章未提取到明确股票代码）")
@@ -336,7 +363,13 @@ def build_morning_report():
                 continue
 
             if code not in stock_stats:
-                stock_stats[code] = {"name": name, "bullish": 0, "bearish": 0, "neutral": 0, "reasons": []}
+                stock_stats[code] = {
+                    "name": name,
+                    "bullish": 0,
+                    "bearish": 0,
+                    "neutral": 0,
+                    "reasons": [],
+                }
             if signal == "bullish":
                 stock_stats[code]["bullish"] += 1
             elif signal == "bearish":
@@ -347,8 +380,9 @@ def build_morning_report():
                 stock_stats[code]["reasons"].append(sig["reason"])
 
     if stock_stats:
-        sorted_stocks = sorted(stock_stats.items(),
-                               key=lambda x: x[1]["bullish"] - x[1]["bearish"], reverse=True)
+        sorted_stocks = sorted(
+            stock_stats.items(), key=lambda x: x[1]["bullish"] - x[1]["bearish"], reverse=True
+        )
         for code, stat in sorted_stocks[:10]:
             name = stat["name"]
             b = stat["bullish"]
@@ -367,7 +401,11 @@ def build_morning_report():
         for code, pos in all_positions.items():
             tech_signal = get_technical_signal(code)
             name = pos["name"]
-            signal_icon = "🟢" if tech_signal["signal"] == "bullish" else ("🔴" if tech_signal["signal"] == "bearish" else "🟡")
+            signal_icon = (
+                "🟢"
+                if tech_signal["signal"] == "bullish"
+                else ("🔴" if tech_signal["signal"] == "bearish" else "🟡")
+            )
             lines.append(f"  {signal_icon} {name}({code})  技术面：{tech_signal['reason']}")
     else:
         lines.append("  （当前无持仓）")
@@ -380,33 +418,35 @@ def build_morning_report():
     holding_advice = []
     watching_advice = []
     for code, stat in stock_stats.items():
-        name       = stat["name"]
+        name = stat["name"]
         is_holding = code in all_positions
-        bullish    = stat["bullish"]
-        bearish    = stat["bearish"]
+        bullish = stat["bullish"]
+        bearish = stat["bearish"]
 
         if is_holding:
-            pos      = all_positions[code]
-            cost     = pos["cost"]
-            shares   = pos["shares"]
+            pos = all_positions[code]
+            cost = pos["cost"]
+            shares = pos["shares"]
             cur_price = fetch_current_price(code)
             if cur_price is None:
                 cur_price = cost
-            pnl_pct  = (cur_price - cost) / cost * 100 if cost else 0
-            val      = cur_price * shares
+            pnl_pct = (cur_price - cost) / cost * 100 if cost else 0
+            val = cur_price * shares
 
             if bullish > bearish:
                 action = "🟢 持有/加仓"
                 add_shares = 100
-                add_cost   = add_shares * cur_price
+                add_cost = add_shares * cur_price
                 if add_cost <= total_cash * 0.25:
-                    detail = f"建议加{add_shares}股，约¥{add_cost:.0f}，分批：09:35/10:30/13:30 各1/3"
+                    detail = (
+                        f"建议加{add_shares}股，约¥{add_cost:.0f}，分批：09:35/10:30/13:30 各1/3"
+                    )
                 else:
                     detail = f"现金不足，建议持有{shares}股观望，回调再补"
             elif bearish > bullish:
                 action = "🔴 减仓/止损"
                 sell_shares = min(100, shares)
-                detail = f"建议卖出{sell_shares}股（约¥{sell_shares*cur_price:.0f}），操作时间09:30-09:35"
+                detail = f"建议卖出{sell_shares}股（约¥{sell_shares * cur_price:.0f}），操作时间09:30-09:35"
             else:
                 action = "🟡 观望"
                 detail = f"多空不明，维持{shares}股，观察1-2天"
@@ -420,7 +460,7 @@ def build_morning_report():
             cur_price = fetch_current_price(code) or 0
             if cur_price > 0:
                 buy_shares = 100
-                buy_cost   = buy_shares * cur_price
+                buy_cost = buy_shares * cur_price
                 watching_advice.append(
                     f"  🟢 可关注 {name}({code}) 现价¥{cur_price:.2f}\n"
                     f"       → 建议买入{buy_shares}股，占用¥{buy_cost:.0f}，时间09:35（等开盘企稳）"
@@ -467,7 +507,6 @@ def build_morning_report():
             seen.add(key)
             count += 1
 
-
     lines.append("\n" + "=" * 40)
     lines.append("⚠️ 以上为公众号文章观点汇总，操作请结合实时行情，止损纪律优先")
 
@@ -509,8 +548,9 @@ def build_evening_report():
             sigs = rank.get("total", rank.get("signals", 0))
             lines.append(
                 f"  {icon} {rank['account']}：命中率 {rank['win_rate']}% / "
-                f"均收益 {rank['avg_return']:+.1f}%（{sigs}条信号）" if rank["win_rate"] >= 60 else
-                f"  {icon} {rank['account']}：命中率 {rank['win_rate']}% / "
+                f"均收益 {rank['avg_return']:+.1f}%（{sigs}条信号）"
+                if rank["win_rate"] >= 60
+                else f"  {icon} {rank['account']}：命中率 {rank['win_rate']}% / "
                 f"均收益 {rank['avg_return']:+.1f}%（{sigs}条信号，权重中等）"
             )
     else:
@@ -523,8 +563,11 @@ def build_evening_report():
     if ranking_file.exists():
         try:
             ranking_full = json.loads(ranking_file.read_text(encoding="utf-8"))
-            discovered = [r for r in ranking_full.get("ranking", [])
-                          if r.get("win_rate") is None and r.get("source") == "红狐发现"]
+            discovered = [
+                r
+                for r in ranking_full.get("ranking", [])
+                if r.get("win_rate") is None and r.get("source") == "红狐发现"
+            ]
             if discovered:
                 lines.append(f"\n📡 **外部发现（{len(discovered)}个候选，待验证胜率）：**")
                 for d in discovered[:5]:
@@ -545,9 +588,13 @@ def build_evening_report():
                 conflict = [p for p in pairs if p["consensus_score"] < 0]
                 lines.append("\n**🔗 双源信号共识（QTS回测 × 公众号，收盘复核）：**")
                 if strong:
-                    lines.append(f"  🟢 强共识 {len(strong)}只 | 早盘双源同时推荐 → 复盘看实际方向是否应验")
+                    lines.append(
+                        f"  🟢 强共识 {len(strong)}只 | 早盘双源同时推荐 → 复盘看实际方向是否应验"
+                    )
                 if conflict:
-                    lines.append(f"  🔴 分歧 {len(conflict)}只 | QTS看多但公众号看空（或反之）→ 谁对？更新权重")
+                    lines.append(
+                        f"  🔴 分歧 {len(conflict)}只 | QTS看多但公众号看空（或反之）→ 谁对？更新权重"
+                    )
                 if summary.get("dual_source", 0) == 0:
                     lines.append("  🟡 今日无双源重叠信号（QTS回测池 vs 公众号推荐池无交集）")
                 lines.append("  __完整对比 → data/signal_consensus.json__")
@@ -561,7 +608,9 @@ def build_evening_report():
             regime_data = json.loads(regime_file.read_text(encoding="utf-8"))
             pos_mult = regime_data.get("position_multiplier", 0.5)
             regime_label = regime_data.get("regime_label", "未知")
-            lines.append(f"\n**📈 QTS 市场状态（收盘复核）：**{regime_label} | 仓位系数 {pos_mult:.1f}x")
+            lines.append(
+                f"\n**📈 QTS 市场状态（收盘复核）：**{regime_label} | 仓位系数 {pos_mult:.1f}x"
+            )
         except Exception:
             pass
 
@@ -586,18 +635,26 @@ def build_evening_report():
     # 读取当前持仓
     lines.append("\n二、今日持仓变化复盘")
     portfolios = load_portfolios()
-    sim_pos   = portfolios["sim"]["positions"]
-    user_pos  = portfolios["user"]["positions"]
-    sim_cash  = portfolios["sim"]["cash"]
+    sim_pos = portfolios["sim"]["positions"]
+    user_pos = portfolios["user"]["positions"]
+    sim_cash = portfolios["sim"]["cash"]
 
     all_positions = {}
     for code, pos in sim_pos.items():
-        all_positions[code] = {"name": pos["name"], "shares": pos["shares"],
-                                "cost": pos["avg_cost"], "source": "模拟仓"}
+        all_positions[code] = {
+            "name": pos["name"],
+            "shares": pos["shares"],
+            "cost": pos["avg_cost"],
+            "source": "模拟仓",
+        }
     for code, pos in user_pos.items():
         if code not in all_positions:
-            all_positions[code] = {"name": pos["name"], "shares": pos["shares"],
-                                    "cost": float(pos["avg_cost"]) if str(pos["avg_cost"]).strip() else 0.0, "source": "实盘"}
+            all_positions[code] = {
+                "name": pos["name"],
+                "shares": pos["shares"],
+                "cost": float(pos["avg_cost"]) if str(pos["avg_cost"]).strip() else 0.0,
+                "source": "实盘",
+            }
 
     # ── 对标基准速查（C级增强：注入供模板「对标基准」列填充）──
     _emit_benchmark_block(sim_pos, user_pos, lines)
@@ -606,14 +663,14 @@ def build_evening_report():
         lines.append("  当前无持仓")
     else:
         for code, pos in all_positions.items():
-            name      = pos["name"]
-            shares    = pos["shares"]
-            cost      = pos["cost"]
+            name = pos["name"]
+            shares = pos["shares"]
+            cost = pos["cost"]
             cur_price = fetch_current_price(code)
             if cur_price is None:
                 cur_price = cost
-            pnl_pct   = (cur_price - cost) / cost * 100 if cost else 0
-            val       = cur_price * shares
+            pnl_pct = (cur_price - cost) / cost * 100 if cost else 0
+            val = cur_price * shares
 
             kline = fetch_today_kline(code)
             kline_desc = ""
@@ -621,7 +678,9 @@ def build_evening_report():
                 kline_desc = f"  今开¥{kline['open']:.2f} 最高¥{kline['high']:.2f} 最低¥{kline['low']:.2f} 收盘¥{kline['close']:.2f} 涨跌{kline['change']:+.2f}%"
 
             status = "🟢盈利" if pnl_pct > 0 else ("🔴亏损" if pnl_pct < 0 else "➖平")
-            lines.append(f"  {status} {name}({code}) {shares}股 成本¥{cost:.2f} 现价¥{cur_price:.2f} 浮盈{pnl_pct:+.1f}% 市值¥{val:.0f}")
+            lines.append(
+                f"  {status} {name}({code}) {shares}股 成本¥{cost:.2f} 现价¥{cur_price:.2f} 浮盈{pnl_pct:+.1f}% 市值¥{val:.0f}"
+            )
             if kline_desc:
                 lines.append(kline_desc)
 
@@ -639,9 +698,13 @@ def build_evening_report():
             signal_s = signal.get("signal", "neutral")
             icon = "🟢" if signal_s == "bullish" else ("🔴" if signal_s == "bearish" else "🟡")
             strength_bar = "⭐" * strength + "✩" * (5 - strength)
-            lines.append(f"  {icon} {name}({code})  ⭐{score:.0f}分  {strength_bar}  趋势:{trend}  RSI:{rsi:.0f}")
+            lines.append(
+                f"  {icon} {name}({code})  ⭐{score:.0f}分  {strength_bar}  趋势:{trend}  RSI:{rsi:.0f}"
+            )
             if atr_stop > 0:
-                lines.append(f"     ATR动态止损: ¥{atr_stop:.2f}({signal.get('atr_stop_pct', 0):+.1f}%)")
+                lines.append(
+                    f"     ATR动态止损: ¥{atr_stop:.2f}({signal.get('atr_stop_pct', 0):+.1f}%)"
+                )
     else:
         lines.append("  （当前无持仓）")
 
@@ -653,7 +716,9 @@ def build_evening_report():
         lines.append(f"  ⚠️ 发现 {len(suggestions)} 条止损止盈建议：")
         for sug in suggestions[:5]:
             action_icon = "🔴" if sug["action"] == "SELL" else "🟢"
-            lines.append(f"  {action_icon} {sug['name']}({sug['code']})  {sug['reason']}  （优先级：{sug['priority']}）")
+            lines.append(
+                f"  {action_icon} {sug['name']}({sug['code']})  {sug['reason']}  （优先级：{sug['priority']}）"
+            )
     else:
         lines.append("  ✅ 所有持仓均未触发止损止盈条件")
 
@@ -663,13 +728,20 @@ def build_evening_report():
     articles_stocks = []
     for art in articles:
         content = art.get("content", "")
-        title   = art.get("title", "")
+        title = art.get("title", "")
         account = art.get("account", "")
         stocks = extract_article_stocks(title, content, account)
         if stocks:
-            signals = [{"code": s["code"], "name": s["name"],
-                        "signal": "neutral", "confidence": 0, "reason": "待Agent分析"}
-                       for s in stocks]
+            signals = [
+                {
+                    "code": s["code"],
+                    "name": s["name"],
+                    "signal": "neutral",
+                    "confidence": 0,
+                    "reason": "待Agent分析",
+                }
+                for s in stocks
+            ]
             articles_stocks.append({"title": title, "account": account, "signals": signals})
 
     # 按股票聚合 + 按公众号聚合（双重维度）
@@ -681,8 +753,13 @@ def build_evening_report():
             code = sig["code"]
             name = sig["name"]
             if code not in stock_stats:
-                stock_stats[code] = {"name": name, "bullish": 0, "bearish": 0,
-                                     "accounts": set(), "signals": []}
+                stock_stats[code] = {
+                    "name": name,
+                    "bullish": 0,
+                    "bearish": 0,
+                    "accounts": set(),
+                    "signals": [],
+                }
             if sig["signal"] == "bullish":
                 stock_stats[code]["bullish"] += 1
             elif sig["signal"] == "bearish":
@@ -698,10 +775,10 @@ def build_evening_report():
 
     if stock_stats:
         for code, stat in stock_stats.items():
-            name     = stat["name"]
-            bullish  = stat["bullish"]
-            bearish  = stat["bearish"]
-            kline    = fetch_today_kline(code)
+            name = stat["name"]
+            bullish = stat["bullish"]
+            bearish = stat["bearish"]
+            kline = fetch_today_kline(code)
 
             if kline and (bullish > 0 or bearish > 0):
                 total_signal += 1
@@ -711,7 +788,9 @@ def build_evening_report():
                 if is_correct:
                     correct += 1
                 status_icon = "✅" if is_correct else "❌"
-                signal_str = "看多" if bullish > bearish else ("看空" if bearish > bullish else "中性")
+                signal_str = (
+                    "看多" if bullish > bearish else ("看空" if bearish > bullish else "中性")
+                )
                 actual_str = "涨" if actual_up else "跌"
 
                 # 记录到每个相关公众号
@@ -724,16 +803,24 @@ def build_evening_report():
                             (code, name, is_correct, kline["change"], signal_str)
                         )
                 matched_stocks.append(
-                    (",".join(sorted(stat["accounts"])), code, name,
-                     is_correct, kline["change"], signal_str, actual_str)
+                    (
+                        ",".join(sorted(stat["accounts"])),
+                        code,
+                        name,
+                        is_correct,
+                        kline["change"],
+                        signal_str,
+                        actual_str,
+                    )
                 )
 
         # 按公众号回溯（权重对比）
         if account_stats:
             lines.append("\n📊 按公众号统计（今日命中 vs 历史权重）：")
             # 按命中数排序
-            sorted_accounts = sorted(account_stats.items(),
-                                     key=lambda x: -(x[1]["correct"] / max(x[1]["total"], 1)))
+            sorted_accounts = sorted(
+                account_stats.items(), key=lambda x: -(x[1]["correct"] / max(x[1]["total"], 1))
+            )
             for acc, a_stat in sorted_accounts[:8]:
                 if a_stat["total"] == 0:
                     continue
@@ -757,9 +844,11 @@ def build_evening_report():
         # 逐票明细
         if matched_stocks:
             lines.append("📋 逐票明细：")
-            for (accs, code, name, is_correct, change, signal_str, actual_str) in matched_stocks:
+            for accs, code, name, is_correct, change, signal_str, actual_str in matched_stocks:
                 icon = "✅" if is_correct else "❌"
-                lines.append(f"  {icon} [{accs}] {name}({code}) → {signal_str} 实际{actual_str} {change:+.2f}%")
+                lines.append(
+                    f"  {icon} [{accs}] {name}({code}) → {signal_str} 实际{actual_str} {change:+.2f}%"
+                )
 
         if total_signal > 0:
             acc = correct / total_signal * 100
@@ -856,9 +945,7 @@ def build_evening_report():
         avg_sharpe = sm.get("avg_sharpe", 0)
         wf_passed = sm.get("wf_passed", 0)
         wf_candidates = sm.get("wf_candidates", 0)
-        lines.append(
-            "  数据来源: `/tmp/qts_daily_brief.json`（15:00 🧪QTS策略日评预生成）"
-        )
+        lines.append("  数据来源: `/tmp/qts_daily_brief.json`（15:00 🧪QTS策略日评预生成）")
         lines.append(
             f"  回测概况：{total} 次回测 | 均 Sharpe {avg_sharpe:+.2f} | "
             f"WF 验证候选 {wf_candidates} 个 / 通过 {wf_passed} 个"
@@ -893,10 +980,11 @@ def build_evening_report():
         lines.append("\n  当前策略摘要：")
         with open(STRATEGY_FILE, encoding="utf-8") as f:
             content = f.read()
-            non_empty = [line_text.strip() for line_text in content.split("\n") if line_text.strip()][:3]
+            non_empty = [
+                line_text.strip() for line_text in content.split("\n") if line_text.strip()
+            ][:3]
             for line_text in non_empty:
                 lines.append(f"    {line_text}")
-
 
     lines.append("\n" + "=" * 40)
     lines.append("📝 明日操作计划：结合今日复盘结果，明日早报将更新建议")

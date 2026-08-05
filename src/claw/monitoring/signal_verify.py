@@ -16,6 +16,7 @@ signal_verify.py — 公众号信号行情验证（v4 新增）
   - 增量写回 article_signals.json（保留原有字段，新增验证字段）
   - 生成 signal_verify_report.json（按公众号统计 + 总体胜率/均价；胜率采近 N 日滚动口径，样本不足回退累计）
 """
+
 from __future__ import annotations
 
 import datetime
@@ -23,7 +24,6 @@ import email.utils
 import json
 import os
 import re
-import sys
 import time
 from pathlib import Path
 
@@ -47,6 +47,7 @@ try:
         wind_available,
     )
 except ImportError:
+
     def wind_available() -> bool:  # type: ignore[misc]
         return False
 
@@ -59,6 +60,7 @@ except ImportError:
     def plain_code_to_windcode(code: str) -> str:  # type: ignore[misc]
         return code
 
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SIGNALS_FILE = PROJECT_ROOT / ".workbuddy" / "data" / "article_signals.json"
 REPORT_FILE = PROJECT_ROOT / ".workbuddy" / "data" / "signal_verify_report.json"
@@ -69,8 +71,20 @@ _DATE_ISO = re.compile(r"(\d{4})-(\d{1,2})-(\d{1,2})")
 # 截断 RFC822（历史入库被 pub_time[:10] 截断为 "Sat, 27 Ju"，无年/完整月份）
 _DATE_RFC_TRUNC = re.compile(r"(Mon|Tue|Wed|Thu|Fri|Sat|Sun), (\d{1,2}) (\w+)")
 _WEEKDAY = {"Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6}
-_MONTH_NAMES = [(1, "Jan"), (2, "Feb"), (3, "Mar"), (4, "Apr"), (5, "May"), (6, "Jun"),
-                (7, "Jul"), (8, "Aug"), (9, "Sep"), (10, "Oct"), (11, "Nov"), (12, "Dec")]
+_MONTH_NAMES = [
+    (1, "Jan"),
+    (2, "Feb"),
+    (3, "Mar"),
+    (4, "Apr"),
+    (5, "May"),
+    (6, "Jun"),
+    (7, "Jul"),
+    (8, "Aug"),
+    (9, "Sep"),
+    (10, "Oct"),
+    (11, "Nov"),
+    (12, "Dec"),
+]
 
 # B @2026-07-18：胜率口径由「全量累计」改为「近 N 日滚动」。
 # 原口径对所有历史信号累计算 win_rate，某号阶段性回撤会缓慢但不可逆地拉低胜率，
@@ -128,7 +142,7 @@ def parse_date(s: str, src: str = ""):
         t = email.utils.parsedate_to_datetime(s)
         if t:
             return t.date()
-    except Exception:
+    except (ValueError, TypeError):
         pass
     return None
 
@@ -162,6 +176,7 @@ def fetch_realtime(code: str) -> dict:
 
 def _tx_qfq_history(code: str, start: str, end: str) -> tuple[dict | None, float | None]:
     """腾讯K线前复权(qfqday)日线收盘价 — 🔴 08-04 优先源(符合腾讯优先铁律+根治Wind未复权)。"""
+
     # 腾讯前复权须走独立 fqkline 端点(param 末尾 ,qfq 返回 qfqday)；日期须 YYYY-MM-DD 格式
     def _fmt(d: str) -> str:
         d = d.replace("-", "")
@@ -172,7 +187,9 @@ def _tx_qfq_history(code: str, start: str, end: str) -> tuple[dict | None, float
         f"param={gtimg_prefix(code)}{code},day,{_fmt(start)},{_fmt(end)},400,qfq"
     )
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"})
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"}
+        )
         raw = urllib.request.urlopen(req, timeout=10).read().decode("utf-8")
         node = json.loads(raw).get("data", {}).get(f"{gtimg_prefix(code)}{code}", {})
         days = node.get("qfqday") or node.get("day") or []
@@ -212,12 +229,16 @@ def fetch_history(code: str, start: str, end: str, retries: int = 5):
                 for k in klines:
                     dt = str(k.get("TIME", ""))[:10]
                     if dt:
-                        close = k.get("MATCH") or k.get("match") or k.get("close") or k.get("收盘价")
+                        close = (
+                            k.get("MATCH") or k.get("match") or k.get("close") or k.get("收盘价")
+                        )
                         if close is not None:
                             m[dt] = float(close)
                 if m:
                     # 过滤 start~end 范围
-                    filtered = {k: v for k, v in m.items() if start[:8] <= k.replace("-", "")[:8] <= end[:8]}
+                    filtered = {
+                        k: v for k, v in m.items() if start[:8] <= k.replace("-", "")[:8] <= end[:8]
+                    }
                     if filtered:
                         last_close = list(filtered.values())[-1]
                         return (filtered, last_close)
@@ -247,16 +268,24 @@ def verify_signals() -> dict:
     today = datetime.date.today()
 
     # 只对有效 A 股 6 位代码取行情（跳过 MU 等美股代码与"未知（新股）"脏记录）
-    codes = sorted({s["stock_code"] for s in signals
-                    if isinstance(s.get("stock_code"), str) and s["stock_code"].isdigit()})
+    codes = sorted(
+        {
+            s["stock_code"]
+            for s in signals
+            if isinstance(s.get("stock_code"), str) and s["stock_code"].isdigit()
+        }
+    )
     hist_cache: dict[str, tuple] = {}
     start_map: dict[str, str] = {}
 
     def _fetch_one(code: str, end: str) -> None:
         sdates = [parse_date(s["recorded_at"]) for s in signals if s["stock_code"] == code]
         recent = [d for d in sdates if d and (today - d).days <= 400]
-        start = (min(recent) - datetime.timedelta(days=10)).strftime("%Y%m%d") if recent \
+        start = (
+            (min(recent) - datetime.timedelta(days=10)).strftime("%Y%m%d")
+            if recent
             else (today - datetime.timedelta(days=40)).strftime("%Y%m%d")
+        )
         start_map[code] = start
         result = fetch_history(code, start, end)
         # fetch_history 返回 (m, last_close) 或 (None, None)
@@ -370,12 +399,24 @@ def build_report(signals: list, today: datetime.date, rolling_days: int = ROLLIN
     ov_suspect_excluded = 0
     for s in signals:
         a = s["account"]
-        acc = accounts.setdefault(a, {
-            "total": 0, "verified": 0, "bullish": 0, "bearish": 0,
-            "with_return": 0, "hits": 0, "ret_sum": 0.0, "stocks": set(),
-            "win_samples": 0, "win_hits": 0, "win_ret_sum": 0.0,  # 滚动窗口内累计
-            "date_parse_fail": 0, "suspect_excluded": 0,
-        })
+        acc = accounts.setdefault(
+            a,
+            {
+                "total": 0,
+                "verified": 0,
+                "bullish": 0,
+                "bearish": 0,
+                "with_return": 0,
+                "hits": 0,
+                "ret_sum": 0.0,
+                "stocks": set(),
+                "win_samples": 0,
+                "win_hits": 0,
+                "win_ret_sum": 0.0,  # 滚动窗口内累计
+                "date_parse_fail": 0,
+                "suspect_excluded": 0,
+            },
+        )
         acc["total"] += 1
         ov["total"] += 1
         acc["stocks"].add(s["stock_code"])
@@ -433,22 +474,24 @@ def build_report(signals: list, today: datetime.date, rolling_days: int = ROLLIN
             win = (acc["hits"] / acc["with_return"] * 100) if acc["with_return"] else None
             avg = (acc["ret_sum"] / acc["with_return"]) if acc["with_return"] else None
         cov = (acc["verified"] / acc["total"] * 100) if acc["total"] else 0
-        rows.append({
-            "account": a,
-            "total": acc["total"],
-            "verified": acc["verified"],
-            "verify_cov": round(cov, 1),
-            "bullish": acc["bullish"],
-            "with_return": with_return,
-            "hits": hits,
-            "win_rate": round(win, 1) if win is not None else None,
-            "avg_return": round(avg, 2) if avg is not None else None,
-            "stocks": len(acc["stocks"]),
-            "win_rate_basis": basis,
-            "rolling_window_days": rolling_days,
-            "date_parse_fail": acc["date_parse_fail"],
-            "suspect_excluded": acc["suspect_excluded"],
-        })
+        rows.append(
+            {
+                "account": a,
+                "total": acc["total"],
+                "verified": acc["verified"],
+                "verify_cov": round(cov, 1),
+                "bullish": acc["bullish"],
+                "with_return": with_return,
+                "hits": hits,
+                "win_rate": round(win, 1) if win is not None else None,
+                "avg_return": round(avg, 2) if avg is not None else None,
+                "stocks": len(acc["stocks"]),
+                "win_rate_basis": basis,
+                "rolling_window_days": rolling_days,
+                "date_parse_fail": acc["date_parse_fail"],
+                "suspect_excluded": acc["suspect_excluded"],
+            }
+        )
     rows.sort(key=lambda x: -(x["win_rate"] if x["win_rate"] is not None else -1))
 
     # 总体胜率同采滚动口径（窗口样本不足回退累计）
