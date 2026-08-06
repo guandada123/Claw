@@ -14,7 +14,9 @@ unified_ops_center.py — 统一巡检中枢（2026-08-06 整合接管）
   - 飞书告知：每次自愈推结构化卡片(原因/识别/解决/修复/优化/结论)
   - 告警去重：同一 (check_name, reason) 24h 内只推一次飞书（.ops_alerted.json 状态），审计日志照记
   - 知识闭环：当前告警自动对照 cross_project_state 的 known_failure_modes（F1-F6），命中即标注 remediation+tier（失败模式库从"文档"变"检测规则"）
-  - 检查面（6 项）：自动化健康 / 自动化失败(watchdog) / Docker 自愈 / QTS·pmf CI / 磁盘 / 飞书通道
+  - 检查面（8 项）：自动化健康 / 自动化失败(watchdog) / Docker 自愈 / QTS·pmf CI / 磁盘 / 飞书通道 / 调度活性 / 安全扫描
+  - 存活看门狗：独立调度 ops_center_liveness_watchdog.py（每2h，托管QTS），读状态锚 self_health.last_ok_ts，间隔>180min→飞书告警"中枢可能失联"
+  - 周报：--weekly 模式生成近7天自愈统计 markdown 到 output/reports/（周日自动化调用）
 
 ## Runbook 白名单（已注册安全动作）
   - #1 memwatch_bump：memwatch 阈值偏低且近期重启→提10000MB+reload（幂等可逆）
@@ -293,6 +295,43 @@ def check_known_failure_modes(all_alerts: list[str]) -> list[dict]:
                 "tier": matched.get("tier"),
             })
     return enhanced
+
+
+def check_schedule_liveness() -> dict:
+    """调度活性检查：复用 schedule_utils.py stats（今日锁统计）。
+    若今日锁数=0 → 说明今天没有任何自动化完成过，调度系统可能整体挂死 → 告警。
+    这是轻量真实的"调度在跑吗"信号（中枢自身每小时跑会写锁，若连中枢锁都没有必异常）。"""
+    try:
+        r = run_cmd([sys.executable, str(SCRIPT_DIR / "schedule_utils.py"), "stats"], timeout=30)
+        out = r.stdout
+        m = re.search(r"今日 (\d+) 个", out)
+        today_n = int(m.group(1)) if m else -1
+        if today_n == 0:
+            return {"ok": False, "alerts": ["今日调度锁数=0（没有任何自动化完成过，调度系统可能整体挂死）"]}
+        if today_n < 0:
+            return {"ok": True, "alerts": [], "note": "无法解析调度锁统计"}
+        return {"ok": True, "alerts": [], "today_locks": today_n}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "alerts": [f"schedule_utils 异常: {e}"]}
+
+
+def check_security_scan() -> dict:
+    """工程安全扫描：复用 security_scanner.py --quiet（bandit 薄壳）。
+    解析 'bandit: 高危 X | 中危 Y | 低危 Z' 汇总行，有高危→告警（Tier2 仅告知，不自愈）。"""
+    try:
+        r = run_cmd([sys.executable, str(SCRIPT_DIR / "security_scanner.py"), "--quiet"], timeout=180)
+        out = r.stdout
+        m = re.search(r"bandit:\s*高危\s*(\d+)\s*\|\s*中危\s*(\d+)\s*\|\s*低危\s*(\d+)", out)
+        if not m:
+            return {"ok": True, "alerts": [], "note": "无安全汇总输出（bandit 可能未装）"}
+        high, med, low = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if high > 0:
+            return {"ok": False, "alerts": [f"工程安全扫描发现 {high} 个高危 + {med} 中危问题（bandit），需人工复核"]}
+        if med > 0:
+            return {"ok": True, "alerts": [], "note": f"安全扫描: {med} 中危 {low} 低危（无高危，可接受）"}
+        return {"ok": True, "alerts": [], "note": f"安全扫描: 无高危（中{med}/低{low}）"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "alerts": [f"security_scanner 异常: {e}"]}
 
 
 def check_qts_pmf_ci() -> dict:
@@ -714,6 +753,89 @@ def _sync_state_anchor(checks_n: int, alerts_n: int, healed_n: int, pushed: bool
         print(f"  [warn] 状态锚写回失败(非阻断): {e}")
 
 
+def _generate_weekly_report() -> int:
+    """生成自愈统计周报 markdown（--weekly 模式，不巡检）。"""
+    OUT_DIR = SCRIPT_DIR.parent.parent / "output" / "reports"
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    now = datetime.datetime.now()
+    week_ago = now - datetime.timedelta(days=7)
+    try:
+        log = json.loads(SELF_HEAL_LOG.read_text(encoding="utf-8")) if SELF_HEAL_LOG.exists() else []
+    except Exception:
+        log = []
+    recent = [e for e in log if e.get("ts")]
+    try:
+        recent = [e for e in recent if datetime.datetime.fromisoformat(e["ts"]) >= week_ago]
+    except Exception:
+        pass
+    exec_actions = [e for e in recent if e.get("action") not in ("detect",)]
+    total = len(exec_actions)
+    success = sum(1 for e in exec_actions if e.get("result") == "success")
+    failed = total - success
+    rate = round(success / total * 100, 1) if total else None
+    by_action: dict[str, dict] = {}
+    for e in exec_actions:
+        a = e.get("action", "unknown")
+        d = by_action.setdefault(a, {"total": 0, "success": 0})
+        d["total"] += 1
+        if e.get("result") == "success":
+            d["success"] += 1
+    known_hits = []
+    try:
+        state = json.loads(CROSS_STATE_PATH.read_text(encoding="utf-8")) if CROSS_STATE_PATH.exists() else {}
+        known_hits = state.get("monitoring", {}).get("global", {}).get("unified_ops_center", {}).get("known_failure_hits", []) or []
+    except Exception:
+        pass
+    lines = [
+        f"# 统一巡检中枢 · 自愈统计周报（{week_ago:%Y-%m-%d} ~ {now:%Y-%m-%d}）",
+        "",
+        f"> 生成时间：{now:%F %T}",
+        "",
+        "## 一、自愈动作总览（近7天）",
+        "",
+        f"- 执行类动作总数：**{total}**",
+        f"- 成功：**{success}** | 失败/未成功：**{failed}**",
+        f"- 成功率：**{rate}%**" if rate is not None else "- 成功率：N/A（无执行记录）",
+        "",
+        "## 二、按动作分布",
+        "",
+    ]
+    if by_action:
+        lines.append("| 动作 | 总数 | 成功 | 成功率 |")
+        lines.append("|------|------|------|--------|")
+        for a, d in sorted(by_action.items(), key=lambda x: -x[1]["total"]):
+            r = round(d["success"] / d["total"] * 100, 1) if d["total"] else 0
+            lines.append(f"| {a} | {d['total']} | {d['success']} | {r}% |")
+    else:
+        lines.append("（近7天无执行类自愈动作记录）")
+    lines += [
+        "",
+        "## 三、已知失败模式命中（最近一次运行）",
+        "",
+    ]
+    if known_hits:
+        lines.append("| 模式ID | 级别 | 告警摘要 |")
+        lines.append("|--------|------|----------|")
+        for h in known_hits:
+            lines.append(f"| {h.get('failure_id')} | {h.get('tier')} | {str(h.get('alert'))[:60]} |")
+    else:
+        lines.append("（最近一次运行无已知失败模式命中 — 全绿）")
+    lines += [
+        "",
+        "## 四、结论",
+        "",
+        "- 中枢当前覆盖 8 项专项检查 + 4 项 Runbook 自愈 + 知识闭环（F1-F6 失败模式库）。",
+        "- 自愈动作均遵循白名单 + 执行后验证 + 审计留痕，非破坏性、可逆、幂等。",
+        "- 完整运行态见全局状态锚 `monitoring.global.unified_ops_center`。",
+        "",
+    ]
+    out_path = OUT_DIR / f"ops_center_weekly_{now:%Y%m%d}.md"
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"[ops-center] 周报已生成: {out_path}")
+    print(f"  近7天自愈: total={total} success={success} rate={rate}%")
+    return 0
+
+
 # ════════════════════════════════════════════════════════════════════
 # 中枢主流程
 # ════════════════════════════════════════════════════════════════════
@@ -721,7 +843,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="只巡检不自愈不推送")
     ap.add_argument("--no-push", action="store_true", help="巡检+自愈但不推飞书")
+    ap.add_argument("--weekly", action="store_true", help="生成自愈统计周报 markdown（不巡检）")
     args = ap.parse_args()
+
+    if args.weekly:
+        return _generate_weekly_report()
 
     print(f"[ops-center] {datetime.datetime.now():%F %T} 开始统一巡检")
 
@@ -733,6 +859,8 @@ def main() -> int:
         "QTS/pmf CI": check_qts_pmf_ci(),
         "磁盘空间": check_disk(),
         "飞书通道": check_feishu_channel(),
+        "调度活性": check_schedule_liveness(),
+        "安全扫描": check_security_scan(),
     }
 
     all_alerts: list[str] = []
