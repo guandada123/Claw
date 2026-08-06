@@ -52,7 +52,14 @@ def run(cmd, timeout=60):
 
 
 def scan_ci(repo, limit=5):
-    """返回 (reds:list, warn:str)。reds 每项 {workflow, conclusion, url, createdAt}"""
+    """返回 (reds:list, warn:str)。reds 每项 {workflow, conclusion, url, createdAt, branch}
+
+    判定口径（消除"已修复历史 run"噪音）：
+      - 按 headBranch 分组，只取**每个分支最近一次 run** 判定
+      - 默认分支（main/master）最近一次若 failure → 报（=当前 broken）
+      - 非默认分支（PR/其他）最近一次若 failure → 报（=未合并 PR 红灯，真未解决）
+      - 某分支历史 failure 但后续已有 success 覆盖 → 不算红灯
+    """
     rc, out, err = run(
         [
             "gh",
@@ -61,7 +68,7 @@ def scan_ci(repo, limit=5):
             "--repo",
             f"guandada123/{repo}",
             "--limit",
-            str(limit),
+            str(limit * 3),  # 放大采样，确保覆盖各分支最近一次
             "--json",
             "status,conclusion,workflowName,url,createdAt,headBranch",
         ]
@@ -72,21 +79,63 @@ def scan_ci(repo, limit=5):
         runs = json.loads(out)
     except Exception:  # noqa: BLE001
         return [], f"gh 输出解析失败({repo})"
-    reds = []
+    # 按分支取最近一次（gh run list 已按时间倒序）
+    DEFAULT_BRANCHES = {"main", "master"}
+    latest_by_branch: dict[str, dict] = {}
     for r in runs:
+        br = r.get("headBranch") or "(unknown)"
+        if br not in latest_by_branch:
+            latest_by_branch[br] = r
+    reds = []
+    for br, r in latest_by_branch.items():
         concl = (r.get("conclusion") or "").lower()
         status = (r.get("status") or "").lower()
-        if concl in ("failure", "cancelled", "timed_out", "stale") or status == "failure":
-            reds.append(
-                {
-                    "workflow": r.get("workflowName", "?"),
-                    "conclusion": r.get("conclusion") or status,
-                    "url": r.get("url", ""),
-                    "createdAt": (r.get("createdAt") or "")[:10],
-                    "branch": r.get("headBranch", ""),
-                }
-            )
+        is_fail = concl in ("failure", "cancelled", "timed_out", "stale") or status == "failure"
+        if not is_fail:
+            continue
+        # 非默认分支但 PR 已 merged/closed → 其红灯是历史，不报
+        if br not in DEFAULT_BRANCHES:
+            pr_state = _pr_state_for_branch(repo, br)
+            if pr_state in ("MERGED", "CLOSED"):
+                continue
+        reds.append(
+            {
+                "workflow": r.get("workflowName", "?"),
+                "conclusion": r.get("conclusion") or status,
+                "url": r.get("url", ""),
+                "createdAt": (r.get("createdAt") or "")[:10],
+                "branch": br,
+            }
+        )
     return reds, ""
+
+
+def _pr_state_for_branch(repo, branch) -> str:
+    """查分支是否对应已合并/关闭的 PR（避免报历史 PR 红灯）。返回 MERGED/CLOSED/OPEN/UNKNOWN"""
+    rc, out, err = run(
+        [
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            f"guandada123/{repo}",
+            "--state",
+            "all",
+            "--head",
+            branch,
+            "--json",
+            "state",
+        ]
+    )
+    if rc != 0:
+        return "UNKNOWN"
+    try:
+        data = json.loads(out)
+        if data:
+            return (data[0].get("state") or "UNKNOWN").upper()
+    except Exception:  # noqa: BLE001
+        pass
+    return "UNKNOWN"
 
 
 def scan_containers(prefix):
