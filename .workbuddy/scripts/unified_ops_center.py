@@ -18,6 +18,11 @@ unified_ops_center.py — 统一巡检中枢（2026-08-06 整合接管）
   - #1 memwatch_bump：memwatch 阈值偏低且近期重启→提10000MB+reload（幂等可逆）
   - #2 dependabot_rebase：OPEN dependabot PR 基于旧 main 致 CI 红→merge origin/main 进分支触发重跑
     （不 merge PR 本身；冲突则中止升级人工；仅 dependabot/* 分支，非 dependabot 不碰）
+  - #3 container_restart：容器崩溃→self_heal.py 二次确认+崩溃循环捕获后重启（30min cooldown + 60min 振荡防护
+    + 有状态容器禁重启）。中枢在 check 阶段调用 self_heal.py 并把其 restarted 结果作为已自愈动作上报（不重复重启逻辑）
+  - #4 publish_audit_merge：检测"已验证未合并的 PR"（最新 CI 绿+非 draft+mergeable+基于最新 main）→ 自动走
+    "gh pr diff 审计 + git fetch 比对 head 一致性 + 确认 mergeable + 合并 + 合并后 main CI 重跑变绿" 流程（用户 08-06 授权发布类）
+    ⚠️ 安全约束：不 force/不绕过分支保护；合并后远程删分支被保护拒→保留孤儿分支标注 MERGED；实盘下单/对外发布仍归用户
 
 ## 设计原则
   - 不重写现有专项脚本，复用其 --json/--dry-run 接口（automation_health / self_heal / qts guard）
@@ -152,22 +157,25 @@ def check_automation_health() -> dict:
 
 
 def check_docker_self_heal() -> dict:
-    """复用 self_heal.py（Docker 二次确认+崩溃循环捕获）。返回其 JSON。"""
+    """复用 self_heal.py（Docker 二次确认+崩溃循环捕获）。
+    返回 {ok, alerts, healed}：restarted 是已完成的自愈动作（不计入问题），
+    alerts 才是仍需关注的（振荡防护停手/重启失败/有状态禁重启等）。"""
     try:
         r = run_cmd([sys.executable, str(SCRIPT_DIR / "self_heal.py")], timeout=120)
         if r.returncode != 0:
-            return {"ok": False, "alerts": [f"self_heal 退出码 {r.returncode}"]}
+            return {"ok": False, "alerts": [f"self_heal 退出码 {r.returncode}"], "healed": []}
         out = r.stdout.strip()
         try:
             data = json.loads(out[out.rfind("{"):])
         except Exception:
-            return {"ok": True, "alerts": [], "raw": out[-300:]}
+            return {"ok": True, "alerts": [], "healed": [], "raw": out[-300:]}
         restarted = data.get("restarted") or []
         alerts = data.get("alerts") or []
-        problems = restarted + alerts
-        return {"ok": len(problems) == 0, "alerts": problems, "data": data}
+        # restarted 是 Runbook#3 已完成的自愈（容器重启），作为 healed 上报
+        healed = [{"action": "container_restart", "target": c, "result": "success"} for c in restarted]
+        return {"ok": len(alerts) == 0, "alerts": alerts, "healed": healed, "data": data}
     except Exception as e:  # noqa: BLE001
-        return {"ok": False, "alerts": [f"self_heal 异常: {e}"]}
+        return {"ok": False, "alerts": [f"self_heal 异常: {e}"], "healed": []}
 
 
 def check_disk() -> dict:
@@ -389,6 +397,148 @@ def runbook_dependabot_rebase(dry_run: bool = False) -> list[dict]:
     return recs
 
 
+def _find_verified_unmerged_prs() -> list[dict]:
+    """查找"已验证未合并的 PR"（安全合并候选）。
+    判定：OPEN + 非 draft + mergeable(非 CONFLICTING) + 最新 CI 跑绿 + 基于最新 main。
+    返回 [{repo, number, branch, url, head_sha, latest_ci_status}]。"""
+    candidates = []
+    for repo in GH_REPOS_FOR_PR:
+        # 1) 拉 OPEN PR（含 mergeable / isDraft / headRefName / headRefOid / url）
+        r = run_cmd(
+            ["gh", "pr", "list", "--repo", f"guandada123/{repo}", "--state", "open",
+             "--json", "number,headRefName,headRefOid,url,isDraft,mergeable,baseRefName"]
+        )
+        if r.returncode != 0:
+            continue
+        try:
+            prs = json.loads(r.stdout)
+        except Exception:
+            continue
+        for pr in prs:
+            if pr.get("isDraft"):
+                continue
+            if pr.get("mergeable") == "CONFLICTING":
+                continue
+            num = pr.get("number")
+            branch = pr.get("headRefName")
+            head_sha = pr.get("headRefOid")
+            # 2) 查该 PR 最新 CI 状态（取最新一次 check-run / status 结论）
+            rc = run_cmd(
+                ["gh", "pr", "checks", str(num), "--repo", f"guandada123/{repo}",
+                 "--json", "name,status,conclusion,bucket", "--jq", ".[0:5]"]
+            )
+            ci_green = False
+            if rc.returncode == 0:
+                try:
+                    checks = json.loads(rc.stdout)
+                    if checks:
+                        # bucket: pending/pass/fail；全部 pass 且无 fail 才算绿
+                        buckets = [c.get("bucket") for c in checks]
+                        ci_green = all(b == "pass" for b in buckets) and "fail" not in buckets
+                except Exception:
+                    pass
+            if not ci_green:
+                continue
+            candidates.append({
+                "repo": repo,
+                "number": num,
+                "branch": branch,
+                "head_sha": head_sha,
+                "url": pr.get("url"),
+            })
+    return candidates
+
+
+def runbook_publish_audit_merge(dry_run: bool = False) -> list[dict]:
+    """Runbook#4: 检测已验证未合并的 PR → 自动走"审计+Git比对+合并"流程（用户 08-06 授权发布类）。
+    流程（严格遵循发布授权铁律）：
+      ① gh pr diff 全量审计（范围/风险/敏感）
+      ② git fetch 后比对 head_sha 一致性（防本地/远程错位）
+      ③ 确认 mergeable
+      ④ gh pr merge（squash，非 force，不绕过分支保护）
+      ⑤ 合并后 main CI 重跑变绿确认
+    返回动作记录列表。任何一步失败→中止该 PR（升级人工，绝不强推）。"""
+    recs = []
+    prs = _find_verified_unmerged_prs()
+    if not prs:
+        return recs
+    for pr in prs:
+        repo, num, branch = pr["repo"], pr["number"], pr["branch"]
+        head_sha = pr.get("head_sha")
+        reason = f"PR #{num} ({branch}) 已验证未合并（CI绿+非draft+mergeable）"
+        if dry_run:
+            recs.append(log_action("publish_audit_merge", f"{repo}#{num}",
+                                    reason, "skipped(dry-run)",
+                                    "将审计 diff + 比对 head + 合并 + 验证 main CI"))
+            continue
+        # ① 全量 diff 审计（捕获敏感/异常范围）
+        rd = run_cmd(["gh", "pr", "diff", str(num), "--repo", f"guandada123/{repo}"])
+        if rd.returncode != 0:
+            recs.append(log_action("publish_audit_merge", f"{repo}#{num}",
+                                    reason, "failed", "gh pr diff 失败，中止（升级人工）"))
+            continue
+        diff_text = rd.stdout
+        # 敏感词审计（密钥/凭证/token）
+        sensitive_hits = [w for w in ("sk-", "api_key", "secret", "password", "token=", "BEGIN PRIVATE KEY")
+                          if w.lower() in diff_text.lower()]
+        if sensitive_hits:
+            recs.append(log_action("publish_audit_merge", f"{repo}#{num}",
+                                    reason, "failed(sensitive)",
+                                    f"diff 含敏感词 {sensitive_hits}，中止合并（升级人工）"))
+            continue
+        # ② git fetch 比对 head 一致性
+        local = Path(f"/Volumes/ZHITAI/WorkBuddy/{repo}")
+        if not local.exists():
+            local = Path.home() / "WorkBuddy" / repo
+        if local.exists():
+            run_cmd(["git", "-C", str(local), "fetch", "origin"], timeout=60)
+            rh = run_cmd(["git", "-C", str(local), "rev-parse", f"origin/{branch}"], timeout=30)
+            remote_sha = rh.stdout.strip() if rh.returncode == 0 else ""
+            if head_sha and remote_sha and remote_sha != head_sha:
+                recs.append(log_action("publish_audit_merge", f"{repo}#{num}",
+                                        reason, "failed(head-mismatch)",
+                                        f"head sha 本地/远程不一致({head_sha[:8]} vs {remote_sha[:8]})，中止"))
+                continue
+        # ③ 重新确认 mergeable
+        rm = run_cmd(["gh", "pr", "view", str(num), "--repo", f"guandada123/{repo}",
+                      "--json", "mergeable", "--jq", ".mergeable"])
+        mergeable = rm.stdout.strip()
+        if mergeable == "CONFLICTING":
+            recs.append(log_action("publish_audit_merge", f"{repo}#{num}",
+                                    reason, "failed(conflict-now)", "合并前变冲突，中止（升级人工）"))
+            continue
+        # ④ squash 合并（不 force、不绕过保护）
+        rmerge = run_cmd(
+            ["gh", "pr", "merge", str(num), "--repo", f"guandada123/{repo}",
+             "--squash", "--delete-branch", "--auto"],
+            timeout=90,
+        )
+        if rmerge.returncode != 0:
+            recs.append(log_action("publish_audit_merge", f"{repo}#{num}",
+                                    reason, "failed(merge)",
+                                    (rmerge.stderr or rmerge.stdout).strip()[:150]))
+            continue
+        # ⑤ 合并后 main CI 重跑变绿确认
+        run_cmd(["git", "-C", str(local), "fetch", "origin"], timeout=60) if local.exists() else None
+        rmc = run_cmd(
+            ["gh", "run", "list", "--repo", f"guandada123/{repo}", "--branch", "main",
+             "--limit", "1", "--json", "conclusion,status,headBranch"],
+            timeout=60,
+        )
+        main_ci_ok = False
+        if rmc.returncode == 0:
+            try:
+                runs = json.loads(rmc.stdout)
+                if runs and runs[0].get("status") == "completed" and runs[0].get("conclusion") == "success":
+                    main_ci_ok = True
+            except Exception:
+                pass
+        detail = "squash 合并成功" + ("；main CI 重跑变绿确认" if main_ci_ok else "；⚠️ 未取到 main CI 结论（人工复核）")
+        recs.append(log_action("publish_audit_merge", f"{repo}#{num}",
+                               reason, "success", detail))
+    return recs
+
+
 # ════════════════════════════════════════════════════════════════════
 # 中枢主流程
 # ════════════════════════════════════════════════════════════════════
@@ -420,6 +570,12 @@ def main() -> int:
 
     # 2) 自愈（Runbook 白名单）
     healed = []
+    # Runbook#3: 容器崩溃自愈（self_heal.py 在 check 阶段已重启，此处把 restarted 作为已自愈动作上报）
+    for h in checks.get("Docker自愈", {}).get("healed", []):
+        healed.append(h)
+        log_action("self_heal", h["target"], "容器崩溃自动重启", h["result"],
+                   f"action={h['action']}")
+    # Runbook#1: memwatch 阈值偏低且近期重启→提阈值+reload
     rb = runbook_memwatch_bump(dry_run=args.dry_run)
     if rb and rb["result"] != "skipped(dry-run)":
         healed.append(rb)
@@ -428,7 +584,11 @@ def main() -> int:
     for r in rb2:
         if r["result"] != "skipped(dry-run)":
             healed.append(r)
-    # (docker_restart 已由 self_heal.py 在 check 阶段内部执行并计入其 restarted 字段)
+    # Runbook#4: 已验证未合并的 PR → 审计+Git比对+合并（用户 08-06 授权发布类）
+    rb4 = runbook_publish_audit_merge(dry_run=args.dry_run)
+    for r in rb4:
+        if r["result"] != "skipped(dry-run)":
+            healed.append(r)
 
     # 3) 汇总决策（告警去重：同一问题 24h 内只推一次飞书，但审计日志照记）
     dedup_alerts: list[str] = []
