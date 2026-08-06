@@ -233,7 +233,12 @@ def check_automation_failures() -> dict:
     """补强自动化检查：复用 automation_failure_watchdog.py --dry-run（不推送，只检测）。
     专门识别 known_failure_modes 的 F4（静默失败/401 proxy 未起）+ 关键自动化 hard 失败。
     与 check_automation_health() 职责互补：health 看"配置/调度健康"，本函数看"近期运行是否真失败"。
-    解析其 SUMMARY 行取 failed/critical/new_critical。"""
+    解析其 SUMMARY 行取 failed/critical/new_critical。
+
+    🔴 分工铁律（08-06 去重治理）：watchdog(1785506975961) 是**唯一**关键失败飞书告警推送方；
+    本函数只做"趋势可见性"（记录到状态锚），**绝不返回会触发中枢推送的 alert**——
+    否则同一条关键失败会被 watchdog + 中枢整体报告双发（两套去重键不同，首轮必双推）。
+    因此 new_critical>0 时返回 ok=True + 空alerts + note（仅状态锚记录），不进 all_alerts。"""
     try:
         r = run_cmd([sys.executable, str(SCRIPT_DIR / "automation_failure_watchdog.py"),
                      "--dry-run", "--hours", "24"], timeout=120)
@@ -249,13 +254,15 @@ def check_automation_failures() -> dict:
                 new_critical = s.get("new_critical", 0)
             except Exception:
                 pass
+        # 趋势可见性：把失败计数作为 note 回传（供状态锚记录），但不产生 alert 避免双发
         if new_critical > 0:
-            return {"ok": False, "alerts": [f"近24h 有关键自动化静默失败 {new_critical} 个（F4:proxy/401 或 hard 失败）"]}
+            return {"ok": True, "alerts": [],
+                    "note": f"近24h 关键自动化静默失败 {new_critical} 个（已由 watchdog 推送，中枢不重复推）"}
         if critical > 0:
-            # 全是已告警过的重复项 → 视为已知，不新推送（watchdog 自身已去重）
             return {"ok": True, "alerts": [], "note": f"关键失败 {critical} 个均为已告警重复项"}
-        return {"ok": True, "alerts": []}
+        return {"ok": True, "alerts": [], "note": f"近24h 无关键失败（failed={failed}）"}
     except Exception as e:  # noqa: BLE001
+        # 仅当 watchdog 脚本本身异常（非业务失败）才报——这是中枢该关心的"检测器健康"
         return {"ok": False, "alerts": [f"automation_failure_watchdog 异常: {e}"]}
 
 
