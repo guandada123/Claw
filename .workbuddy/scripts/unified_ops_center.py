@@ -53,6 +53,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_DIR = Path(__file__).resolve().parent
+CLAW_ROOT = SCRIPT_DIR.parent.parent  # .workbuddy/scripts -> Claw
 PUSH = SCRIPT_DIR / "push_feishu.sh"
 CHAT_ID = "oc_9ee5303497f5e0e71666b610d6bdc346"
 SELF_HEAL_LOG = SCRIPT_DIR / "unified_self_heal_log.json"
@@ -322,23 +323,72 @@ def check_schedule_liveness() -> dict:
         return {"ok": False, "alerts": [f"schedule_utils 异常: {e}"]}
 
 
-def check_security_scan() -> dict:
-    """工程安全扫描：复用 security_scanner.py --quiet（bandit 薄壳）。
-    解析 'bandit: 高危 X | 中危 Y | 低危 Z' 汇总行，有高危→告警（Tier2 仅告知，不自愈）。"""
+def check_code_quality() -> dict:
+    """工程质量综合检查（2026-08-06 扩展，原 check_security_scan 仅 bandit）。
+    覆盖 ruff 违规数 + bandit 安全 + 双导入门禁 + 单元测试（与工程质检自动化 1782002834355 同维度）。
+    设计分工：
+      - 本检查 = 只读检测 + note 可见性（写状态锚），**不自动修复、不推送**（避免与质检自动化双推）
+      - 工程质检自动化 = 负责 ruff 自动修复 + 卡片推送（中枢不抢其职责）
+    有高危安全项→告警（Tier2 仅告知）；ruff/测试/门禁异常→note 记录（不阻断，质检会处理）。"""
+    notes = []
+    alerts = []
+
+    # 1) bandit 安全扫描（复用 security_scanner.py --quiet）
     try:
         r = run_cmd([sys.executable, str(SCRIPT_DIR / "security_scanner.py"), "--quiet"], timeout=180)
-        out = r.stdout
-        m = re.search(r"bandit:\s*高危\s*(\d+)\s*\|\s*中危\s*(\d+)\s*\|\s*低危\s*(\d+)", out)
-        if not m:
-            return {"ok": True, "alerts": [], "note": "无安全汇总输出（bandit 可能未装）"}
-        high, med, low = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        if high > 0:
-            return {"ok": False, "alerts": [f"工程安全扫描发现 {high} 个高危 + {med} 中危问题（bandit），需人工复核"]}
-        if med > 0:
-            return {"ok": True, "alerts": [], "note": f"安全扫描: {med} 中危 {low} 低危（无高危，可接受）"}
-        return {"ok": True, "alerts": [], "note": f"安全扫描: 无高危（中{med}/低{low}）"}
+        m = re.search(r"bandit:\s*高危\s*(\d+)\s*\|\s*中危\s*(\d+)\s*\|\s*低危\s*(\d+)", r.stdout)
+        if m:
+            high, med, low = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if high > 0:
+                alerts.append(f"工程安全扫描发现 {high} 个高危 + {med} 中危问题（bandit），需人工复核")
+            else:
+                notes.append(f"bandit: 无高危（中{med}/低{low}）")
+        else:
+            notes.append("无安全汇总输出（bandit 可能未装）")
     except Exception as e:  # noqa: BLE001
-        return {"ok": False, "alerts": [f"security_scanner 异常: {e}"]}
+        alerts.append(f"security_scanner 异常: {e}")
+
+    # 2) ruff 违规数（只读，不 --fix）
+    try:
+        r = run_cmd(["ruff", "check", "--output-format", "concise", str(CLAW_ROOT)],
+                    timeout=120)
+        # concise 输出末行可能是 "Found N errors" 或空
+        m = re.search(r"Found\s+(\d+)\s+error", r.stdout)
+        ruff_n = int(m.group(1)) if m else 0
+        notes.append(f"ruff: {ruff_n} 项违规（质检自动化负责自动修复）")
+    except Exception as e:  # noqa: BLE001
+        notes.append(f"ruff 检查异常: {e}")
+
+    # 3) 双导入反模式门禁
+    try:
+        chk = CLAW_ROOT / "scripts" / "check_no_double_import.py"
+        if chk.exists():
+            r = run_cmd([sys.executable, str(chk)], timeout=60)
+            if r.returncode != 0:
+                notes.append("双导入门禁: 失败（详见工程质检卡片推送）")
+            else:
+                notes.append("双导入门禁: PASS")
+        else:
+            notes.append("双导入门禁: 脚本缺失")
+    except Exception as e:  # noqa: BLE001
+        notes.append(f"双导入门禁异常: {e}")
+
+    # 4) 单元测试套件
+    try:
+        r = run_cmd([sys.executable, "-m", "pytest", "tests/", "-q"],
+                    timeout=300, env={**os.environ, "PYTHONPATH": str(CLAW_ROOT)})
+        m = re.search(r"(\d+)\s+passed", r.stdout)
+        passed = int(m.group(1)) if m else "?"
+        failed = re.search(r"(\d+)\s+failed", r.stdout)
+        failed_n = int(failed.group(1)) if failed else 0
+        if failed_n > 0:
+            notes.append(f"测试: {passed} passed / {failed_n} failed（质检卡片会推送）")
+        else:
+            notes.append(f"测试: {passed} passed")
+    except Exception as e:  # noqa: BLE001
+        notes.append(f"pytest 异常: {e}")
+
+    return {"ok": len(alerts) == 0, "alerts": alerts, "note": " | ".join(notes)}
 
 
 def check_duplicate_picks() -> dict:
@@ -928,7 +978,7 @@ def main() -> int:
         "磁盘空间": check_disk(),
         "飞书通道": check_feishu_channel(),
         "调度活性": check_schedule_liveness(),
-        "安全扫描": check_security_scan(),
+        "工程质量": check_code_quality(),
         "选股去重": check_duplicate_picks(),
     }
 
