@@ -484,6 +484,81 @@ def check_qts_pmf_ci() -> dict:
         return {"ok": False, "alerts": [f"qts_guard 异常: {e}"]}
 
 
+def check_data_freshness() -> dict:
+    """数据管线新鲜度检查（2026-08-06 新增，盲点#1）。
+    中枢 check_docker_self_heal 只查容器存活，不查数据产物新鲜度——
+    数据管线(Quant数据管线/QTS日线回填/WIND桥/信号富化)失败会导致选股/策略用陈旧K线，
+    但中枢完全失明（实证：qts_daily_backfill.py 注释'08-04 16:30失败致daily_quote缺整日'）。
+    设计：监测 data/ 下活跃产物白名单的 mtime 是否为当日（非交易日允许放宽到最近1交易日）。
+    仅 note 可见性，不推送、不修复（数据管线自动化负责重跑）。"""
+    # 活跃产物白名单（今日实测15:00-15:06更新的业务产物，废弃产物已排除）
+    WHITELIST = ["qts_daily_signals.json", "qts_regime.json",
+                 "signal_consensus.json", "source_weights.json"]
+    now = datetime.datetime.now()
+    today = now.date()
+    # 最近交易日（非交易日放宽到昨日，避免周末误报）
+    stale = []
+    checked = 0
+    for fn in WHITELIST:
+        p = CLAW_ROOT / "data" / fn
+        if not p.exists():
+            stale.append(f"{fn}(缺失)")
+            continue
+        checked += 1
+        mt = datetime.datetime.fromtimestamp(p.stat().st_mtime)
+        if mt.date() < today - datetime.timedelta(days=1):  # 容忍非交易日±1天
+            age_h = (now - mt).total_seconds() / 3600
+            stale.append(f"{fn}({age_h:.0f}h前)")
+    if stale:
+        return {"ok": True, "alerts": [],
+                "note": f"数据产物新鲜度: {checked}/{len(WHITELIST)}达标 | 陈旧/缺失: {'; '.join(stale)}"}
+    return {"ok": True, "alerts": [], "note": f"数据产物新鲜度: {checked}/{len(WHITELIST)} 全部当日新鲜"}
+
+
+def check_cost_anomaly() -> dict:
+    """API 成本异常检查（2026-08-06 新增，盲点#2）。
+    成本监控自动化(1782002819199, 6h)在跑 anomaly-only 推送，但中枢零覆盖成本维度。
+    复用 cost_tracker.py 读累计费用，仅 note 可见性（不抢推送，异常由成本监控自动化负责）。"""
+    try:
+        r = run_cmd([sys.executable, str(SCRIPT_DIR / "cost_tracker.py"), "summary"],
+                    timeout=60, env={**os.environ, "PYTHONPATH": str(CLAW_ROOT)})
+        out = r.stdout.strip()
+        # 尝试提取费用数字（兼容多种输出格式）
+        m = re.search(r"(?:总费用|total|累计|花费)[^\d]*?([\d.]+)\s*(元|¥|CNY)?", out)
+        if m:
+            cost = float(m.group(1))
+            note = f"API成本(累计): ¥{cost:.2f}"
+            # 软阈值提示（非阻断）：>¥500 标记关注
+            if cost > 500:
+                note += " ⚠️超¥500关注"
+            return {"ok": True, "alerts": [], "note": note}
+        return {"ok": True, "alerts": [], "note": f"API成本: 无数字输出({out[:60]})"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": True, "alerts": [], "note": f"API成本检查异常: {e}"}
+
+
+def check_dependabot_backlog() -> dict:
+    """Dependabot PR 堆积检查（2026-08-06 新增，盲点#3）。
+    中枢 check_qts_pmf_ci 只查 CI 红不查开 PR 堆积；Dependabot日清(1781871850433)在清但中枢无可见性。
+    仅 note（不推送、不自动 merge，依赖清理自动化负责）。"""
+    try:
+        # 用 gh 查当前仓库 open 的 dependabot PR 数（无则降级 note）
+        r = run_cmd(["gh", "pr", "list", "--author", "app/dependabot",
+                    "--state", "open", "--json", "number", "--jq", "length"],
+                   timeout=60, env={**os.environ, "PATH": os.environ.get("PATH", "")})
+        if r.returncode != 0:
+            return {"ok": True, "alerts": [], "note": "Dependabot堆积: gh不可用(跳过)"}
+        n = r.stdout.strip()
+        try:
+            cnt = int(n)
+        except ValueError:
+            return {"ok": True, "alerts": [], "note": f"Dependabot堆积: 解析失败({n})"}
+        flag = " ⚠️堆积>10" if cnt > 10 else ""
+        return {"ok": True, "alerts": [], "note": f"Dependabot堆积: {cnt} 个开放PR{flag}"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": True, "alerts": [], "note": f"Dependabot检查异常: {e}"}
+
+
 # ════════════════════════════════════════════════════════════════════
 # Runbook 白名单自愈（仅已注册安全动作）
 # ════════════════════════════════════════════════════════════════════
@@ -980,6 +1055,9 @@ def main() -> int:
         "调度活性": check_schedule_liveness(),
         "工程质量": check_code_quality(),
         "选股去重": check_duplicate_picks(),
+        "数据新鲜度": check_data_freshness(),
+        "成本监控": check_cost_anomaly(),
+        "Dependabot": check_dependabot_backlog(),
     }
 
     all_alerts: list[str] = []
