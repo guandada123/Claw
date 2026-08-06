@@ -158,24 +158,37 @@ def check_automation_health() -> dict:
 
 def check_docker_self_heal() -> dict:
     """复用 self_heal.py（Docker 二次确认+崩溃循环捕获）。
-    返回 {ok, alerts, healed}：restarted 是已完成的自愈动作（不计入问题），
-    alerts 才是仍需关注的（振荡防护停手/重启失败/有状态禁重启等）。"""
+    覆盖 cross_project_state 的 self_heal_allowlist 内所有容器（含 QTS/pmf/StockInsight 等）。
+    返回 {ok, alerts, healed, containers}：
+      - restarted 是已完成的自愈动作（Runbook#3），作为 healed 上报
+      - alerts 才是仍需关注的（振荡防护停手/重启失败/有状态禁重启/不在docker等）
+      - containers 是存活摘要（被巡检容器数/健康数/跳过数/异常数），供报告显式呈现健康度"""
     try:
         r = run_cmd([sys.executable, str(SCRIPT_DIR / "self_heal.py")], timeout=120)
         if r.returncode != 0:
-            return {"ok": False, "alerts": [f"self_heal 退出码 {r.returncode}"], "healed": []}
+            return {"ok": False, "alerts": [f"self_heal 退出码 {r.returncode}"], "healed": [], "containers": {}}
         out = r.stdout.strip()
         try:
             data = json.loads(out[out.rfind("{"):])
         except Exception:
-            return {"ok": True, "alerts": [], "healed": [], "raw": out[-300:]}
+            return {"ok": True, "alerts": [], "healed": [], "containers": {}, "raw": out[-300:]}
         restarted = data.get("restarted") or []
         alerts = data.get("alerts") or []
         # restarted 是 Runbook#3 已完成的自愈（容器重启），作为 healed 上报
         healed = [{"action": "container_restart", "target": c, "result": "success"} for c in restarted]
-        return {"ok": len(alerts) == 0, "alerts": alerts, "healed": healed, "data": data}
+        # 存活摘要：从 self_heal 的 checked/skipped/alerts 汇总（含 QTS/pmf 容器）
+        checked = data.get("checked") or []
+        skipped = data.get("skipped") or []
+        containers = {
+            "checked": len(checked),
+            "healthy": len(checked) - len(alerts),
+            "skipped_stateful": len(skipped),
+            "alerts": len(alerts),
+        }
+        return {"ok": len(alerts) == 0, "alerts": alerts, "healed": healed,
+                "containers": containers, "data": data}
     except Exception as e:  # noqa: BLE001
-        return {"ok": False, "alerts": [f"self_heal 异常: {e}"], "healed": []}
+        return {"ok": False, "alerts": [f"self_heal 异常: {e}"], "healed": [], "containers": {}}
 
 
 def check_disk() -> dict:
@@ -550,10 +563,39 @@ REGISTERED_RUNBOOKS = [
 ]
 
 
+def _aggregate_self_heal_stats() -> dict:
+    """从 unified_self_heal_log.json 聚合自愈动作统计（最近 N 条）。
+    返回 {total, success, failed, success_rate, by_action}。自愈效果趋势对全局监控面可见。"""
+    try:
+        data = json.loads(SELF_HEAL_LOG.read_text(encoding="utf-8")) if SELF_HEAL_LOG.exists() else []
+    except Exception:
+        return {"total": 0, "success": 0, "failed": 0, "success_rate": None, "by_action": {}}
+    # 只看实际"执行类"动作（排除纯 detect 巡检），result=success 算成功，其余算未成功/失败
+    exec_actions = [e for e in data if e.get("action") not in ("detect",)]
+    total = len(exec_actions)
+    success = sum(1 for e in exec_actions if e.get("result") == "success")
+    failed = total - success
+    rate = round(success / total, 3) if total else None
+    by_action: dict[str, dict] = {}
+    for e in exec_actions:
+        a = e.get("action", "unknown")
+        d = by_action.setdefault(a, {"total": 0, "success": 0})
+        d["total"] += 1
+        if e.get("result") == "success":
+            d["success"] += 1
+    return {
+        "total": total,
+        "success": success,
+        "failed": failed,
+        "success_rate": rate,
+        "by_action": by_action,
+    }
+
+
 def _sync_state_anchor(checks_n: int, alerts_n: int, healed_n: int, pushed: bool,
                        dry_run: bool = False) -> None:
     """闭环：把本次运行结果写回全局跨项目状态锚 cross_project_state.json。
-    让 monitoring.global.unified_ops_center 反映真实运行态（last_run 心跳 + runbook 白名单对齐代码）。
+    让 monitoring.global.unified_ops_center 反映真实运行态（last_run 心跳 + 自愈统计 + runbook 白名单对齐代码）。
     仅更新 monitoring.global.unified_ops_center 子节点，不影响其他字段；失败静默不阻断主流程。"""
     if dry_run:
         return
@@ -569,6 +611,23 @@ def _sync_state_anchor(checks_n: int, alerts_n: int, healed_n: int, pushed: bool
         "healed": healed_n,
         "pushed": pushed,
         "status": "alert" if alerts_n else ("healed" if healed_n else "silent_green"),
+    }
+    # 自愈动作成功率统计（从 audit log 聚合，趋势可见）
+    node["self_heal_stats"] = _aggregate_self_heal_stats()
+    # 中枢自身健康（运行连续性）：记录本次心跳，并算与上次的间隔（失联检测）
+    prev = node.get("self_health", {}).get("last_ok_ts")
+    now_iso = datetime.datetime.now().isoformat(timespec="seconds")
+    gap_min = None
+    if prev:
+        try:
+            gap_min = round((datetime.datetime.now() - datetime.datetime.fromisoformat(prev)).total_seconds() / 60, 1)
+        except Exception:
+            gap_min = None
+    node["self_health"] = {
+        "last_ok_ts": now_iso,
+        "interval_min": gap_min,           # None=首次；>调度周期*2 视为失联/挂死
+        "host": "claw-local-assistant",    # 中枢运行宿主（脚本跑在 macOS 本地，自动化托管于 QTS 工作区）
+        "self_heal_fallback": "QTS watchdog 已有重启兜底（com.workbuddy.proxy-watchdog 类）",
     }
     # 对齐 runbook 白名单与实际代码（避免状态锚与实际注册漂移）
     node["runbook_whitelist"] = REGISTERED_RUNBOOKS
@@ -665,6 +724,16 @@ def main() -> int:
         for h in healed:
             lines.append(f"• **{h['action']}** → {h['target']}：{h['reason']}")
             lines.append(f"  结果：{h['result']} | {h['detail']}")
+        lines.append("")
+    # 容器存活摘要（含 QTS/pmf/StockInsight 等被巡检容器健康度）
+    cont = checks.get("Docker自愈", {}).get("containers") or {}
+    if cont:
+        lines.append(f"### 🐳 容器存活（{cont.get('checked', 0)} 巡检 / {cont.get('healthy', 0)} 健康 / "
+                     f"{cont.get('skipped_stateful', 0)} 有状态跳过 / {cont.get('alerts', 0)} 异常）")
+        if cont.get("alerts", 0):
+            lines.append("• ⚠️ 存在异常容器（见上方告警），已按 Runbook#3 处理或升级")
+        else:
+            lines.append("• 全部被巡检容器健康运行（QTS/pmf/StockInsight/wechat 等）")
         lines.append("")
     lines.append("### 📌 结论与优化")
     lines.append("• 巡检已统一接管：原分散的多个健康巡检整合为单中枢，避免重复推送与漏检。")
