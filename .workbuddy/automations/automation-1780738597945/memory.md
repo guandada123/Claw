@@ -424,3 +424,6 @@
 **写入：** experiments/2026-08-05.json + /tmp/buy_plan.json（action=pending，盘中每30min监控回踩4.55-4.80+大盘企稳触发；现有3持仓-8%止损线持续监控）
 **推送：** ✅ push_feishu.sh封装卡片(message_id=om_x100b681c96a828a8b2bc99d78b0c398) | schedule done ✅ | cost_tracker ✅（kimi-k2.6 ≈¥9.6）| evidence_log已追加
 **备注：** next_trading_day=2026-08-06（自写循环推算，--next不支持）；四大师含降级视角(负债率anysearch数据不足→⚠️数据不足)，置信度偏低已在卡片注明"不据此做确定性证伪"；验证回读铁律满足(exit0+✅卡片已发送)
+
+## 2026-08-06 09:47 — 补跑（原 09:00 被杀）
+- ⚠️ 原 09:00 档被编排器重启杀掉（Marvis 内存守护），未推送。本次手动补跑 `sim_signal_advisor.py --push` → ✅ 飞书推送完成（09:46）。生成完整持仓+选股建议 JSON，4 持仓（美的+8.57%/紫金+23.71%/招行+0.01%/中建-0.03%）。
