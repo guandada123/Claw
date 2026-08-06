@@ -341,6 +341,67 @@ def check_security_scan() -> dict:
         return {"ok": False, "alerts": [f"security_scanner 异常: {e}"]}
 
 
+def check_duplicate_picks() -> dict:
+    """选股信号去重检查（2026-08-06 新增，中优先级优化③）：
+    扫描当日投顾智能选股产物(experiments/日期.json)、午间选股(midday_pick_日期.json)、
+    助理收盘扫描产物，提取推荐票代码，标记同票多源共识，避免推送打架。
+    仅做可见性记录（note），不推送、不阻断任何选股自动化——选股类保持分离是设计意图。
+    返回 ok=True + note（含共识票数分布）。"""
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    sim_dir = SCRIPT_DIR.parent / "data" / "simulation"
+    exp_dir = sim_dir / "experiments"
+    picks: dict[str, list[str]] = {}  # code -> [源列表]
+    sources = {
+        "智能选股": exp_dir / f"{today}.json",
+        "午间选股": exp_dir / f"midday_pick_{today}.json",
+        "助理收盘扫描": sim_dir / "picks_history.json",
+    }
+    try:
+        for src, path in sources.items():
+            if not path.exists():
+                continue
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            codes = _extract_pick_codes(data)
+            for c in codes:
+                picks.setdefault(c, []).append(src)
+        # 共识统计
+        consensus = {c: s for c, s in picks.items() if len(s) >= 2}
+        total_picks = len(picks)
+        if consensus:
+            detail = "; ".join(f"{c}({'+'.join(s)})" for c, s in consensus.items())
+            note = f"选股信号: 今日 {total_picks} 票 | 多源共识 {len(consensus)} 票: {detail}"
+        else:
+            note = f"选股信号: 今日 {total_picks} 票 | 无多源共识（各源独立）"
+        return {"ok": True, "alerts": [], "note": note}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": True, "alerts": [], "note": f"选股信号去重检查异常: {e}"}
+
+
+def _extract_pick_codes(data) -> list[str]:
+    """从选股产物 JSON 提取股票代码列表（兼容多种结构）。"""
+    codes: list[str] = []
+    if isinstance(data, dict):
+        # 常见键：picks / candidates / results / watchlist
+        for key in ("picks", "candidates", "results", "watchlist", "selected"):
+            v = data.get(key)
+            if v:
+                codes.extend(_extract_pick_codes(v))
+        # 直接含 code/股票代码 字段
+        if "code" in data and isinstance(data["code"], str):
+            codes.append(data["code"])
+    elif isinstance(data, list):
+        for item in data:
+            codes.extend(_extract_pick_codes(item))
+    elif isinstance(data, str):
+        # 尝试从文本提取 6 位数字代码
+        import re as _re
+        codes.extend(_re.findall(r"\b\d{6}\b", data))
+    return codes
+
+
 def check_qts_pmf_ci() -> dict:
     """复用 qts_pmf_health_guard.py（CI红+容器存活）。解析其 JSON 输出而非关键词，避免误判。"""
     try:
@@ -500,7 +561,7 @@ def runbook_dependabot_rebase(dry_run: bool = False) -> list[dict]:
                 raise RuntimeError(r.stderr.strip()[:150])
             run_cmd(["git", "-C", str(local), "checkout", branch], timeout=30)
             r = run_cmd(
-                ["git", "-C", str(local), "merge", "--no-edit", f"origin/main"], timeout=60
+                ["git", "-C", str(local), "merge", "--no-edit", "origin/main"], timeout=60
             )
             if r.returncode != 0:
                 # 冲突 → 中止，升级人工
@@ -868,6 +929,7 @@ def main() -> int:
         "飞书通道": check_feishu_channel(),
         "调度活性": check_schedule_liveness(),
         "安全扫描": check_security_scan(),
+        "选股去重": check_duplicate_picks(),
     }
 
     all_alerts: list[str] = []
