@@ -22,5 +22,21 @@
     "reason": "GitHub CI 红灯 2 个（详见每日20:00巡检卡）",
     "result": "alert",
     "detail": ""
+  },
+  {
+    "ts": "2026-08-06T11:25:31",
+    "action": "detect",
+    "target": "QTS/pmf CI",
+    "reason": "GitHub CI 红灯 2 个（详见每日20:00巡检卡）",
+    "result": "alert",
+    "detail": ""
+  },
+  {
+    "ts": "2026-08-06T11:26:01",
+    "action": "detect",
+    "target": "QTS/pmf CI",
+    "reason": "GitHub CI 红灯 2 个（详见每日20:00巡检卡）",
+    "result": "alert",
+    "detail": ""
   }
 ]

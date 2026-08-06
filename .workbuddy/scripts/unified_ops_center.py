@@ -134,23 +134,6 @@ def check_docker_self_heal() -> dict:
         return {"ok": False, "alerts": [f"self_heal 异常: {e}"]}
 
 
-def check_qts_pmf_ci() -> dict:
-    """复用 qts_pmf_health_guard.py（CI红+容器存活）。无异常则静默。"""
-    try:
-        r = run_cmd([sys.executable, str(SCRIPT_DIR / "qts_pmf_health_guard.py"), "--dry-run"], timeout=120)
-        if r.returncode != 0:
-            return {"ok": False, "alerts": [f"qts_guard 退出码 {r.returncode}"]}
-        # dry-run 模式只打印，解析其输出里的告警信号
-        out = (r.stdout + r.stderr).lower()
-        if "失败" in out or "error" in out or "红" in out or "down" in out:
-            # 提取关键行
-            lines = [l for l in (r.stdout + r.stderr).splitlines() if any(k in l for k in ["失败", "ERROR", "红", "down", "异常"])]
-            return {"ok": False, "alerts": lines[:10]}
-        return {"ok": True, "alerts": []}
-    except Exception as e:  # noqa: BLE001
-        return {"ok": False, "alerts": [f"qts_guard 异常: {e}"]}
-
-
 def check_disk() -> dict:
     """检查数据盘使用率（cross_project_state 阈值 warn=85 crit=92）。
     仅查真实数据盘 /Volumes/ZHITAI；/Users/guan 在 macOS 映射到系统卷(~91%常态)，非风险点，排除。"""
