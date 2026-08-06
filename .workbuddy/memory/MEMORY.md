@@ -14,6 +14,8 @@
 - 成本：cost_tracker.py(数据层)/cost_monitor.py(报告层)被cost_dashboard_feishu依赖；监控自动化=1782002819199
 - 🔴自动化调LLM必走本地代理：preamble注入的DEEPSEEK_API_KEY错/积分轨→router直连deepseek必401。凡自动化用 router.call_llm，model_config 必设 provider≠deepseek/catrouter(如"local_proxy")+base_url="http://127.0.0.1:9999/v1"；→2026-07-31固化：preamble已内置ensure_proxy(:9999 DOWN自动launchctl load -w两个plist自愈)，无需各脚本单独探测，#74/#78已从业务层根治
 - 🔴实时价优先级铁律(07-29→supersedes早期「Wind优先」)：盘中/监控/信号取实时价**必须走腾讯 qt.gtimg.cn**，Wind仅降级兜底；wind_quote.py 已改「腾讯优先→Wind降级」+DO NOT REVERT注释（Wind盘中滞后实测5.8%）；新增取价脚本禁直接wind优先
+- 🔴Sidecar守护唯一执行方=com.workbuddy.memwatch(内存看门狗,阈值RSS_RESTART_MB=6000MB)：曾误判为Marvis(已关)。08-06 09:00 因WB树6076MB>6GB触发重启主进程→盘前3关键自动化(早报08:35/智能选股09:00/策略09:10)静默漏跑+重启后sessions.json=0。⚠️**盘前窗口(08:35-09:10)是memwatch高发区**，降低漏跑首选提高阈值至10000MB(待用户拍板)，禁日常依赖看门狗自愈兜底关键自动化
+- 🛡️**统一巡检中枢(08-06接管)**：所有健康巡检整合为单一入口 `unified_ops_center.py`(宿主QTS自动化-1785982929477每小时)。复用现有专项脚本(automation_health/self_heal/qts_pmf_guard/disk/feishu_channel)，不重写。Runbook白名单自愈：memwatch_threshold_bump(提10000+reload) + docker_restart_container。审计日志 unified_self_heal_log.json。被接管已PAUSED：综合健康1781780654327/跨项目1785918166172/多项目1785928720152。保留独立：watchdog失败扫表1785506975961、飞书通道自检1784084428353。飞书告知结构化卡(原因/识别/解决/修复/优化/结论)，全绿SILENT。
 
 ## 三系统边界（数据隔离）
 - 📈投顾→.workbuddy/data/simulation/portfolio.json（AI全权只给结果，非data/simulation/portfolio.json 07-22已删过时副本）｜📊助理→.workbuddy/data/user/portfolio.json(国金)｜🇺🇸美股；🔴持仓同步(07-15)：用户发持仓截图→先diff再分析
@@ -44,6 +46,7 @@
 - 🔴 付费RSS `wechatrss.waytomaster.com/api/article` **有服务端防风控限流**（旧注释「无限流」错，误导排查5轮）→ 请求间隔须≥1.5s（0.3s必触发）
 - 🔴 铁律：**抓取失败绝不落盘空壳**（_existing_urls()按url去重，空壳落盘该文永不重抓、正文永久丢失，曾致92%空正文）→ 用 fetch_article_content_ex() 返回(content,err)区分限流；禁 except:return "" 吞错
 - 回填 backfill_wx_content.py(幂等，只改content_text/len/backfill_time)+自动化1785506323216每2h跑40篇，remaining==0才推；processed主键=file_key()=md5(filename)[:12]（根治#38换行符bug，备份.bak-20260731）
+- 🔴 公众号双轨状态(08-06)：付费云停更第8天(07-29起)；本地 wechat-download-api 登录已恢复(isExpired=false)但**轮询器卡 07-20**未重发现新文。wx_rss_local.py 发现层已修复(per-account `/api/rss/{fakeid}` 重登后404→改 `/api/rss/all` 聚合源含 content:encoded 全文，按[昵称]前缀过滤，正文直提免慢抓)。**决策：sync_wx_articles.py 暂保持 --source cloud（本地07-20比云端磁盘池07-29旧），待轮询器恢复过07-29再切 local**
 
 ## 运维/技术债
 - 已裁维护推送(07-17)：7维护自动化顶层「默认不推仅异常推」；保留1782035436209/1783742027380
@@ -52,7 +55,7 @@
 - 存储=致态SSD(/Volumes/ZHITAI)+Colima，~/.workbuddy等符号链接禁删/移；公众号双轨=付费RSS+本地API(localhost:5001)
 - ✅断链已澄清(07-20误报07-29更正)：1781778427910已DELETED死问题；1782741941693引绝对路径/Users/guan/WorkBuddy/Claw/scripts/calc_rsi.py（存在无断链）；审计prompt-LIKE须排除DELETED状态
 - 🔧proxy看门狗(07-26)：com.workbuddy.proxy-watchdog(StartInterval=30, python3跑proxy_watchdog.py自动load回，防外部unload空窗)；launchd后台agent禁/bash脚本须managed python3直跑.py
-- 🔧自动化运维排障(08-04)：①查 `automation_runs` 表**必须用带 `automation-` 前缀的 ID**（如 `automation-1785506975961`），裸 ID 必误报"无运行记录"（曾误判7/8管家自动化静默失败）；②该表全451行 status 恒为 `PENDING_REVIEW`（0条SUCCESS/FAILED），属默认记录态非失败，勿据此判静默失败；③验真运行看 `last_run_at`/`created_at` 时间戳；④**Claw 本地助手工作区禁止托管新定时自动化**（守卫报错），新建须用其他项目工作区宿主（如QTS），git 命令用 `git -C <abs>` 绝对路径不依赖 cwd
+- 🔧自动化运维排障(08-04)：①查 `automation_runs` 表**必须用带 `automation-` 前缀的 ID**（如 `automation-1785506975961`），裸 ID 必误报"无运行记录"（曾误判7/8管家自动化静默失败）；②该表全451行 status 恒为 `PENDING_REVIEW`（0条SUCCESS/FAILED），属默认记录态非失败，勿据此判静默失败；③验真运行看 `last_run_at`/`created_at` 时间戳；④**Claw 本地助手工作区禁托管新定时自动化 = WorkBuddy 平台级限制**（非自主铁律，08-06 实测 `automation_update create` 用 Claw cwd 仍硬报错"cannot host automations"；DB 内 107 个 Claw cwd 自动化全为 06-05~08-04 创建，守卫约 08-04 后上线，无本地开关可解除）→ 新建须用其他项目工作区宿主（如QTS），git 命令用 `git -C <abs>` 绝对路径不依赖 cwd
 - 🔧备份清理缺口核实(08-04→supersedes早期「需建prune自动化」判断)：**不成立，不建**。output/.backups/daily/ 15个tar.gz(07-21~08-04)是每日备份脚本14天滚动清理正常结果(156M为预期)；`.bak-*` 全文0个；其余 `.backups`(memory288K/data8K)是记忆蒸馏归档(文件移入非复制)删了丢历史且已有🧹记忆体检(1780769419635)在跑，禁自动prune
 - ✅Claw CI 全绿(08-04收口)：ci.yml已删(原委托休眠engineering-audit-kit@v2→跨仓红)；ruff锁0.15.17+ignore PLR0917禁新版误报；pre-commit EOF排除机器JSON；benchmark缺test_benchmark.py优雅跳过+Save baseline加存在守卫；safety禁--full-report(--output互斥)；gitleaks .gitleaks.toml按commit豁免dd5df15c；🔐DeepSeek key轮换已完成(08-05用户平台吊销sk-443b…e408，活跃键sk-faaf…2796不受影响，本地明文已清，历史豁免保留)
 
