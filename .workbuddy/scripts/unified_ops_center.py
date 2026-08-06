@@ -986,8 +986,7 @@ def main() -> int:
         for rec in _run_log:
             append_heal_log(rec)
         _sync_state_anchor(len(checks), 0, len(healed), False, dry_run=args.dry_run, known_hits=[])
-        print('SUMMARY: {"checks":%d,"alerts":%d,"healed":%d,"pushed":false}' % (
-            len(checks), len(all_alerts), len(healed)))
+        print(f'SUMMARY: {{"checks":{len(checks)},"alerts":{len(all_alerts)},"healed":{len(healed)},"pushed":false}}')
         return 0
 
     # 4) 飞书告知（原因/识别/解决/修复/优化/结论）
