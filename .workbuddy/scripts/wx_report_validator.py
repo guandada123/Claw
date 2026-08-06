@@ -186,14 +186,18 @@ def main() -> int:
     if args.report:
         files = [Path(args.report)]
     elif args.hours:
-        since = datetime.now() - timedelta(hours=args.hours)
-        pat = f"*{since.strftime('%Y%m%d')}*"
-        candidates = list(REPORT_DIR.glob(pat))
-        # 也覆盖跨日
+        # 覆盖「当日 + 前一日」双日期前缀，修复跨日边界漏判（08-03 记录：
+        # 21:00 运行时 since 落在前一日，原 glob 只匹配前一日前缀，漏掉当日报告）
+        now = datetime.now()
+        day_prefixes = {
+            (now - timedelta(days=d)).strftime("%Y%m%d") for d in range(2)
+        }
         files = [
             f
-            for f in candidates
-            if f.suffix == ".md" and ("morning" in f.name or "evening" in f.name)
+            for f in REPORT_DIR.glob("*.md")
+            if f.name[:8].isdigit()
+            and f.name[:8] in day_prefixes
+            and ("morning" in f.name or "evening" in f.name)
         ]
     else:
         # 最新一对
