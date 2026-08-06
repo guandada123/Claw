@@ -9,7 +9,7 @@
       }
     ],
     "created_at": "2026-07-05",
-    "updated_at": "2026-08-05 15:56:00"
+    "updated_at": "2026-08-06 11:14:06"
   },
   "cash": 16069.37,
   "positions": {
@@ -18,13 +18,13 @@
       "shares": 100,
       "avg_cost": 78.72,
       "total_cost": 7872.0,
-      "current_price": 85.47,
+      "current_price": 85.36,
       "highest_price": 89.39,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-08-05T15:56",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-05 15:56",
+      "updated": "2026-08-06T10:04",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-06 10:04",
       "mode": "normal"
     },
     "601899": {
@@ -32,13 +32,13 @@
       "shares": 100,
       "avg_cost": 27.565,
       "total_cost": 2756.5,
-      "current_price": 34.1,
-      "highest_price": 34.22,
-      "take_profit_level": 1,
+      "current_price": 34.56,
+      "highest_price": 35.8,
+      "take_profit_level": 3,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-08-05T15:56",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-05 15:56",
+      "updated": "2026-08-06T10:04",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-06 10:04",
       "mode": "normal"
     },
     "600036": {
@@ -46,12 +46,12 @@
       "shares": 200,
       "avg_cost": 38.935,
       "total_cost": 7787.0,
-      "current_price": 38.94,
+      "current_price": 38.66,
       "highest_price": 40.55,
       "take_profit_level": 1,
       "first_buy_date": "2026-07-23",
-      "updated": "2026-08-05T15:56",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-05 15:56",
+      "updated": "2026-08-06T10:04",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-06 10:04",
       "mode": "normal"
     },
     "601668": {
@@ -59,13 +59,14 @@
       "shares": 4000,
       "avg_cost": 4.5814,
       "total_cost": 18325.5,
-      "current_price": 4.58,
+      "current_price": 4.53,
       "highest_price": 4.65,
       "take_profit_level": 1,
       "first_buy_date": "2026-08-05",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-05 15:56",
-      "updated": "2026-08-05T15:56",
-      "risk_note": "C1-20260805: 中金8月低配建筑与工程→跌破4.40减半(卖出2000股)，止损4.27不变；8月中报窗口业绩不及预期亦减半"
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-06 10:04",
+      "updated": "2026-08-06T10:04",
+      "risk_note": "C1-20260805: 中金8月低配建筑与工程→跌破4.40减半(卖出2000股)，止损4.27不变；8月中报窗口业绩不及预期亦减半",
+      "mode": "normal"
     }
   },
   "transactions": [
