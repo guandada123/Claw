@@ -5,6 +5,7 @@
 > - `SCHEMA.md`=L5行为规律｜`INTENT.md`=L6前瞻意图｜`CHRONICLE.md`=编年史｜`YYYY-MM-DD.md`=RAW+SUMMARY（首行记原始指令）
 > - 蒸馏规则：日日志>30天→蒸馏进对应层→源移`.backups/`（不物理删）；单文件>15KB优先蒸馏
 > - **行数硬限（07-29锁80不放宽）**：触限走轻量降级（①不用→.backups/ ②偶尔用→压单行+详情进CHRONICLE ③常用最旧→挪SCHEMA/INTENT），仅标⚠️待蒸馏不自动删；豁免：`🔴铁律`+`演化链`段锁死不降级
+> - 检索协议（L1-L3零Token）：查历史**强制先Grep**日日志标题+MEMORY/INTENT/SCHEMA关键词再Read命中文件；L3仅具体数据才Read（先Grep后Read、单次≤3文件）；蒸馏>30天日志→.backups/；审计→memory-consistency-audit skill；已装 left-brain-memory 可一键触发
 
 ## 🔴 不可违反铁律
 - 渠道：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346（免审直推）；维护类默认不推仅⚠️/🔴异常推；前缀：📈投顾操盘/📊炒股助理/🇺🇸美股监控
@@ -50,6 +51,7 @@
 
 ## 运维/技术债
 - 已裁维护推送(07-17)：7维护自动化顶层「默认不推仅异常推」；保留1782035436209/1783742027380
+- 🔴**发布类授权升级(08-06)**：用户明确"发布类也授权给你，但发布前须审计+与Git内容比对避免发布错误"。落地铁律：①发布前必 `gh pr diff` 拉全量 diff 做内容审计（范围/风险/是否含敏感）②必与本地仓 `git fetch` 后比对 head 一致性（防本地/远程错位）③必确认 `mergeable` 状态+合并后 main CI 重跑变绿才算发布成功 ④已合并分支远程删除被保护规则拒→保留孤儿分支不强行绕过（标注MERGED待清理）⑤实盘下单/对外发布仍归用户（handoff.dangerous_permissions）
 - $SCRIPTS=.workbuddy/scripts(preamble:10)；主脚本 cd $CLAW && python3 scripts/xxx.py 避同名碰撞；westock CLI代码带sh/sz前缀
 - ⚠️user/portfolio.json current_price空(仅成本)，诊断实时拉qt.gtimg.cn；健康检查对月/周度误报stale勿自动PAUSED
 - 存储=致态SSD(/Volumes/ZHITAI)+Colima，~/.workbuddy等符号链接禁删/移；公众号双轨=付费RSS+本地API(localhost:5001)
@@ -64,13 +66,5 @@
 
 ---
 
-## 📐 记忆维护规则（固化）
-- 演化链：变更→原条目加→superseded，新条目写supersedes<旧>；旧条目保留不删（可回溯）；冲突新优先
-- 分层职责：MEMORY=FACT｜SCHEMA=L5行为规律｜INTENT=L6意图｜CHRONICLE=编年史｜日日志=RAW+SUMMARY；密度=结论+依据+例外，日志首行记原始指令
-- 蒸馏阈值：日日志>30天→长效信息入对应层→源移.backups/；>15KB优先蒸馏；行数硬限80(用户级100)触限走轻量降级（见头部）
-
-## 🔍 检索协议（L1-L3零Token，07-29固化）
-- L1 Metadata：查历史**强制先Grep**日日志标题+MEMORY/INTENT/SCHEMA关键词（Grep/Glob不调模型），禁跳过直Read全量
-- L2 Instructions：仅Read Grep命中文件，单次≤3日日志；MEMORY.md非命中不读；80%+查询在此层解决
-- L3 Resources：仅需具体数据(portfolio.json等)才Read；硬约束：先Grep再Read、单次≤3文件、压缩前走audit确认一致性
-- 查询分类：recall→L1-L3｜compress→蒸馏流程(>30天日志→.backups/)｜audit→memory-consistency-audit skill｜learn→self-improving-agent/SCHEMA；已装 left-brain-memory skill 可一键触发全链路
+## 📐 记忆维护规则（固化，详见头部记忆架构块）
+- 演化链：变更→原条目加 `→superseded by <日期>` 保留可回溯，新条目写 `supersedes<旧>`；冲突新优先｜分层：MEMORY=FACT｜SCHEMA=L5｜INTENT=L6｜CHRONICLE=编年史｜日日志=RAW+SUMMARY（首行记原始指令）；密度=结论+依据+例外
