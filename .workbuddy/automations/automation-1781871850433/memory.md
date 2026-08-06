@@ -215,6 +215,16 @@
 - **操作**：无合并动作且无真冲突 → [SILENT] 静默退出，未推送飞书
 - **清理**：schedule_utils done 成功；cost_tracker 无估算配置（连续第 12+ 轮同一提示，建议补配置或从 prompt 移除该步）
 
+## 2026-08-06
+- **凭据预检**：gh auth status 正常（active account=GH_TOKEN，scopes: repo/workflow，exit 0），GitHub 可达（本轮不复用失效的 ~/.github_token 文件 token，沿用 keyring/环境登录）
+- **调度稳态**：schedule_utils check 退出码 0，正常执行
+- **扫描结果**：QTS [] / MarvisBridge []；StockInsight 3 个 dependabot PR（#45 prettier 3.9.4→3.9.6 / #46 vitest 4.1.9→4.1.10 / #47 @types/react 19.2.17→19.2.18，均 08-05 创建，非草稿）
+- **CI 核验**：三笔 PR 初查均 CLEAN + MERGEABLE，10/10 全绿（Backend/Frontend Lint·Tests、Code Scan、Dependency Scan、Pre-commit、Secret Detection、Security Scan、Type Check）
+- **合并执行（并发冲突场景）**：#45 先 squash 合并成功；#46/#47 因同批次并发改 package-lock.json、在 #45 合入后变 CONFLICTING/DIRTY（典型并发假冲突）
+- **分流**：`$MERGED`=#45；`$FAKE_CONFLICT`=#46 #47（同批次并发锁文件冲突，dependabot 将自动 rebase 自愈，下轮日清自动复检，未做人工 rebase）；`$SELF_HEALED`/`$REAL_CONFLICT` 均空
+- **推送**：卡片推送飞书成功（message_id om_x100b6874261324a8b18d98541688709，level=info），含并发假冲突说明
+- **清理**：schedule_utils done 成功；cost_tracker 无估算配置（非阻断，连续第 14+ 轮同一提示）
+
 ## 2026-08-05
 - **凭据预检**：~/.github_token 文件 token 失效（"token invalid"），但 **keyring 登录有效**（guandada123，scopes: repo/workflow），gh api 实测可达 → 非 skip 场景，继续走正常流程（本轮起不复用无效文件 token，避免覆盖 keyring 登录）
 - **调度稳态**：schedule_utils check 退出码 0，正常执行
