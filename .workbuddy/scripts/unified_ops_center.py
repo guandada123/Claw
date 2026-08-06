@@ -12,12 +12,18 @@ unified_ops_center.py — 统一巡检中枢（2026-08-06 整合接管）
   - 执行后验证：修复后复检确认恢复
   - 审计留痕：每次动作写 unified_self_heal_log.json (who/what/when/why/result)
   - 飞书告知：每次自愈推结构化卡片(原因/识别/解决/修复/优化/结论)
+  - 告警去重：同一 (check_name, reason) 24h 内只推一次飞书（.ops_alerted.json 状态），审计日志照记
+
+## Runbook 白名单（已注册安全动作）
+  - #1 memwatch_bump：memwatch 阈值偏低且近期重启→提10000MB+reload（幂等可逆）
+  - #2 dependabot_rebase：OPEN dependabot PR 基于旧 main 致 CI 红→merge origin/main 进分支触发重跑
+    （不 merge PR 本身；冲突则中止升级人工；仅 dependabot/* 分支，非 dependabot 不碰）
 
 ## 设计原则
   - 不重写现有专项脚本，复用其 --json/--dry-run 接口（automation_health / self_heal / qts guard）
   - 观察≠transition：任何外部动作(改配置/重启)先备份、幂等、可回滚
   - fail-safe：单检查异常不崩溃，记 alert 继续
-  - 全绿 SILENT，不重复轰炸（自愈动作本身有去重+冷却）
+  - 全绿 SILENT，不重复轰炸（告警去重 24h TTL + 自愈动作幂等）
 
 ## 用法
     python3 unified_ops_center.py              # 真实运行（发现问题→自愈→飞书告知）
@@ -41,6 +47,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PUSH = SCRIPT_DIR / "push_feishu.sh"
 CHAT_ID = "oc_9ee5303497f5e0e71666b610d6bdc346"
 SELF_HEAL_LOG = SCRIPT_DIR / "unified_self_heal_log.json"
+ALERT_DEDUP_STATE = SCRIPT_DIR / ".ops_alerted.json"  # 告警去重状态（check_name@reason -> 时间戳）
+ALERT_DEDUP_TTL_H = 24  # 同一告警 24h 内只推一次
 
 MEMWATCH_PLIST = Path.home() / "Library" / "LaunchAgents" / "com.workbuddy.memwatch.plist"
 MEMWATCH_SCRIPT = Path.home() / ".local" / "bin" / "watch_workbuddy_mem.sh"
@@ -50,6 +58,34 @@ MEMWATCH_LOW_MB = 8000
 
 # ── 运行日志（审计留痕 who/what/when/why/result）──
 _run_log: list[dict] = []
+
+
+# ── 告警去重（避免同一问题每小时重复轰炸飞书）──
+def _load_alerted() -> dict:
+    try:
+        return json.loads(ALERT_DEDUP_STATE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_alerted(d: dict) -> None:
+    # 清理过期条目
+    now = datetime.datetime.now().timestamp()
+    ttl = ALERT_DEDUP_TTL_H * 3600
+    d = {k: v for k, v in d.items() if now - v < ttl}
+    ALERT_DEDUP_STATE.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
+
+
+def is_alert_duplicated(check_name: str, reason_key: str) -> bool:
+    """同一 (check_name, reason_key) 24h 内已推送过 → True（跳过飞书推送，但审计日志照记）"""
+    d = _load_alerted()
+    key = f"{check_name}@{reason_key}"
+    now = datetime.datetime.now().timestamp()
+    if key in d and now - d[key] < ALERT_DEDUP_TTL_H * 3600:
+        return True
+    d[key] = now
+    _save_alerted(d)
+    return False
 
 
 def log_action(action: str, target: str, reason: str, result: str, detail: str = "") -> dict:
@@ -266,6 +302,93 @@ def runbook_memwatch_bump(dry_run: bool = False) -> dict | None:
                       f"提至 {MEMWATCH_TARGET_MB}MB+reload；备份 {bak.name}")
 
 
+# GitHub 仓库常量（CI 自愈 Runbook 用）
+GH_REPOS_FOR_PR = ["QuantTradingSystem", "project-monitor-fusion", "StockInsight", "wechat-download-api"]
+
+
+def _find_stale_dependabot_prs() -> list[dict]:
+    """查找 OPEN 且基于旧 main 分叉导致 CI 红的 dependabot PR（安全自愈候选）。
+    返回 [{repo, number, branch, url}]。仅 dependabot/ 前缀分支，非 dependabot 不碰。"""
+    candidates = []
+    for repo in GH_REPOS_FOR_PR:
+        r = run_cmd(
+            ["gh", "pr", "list", "--repo", f"guandada123/{repo}", "--state", "open",
+             "--head", "dependabot/*", "--json", "number,headRefName,url,mergeable"]
+        )
+        if r.returncode != 0:
+            continue
+        try:
+            prs = json.loads(r.stdout)
+        except Exception:
+            continue
+        for pr in prs:
+            # 仅处理基于旧 main 分叉（head 的 base 非最新 main）的 PR；mergeable 非 CONFLICTING 才安全
+            if pr.get("mergeable") == "CONFLICTING":
+                continue
+            candidates.append({
+                "repo": repo,
+                "number": pr.get("number"),
+                "branch": pr.get("headRefName"),
+                "url": pr.get("url"),
+            })
+    return candidates
+
+
+def runbook_dependabot_rebase(dry_run: bool = False) -> list[dict]:
+    """Runbook#2: OPEN dependabot PR 基于旧 main 导致 CI 红 → merge origin/main 进分支触发重跑。
+    安全可逆：不 merge PR 本身，仅把 main 合进分叉分支让其 CI 重跑；若仍红则升级人工。
+    返回动作记录列表。"""
+    recs = []
+    prs = _find_stale_dependabot_prs()
+    for pr in prs:
+        repo, num, branch = pr["repo"], pr["number"], pr["branch"]
+        reason = f"dependabot PR #{num} ({branch}) 基于旧 main 分叉致 CI 红"
+        if dry_run:
+            recs.append(log_action("dependabot_rebase", f"{repo}#{num}",
+                                    reason, "skipped(dry-run)",
+                                    "将 merge origin/main 进分支触发 CI 重跑"))
+            continue
+        # 本地仓路径探测（优先 /Volumes/ZHITAI，降级 ~/WorkBuddy）
+        local = Path(f"/Volumes/ZHITAI/WorkBuddy/{repo}")
+        if not local.exists():
+            local = Path.home() / "WorkBuddy" / repo
+        if not local.exists():
+            recs.append(log_action("dependabot_rebase", f"{repo}#{num}",
+                                   reason, "skipped(no-local-repo)",
+                                   f"本地仓缺失 {local}，跳出自愈（升级人工）"))
+            continue
+        try:
+            r = run_cmd(["git", "-C", str(local), "fetch", "origin"], timeout=60)
+            if r.returncode != 0:
+                raise RuntimeError(r.stderr.strip()[:150])
+            run_cmd(["git", "-C", str(local), "checkout", branch], timeout=30)
+            r = run_cmd(
+                ["git", "-C", str(local), "merge", "--no-edit", f"origin/main"], timeout=60
+            )
+            if r.returncode != 0:
+                # 冲突 → 中止，升级人工
+                run_cmd(["git", "-C", str(local), "merge", "--abort"], timeout=30)
+                run_cmd(["git", "-C", str(local), "checkout", "main"], timeout=30)
+                recs.append(log_action("dependabot_rebase", f"{repo}#{num}",
+                                       reason, "failed(conflict)",
+                                       "merge main 冲突，中止并升级人工"))
+                continue
+            r = run_cmd(
+                ["git", "-C", str(local), "push", "origin", branch], timeout=60
+            )
+            if r.returncode != 0:
+                raise RuntimeError(r.stderr.strip()[:150])
+            run_cmd(["git", "-C", str(local), "checkout", "main"], timeout=30)
+        except Exception as e:  # noqa: BLE001
+            recs.append(log_action("dependabot_rebase", f"{repo}#{num}",
+                                   reason, "failed", str(e)[:150]))
+            continue
+        recs.append(log_action("dependabot_rebase", f"{repo}#{num}",
+                               reason, "success",
+                               f"merge origin/main 进 {branch} 并 push，触发 CI 重跑"))
+    return recs
+
+
 # ════════════════════════════════════════════════════════════════════
 # 中枢主流程
 # ════════════════════════════════════════════════════════════════════
@@ -300,22 +423,40 @@ def main() -> int:
     rb = runbook_memwatch_bump(dry_run=args.dry_run)
     if rb and rb["result"] != "skipped(dry-run)":
         healed.append(rb)
+    # Runbook#2: dependabot PR 基于旧 main 致 CI 红 → merge main 重跑（安全可逆）
+    rb2 = runbook_dependabot_rebase(dry_run=args.dry_run)
+    for r in rb2:
+        if r["result"] != "skipped(dry-run)":
+            healed.append(r)
     # (docker_restart 已由 self_heal.py 在 check 阶段内部执行并计入其 restarted 字段)
 
-    # 3) 汇总决策
-    if not all_alerts and not healed:
-        print("[ops-center] 全绿 → SILENT（无推送）")
+    # 3) 汇总决策（告警去重：同一问题 24h 内只推一次飞书，但审计日志照记）
+    dedup_alerts: list[str] = []
+    for a in all_alerts:
+        # a 形如 "[check_name] reason"，提取 check_name 与 reason 做去重键
+        if a.startswith("[") and "]" in a:
+            cname, _, rsn = a[1:].partition("] ")
+        else:
+            cname, rsn = "unknown", a
+        if is_alert_duplicated(cname, rsn[:60]):
+            print(f"  [dedup] 跳过重复推送: {cname} / {rsn[:40]}")
+            continue
+        dedup_alerts.append(a)
+
+    if not dedup_alerts and not healed:
+        print("[ops-center] 全绿或仅重复告警 → SILENT（无推送）")
         # 仍写审计日志（空跑记录）
         for rec in _run_log:
             append_heal_log(rec)
-        print('SUMMARY: {"checks":%d,"alerts":0,"healed":0,"pushed":false}' % len(checks))
+        print('SUMMARY: {"checks":%d,"alerts":%d,"healed":%d,"pushed":false}' % (
+            len(checks), len(all_alerts), len(healed)))
         return 0
 
     # 4) 飞书告知（原因/识别/解决/修复/优化/结论）
     lines = ["🔧 **统一巡检中枢 · 运行报告**", ""]
-    if all_alerts:
-        lines.append(f"### 🔍 发现问题（{len(all_alerts)} 项）")
-        for a in all_alerts[:15]:
+    if dedup_alerts:
+        lines.append(f"### 🔍 发现问题（{len(dedup_alerts)} 项，已去重）")
+        for a in dedup_alerts[:15]:
             lines.append(f"• {a}")
         lines.append("")
     if healed:
@@ -337,13 +478,13 @@ def main() -> int:
     pushed = False
     if not args.no_push and not args.dry_run:
         pushed = push_card("统一巡检中枢运行报告", "\n".join(lines),
-                           level="alert" if all_alerts else "info")
+                           level="alert" if dedup_alerts else "info")
     elif args.dry_run:
         print("[ops-center] (dry-run) 本应推送运行报告")
 
     print('SUMMARY: ' + json.dumps({
         "checks": len(checks),
-        "alerts": len(all_alerts),
+        "alerts": len(dedup_alerts),
         "healed": len(healed),
         "pushed": pushed,
     }, ensure_ascii=False))
