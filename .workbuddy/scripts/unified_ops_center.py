@@ -13,6 +13,8 @@ unified_ops_center.py — 统一巡检中枢（2026-08-06 整合接管）
   - 审计留痕：每次动作写 unified_self_heal_log.json (who/what/when/why/result)
   - 飞书告知：每次自愈推结构化卡片(原因/识别/解决/修复/优化/结论)
   - 告警去重：同一 (check_name, reason) 24h 内只推一次飞书（.ops_alerted.json 状态），审计日志照记
+  - 知识闭环：当前告警自动对照 cross_project_state 的 known_failure_modes（F1-F6），命中即标注 remediation+tier（失败模式库从"文档"变"检测规则"）
+  - 检查面（6 项）：自动化健康 / 自动化失败(watchdog) / Docker 自愈 / QTS·pmf CI / 磁盘 / 飞书通道
 
 ## Runbook 白名单（已注册安全动作）
   - #1 memwatch_bump：memwatch 阈值偏低且近期重启→提10000MB+reload（幂等可逆）
@@ -223,6 +225,74 @@ def check_feishu_channel() -> dict:
         return {"ok": True, "alerts": []}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "alerts": [f"飞书通道检测异常: {e}"]}
+
+
+def check_automation_failures() -> dict:
+    """补强自动化检查：复用 automation_failure_watchdog.py --dry-run（不推送，只检测）。
+    专门识别 known_failure_modes 的 F4（静默失败/401 proxy 未起）+ 关键自动化 hard 失败。
+    与 check_automation_health() 职责互补：health 看"配置/调度健康"，本函数看"近期运行是否真失败"。
+    解析其 SUMMARY 行取 failed/critical/new_critical。"""
+    try:
+        r = run_cmd([sys.executable, str(SCRIPT_DIR / "automation_failure_watchdog.py"),
+                     "--dry-run", "--hours", "24"], timeout=120)
+        out = r.stdout.strip()
+        # 解析 SUMMARY 行
+        m = re.search(r'SUMMARY:\s*(\{.*\})', out)
+        failed = critical = new_critical = 0
+        if m:
+            try:
+                s = json.loads(m.group(1))
+                failed = s.get("failed", 0)
+                critical = s.get("critical", 0)
+                new_critical = s.get("new_critical", 0)
+            except Exception:
+                pass
+        if new_critical > 0:
+            return {"ok": False, "alerts": [f"近24h 有关键自动化静默失败 {new_critical} 个（F4:proxy/401 或 hard 失败）"]}
+        if critical > 0:
+            # 全是已告警过的重复项 → 视为已知，不新推送（watchdog 自身已去重）
+            return {"ok": True, "alerts": [], "note": f"关键失败 {critical} 个均为已告警重复项"}
+        return {"ok": True, "alerts": []}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "alerts": [f"automation_failure_watchdog 异常: {e}"]}
+
+
+def check_known_failure_modes(all_alerts: list[str]) -> list[dict]:
+    """知识闭环：把当前所有告警与 cross_project_state 的 known_failure_modes 对照，
+    命中则标注 remediation(修复建议) + tier(自愈级别)，返回增强后的告警清单。
+    状态锚里的失败模式库终于被中枢消费——从"文档"变成"检测规则"。
+    匹配策略（宽松但精准）：symptom 拆关键词(按 /,空格,中文标点)任一命中，或 project 名出现在告警。
+    project=all/all-docker 视为通用模式（仅靠 symptom 命中），不靠 project 名称强匹配。"""
+    try:
+        state = json.loads(CROSS_STATE_PATH.read_text(encoding="utf-8")) if CROSS_STATE_PATH.exists() else {}
+        modes = state.get("monitoring", {}).get("known_failure_modes", []) or []
+    except Exception:
+        return []
+    if not modes:
+        return []
+    enhanced = []
+    for a in all_alerts:
+        a_low = a.lower()
+        matched = None
+        for m in modes:
+            sym = (m.get("symptom") or "")
+            proj = (m.get("project") or "").lower()
+            # symptom 拆关键词
+            kws = [k.strip().lower() for k in re.split(r"[/,，、\s]+", sym) if k.strip()]
+            sym_hit = any(kw and kw in a_low for kw in kws)
+            # project 匹配：通用模式(all/all-docker)不靠 project 名称；具体 project 名出现在告警才命中
+            proj_hit = bool(proj) and proj not in ("all", "all-docker") and proj in a_low
+            if sym_hit or proj_hit:
+                matched = m
+                break
+        if matched:
+            enhanced.append({
+                "alert": a,
+                "failure_id": matched.get("id"),
+                "remediation": matched.get("remediation"),
+                "tier": matched.get("tier"),
+            })
+    return enhanced
 
 
 def check_qts_pmf_ci() -> dict:
@@ -593,7 +663,7 @@ def _aggregate_self_heal_stats() -> dict:
 
 
 def _sync_state_anchor(checks_n: int, alerts_n: int, healed_n: int, pushed: bool,
-                       dry_run: bool = False) -> None:
+                       dry_run: bool = False, known_hits: list | None = None) -> None:
     """闭环：把本次运行结果写回全局跨项目状态锚 cross_project_state.json。
     让 monitoring.global.unified_ops_center 反映真实运行态（last_run 心跳 + 自愈统计 + runbook 白名单对齐代码）。
     仅更新 monitoring.global.unified_ops_center 子节点，不影响其他字段；失败静默不阻断主流程。"""
@@ -632,6 +702,12 @@ def _sync_state_anchor(checks_n: int, alerts_n: int, healed_n: int, pushed: bool
     # 对齐 runbook 白名单与实际代码（避免状态锚与实际注册漂移）
     node["runbook_whitelist"] = REGISTERED_RUNBOOKS
     node["runbook_count"] = len(REGISTERED_RUNBOOKS)
+    # 已知失败模式命中（知识闭环：状态锚失败模式库被消费）
+    if known_hits is not None:
+        node["known_failure_hits"] = [
+            {"failure_id": h.get("failure_id"), "tier": h.get("tier"), "alert": h.get("alert")}
+            for h in known_hits
+        ]
     try:
         CROSS_STATE_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:  # noqa: BLE001
@@ -652,6 +728,7 @@ def main() -> int:
     # 1) 调度所有专项检查
     checks = {
         "自动化健康": check_automation_health(),
+        "自动化失败": check_automation_failures(),
         "Docker自愈": check_docker_self_heal(),
         "QTS/pmf CI": check_qts_pmf_ci(),
         "磁盘空间": check_disk(),
@@ -702,12 +779,16 @@ def main() -> int:
             continue
         dedup_alerts.append(a)
 
+    # 3.5) 知识闭环：当前告警对照 known_failure_modes，标注 remediation + tier
+    known_hits = check_known_failure_modes(dedup_alerts)
+    known_by_alert = {h["alert"]: h for h in known_hits}
+
     if not dedup_alerts and not healed:
         print("[ops-center] 全绿或仅重复告警 → SILENT（无推送）")
         # 仍写审计日志（空跑记录）
         for rec in _run_log:
             append_heal_log(rec)
-        _sync_state_anchor(len(checks), 0, len(healed), False, dry_run=args.dry_run)
+        _sync_state_anchor(len(checks), 0, len(healed), False, dry_run=args.dry_run, known_hits=[])
         print('SUMMARY: {"checks":%d,"alerts":%d,"healed":%d,"pushed":false}' % (
             len(checks), len(all_alerts), len(healed)))
         return 0
@@ -718,6 +799,10 @@ def main() -> int:
         lines.append(f"### 🔍 发现问题（{len(dedup_alerts)} 项，已去重）")
         for a in dedup_alerts[:15]:
             lines.append(f"• {a}")
+            hit = known_by_alert.get(a)
+            if hit:
+                tier = (hit.get("tier") or "").replace("auto-heal", "自愈").replace("alert-only", "仅告警")
+                lines.append(f"  ↳ 已知模式 {hit.get('failure_id')}｜建议：{hit.get('remediation')}｜级别：{tier}")
         lines.append("")
     if healed:
         lines.append(f"### ✅ 已自动修复（{len(healed)} 项）")
@@ -758,8 +843,9 @@ def main() -> int:
         "healed": len(healed),
         "pushed": pushed,
     }, ensure_ascii=False))
-    # 闭环：写回全局状态锚（last_run 心跳 + runbook 白名单对齐）
-    _sync_state_anchor(len(checks), len(dedup_alerts), len(healed), pushed, dry_run=args.dry_run)
+    # 闭环：写回全局状态锚（last_run 心跳 + 自愈统计 + 已知失败模式命中 + runbook 白名单对齐）
+    _sync_state_anchor(len(checks), len(dedup_alerts), len(healed), pushed,
+                       dry_run=args.dry_run, known_hits=known_hits)
     return 0
 
 
