@@ -539,6 +539,46 @@ def runbook_publish_audit_merge(dry_run: bool = False) -> list[dict]:
     return recs
 
 
+CROSS_STATE_PATH = Path.home() / ".workbuddy" / "cross_project_state.json"
+
+# 当前代码实际注册的安全动作（与 Runbook 白名单一致；改 Runbook 时同步此处）
+REGISTERED_RUNBOOKS = [
+    "memwatch_threshold_bump",      # #1
+    "docker_restart_container",    # #3 (self_heal.py 实际重启，中枢上报 healed)
+    "dependabot_rebase",           # #2
+    "publish_audit_merge",         # #4
+]
+
+
+def _sync_state_anchor(checks_n: int, alerts_n: int, healed_n: int, pushed: bool,
+                       dry_run: bool = False) -> None:
+    """闭环：把本次运行结果写回全局跨项目状态锚 cross_project_state.json。
+    让 monitoring.global.unified_ops_center 反映真实运行态（last_run 心跳 + runbook 白名单对齐代码）。
+    仅更新 monitoring.global.unified_ops_center 子节点，不影响其他字段；失败静默不阻断主流程。"""
+    if dry_run:
+        return
+    try:
+        data = json.loads(CROSS_STATE_PATH.read_text(encoding="utf-8")) if CROSS_STATE_PATH.exists() else {}
+    except Exception:
+        return
+    node = data.setdefault("monitoring", {}).setdefault("global", {}).setdefault("unified_ops_center", {})
+    node["last_run"] = {
+        "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+        "checks": checks_n,
+        "alerts_after_dedup": alerts_n,
+        "healed": healed_n,
+        "pushed": pushed,
+        "status": "alert" if alerts_n else ("healed" if healed_n else "silent_green"),
+    }
+    # 对齐 runbook 白名单与实际代码（避免状态锚与实际注册漂移）
+    node["runbook_whitelist"] = REGISTERED_RUNBOOKS
+    node["runbook_count"] = len(REGISTERED_RUNBOOKS)
+    try:
+        CROSS_STATE_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        print(f"  [warn] 状态锚写回失败(非阻断): {e}")
+
+
 # ════════════════════════════════════════════════════════════════════
 # 中枢主流程
 # ════════════════════════════════════════════════════════════════════
@@ -608,6 +648,7 @@ def main() -> int:
         # 仍写审计日志（空跑记录）
         for rec in _run_log:
             append_heal_log(rec)
+        _sync_state_anchor(len(checks), 0, len(healed), False, dry_run=args.dry_run)
         print('SUMMARY: {"checks":%d,"alerts":%d,"healed":%d,"pushed":false}' % (
             len(checks), len(all_alerts), len(healed)))
         return 0
@@ -648,6 +689,8 @@ def main() -> int:
         "healed": len(healed),
         "pushed": pushed,
     }, ensure_ascii=False))
+    # 闭环：写回全局状态锚（last_run 心跳 + runbook 白名单对齐）
+    _sync_state_anchor(len(checks), len(dedup_alerts), len(healed), pushed, dry_run=args.dry_run)
     return 0
 
 
