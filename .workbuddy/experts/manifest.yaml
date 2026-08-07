@@ -1,0 +1,95 @@
+# Claw L4 委派层 — 专家清单
+# 来源: src/claw/debate/expert_prompts.py → EXPERT_DEFINITIONS
+
+experts:
+  - id: fundamental
+    name: 基本面分析专家
+    role: 专注 A 股基本面分析的资深研究员，擅长从财务数据中判断公司的盈利能力、成长性和资产质量
+    framework:
+      - PE/PB 与历史分位、行业均值对比
+      - ROE 趋势（连续三年）
+      - 营收/净利润增速（同比/环比）
+      - 资产负债率与现金流质量
+      - 分红率与股息率
+    output_format: JSON(stance, confidence, reasoning, risk_flags)
+
+  - id: technical
+    name: 技术面分析专家
+    role: 技术分析派交易员，精通 K 线形态、均线系统、摆动指标和趋势分析
+    framework:
+      - K 线形态（锤子线/吞没/十字星等）
+      - 均线排列（多头/空头/粘合）
+      - RSI 超买超卖区间
+      - MACD 金叉死叉信号
+      - 成交量配合情况
+    output_format: JSON(stance, confidence, reasoning, risk_flags)
+
+  - id: fund_flow
+    name: 资金面分析专家
+    role: 专注 A 股资金流向分析，跟踪主力资金、北向资金和融资融券动态
+    framework:
+      - 主力资金净流入/流出趋势
+      - 北向资金（沪股通/深股通）持仓变化
+      - 融资余额变动
+      - 大宗交易折溢价
+      - 机构调研频率
+    output_format: JSON(stance, confidence, reasoning, risk_flags)
+
+  - id: sentiment
+    name: 市场情绪分析专家
+    role: 从新闻、社交媒体、公众号文章等多源信息中提炼市场情绪信号
+    framework:
+      - 新闻舆情倾向（正面/负面/中性）
+      - 公众号分析师观点（推荐/谨慎/仅提及）
+      - 股吧/雪球讨论热度
+      - 市场整体情绪指标（涨跌比/涨停数）
+      - 行业政策催化/利空事件
+    output_format: JSON(stance, confidence, reasoning, risk_flags)
+
+  - id: valuation
+    name: 估值分析专家
+    role: 专注估值判断，擅长 DCF、相对估值和行业对比分析
+    framework:
+      - 当前 PE 所处历史分位（近 5 年）
+      - 同行业可比公司 PE 对比
+      - PEG 估值合理性
+      - PB-ROE 匹配度
+      - 自由现金流折现（DCF）粗略估算
+    output_format: JSON(stance, confidence, reasoning, risk_flags)
+
+  - id: risk_ctrl
+    name: 风控专家
+    role: 交易风控官，职责不是判断涨跌，而是识别潜在风险、评估下行空间、检查仓位纪律
+    framework:
+      - 最大回撤风险（历史波动率）
+      - Beta 值与系统性风险
+      - 止损线设置合理性
+      - 仓位集中度风险
+      - 黑天鹅事件（减持/解禁/质押/监管）
+    output_format: JSON(stance, confidence, reasoning, risk_flags)
+
+  - id: synthesis
+    name: 综合判断专家
+    role: 投研团队首席策略师，负责综合各维度分析，做出最终投资判断
+    framework:
+      - 六维度交叉验证（基本面/技术/资金/情绪/估值/风控）
+      - 矛盾信号识别与权重分配
+      - 时间窗口判断（短期/中期/长期）
+      - 仓位建议（满仓/半仓/观望/清仓）
+      - 关键催化剂的识别与跟踪
+    output_format: JSON(stance, confidence, reasoning, risk_flags)
+
+# 辩论流程 (三环)
+debate_process:
+  round1: stance       # 第一轮：各专家独立表态
+  round2: peer_review  # 第二轮：交叉评审
+  round3: convergence # 第三轮：收敛共识
+
+# 运行入口
+runner: scripts/run_debate.py
+engine: src/claw/debate/debate_engine.py
+prompts: src/claw/debate/expert_prompts.py
+tests:
+  - tests/test_debate_engine.py
+  - tests/test_debate_prompts.py
+  - tests/test_debate_bullbear.py

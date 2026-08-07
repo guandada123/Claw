@@ -1,0 +1,51 @@
+# architecture.rules — L1 Memory Layer 索引与铁律
+
+> 本文件对齐「WorkBuddy 五层架构」L1 规范（architecture.rules + global.md + project.md），
+> 但采用更精细的 **FACT/SCHEMA/INTENT/CHRONICLE + 日日志** 五文件分层（07-29 固化），
+> 覆盖并超越文章基础版。检索协议见 MEMORY.md「检索协议」段。
+
+---
+
+## 一、文件职责映射（本文 → 标准）
+
+| 标准文件 | 我们对应 | 职责 |
+|---------|---------|------|
+| `architecture.rules` | 本文件 | 架构索引 + 不可违反铁律总入口 |
+| `global.md` | `SCHEMA.md` + `~/.workbuddy/MEMORY.md` | 用户级偏好/协作心智模型 |
+| `project.md` | `MEMORY.md`(FACT) + `INTENT.md` | 项目事实/技术决策 + 前瞻意图 |
+| （文章无） | `CHRONICLE.md` | 编年史（重大决策时间线） |
+| （文章无） | `YYYY-MM-DD.md` | RAW+SUMMARY 日日志（首行记原始指令） |
+
+---
+
+## 二、不可违反铁律（总入口，详情见 MEMORY.md）
+
+1. **渠道铁律**：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346（免审直推）；维护类默认静默仅⚠️/🔴异常推
+2. **文件操作铁律**：删/移须「先复制→验证→再删源」+ 删前用户确认
+3. **数据文件铁律**：data/ 字段增删改须先确认；总本金¥50,000权威不可推翻
+4. **飞书推送铁律**：卡片化 push_card.py 禁 --text 降级；改脚本先 --dry-run
+5. **本地代理铁律**：自动化调LLM必走 :9999 本地代理（preamble ensure_proxy 自愈）
+6. **实时价铁律**：盘中/监控/信号取价必须走腾讯 qt.gtimg.cn，Wind仅降级
+7. **RRULE 安全铁律（信任红线）**：单 RRULE 禁多 BYHOUR → 拆多条单 BYHOUR；建/改前必走 `automation-rrule-safety-check` skill 走 Gate1-4
+8. **发布类授权铁律**：发布前必 gh pr diff 审计 + git fetch 比对 + 确认 CI 绿；实盘/对外仍归用户
+
+---
+
+## 三、记忆维护规则（固化）
+
+- **分层职责**：MEMORY=FACT｜SCHEMA=行为规律｜INTENT=意图｜CHRONICLE=编年史｜日日志=RAW+SUMMARY
+- **演化链**：变更→原条目加 `→superseded by <日期>` 保留可回溯；冲突新优先
+- **蒸馏阈值**：日日志>30天→长效信息入对应层→源移 `.backups/`；>15KB优先蒸馏；仅超120行才考虑蒸馏
+- **检索协议**：查历史强制先 Grep 日日志标题+MEMORY/INTENT/SCHEMA 关键词再 Read 命中文件（L1-L3 零 Token）
+
+---
+
+## 四、五层架构总览（本项目）
+
+| 层 | 名称 | 落地位置 | 状态 |
+|----|------|---------|------|
+| L1 | Memory | `.workbuddy/memory/` | ✅ 五文件分层 |
+| L2 | Knowledge | `.workbuddy/skills/` (38 symlink) | ✅ 已下沉 |
+| L3 | Guardrail | `.workbuddy/hooks/` (pre/post-task.sh) | ✅ 4 Gate |
+| L4 | Delegation | `.workbuddy/experts/manifest.yaml` | ✅ 轻量 |
+| L5 | Distribution | （单人无需） | ⏭️ 暂缓 |
