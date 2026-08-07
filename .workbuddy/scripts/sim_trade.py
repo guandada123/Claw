@@ -191,7 +191,12 @@ def load_portfolio() -> dict:
 
 
 def save_portfolio(pf: dict):
+    # 回写展示元字段，避免顶层 total_assets/initial_capital 长期为 None
+    # （引擎计算用 get_effective_capital 读 config，此处仅补展示层，与之一致）
     pf["config"]["updated_at"] = now()
+    pf["initial_capital"] = get_effective_capital(pf)
+    mkt = sum(float(v.get("market_value", 0)) for v in pf.get("positions", {}).values())
+    pf["total_assets"] = round(mkt + float(pf.get("cash", 0)), 2)
     with PortfolioLock():
         PORTFOLIO_FILE.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_json(PORTFOLIO_FILE, pf)
