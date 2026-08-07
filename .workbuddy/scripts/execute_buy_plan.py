@@ -28,6 +28,7 @@ import json
 import os
 import subprocess
 import sys
+import urllib.request
 from datetime import date, datetime, time
 
 # ── 路径 ──────────────────────────────────────────────
@@ -43,6 +44,34 @@ MORNING_CLOSE = time(11, 30)
 AFTERNOON_OPEN = time(13, 0)
 AFTERNOON_CLOSE = time(14, 55)
 MARKET_STEADY_THRESHOLD = -0.5  # 上证涨跌幅%下限，低于此视为不稳
+
+# ── name 字段护栏（防选股理由污染持仓 name）───────────────
+# 选股流程曾把整段理由写入 buy_plan.name（如"午间确认早盘选中...回踩买区触发"），
+# 落库后污染 portfolio.positions[name]，导致持仓名变成选股文案。
+# 特征字符：确认/回踩/选中/✅/⚠️/段/：/空格过长 → 视为污染，用 gtimg 标准名兜底。
+_NAME_POLLUTION_MARKERS = ("确认", "回踩", "选中", "✅", "⚠️", "段", "：", "；")
+
+
+def _sanitize_name(raw: str, code: str) -> str:
+    """清洗持仓 name：含选股理由特征 → 用 gtimg 实时标准名兜底。"""
+    if not raw or any(m in raw for m in _NAME_POLLUTION_MARKERS) or len(raw) > 12:
+        return _gtimg_name(code) or raw or code
+    return raw
+
+
+def _gtimg_name(code: str) -> str | None:
+    """腾讯 gtimg 取标准股票名（sh/sz 自动判断）。"""
+    prefix = "sh" if code.startswith(("6", "9")) else "sz"
+    url = f"https://qt.gtimg.cn/q={prefix}{code}"
+    try:
+        with urllib.request.urlopen(url, timeout=8) as r:
+            txt = r.read().decode("gbk", errors="ignore")
+        # v_sh600031="1~三一重工~600031~..."
+        if "~" in txt:
+            return txt.split("~")[1].strip()
+    except Exception:  # noqa: BLE001
+        return None
+    return None
 
 
 def _now() -> datetime:
@@ -187,7 +216,7 @@ def do_buy(plan: dict, price: float, execute: bool) -> dict | None:
     """调用 sim_trade.py buy。execute=False 时返回模拟结果不落盘"""
     code = plan["code"]
     shares = int(plan["shares"])
-    name = plan.get("name", "")
+    name = _sanitize_name(plan.get("name", ""), code)
     if not execute:
         # dry-run：构造模拟结果
         gross = shares * price
