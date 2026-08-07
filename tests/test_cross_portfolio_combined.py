@@ -1,6 +1,17 @@
 """test_cross_portfolio_combined.py — cross_portfolio_monitor calc_combined_metrics 测试。"""
 
+import pytest
+
 import cross_portfolio_monitor as cpm
+
+
+@pytest.fixture(autouse=True)
+def isolate_sanity(monkeypatch):
+    """隔离 _sanity_guard 网络调用（测试用受控价，不触发真实 sanity 改写）。"""
+    monkeypatch.setattr(
+        cpm, "_sanity_guard",
+        lambda code, price: {"fail": False, "reliable_price": price, "reason": ""}
+    )
 
 
 def test_calc_combined_metrics_empty():
@@ -8,6 +19,7 @@ def test_calc_combined_metrics_empty():
     assert result["shared_holdings"] == []
     assert result["sim_market_value_total"] == 0
     assert result["user_market_value_total"] == 0
+    assert result["sanity_failed"] == 0
 
 
 def test_calc_combined_sim_only():
@@ -18,6 +30,7 @@ def test_calc_combined_sim_only():
     result = cpm.calc_combined_metrics(sim, [])
     assert result["sim_market_value_total"] == (10*100 + 20*50)
     assert len(result["shared_holdings"]) == 0
+    assert result["sanity_failed"] == 0
 
 
 def test_calc_combined_shared_holdings():
@@ -44,3 +57,18 @@ def test_calc_combined_industry_concentration():
     result = cpm.calc_combined_metrics(sim, [])
     assert "🏭 科技/半导体" in result["industry_concentration"]
     assert "🛢️ 周期/资源" in result["industry_concentration"]
+
+
+def test_sanity_guard_isolates_bad_price(monkeypatch):
+    """_sanity_guard 标记 fail 时，calc 应隔离错误价（不计入总市值）并计数。"""
+    monkeypatch.setattr(
+        cpm, "_sanity_guard",
+        lambda code, price: {"fail": True, "reliable_price": 0.0, "reason": "G1: 偏差>30%"}
+    )
+    sim = {
+        "600000": {"current_price": 10.0, "shares": 100, "avg_cost": 9.5, "name": "平安银行"},
+    }
+    result = cpm.calc_combined_metrics(sim, [])
+    # 错误价被隔离为 0 → 总市值=0，sanity_failed=1
+    assert result["sim_market_value_total"] == 0
+    assert result["sanity_failed"] == 1

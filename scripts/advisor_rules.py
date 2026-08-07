@@ -103,6 +103,11 @@ class AdvisorRules:
     def check_entry(self, code: str, price: float | None = None) -> dict:
         """检查标的当前是否适合入场。
 
+        🔴 价格防错铁律（2026-08-07 落地，根因=8/6早报选股价数量级错误）：
+        - 不再信任外部传入 price 作为真实价，**强制优先脚本取价**（gtimg 实时快照）。
+        - 若调用方传入 price（AI 建议价），必须过 price_sanity 校验；
+          校验失败 → blocked=True + 用可信价重算买区，绝不输出离谱买区。
+
         Returns:
             {
               "code": "...",
@@ -111,16 +116,51 @@ class AdvisorRules:
               "suggested_buy_zone": str, # 推荐等待的买区
               "rsi14": float|None,
               "ma20": float|None,
-              "day_change_pct": float|None
+              "day_change_pct": float|None,
+              "price_used": float|None,   # 实际用于计算的价格（已校验/已取价）
+              "price_sanity": dict|None   # 合理性校验结果
             }
         """
         code_prefixed = self._prefix(code)
+
+        # ── 价格获取与校验（P0 防御）──
+        live = self._get_live_price(code_prefixed)
+        live_price = live.get("price") if live else None
+        # 决策价：优先实时快照；无实时价才退用外部传入价（仍需 sanity）
+        decision_price = live_price if live_price else price
+        sanity = None
+        if price is not None and live_price is not None and abs(price - live_price) / live_price > 0.30:
+            # 外部价与实时偏离>30% → 触发 sanity 强校验
+            try:
+                from price_sanity import check as _sanity_check
+                sanity = _sanity_check(code, price)
+                if not sanity["ok"]:
+                    decision_price = sanity["verified_price"] or live_price
+            except Exception:
+                sanity = None
+        elif price is not None and live_price is None:
+            # 无实时价，外部价仍需 sanity（52周/MA20 闸门）
+            try:
+                from price_sanity import check as _sanity_check
+                sanity = _sanity_check(code, price)
+                if not sanity["ok"]:
+                    decision_price = sanity["verified_price"] or price
+            except Exception:
+                sanity = None
+
         rsi = self._get_rsi(code_prefixed)
         day_change = self._get_day_change(code_prefixed)
         ma20 = self._get_ma20(code_prefixed)
 
         flags = []
         blocked = False
+        # 价格 sanity 失败 → 阻断推荐并告警
+        if sanity and not sanity["ok"]:
+            blocked = True
+            flags.append({
+                "level": "block",
+                "reason": f"🚫 价格合理性校验失败：传入价¥{price:.2f} 不可信（{'; '.join(sanity['fail_reasons'])}）；已改用可信价¥{decision_price:.2f}，请复核后重试"
+            })
 
         # E1: RSI 超买
         if rsi is not None and rsi > RSI_OVERBOUGHT:
@@ -131,15 +171,15 @@ class AdvisorRules:
             })
 
         # E2: 高于 MA20
-        if ma20 is not None and price is not None and price > ma20 * 1.02:
+        if ma20 is not None and decision_price is not None and decision_price > ma20 * 1.02:
             flags.append({
                 "level": "warn",
-                "reason": f"⚠️ 现价 ¥{price:.2f} 高于 MA20 ¥{ma20:.2f}（+{(price/ma20-1)*100:.1f}%），无安全垫"
+                "reason": f"⚠️ 现价 ¥{decision_price:.2f} 高于 MA20 ¥{ma20:.2f}（+{(decision_price/ma20-1)*100:.1f}%），无安全垫"
             })
-        elif ma20 is not None and price is not None and price > ma20:
+        elif ma20 is not None and decision_price is not None and decision_price > ma20:
             flags.append({
                 "level": "warn",
-                "reason": f"⚠️ 现价 ¥{price:.2f} 略高于 MA20 ¥{ma20:.2f}，注意追高"
+                "reason": f"⚠️ 现价 ¥{decision_price:.2f} 略高于 MA20 ¥{ma20:.2f}，注意追高"
             })
 
         # E3: 当日涨幅过大
@@ -151,7 +191,7 @@ class AdvisorRules:
             })
 
         # 推荐买区
-        suggested = self._suggest_buy_zone(price, ma20, rsi)
+        suggested = self._suggest_buy_zone(decision_price, ma20, rsi)
 
         return {
             "code": code,
@@ -161,6 +201,8 @@ class AdvisorRules:
             "rsi14": rsi,
             "ma20": ma20,
             "day_change_pct": day_change,
+            "price_used": decision_price,
+            "price_sanity": sanity,
         }
 
     def _suggest_buy_zone(self, price, ma20, rsi) -> str:

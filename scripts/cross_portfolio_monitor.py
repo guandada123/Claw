@@ -117,6 +117,31 @@ def parse_user_holdings(user_data: dict) -> list:
     return user_data.get("holdings", [])  # type: ignore[no-any-return]
 
 
+def _sanity_guard(code: str, price: float) -> dict:
+    """价格防错兜底（2026-08-07 落地，根因=8/6早报选股价数量级错误）。
+
+    对从 portfolio.json 读到的 current_price 做合理性校验，
+    偏差>30%或超52周区间→标记 fail 并返回可信价（不依赖实时重拉，用脚本校验）。
+    返回: {"fail": bool, "reliable_price": float|None, "reason": str}
+    """
+    if not price or price <= 0:
+        return {"fail": False, "reliable_price": price, "reason": ""}
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from price_sanity import check as _ps_check
+        res = _ps_check(code, float(price))
+        if not res["ok"]:
+            return {
+                "fail": True,
+                "reliable_price": res.get("verified_price"),
+                "reason": "; ".join(res.get("fail_reasons", [])),
+            }
+    except Exception:
+        # 校验器失败不影响主流程
+        pass
+    return {"fail": False, "reliable_price": price, "reason": ""}
+
+
 def calc_combined_metrics(sim_positions: dict, user_holdings: list):
     """
     计算两盘合并指标
@@ -132,6 +157,7 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         "chain_risk": {},
         "sim_market_value_total": 0,
         "user_market_value_total": 0,
+        "sanity_failed": 0,  # 价格防错：校验失败标的数
     }
 
     # 构建实盘快速查询
@@ -140,14 +166,25 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         code = h.get("code", "").strip()
         user_by_code[code] = h
 
-    # 计算双方总市值
+    # 计算双方总市值（带 sanity 隔离：失败价不计入总市值）
     for code, pos in sim_positions.items():
         price = pos.get("current_price", 0) or 0
         shares = pos.get("shares", 0) or 0
+        g = _sanity_guard(code, price)
+        if g["fail"]:
+            result["sanity_failed"] += 1
+            price = g["reliable_price"] or 0
         result["sim_market_value_total"] += price * shares
 
     for h in user_holdings:
-        result["user_market_value_total"] += h.get("market_value", 0) or 0
+        code = h.get("code", "").strip()
+        price = h.get("current_price", 0) or 0
+        g = _sanity_guard(code, price)
+        if g["fail"]:
+            result["sanity_failed"] += 1
+            price = g["reliable_price"] or 0
+        shares = h.get("shares", 0) or 0
+        result["user_market_value_total"] += price * shares
 
     # 合并所有持仓的市值（用于行业集中度计算）
     combined_by_industry: dict[str, float] = {}
@@ -161,6 +198,9 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         price = pos.get("current_price", 0) or 0
         shares = pos.get("shares", 0) or 0
         cost = pos.get("avg_cost", 0) or 0
+        g = _sanity_guard(code, price)
+        if g["fail"]:
+            price = g["reliable_price"] or 0  # 隔离错误价
         market_value = price * shares
         industry = get_industry(code, name)
         pnl_pct = ((price - cost) / cost * 100) if cost > 0 else 0
@@ -187,8 +227,11 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
         price = h.get("current_price", 0) or 0
         shares = h.get("shares", 0) or 0
         cost = h.get("cost_price", 0) or 0
-        market_value = h.get("market_value", 0) or 0
-        pnl_pct = h.get("pnl_pct", 0) or 0
+        g = _sanity_guard(code, price)
+        if g["fail"]:
+            price = g["reliable_price"] or 0  # 隔离错误价
+        market_value = price * shares
+        pnl_pct = ((price - cost) / cost * 100) if cost > 0 else 0
         industry = get_industry(code, name)
 
         entry = {
@@ -405,6 +448,7 @@ def monitor():
         "chain_risk": combined["chain_risk"],
         "alerts": alerts,
         "alerts_count": len(alerts),
+        "sanity_failed": combined["sanity_failed"],
         "health": "🟢" if len(alerts) == 0 else ("🟡" if len(alerts) <= 2 else "🔴"),
     }
 

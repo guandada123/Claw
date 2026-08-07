@@ -516,6 +516,17 @@ def auto_check_all_positions(pf: dict) -> list:
     suggestions = []
 
     for code, pos in pf["positions"].items():
+        # 🔴 冗余加固（2026-08-07 落地，根因=8/6早报选股价数量级错误）
+        # 判定前先确认 current_price 已过 sanity，防止错误价穿透 update 入口守卫触发误卖
+        current_price = pos.get("current_price")
+        g = _sanity_check_price(code, current_price)
+        if not g["ok"]:
+            logger.error(
+                f"🚫 止损/止盈判定跳过 {code}：现价¥{current_price} 未过sanity校验"
+                f"（{g['reason']}），避免错误价触发误卖"
+            )
+            continue
+
         # 检查止损
         stop_loss_check = check_stop_loss(pf, code)
         if stop_loss_check["should_sell"]:
@@ -565,8 +576,19 @@ def auto_check_all_positions(pf: dict) -> list:
 
 
 def cmd_buy(code: str, shares: int, price: float, name: str = ""):
-    """买入股票（带风险管理）"""
+    """买入股票（带风险管理 + 价格防错校验）"""
     pf = load_portfolio()
+
+    # 价格防错（2026-08-07 落地，根因=8/6早报选股价数量级错误）
+    g = _sanity_check_price(code, price)
+    if not g["ok"]:
+        logger.error(f"🚫 买入价校验失败 {code} ¥{price}: {g['reason']}（拒绝买入）")
+        return {
+            "ok": False,
+            "error": f"价格校验失败：¥{price} 不可信（{g['reason']}），已拒绝买入",
+            "sanity_failed": True,
+            "reliable_price": g["reliable_price"],
+        }
 
     # 检查限制
     err = check_restricted(code)
@@ -651,8 +673,19 @@ def cmd_buy(code: str, shares: int, price: float, name: str = ""):
 
 
 def cmd_sell(code: str, shares: int, price: float, reason: str = ""):
-    """卖出股票"""
+    """卖出股票（带价格防错校验）"""
     pf = load_portfolio()
+
+    # 价格防错（2026-08-07 落地，根因=8/6早报选股价数量级错误）
+    g = _sanity_check_price(code, price)
+    if not g["ok"]:
+        logger.error(f"🚫 卖出价校验失败 {code} ¥{price}: {g['reason']}（拒绝卖出）")
+        return {
+            "ok": False,
+            "error": f"价格校验失败：¥{price} 不可信（{g['reason']}），已拒绝卖出",
+            "sanity_failed": True,
+            "reliable_price": g["reliable_price"],
+        }
 
     pos = get_position(pf, code)
     if not pos:
@@ -833,10 +866,46 @@ def cmd_snapshot():
     return pf["daily_snapshot"][d]
 
 
+def _sanity_check_price(code: str, price: float) -> dict:
+    """价格防错校验（2026-08-07 落地，根因=8/6早报选股价数量级错误）。
+
+    对写入持仓的现价做合理性校验，防止错误价污染止损/止盈判定。
+    返回: {"ok": bool, "reliable_price": float|None, "reason": str}
+    """
+    if not price or price <= 0:
+        return {"ok": False, "reliable_price": None, "reason": "价格非正或缺失"}
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
+        from price_sanity import check as _ps_check
+        res = _ps_check(code, float(price))
+        if not res["ok"]:
+            return {
+                "ok": False,
+                "reliable_price": res.get("verified_price"),
+                "reason": "; ".join(res.get("fail_reasons", [])),
+            }
+    except Exception as e:
+        logger.warning(f"sanity 校验异常({code}): {e}，放行但不信任")
+        return {"ok": True, "reliable_price": price, "reason": ""}
+    return {"ok": True, "reliable_price": price, "reason": ""}
+
+
 def cmd_update_price(code: str, price: float):
-    """更新持仓股票当前价格"""
+    """更新持仓股票当前价格（带价格防错校验）"""
     pf = load_portfolio()
     if code in pf["positions"]:
+        g = _sanity_check_price(code, price)
+        if not g["ok"]:
+            # 拒绝写入错误价，保留旧价，记录告警
+            logger.error(f"🚫 价格校验失败 {code} ¥{price}: {g['reason']}（保留旧价，未刷新）")
+            return {
+                "ok": False,
+                "code": code,
+                "sanity_failed": True,
+                "reason": g["reason"],
+                "reliable_price": g["reliable_price"],
+            }
+        price = g["reliable_price"] or price
         pf["positions"][code]["current_price"] = price
         # 更新最高价
         if price > pf["positions"][code].get("highest_price", price):
@@ -847,11 +916,21 @@ def cmd_update_price(code: str, price: float):
 
 
 def cmd_update_all_prices(prices: dict):
-    """批量更新价格 {code: price}"""
+    """批量更新价格 {code: price}（带价格防错校验）"""
     pf = load_portfolio()
     updated = []
+    sanity_failed = []
     for code, price in prices.items():
         if code in pf["positions"]:
+            g = _sanity_check_price(code, price)
+            if not g["ok"]:
+                sanity_failed.append({
+                    "code": code, "price": price, "reason": g["reason"],
+                    "reliable_price": g["reliable_price"],
+                })
+                logger.error(f"🚫 批量价格校验失败 {code} ¥{price}: {g['reason']}（跳过刷新）")
+                continue  # 拒绝写入错误价，保留旧价
+            price = g["reliable_price"] or price
             pf["positions"][code]["current_price"] = price
             # 更新最高价
             if price > pf["positions"][code].get("highest_price", price):
@@ -859,7 +938,7 @@ def cmd_update_all_prices(prices: dict):
             updated.append(code)
     if updated:
         save_portfolio(pf)
-    return {"ok": True, "updated": updated}
+    return {"ok": True, "updated": updated, "sanity_failed": sanity_failed}
 
 
 def cmd_portfolio():

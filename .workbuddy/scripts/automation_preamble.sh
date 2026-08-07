@@ -379,6 +379,26 @@ mutex_unlock() {
 }
 
 # ============================================================
+# L3 Guardrail Hooks 集成（08-07 五层架构落地）
+# 封装 pre/post-task hook 调用，让所有 source 本 preamble 的自动化一键接入护栏层。
+# 用法：
+#   run_l3_pre "$RRULE" "$AUTOMATION_ID" "$PROMPT_TEXT"   # 自动化前：RRULE/ID/交易日/memwatch 校验
+#   run_l3_post "$EXIT_CODE" "$DURATION_SEC" "$AUTO_NAME" ["$OUTPUT"]  # 自动化后：失败分类+日志+告警判定
+# 失败不阻断自动化（pre 返回非零仅告警，post 始终 return 0），由外部决策是否 abort。
+# ============================================================
+HOOKS_DIR="$CLAW/.workbuddy/hooks"
+
+run_l3_pre() {
+    [ -f "$HOOKS_DIR/pre-task.sh" ] || return 0
+    bash "$HOOKS_DIR/pre-task.sh" "$@" 2>&1 || true
+}
+
+run_l3_post() {
+    [ -f "$HOOKS_DIR/post-task.sh" ] || return 0
+    bash "$HOOKS_DIR/post-task.sh" "$@" 2>&1 || true
+}
+
+# ============================================================
 # LLM 本地代理保活：每次 source 本 preamble 自动探测并自愈（见 ensure_proxy 定义）
 # 放在末尾确保函数已定义。失败不阻断（return 0）。
 # ============================================================
