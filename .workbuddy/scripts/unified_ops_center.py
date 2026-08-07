@@ -515,6 +515,74 @@ def check_data_freshness() -> dict:
     return {"ok": True, "alerts": [], "note": f"数据产物新鲜度: {checked}/{len(WHITELIST)} 全部当日新鲜"}
 
 
+def check_wechat_channel() -> dict:
+    """微信公众号数据链路检查（2026-08-07 新增，盲点#3）。
+    背景：云RSS(wechatrss) 7/30 因微信关闭文章列表接口停摆(平台重构中)；本地
+    wechat-download-api(5001) 08-07 确诊全接口被微信风控(ret=200013 freq control)——
+    登录有效(isExpired=false)、轮询器仍在跑(last_poll=当日)但每次 poll 都被 200013 拒，
+    文章停在 07-20。注意 article_count 是历史存量(837篇)会误导，风控铁证在容器日志。
+    设计四态：
+      ① isExpired=true → alert（F3：需用户扫码重登）
+      ② 容器最近日志 200013(freq control) ≥5 条 → alert（F7：风控态，禁止重登空转）
+      ③ 服务不可达 → alert（基础设施故障）
+      ④ 订阅为空/仅存量正常 → note 可见性。
+    告警文本刻意不带 "wechat-download-api" 字样（风控态走 F7 symptom 命中，
+    避免 F3 的 project 匹配抢先给出"扫码重登"的错误 remediation）。"""
+    import json as _json
+    import urllib.request as _ur
+    alerts, notes = [], []
+    freq_cnt = -1
+    try:
+        with _ur.urlopen("http://localhost:5001/api/admin/status", timeout=6) as r:
+            st = _json.loads(r.read().decode("utf-8"))
+        expired = bool(st.get("isExpired", False))
+        if expired:
+            alerts.append("wechat-download-api 登录过期(isExpired=true)，需扫码重登")
+    except Exception as e:  # noqa: BLE001
+        alerts.append(f"本地微信通道不可达(localhost:5001): {e}")
+        return {"ok": False, "alerts": alerts, "note": None}
+    # 风控铁证：容器日志近 6h 内 200013(freq control) 出现次数（--timestamps 窗口过滤，
+    # 避免 300 行短窗口被健康检查日志冲掉、也避免把"历史风控"当"当前风控"）
+    freq_cnt = 0
+    freq_total = 0
+    try:
+        r = run_cmd(["docker", "logs", "--timestamps", "wechat-download-api",
+                     "--tail", "5000"], timeout=30)
+        _now = datetime.datetime.now(datetime.timezone.utc)
+        for line in r.stdout.splitlines():
+            if "200013" not in line:
+                continue
+            freq_total += 1
+            ts = line.split(" ", 1)[0]
+            try:
+                t = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if (_now - t).total_seconds() < 6 * 3600:
+                    freq_cnt += 1
+            except ValueError:
+                continue
+    except Exception:  # noqa: BLE001
+        freq_cnt = freq_total = -1  # docker 不可用，跳过该信号
+    if not expired and freq_cnt >= 3:
+        alerts.append(
+            f"本地微信通道风控态(近6h日志 {freq_cnt} 次 ret=200013 freq control；"
+            f"勿重登空转，等风控窗口解除或 wechatrss 新链路落地)")
+    elif freq_cnt == -1:
+        notes.append("docker 不可用，freq control 信号未检测")
+    elif freq_cnt == 0:
+        notes.append(f"本地微信通道近6h无新风控(200013: 近6h={freq_cnt}/全窗口={freq_total})")
+    # 订阅侧补充可见性
+    try:
+        with _ur.urlopen("http://localhost:5001/api/rss/subscriptions", timeout=6) as r:
+            subs = _json.loads(r.read().decode("utf-8")).get("data", []) or []
+        if not subs:
+            notes.append("本地微信订阅列表为空")
+    except Exception as e:  # noqa: BLE001
+        notes.append(f"订阅列表读取失败: {e}")
+    return {"ok": not alerts, "alerts": alerts,
+            "note": "; ".join(notes) if notes else None}
+
+
+
 def check_cost_anomaly() -> dict:
     """API 成本异常检查（2026-08-06 新增，盲点#2）。
     成本监控自动化(1782002819199, 6h)在跑 anomaly-only 推送，但中枢零覆盖成本维度。
@@ -1042,6 +1110,12 @@ def main() -> int:
     if args.weekly:
         return _generate_weekly_report()
 
+    # 写中枢自身存活锁（对齐 check_schedule_liveness 的设计意图：中枢每小时跑即证明调度器在分发）。
+    # 消除日切窗口(凌晨)误报——此前中枢不写锁，跨日后"今日锁数=0"被误判为调度器挂死。
+    # 幂等：每日只覆盖同一锁文件；若调度器真死，中枢不跑→不写锁→次日检查正确告警。
+    run_cmd([sys.executable, str(SCRIPT_DIR / "schedule_utils.py"), "done",
+             "--name", "unified_ops_center"], capture=False)
+
     print(f"[ops-center] {datetime.datetime.now():%F %T} 开始统一巡检")
 
     # 1) 调度所有专项检查
@@ -1056,6 +1130,7 @@ def main() -> int:
         "工程质量": check_code_quality(),
         "选股去重": check_duplicate_picks(),
         "数据新鲜度": check_data_freshness(),
+        "微信公众号通道": check_wechat_channel(),
         "成本监控": check_cost_anomaly(),
         "Dependabot": check_dependabot_backlog(),
     }
