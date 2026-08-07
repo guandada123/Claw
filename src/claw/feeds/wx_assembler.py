@@ -70,6 +70,7 @@ def _emit_benchmark_block(sim_pos: dict, user_pos: dict, lines: list, days: int 
         lines.append(f"  {r.get('name', code)}({code}): {label}")
 
 
+from claw.feeds.macro_score import render_macro_score_block  # noqa: E402
 from claw.feeds.wx_collector import (  # noqa: E402
     _HAS_SUMMARIZE,
     REPORT_DIR,
@@ -482,6 +483,12 @@ def build_morning_report():
             lines.append(f"  · {item}")
     else:
         lines.append("  （暂无重要宏观数据发布）")
+
+    # 宏观综合评分（自包含：公开接口抓 PMI/CPI/GDP + 算分，恒有值根除 None 噪声）
+    try:
+        lines.append("\n" + render_macro_score_block())
+    except Exception as e:  # noqa: BLE001
+        lines.append(f"\n**宏观综合评分**：采集异常（{e}），按定性研判。")
 
     # 六、板块热度
     lines.append("\n六、板块热度（东方财富）")
