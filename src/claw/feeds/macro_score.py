@@ -16,6 +16,7 @@ M2/LPR/Shibor 若 Agent 侧经 Wind 已采集到，可经 build_macro_score() �
 from __future__ import annotations
 
 import logging
+
 import requests
 
 logger = logging.getLogger(__name__)

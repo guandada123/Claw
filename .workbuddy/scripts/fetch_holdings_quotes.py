@@ -18,8 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
-from wind_quote import fetch_quotes  # noqa: E402
 from price_sanity import check as _price_sanity  # noqa: E402
+from wind_quote import fetch_quotes  # noqa: E402
 
 
 def _prefix(code: str) -> str:

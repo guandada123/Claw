@@ -12,20 +12,17 @@
 """
 from __future__ import annotations
 
-import importlib
-
-import pytest
-
 # 以脚本所在目录加入 sys.path（脚本在 Claw/scripts/）
 import sys
 from pathlib import Path
+
+import pytest
 
 SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 import price_sanity as ps  # noqa: E402
-
 
 # ---- 受控数据源（替代网络）----
 FAKE_SNAPSHOT = {"price": 77.75}          # 长电科技近似实时价

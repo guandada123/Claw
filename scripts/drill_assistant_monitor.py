@@ -116,6 +116,9 @@ def main():
         return 1
     quotes = quotes["quotes"]
 
+    # 已通过价格防错校验的持仓（隔离 sanity_fail 标的，不参与市值/止损判定）
+    clean_quotes = [q for q in quotes if not q.get("price_sanity_fail")]
+
     # 纪律引擎映射
     rule_map = {}
     if isinstance(rules, list):
@@ -148,8 +151,6 @@ def main():
             print(f"  🚫 {q.get('name')}({q.get('code')}) 现价¥{q.get('current_price')} "
                   f"不可信 → 可信价¥{rp}" + (f" [{q['price_sanity']['fail_reasons'][0]}]" if q.get("price_sanity", {}).get("fail_reasons") else ""))
         print("-" * 60)
-
-    clean_quotes = [q for q in quotes if not q.get("price_sanity_fail")]
 
     # ── PHASE3 分级 ──
     alerts, infos, silent = [], [], []

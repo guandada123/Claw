@@ -9,7 +9,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-import pytest
 
 from claw.feeds import macro_score as ms
 
@@ -62,7 +61,7 @@ def test_render_block_with_data():
 
 def test_render_block_no_data_qualitative_not_none(monkeypatch):
     # 离线场景：公开接口失败 + 无 extra → 走定性研判分支（不编造 None）
-    monkeypatch.setattr(ms, "fetch_public_macro", lambda: {})
+    monkeypatch.setattr(ms, "fetch_public_macro", dict)
     block = ms.render_macro_score_block(extra={})
     assert "宏观综合评分" in block
     assert "None" not in block
@@ -80,7 +79,7 @@ def test_render_block_merges_extra():
 # ── build_macro_score 合并外部注入 ─────────────────────────
 def test_build_merges_extra(monkeypatch):
     # 让 fetch_public_macro 返回空（模拟接口失败），仅靠 extra
-    monkeypatch.setattr(ms, "fetch_public_macro", lambda: {})
+    monkeypatch.setattr(ms, "fetch_public_macro", dict)
     r = ms.build_macro_score(extra={"pmi_manufacturing": 51.0})
     assert r["score"] == 25
     assert r["available"] is True

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 price_sanity.py — 股票价格合理性校验器（P0 防御）
 
@@ -188,13 +187,16 @@ def check(code: str, price: float, market: str | None = None) -> dict:
         fail_reasons.append(f"G1: {live_label}价缺失，无法比对（降级标记）")
 
     # G2 52周区间
-    if low_52w is not None and high_52w is not None:
-        if price < low_52w * 0.95 or price > high_52w * 1.05:
-            fail_reasons.append(
-                f"G2: 传入价¥{price:.2f} 超出52周区间 [¥{low_52w:.2f}, ¥{high_52w:.2f}]"
-            )
-            if verified == price and live_price:
-                verified = live_price
+    if (
+        low_52w is not None
+        and high_52w is not None
+        and (price < low_52w * 0.95 or price > high_52w * 1.05)
+    ):
+        fail_reasons.append(
+            f"G2: 传入价¥{price:.2f} 超出52周区间 [¥{low_52w:.2f}, ¥{high_52w:.2f}]"
+        )
+        if verified == price and live_price:
+            verified = live_price
 
     # G3 MA20 锚定（仅 A股）
     if ma20 is not None and ma20 > 0:
