@@ -16,8 +16,49 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 from wind_quote import fetch_quotes  # noqa: E402
+from price_sanity import check as _price_sanity  # noqa: E402
+
+
+def _prefix(code: str) -> str:
+    """补齐交易所前缀（腾讯接口需要 sh/sz）。"""
+    code = str(code).strip()
+    if code[:2] in ("sh", "sz"):
+        return code
+    if code[0] in ("6",):
+        return "sh" + code
+    if code[0] in ("0", "3", "2"):
+        return "sz" + code
+    return code
+
+
+def _apply_sanity(item: dict) -> dict:
+    """对 current_price 做合理性校验，偏差>30%或超52周区间→标记失败+可信价。
+
+    防御目标：杜绝 8/6 早报同类事故——Wind/腾讯降级或返回错误价时，
+    监控报告仍拿可疑价算盈亏/止损价。
+    """
+    price = item.get("current_price")
+    if price is None or not isinstance(price, (int, float)) or price <= 0:
+        return item
+    try:
+        res = _price_sanity(_prefix(item["code"]), float(price))
+    except Exception:
+        # 校验器自身失败不影响主流程，仅跳过校验
+        return item
+    item["price_sanity"] = {
+        "ok": res["ok"],
+        "verified_price": res.get("verified_price"),
+        "gtimg_price": res.get("gtimg_price"),
+        "fail_reasons": res.get("fail_reasons", []),
+        "action": res.get("action"),
+    }
+    if not res["ok"]:
+        item["price_sanity_fail"] = True
+        item["reliable_current_price"] = res.get("verified_price")
+    return item
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent.parent  # .workbuddy/scripts/ → Claw
 USER_DATA = PROJECT_DIR / ".workbuddy" / "data" / "user" / "portfolio.json"
@@ -101,12 +142,20 @@ if __name__ == "__main__":
     data_source = quotes.pop("_source", "tencent")
     output = _merge(holdings, quotes)
 
+    # 价格防错兜底（2026-08-07 落地，根因=8/6早报选股价数量级错误）
+    sanity_failed = 0
+    for item in output:
+        _apply_sanity(item)
+        if item.get("price_sanity_fail"):
+            sanity_failed += 1
+
     print(
         json.dumps(
             {
                 "quotes": output,
                 "source": str(portfolio_path),
                 "data_source": data_source,
+                "sanity_failed": sanity_failed,
             },
             ensure_ascii=False,
             indent=2,

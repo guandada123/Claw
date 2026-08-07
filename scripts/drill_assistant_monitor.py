@@ -130,16 +130,30 @@ def main():
     except Exception:  # noqa
         pass
     if not total_assets:
-        total_assets = sum(q.get("current_price", 0) * q.get("shares", 0) for q in quotes)
+        total_assets = sum(q.get("current_price", 0) * q.get("shares", 0) for q in clean_quotes)
 
     nb_ok = north.get("ok") if isinstance(north, dict) else None
     nb_flow = north.get("net_flow") if isinstance(north, dict) else None
     print(f"持仓 {len(quotes)} 只 | 北向 ok={nb_ok} net_flow={nb_flow}")
     print("-" * 60)
 
+    # ── 价格防错隔离（2026-08-07 落地，根因=8/6早报选股价数量级错误）──
+    # fetch_holdings_quotes 已对每只 current_price 做 sanity 校验，
+    # price_sanity_fail=true 的标的不得参与盈亏/止损判定，需单独隔离告警。
+    sanity_failed = [q for q in quotes if q.get("price_sanity_fail")]
+    if sanity_failed:
+        print(f"⚠️ 价格防错：{len(sanity_failed)} 只标的现价校验失败，已隔离（不参与止损/盈亏判定）")
+        for q in sanity_failed:
+            rp = q.get("reliable_current_price")
+            print(f"  🚫 {q.get('name')}({q.get('code')}) 现价¥{q.get('current_price')} "
+                  f"不可信 → 可信价¥{rp}" + (f" [{q['price_sanity']['fail_reasons'][0]}]" if q.get("price_sanity", {}).get("fail_reasons") else ""))
+        print("-" * 60)
+
+    clean_quotes = [q for q in quotes if not q.get("price_sanity_fail")]
+
     # ── PHASE3 分级 ──
     alerts, infos, silent = [], [], []
-    for q in quotes:
+    for q in clean_quotes:
         pct = q.get("change_pct", 0) or 0
         if pct <= -8 or pct >= 5:
             alerts.append(q)
