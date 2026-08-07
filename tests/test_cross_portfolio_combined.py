@@ -1,8 +1,7 @@
 """test_cross_portfolio_combined.py — cross_portfolio_monitor calc_combined_metrics 测试。"""
 
-import pytest
-
 import cross_portfolio_monitor as cpm
+import pytest
 
 
 @pytest.fixture(autouse=True)
