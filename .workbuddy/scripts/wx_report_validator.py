@@ -189,9 +189,7 @@ def main() -> int:
         # 覆盖「当日 + 前一日」双日期前缀，修复跨日边界漏判（08-03 记录：
         # 21:00 运行时 since 落在前一日，原 glob 只匹配前一日前缀，漏掉当日报告）
         now = datetime.now()
-        day_prefixes = {
-            (now - timedelta(days=d)).strftime("%Y%m%d") for d in range(2)
-        }
+        day_prefixes = {(now - timedelta(days=d)).strftime("%Y%m%d") for d in range(2)}
         files = [
             f
             for f in REPORT_DIR.glob("*.md")

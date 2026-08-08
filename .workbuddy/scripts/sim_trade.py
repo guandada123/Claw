@@ -882,6 +882,7 @@ def _sanity_check_price(code: str, price: float) -> dict:
     try:
         sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
         from price_sanity import check as _ps_check
+
         res = _ps_check(code, float(price))
         if not res["ok"]:
             return {
@@ -929,10 +930,14 @@ def cmd_update_all_prices(prices: dict):
         if code in pf["positions"]:
             g = _sanity_check_price(code, price)
             if not g["ok"]:
-                sanity_failed.append({
-                    "code": code, "price": price, "reason": g["reason"],
-                    "reliable_price": g["reliable_price"],
-                })
+                sanity_failed.append(
+                    {
+                        "code": code,
+                        "price": price,
+                        "reason": g["reason"],
+                        "reliable_price": g["reliable_price"],
+                    }
+                )
                 logger.error(f"🚫 批量价格校验失败 {code} ¥{price}: {g['reason']}（跳过刷新）")
                 continue  # 拒绝写入错误价，保留旧价
             price = g["reliable_price"] or price

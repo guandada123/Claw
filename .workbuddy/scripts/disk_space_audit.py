@@ -15,6 +15,7 @@ disk_space_audit.py — 跨项目磁盘/SSD 空间巡检（周日运维周报组
   python3 disk_space_audit.py              # 巡检 + 生成 md 报告
   python3 disk_space_audit.py --json        # 仅输出 JSON（供其他脚本聚合）
 """
+
 from __future__ import annotations
 
 import argparse
@@ -36,8 +37,18 @@ def _df_rows() -> list[dict]:
     """取真实数据盘挂载点使用率（df -P 可移植格式）。
     排除伪/系统卷：/dev(devfs)、/System/*(Apple 合成卷)、/private/var/vm(交换)、
     /net /home 等——与中枢 check_disk 口径一致，只关注用户可写数据盘(如 /Volumes/ZHITAI)。"""
-    SKIP_PREFIXES = ("/dev", "/System/", "/private/var/vm", "/net", "/proc", "/run",
-                     "/sys", "/Volumes/com.apple", "/Volumes/Preboot", "/Volumes/VM")
+    SKIP_PREFIXES = (
+        "/dev",
+        "/System/",
+        "/private/var/vm",
+        "/net",
+        "/proc",
+        "/run",
+        "/sys",
+        "/Volumes/com.apple",
+        "/Volumes/Preboot",
+        "/Volumes/VM",
+    )
     rows = []
     try:
         r = subprocess.run(["df", "-P", "-k"], capture_output=True, text=True, timeout=20)
@@ -59,12 +70,14 @@ def _df_rows() -> list[dict]:
             # 跳过总量为0的伪盘
             if total_k == 0:
                 continue
-            rows.append({
-                "mount": mount,
-                "use_pct": use_pct,
-                "total_gb": round(total_k / 1024 / 1024, 1),
-                "avail_gb": round(avail_k / 1024 / 1024, 1),
-            })
+            rows.append(
+                {
+                    "mount": mount,
+                    "use_pct": use_pct,
+                    "total_gb": round(total_k / 1024 / 1024, 1),
+                    "avail_gb": round(avail_k / 1024 / 1024, 1),
+                }
+            )
     except Exception:
         pass
     return rows
@@ -78,12 +91,22 @@ def main() -> int:
     rows = _df_rows()
     # 仅关注使用率较高的挂载点（>=warn 或 系统卷但异常高）
     flagged = [r for r in rows if r["use_pct"] >= WARN_PCT]
-    status = "alert" if any(r["use_pct"] >= CRIT_PCT for r in flagged) else ("warn" if flagged else "ok")
+    status = (
+        "alert" if any(r["use_pct"] >= CRIT_PCT for r in flagged) else ("warn" if flagged else "ok")
+    )
 
     if args.json:
-        print(json.dumps({"status": status, "rows": rows, "flagged": flagged,
-                          "thresholds": {"warn": WARN_PCT, "crit": CRIT_PCT}},
-                         ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "status": status,
+                    "rows": rows,
+                    "flagged": flagged,
+                    "thresholds": {"warn": WARN_PCT, "crit": CRIT_PCT},
+                },
+                ensure_ascii=False,
+            )
+        )
         return 0
 
     now = datetime.datetime.now()
@@ -101,14 +124,20 @@ def main() -> int:
     ]
     for r in sorted(rows, key=lambda x: -x["use_pct"]):
         mark = "🔴" if r["use_pct"] >= CRIT_PCT else ("🟡" if r["use_pct"] >= WARN_PCT else "")
-        lines.append(f"| {r['mount']} | {mark}{r['use_pct']}% | {r['total_gb']} | {r['avail_gb']} |")
+        lines.append(
+            f"| {r['mount']} | {mark}{r['use_pct']}% | {r['total_gb']} | {r['avail_gb']} |"
+        )
     lines += [
         "",
         "## 结论",
         "",
-        ("⚠️ 存在挂载点超过严重阈值，建议清理 .backups/ 旧备份或 output/ 历史产物。" if status == "alert"
-         else "🟡 部分挂载点接近警告阈值，持续监控。" if status == "warn"
-         else "✅ 所有挂载点空间正常。"),
+        (
+            "⚠️ 存在挂载点超过严重阈值，建议清理 .backups/ 旧备份或 output/ 历史产物。"
+            if status == "alert"
+            else "🟡 部分挂载点接近警告阈值，持续监控。"
+            if status == "warn"
+            else "✅ 所有挂载点空间正常。"
+        ),
         "",
     ]
     out_path = OUT_DIR / f"disk_space_{now:%Y%m%d}.md"

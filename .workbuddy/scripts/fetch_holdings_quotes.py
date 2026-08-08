@@ -60,6 +60,7 @@ def _apply_sanity(item: dict) -> dict:
         item["reliable_current_price"] = res.get("verified_price")
     return item
 
+
 PROJECT_DIR = Path(__file__).resolve().parent.parent.parent  # .workbuddy/scripts/ → Claw
 USER_DATA = PROJECT_DIR / ".workbuddy" / "data" / "user" / "portfolio.json"
 SIM_DATA = PROJECT_DIR / ".workbuddy" / "data" / "simulation" / "portfolio.json"
