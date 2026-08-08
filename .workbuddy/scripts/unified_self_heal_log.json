@@ -38,5 +38,13 @@
     "reason": "GitHub CI 红灯 2 个（详见每日20:00巡检卡）",
     "result": "alert",
     "detail": ""
+  },
+  {
+    "ts": "2026-08-07T00:24:35",
+    "action": "detect",
+    "target": "调度活性",
+    "reason": "今日调度锁数=0（没有任何自动化完成过，调度系统可能整体挂死）",
+    "result": "alert",
+    "detail": ""
   }
 ]

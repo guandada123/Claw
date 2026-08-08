@@ -9,64 +9,91 @@
       }
     ],
     "created_at": "2026-07-05",
-    "updated_at": "2026-08-06 11:14:06"
+    "updated_at": "2026-08-08 06:23:21"
   },
-  "cash": 16069.37,
+  "cash": 10208.02,
   "positions": {
     "000333": {
       "name": "美的集团",
       "shares": 100,
-      "avg_cost": 78.72,
-      "total_cost": 7872.0,
-      "current_price": 85.18,
+      "avg_cost": 81.135,
+      "total_cost": 8113.5,
+      "current_price": 83.5,
       "highest_price": 89.39,
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-08-06T13:07",
-      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-06 13:10",
-      "mode": "normal"
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "mode": "normal",
+      "market_value": 8350.0,
+      "floating_pnl": 478.0,
+      "pnl_pct": 6.07
     },
     "601899": {
       "name": "紫金矿业",
       "shares": 100,
       "avg_cost": 27.565,
       "total_cost": 2756.5,
-      "current_price": 34.53,
+      "current_price": 35.15,
       "highest_price": 35.8,
       "take_profit_level": 3,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "2026-08-06T13:07",
-      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-06 13:10",
-      "mode": "normal"
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "mode": "normal",
+      "market_value": 3515.0,
+      "floating_pnl": 758.5,
+      "pnl_pct": 27.52
     },
     "600036": {
       "name": "招商银行",
       "shares": 200,
       "avg_cost": 38.935,
       "total_cost": 7787.0,
-      "current_price": 38.63,
+      "current_price": 38.8,
       "highest_price": 40.55,
       "take_profit_level": 1,
       "first_buy_date": "2026-07-23",
-      "updated": "2026-08-06T13:07",
-      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-06 13:10",
-      "mode": "normal"
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "mode": "normal",
+      "market_value": 7760.0,
+      "floating_pnl": -27.0,
+      "pnl_pct": -0.35
     },
     "601668": {
       "name": "中国建筑",
       "shares": 4000,
       "avg_cost": 4.5814,
       "total_cost": 18325.5,
-      "current_price": 4.55,
+      "current_price": 4.52,
       "highest_price": 4.65,
       "take_profit_level": 1,
       "first_buy_date": "2026-08-05",
-      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-06 13:10",
-      "updated": "2026-08-06T13:07",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
       "risk_note": "C1-20260805: 中金8月低配建筑与工程→跌破4.40减半(卖出2000股)，止损4.27不变；8月中报窗口业绩不及预期亦减半",
-      "mode": "normal"
+      "mode": "normal",
+      "market_value": 18080.0,
+      "floating_pnl": -245.6,
+      "pnl_pct": -1.34
+    },
+    "600031": {
+      "name": "三一重工",
+      "shares": 300,
+      "avg_cost": 19.4767,
+      "total_cost": 5843.0,
+      "current_price": 19.58,
+      "highest_price": 19.58,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-08-07",
+      "market_value": 5874.0,
+      "floating_pnl": 30.99,
+      "pnl_pct": 0.53,
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46"
     }
   },
   "transactions": [
@@ -161,6 +188,46 @@
       "total": 18325.5,
       "time": "2026-08-05 12:27:20",
       "date": "2026-08-05"
+    },
+    {
+      "id": "B1786076851161",
+      "type": "BUY",
+      "code": "600031",
+      "name": "午间确认早盘选中(7.05分)回踩买区触发：工程机械龙头工业制造空白填补+逆市回调非追高+四大师段✅欧⚠️利✅格⚠️0票❌通过",
+      "shares": 300,
+      "price": 19.46,
+      "commission": 5.0,
+      "total": 5843.0,
+      "time": "2026-08-07 12:27:31",
+      "date": "2026-08-07"
+    },
+    {
+      "id": "B1786092117169",
+      "type": "BUY",
+      "code": "000333",
+      "name": "测试",
+      "shares": 100,
+      "price": 83.5,
+      "commission": 5.0,
+      "total": 8355.0,
+      "time": "2026-08-07 16:41:57",
+      "date": "2026-08-07"
+    },
+    {
+      "id": "S1786092124846",
+      "type": "SELL",
+      "code": "000333",
+      "name": "美的集团",
+      "shares": 100,
+      "price": 83.5,
+      "commission": 5.0,
+      "stamp_tax": 8.35,
+      "net_proceeds": 8336.65,
+      "realized_pnl": 223.15,
+      "pnl_pct": 2.75,
+      "reason": "回滚测试交易",
+      "time": "2026-08-07 16:42:04",
+      "date": "2026-08-07"
     }
   ],
   "holdings": [
@@ -295,5 +362,7 @@
       },
       "time": "2026-08-02 23:05:19"
     }
-  }
+  },
+  "initial_capital": 50000.0,
+  "total_assets": 53787.02
 }
