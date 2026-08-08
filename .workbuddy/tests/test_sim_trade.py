@@ -420,7 +420,15 @@ class TestAutoCheck:
         from sim_trade import auto_check_all_positions
 
         original_save = sim_trade.save_portfolio
+        original_sanity = sim_trade._sanity_check_price
+        # 铁律⑨(08-07)：auto_check 判定前走 sanity，测试用虚构价 85 元会被腾讯实时价拦截
+        # → mock sanity 放行，聚焦"止损优先于止盈"逻辑本身
         sim_trade.save_portfolio = lambda pf: None
+        sim_trade._sanity_check_price = lambda code, price: {
+            "ok": True,
+            "reliable_price": price,
+            "reason": "",
+        }
         try:
             pf = {
                 "cash": 15000,
@@ -443,6 +451,7 @@ class TestAutoCheck:
             assert result[0]["priority"] == "high"
         finally:
             sim_trade.save_portfolio = original_save
+            sim_trade._sanity_check_price = original_sanity
 
 
 # ═══════════════════════════════════════
