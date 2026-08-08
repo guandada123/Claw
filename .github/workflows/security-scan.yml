@@ -37,7 +37,7 @@ jobs:
         # 新版 safety 中 --full-report 与 --output 互斥（usage error, exit 2），JSON 输出已含完整报告
         run: safety check --output json > safety-report.json
       - name: Upload safety report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: claw-safety-report
           path: safety-report.json
@@ -70,7 +70,7 @@ jobs:
           bandit -r .workbuddy/scripts/ src/claw/ scripts/ -f json -o bandit-report.json \
             -ll --skip B101,B324,B310,B108,B306
       - name: Upload bandit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: claw-bandit-report
           path: bandit-report.json
