@@ -17,11 +17,11 @@
     "_source": "wind"
   },
   "money_supply": {
-    "m2_yoy": null,
+    "m2_yoy": 8,
     "_source": "wind"
   },
   "shibor": {
-    "overnight": 1.377,
+    "overnight": 1.361,
     "_source": "wind"
   },
   "lpr": {
@@ -37,6 +37,6 @@
     "_source": "wind"
   },
   "_source": "wind",
-  "generated_at": "2026-08-06 08:37:22",
+  "generated_at": "2026-08-07 15:48:31",
   "indicator_count": 8
 }
