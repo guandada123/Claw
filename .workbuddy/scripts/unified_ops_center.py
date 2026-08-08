@@ -126,6 +126,11 @@ def run_cmd(cmd: list[str], timeout: int = 90, capture: bool = True, env: dict |
     return subprocess.run(cmd, capture_output=capture, text=True, timeout=timeout, env=env)
 
 
+def _raise_cmd_error(r: subprocess.CompletedProcess) -> None:
+    """TRY301: 将 try 块内 raise 抽象到独立函数，异常仍由调用方 except 捕获。"""
+    raise RuntimeError(r.stderr.strip()[:150])
+
+
 def push_card(title: str, content: str, level: str = "info") -> bool:
     env = dict(os.environ)
     env.setdefault("FEISHU_CHAT_ID", CHAT_ID)
@@ -751,7 +756,7 @@ def runbook_dependabot_rebase(dry_run: bool = False) -> list[dict]:
         try:
             r = run_cmd(["git", "-C", str(local), "fetch", "origin"], timeout=60)
             if r.returncode != 0:
-                raise RuntimeError(r.stderr.strip()[:150])
+                _raise_cmd_error(r)
             run_cmd(["git", "-C", str(local), "checkout", branch], timeout=30)
             r = run_cmd(
                 ["git", "-C", str(local), "merge", "--no-edit", "origin/main"], timeout=60
@@ -768,7 +773,7 @@ def runbook_dependabot_rebase(dry_run: bool = False) -> list[dict]:
                 ["git", "-C", str(local), "push", "origin", branch], timeout=60
             )
             if r.returncode != 0:
-                raise RuntimeError(r.stderr.strip()[:150])
+                _raise_cmd_error(r)
             run_cmd(["git", "-C", str(local), "checkout", "main"], timeout=30)
         except Exception as e:  # noqa: BLE001
             recs.append(log_action("dependabot_rebase", f"{repo}#{num}",
