@@ -16,6 +16,7 @@ ops_center_liveness_watchdog.py — 统一巡检中枢存活看门狗（独立�
   python3 ops_center_liveness_watchdog.py --dry-run # 只检测不推送
   python3 ops_center_liveness_watchdog.py --threshold-min 180
 """
+
 from __future__ import annotations
 
 import argparse
@@ -37,8 +38,9 @@ def _push_card(title: str, content: str) -> bool:
     env.setdefault("FEISHU_CHAT_ID", CHAT_ID)
     env["PUSH_LEVEL"] = "alert"
     try:
-        r = subprocess.run(["bash", str(PUSH), title, content], capture_output=True,
-                            text=True, timeout=60, env=env)
+        r = subprocess.run(
+            ["bash", str(PUSH), title, content], capture_output=True, text=True, timeout=60, env=env
+        )
         return r.returncode == 0
     except Exception:
         return False
@@ -51,18 +53,29 @@ def main() -> int:
     args = ap.parse_args()
 
     try:
-        data = json.loads(CROSS_STATE_PATH.read_text(encoding="utf-8")) if CROSS_STATE_PATH.exists() else {}
+        data = (
+            json.loads(CROSS_STATE_PATH.read_text(encoding="utf-8"))
+            if CROSS_STATE_PATH.exists()
+            else {}
+        )
     except Exception as e:
         print(f"[liveness-watchdog] 状态锚读失败: {e}")
         return 1
 
-    sh = data.get("monitoring", {}).get("global", {}).get("unified_ops_center", {}).get("self_health", {})
+    sh = (
+        data.get("monitoring", {})
+        .get("global", {})
+        .get("unified_ops_center", {})
+        .get("self_health", {})
+    )
     last_ok = sh.get("last_ok_ts")
     if not last_ok:
         print("[liveness-watchdog] 状态锚无 self_health.last_ok_ts（中枢从未成功运行过）→ 告警")
         if not args.dry_run:
-            _push_card("🛡️ 巡检中枢存活看门狗",
-                       "⚠️ 统一巡检中枢状态锚无 last_ok_ts（可能从未成功运行），请检查中枢调度。")
+            _push_card(
+                "🛡️ 巡检中枢存活看门狗",
+                "⚠️ 统一巡检中枢状态锚无 last_ok_ts（可能从未成功运行），请检查中枢调度。",
+            )
         return 0
 
     try:
@@ -72,14 +85,18 @@ def main() -> int:
         return 1
 
     gap_min = round((datetime.datetime.now() - last_dt).total_seconds() / 60, 1)
-    print(f"[liveness-watchdog] 中枢上次成功: {last_ok} | 间隔 {gap_min}min | 阈值 {args.threshold_min}min")
+    print(
+        f"[liveness-watchdog] 中枢上次成功: {last_ok} | 间隔 {gap_min}min | 阈值 {args.threshold_min}min"
+    )
 
     if gap_min > args.threshold_min:
-        msg = (f"🚨 **统一巡检中枢可能失联**\n\n"
-               f"• 上次成功运行：{last_ok}（{gap_min} 分钟前）\n"
-               f"• 阈值：{args.threshold_min} 分钟\n"
-               f"• 可能原因：中枢自动化静默失败 / 宿主进程挂死 / 调度系统异常\n"
-               f"• 建议：检查 automation-1785506975961（统一巡检中枢）运行记录，必要时手动重跑")
+        msg = (
+            f"🚨 **统一巡检中枢可能失联**\n\n"
+            f"• 上次成功运行：{last_ok}（{gap_min} 分钟前）\n"
+            f"• 阈值：{args.threshold_min} 分钟\n"
+            f"• 可能原因：中枢自动化静默失败 / 宿主进程挂死 / 调度系统异常\n"
+            f"• 建议：检查 automation-1785506975961（统一巡检中枢）运行记录，必要时手动重跑"
+        )
         print("[liveness-watchdog] 超阈值 → 飞书告警")
         if not args.dry_run:
             _push_card("🛡️ 巡检中枢存活看门狗", msg)

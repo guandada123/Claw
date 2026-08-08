@@ -42,9 +42,9 @@ GAP_SEC = 7.0
 _RETRY_SEC_RE = re.compile(r"(\d+)\s*秒")
 
 # 模块内缓存
-_ARTICLE_URL_MAP: dict[str, str] = {}          # art_id -> 文章链接（兼容契约）
-_ALL_ITEMS_CACHE: list[dict] | None = None     # /api/rss/all 解析后的全量文章（含正文）
-_NICK_MAP: dict[str, str] | None = None        # fakeid -> nickname
+_ARTICLE_URL_MAP: dict[str, str] = {}  # art_id -> 文章链接（兼容契约）
+_ALL_ITEMS_CACHE: list[dict] | None = None  # /api/rss/all 解析后的全量文章（含正文）
+_NICK_MAP: dict[str, str] | None = None  # fakeid -> nickname
 
 
 def _http_get(path: str, timeout: int = TIMEOUT) -> Any:
@@ -56,7 +56,9 @@ def _http_get(path: str, timeout: int = TIMEOUT) -> Any:
 
 def _http_get_raw(path: str, timeout: int = TIMEOUT) -> str:
     """GET 本地 API，返回原始文本（用于 RSS XML）"""
-    req = urlreq.Request(f"{LOCAL_BASE}{path}", headers={"Accept": "application/xml, application/rss+xml, */*"})
+    req = urlreq.Request(
+        f"{LOCAL_BASE}{path}", headers={"Accept": "application/xml, application/rss+xml, */*"}
+    )
     with urlreq.urlopen(req, timeout=timeout) as resp:  # noqa: S310
         return resp.read().decode("utf-8")
 
@@ -118,8 +120,7 @@ def _ensure_nick_map() -> dict[str, str]:
     global _NICK_MAP
     if _NICK_MAP is None:
         _NICK_MAP = {
-            s["fakeid"]: s["nickname"]
-            for s in get_subscriptions().get("subscriptions", [])
+            s["fakeid"]: s["nickname"] for s in get_subscriptions().get("subscriptions", [])
         }
     return _NICK_MAP
 
@@ -136,9 +137,7 @@ def _ensure_all_cache(force: bool = False) -> list[dict]:
         title_m = re.search(r"<title>(.*?)</title>", it, re.S)
         link_m = re.search(r"<link>(.*?)</link>", it, re.S)
         pub_m = re.search(r"<pubDate>(.*?)</pubDate>", it, re.S)
-        enc_m = re.search(
-            r"<content:encoded>(.*?)</content:encoded>", it, re.S
-        )
+        enc_m = re.search(r"<content:encoded>(.*?)</content:encoded>", it, re.S)
         desc_m = re.search(r"<description>(.*?)</description>", it, re.S)
         title = _cdata(title_m.group(1)).strip() if title_m else ""
         link = link_m.group(1).strip() if link_m else ""
@@ -263,11 +262,13 @@ if __name__ == "__main__":
     print(f"聚合源文章总数: {len(all_items)}")
     if all_items:
         mx = max(all_items, key=lambda x: x["publish_time"] or 0)
-        print(f"  最新发布: {datetime.fromtimestamp(mx['publish_time'], tz=timezone.utc).strftime('%Y-%m-%d %H:%M')} 《{mx['title'][:30]}》")
+        print(
+            f"  最新发布: {datetime.fromtimestamp(mx['publish_time'], tz=timezone.utc).strftime('%Y-%m-%d %H:%M')} 《{mx['title'][:30]}》"
+        )
     if subs:
         arts, ok = fetch_all_articles(limit=3, fakeid=subs[0]["fakeid"])
         print(f"首个账号《{subs[0]['nickname']}》ok={ok} 匹配文章数={len(arts)}")
         for a in arts[:3]:
             print(
-                f"  - {datetime.fromtimestamp(a['publish_time'], tz=timezone.utc).strftime('%m-%d %H:%M')} {a['title'][:40]} (正文{len(a.get('content',''))}字)"
+                f"  - {datetime.fromtimestamp(a['publish_time'], tz=timezone.utc).strftime('%m-%d %H:%M')} {a['title'][:40]} (正文{len(a.get('content', ''))}字)"
             )

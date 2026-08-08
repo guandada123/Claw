@@ -19,6 +19,7 @@ db_backup_rotate.py — workbuddy.db 备份滚动清理（低优先级运维优�
   python3 db_backup_rotate.py --keep 14  # 自定义保留天数
   python3 db_backup_rotate.py --json     # JSON 输出（供中枢/周报聚合）
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,8 +40,10 @@ KEEP_DAYS_DEFAULT = 7
 def _list_backups() -> list[Path]:
     if not DB_DIR.exists():
         return []
-    return sorted([p for p in DB_DIR.glob(f"{BACKUP_PREFIX}*") if p.is_file()],
-                  key=lambda p: p.stat().st_mtime)
+    return sorted(
+        [p for p in DB_DIR.glob(f"{BACKUP_PREFIX}*") if p.is_file()],
+        key=lambda p: p.stat().st_mtime,
+    )
 
 
 def _to_trash(path: Path) -> tuple[bool, str]:
@@ -48,8 +51,7 @@ def _to_trash(path: Path) -> tuple[bool, str]:
     try:
         # 优先用系统 Finder 移废纸篓（可恢复）
         script = f'tell application "Finder" to delete POSIX file "{path}"'
-        subprocess.run(["osascript", "-e", script], check=True,
-                       capture_output=True, timeout=30)
+        subprocess.run(["osascript", "-e", script], check=True, capture_output=True, timeout=30)
         return True, "trash"
     except Exception as e:  # noqa: BLE001
         try:
@@ -102,7 +104,9 @@ def main() -> int:
 
     mode = "APPLY(真实删除)" if args.apply else "DRY-RUN(只报告)"
     print(f"[db_backup_rotate] {mode} | 保留{args.keep}天")
-    print(f"  备份总数: {res['total']} | 当前窗口内(保留): {res['skipped_current_window']} | 过期: {len(res['expired'])}")
+    print(
+        f"  备份总数: {res['total']} | 当前窗口内(保留): {res['skipped_current_window']} | 过期: {len(res['expired'])}"
+    )
     for e in res["expired"]:
         print(f"    ⏰ 过期 {e['file']} (mtime {e['mtime']})")
     if res["deleted"]:
