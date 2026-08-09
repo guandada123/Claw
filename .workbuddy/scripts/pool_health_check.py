@@ -235,7 +235,7 @@ summary = (
 
 health = {
     "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    "data_as_of": "2026-07-24 收盘 (周日无交易，行情反映最近交易日)",
+    "data_as_of": "2026-08-07 收盘 (周日无交易，行情反映最近交易日)",
     "pool_size": total_stocks,
     "sector_count": len(sector_stats),
     "holdings_total": len(holdings_in_pool),
