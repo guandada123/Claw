@@ -65,10 +65,10 @@ NUM_HEAD_RE = re.compile(r"(十?[一二三四五六七八九十]+)(?:·([一二�
 # 行动清单段已于 2026-08 模板重构（vFinal 合成版）移除，不再强制。
 RISK_HEADERS = ("今日风险", "收盘风险复盘")  # 第1段风险头（无编号）
 MORNING_RISK = "risk"
-MORNING_NUMS = list(range(2, 9))     # 二~八
+MORNING_NUMS = list(range(2, 9))  # 二~八
 MORNING_SUB = "7·5"
 EVENING_RISK = "risk"
-EVENING_NUMS = list(range(2, 11))    # 二~十
+EVENING_NUMS = list(range(2, 11))  # 二~十
 EVENING_SUB = "9·5"
 
 
@@ -180,9 +180,7 @@ def check_holdings(name: str, text: str) -> list[str]:
                     continue
             # 报告中模拟盘表格应含这些代码
             if code not in text:
-                warn.append(
-                    f"[{name}] 模拟盘持仓 {code}({pos.get('name', '')}) 未在报告中出现"
-                )
+                warn.append(f"[{name}] 模拟盘持仓 {code}({pos.get('name', '')}) 未在报告中出现")
     except Exception as e:  # noqa
         warn.append(f"[{name}] 读取模拟盘 portfolio 失败: {e}")
     return warn
