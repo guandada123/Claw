@@ -12,6 +12,7 @@
   python3 wind_deep_report.py            # 默认 dry-run（仅打印，不推送）
   python3 wind_deep_report.py --push    # 实际推送飞书群（自动化调用）
 """
+
 from __future__ import annotations
 
 import argparse
@@ -203,7 +204,11 @@ def render_macro() -> list:
     series = wind_call_timeseries(
         "economic_data",
         "natural_language_get_edb_data",
-        {"executionMode": "searchFetch", "question": "中国GDP同比、CPI同比、制造业PMI、LPR一年期", "observation": "6"},
+        {
+            "executionMode": "searchFetch",
+            "question": "中国GDP同比、CPI同比、制造业PMI、LPR一年期",
+            "observation": "6",
+        },
     )
     if not series:
         lines.append("- （宏观数据获取失败，详见早/晚报）")
