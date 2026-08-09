@@ -13,6 +13,7 @@
   - 非交易时段 qt.gtimg 返回最近收盘，摘要中标注来源，不伪造时间戳。
   - 止损判定: 实盘/主板 -8%、创业板(300/301) -15%（与 sim_trade.py 口径一致）。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,9 +40,7 @@ def fetch_price(code: str) -> dict:
     """返回 {price, prev_close, pct, name} 或 {error}。"""
     try:
         raw = (
-            urllib.request.urlopen(QT_URL.format(code_prefix(code)), timeout=8)
-            .read()
-            .decode("gbk")
+            urllib.request.urlopen(QT_URL.format(code_prefix(code)), timeout=8).read().decode("gbk")
         )
         s = raw.split('"')[1]
         f = s.split("~")
@@ -140,7 +139,9 @@ def main() -> None:
     sim_items = build_items(sim_raw, None, default_thr=-8.0)
 
     today = datetime.date.today().strftime("%Y-%m-%d")
-    weekday = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][datetime.date.today().weekday()]
+    weekday = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][
+        datetime.date.today().weekday()
+    ]
 
     body = [f"📅 **盘前持仓 / 盘面摘要 · {today} {weekday}**", ""]
     body += section("📊 实盘（国金）", real_items)
