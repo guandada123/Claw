@@ -8,12 +8,13 @@ wx_report_validator.py — 微信早/晚报结构校验器（A+C 两部分）
 本脚本做轻量静态校验，默认**观察模式**（只记录不推送），避免告警疲劳。
 
 ## 校验项（SCHEMA，已核真实文件，勿凭记忆改）
-- 早报(wx_*_morning.md): 一~八 + 七·五 + 📌今日行动清单 = 9 段
-- 晚报(wx_*_evening.md): 一~十 + 九·五 + 📌明日行动清单 = 11 段
+- 早报(wx_*_morning.md): 风险段(🩺今日风险,无编号) + 二~八 + 七·五 = 9 段
+- 晚报(wx_*_evening.md): 风险段(🩺收盘风险复盘,无编号) + 二~十 + 九·五 = 11 段
+- 第1段为风险段（emoji 头,无中文编号）；主段编号自「二」起
 - `·五` 白名单: 七·五 / 九·五（宏观景气段，允许中段插入）
-- 段落顺序: 编号严格递增，禁止跳号/重复
-- 持仓数: 实盘/模拟盘标的计数 vs portfolio.json（仅告警，不硬失败）
-- 市值/总资产: 报告内「总资产」与「市值+现金」口径差 >3% → 告警
+- 段落顺序: 风险段→二→…严格递增，禁止跳号/重复
+- 持仓数: 模拟盘标的计数 vs portfolio.json（仅告警，不硬失败）
+- ⚠️ 行动清单段已于 2026-08 模板重构(vFinal)移除，不再强制校验
 
 ## 用法
     python3 wx_report_validator.py                 # 扫最新一对早/晚报，观察模式
@@ -59,19 +60,28 @@ CN_NUM = {
 # 匹配标题中的中文编号: 允许前缀 emoji/空格, 核心 `七·五` / `一` 等
 NUM_HEAD_RE = re.compile(r"(十?[一二三四五六七八九十]+)(?:·([一二三四五六七八九十]+))?")
 
-MORNING_EXPECT = list(range(1, 9)) + ["7·5"] + ["action"]  # 9 段
-EVENING_EXPECT = list(range(1, 11)) + ["9·5"] + ["action"]  # 11 段
-WHITELIST_SUB = {"5"}  # 仅允许 ·五 插入中段
+# 第1段为风险段（🩺今日风险 / 🩺收盘风险复盘），无中文编号；
+# 主段编号自「二」起（二~八 / 二~十），中段插 ·五 宏观景气段。
+# 行动清单段已于 2026-08 模板重构（vFinal 合成版）移除，不再强制。
+RISK_HEADERS = ("今日风险", "收盘风险复盘")  # 第1段风险头（无编号）
+MORNING_RISK = "risk"
+MORNING_NUMS = list(range(2, 9))     # 二~八
+MORNING_SUB = "7·5"
+EVENING_RISK = "risk"
+EVENING_NUMS = list(range(2, 11))    # 二~十
+EVENING_SUB = "9·5"
 
 
-def parse_sections(text: str) -> list[tuple[int, str, str]]:
-    """返回 [(order_num, sub_or_none, raw_title), ...]"""
+def parse_sections(text: str) -> list[tuple]:
+    """返回 [(order_token, sub_or_none, raw_title), ...]
+    order_token: 'risk'(第1段风险头) / int(主段编号) / 'x·y'(·五子段)
+    """
     out = []
     for m in SECTION_RE.finditer(text):
         title = m.group(1).strip()
-        # 行动清单特判（标题可含 emoji 但必有「行动清单」字样）
-        if "行动清单" in title:
-            out.append(("action", None, title))
+        # 风险段特判（第1段，无编号，emoji 风险头）
+        if any(rh in title for rh in RISK_HEADERS):
+            out.append(("risk", None, title))
             continue
         # 从标题任意位置提取中文编号块
         nm = NUM_HEAD_RE.search(title)
@@ -94,58 +104,84 @@ def validate_structure(name: str, text: str) -> list[str]:
     if not secs:
         return [f"[{name}] 未解析到任何主段落"]
     orders = [s[0] for s in secs]
-    # 重复（仅主段整数编号 + action 参与重复检测；子段用字符串不在此列）
+
+    is_evening = "evening" in name
+    risk_hdr = EVENING_RISK if is_evening else MORNING_RISK
+    exp_nums = EVENING_NUMS if is_evening else MORNING_NUMS
+    exp_subs = {EVENING_SUB if is_evening else MORNING_SUB}
+
+    # 1) 风险段（第1段，无编号）必须存在且为首段
+    if risk_hdr not in orders:
+        errs.append(f"[{name}] 缺失风险段(第1段 🩺今日风险/收盘风险复盘)")
+    elif orders[0] != risk_hdr:
+        errs.append(f"[{name}] 风险段必须为首个主段落（实际非首段）")
+
+    # 2) 重复主段编号
     seen = set()
     for o in orders:
-        if isinstance(o, int) or o == "action":
+        if isinstance(o, int):
             if o in seen:
-                errs.append(f"[{name}] 段落编号重复: {o}")
+                errs.append(f"[{name}] 段落编号重复: 第{o}段")
             seen.add(o)
-    # 跳号检测
-    is_evening = "evening" in name
-    expected = EVENING_EXPECT if is_evening else MORNING_EXPECT
-    # 主段整数编号集合
+
+    # 3) 跳号 / 多余（主段编号 二~八 / 二~十）
     actual_nums = [o for o in orders if isinstance(o, int)]
-    actual_has_action = "action" in orders
-    # 期望的主段编号
-    exp_nums = [e for e in expected if isinstance(e, int)]
-    # 期望的子段（·五 形式）
-    exp_subs = {e for e in expected if isinstance(e, str) and "·" in e}
-    # 实际的子段
-    actual_subs = {o for o in orders if isinstance(o, str) and "·" in o}
-    # 跳号
     for en in exp_nums:
         if en not in actual_nums:
             errs.append(f"[{name}] 缺失主段落: 第{en}段")
-    # 多余段
     for an in actual_nums:
         if an not in exp_nums:
             errs.append(f"[{name}] 多余主段落: 第{an}段（不在预期 schema）")
-    # 子段白名单
+
+    # 4) 子段白名单（七·五 / 九·五）+ 缺失检测
+    actual_subs = {o for o in orders if isinstance(o, str) and "·" in o}
     for s in actual_subs:
         if s not in exp_subs:
             errs.append(f"[{name}] 非白名单子段: {s}（仅允许 七·五/九·五）")
-    # 行动清单
-    if not actual_has_action:
-        errs.append(f"[{name}] 缺失行动清单段")
-    # ·五 白名单
-    for s in actual_subs:
-        if s not in exp_subs:
-            errs.append(f"[{name}] 非白名单子段: {s}（仅允许 七·五/九·五）")
+    for s in exp_subs:
+        if s not in actual_subs:
+            errs.append(f"[{name}] 缺失子段: {s}（宏观景气段）")
+
+    # 5) 顺序校验（集合完整时）
+    expected_seq = [risk_hdr] + exp_nums
+    if is_evening:
+        expected_seq = expected_seq[:9] + [EVENING_SUB] + expected_seq[9:]
+    else:
+        expected_seq = expected_seq[:7] + [MORNING_SUB] + expected_seq[7:]
+    actual_seq = [o for o in orders if o in set(expected_seq)]
+    if not errs and actual_seq != expected_seq:
+        errs.append(f"[{name}] 段落顺序异常（集合完整但顺序错乱）")
+
     return errs
 
 
 def check_holdings(name: str, text: str) -> list[str]:
-    """持仓计数 vs portfolio.json（仅告警）"""
+    """持仓计数 vs portfolio.json（仅告警）
+
+    消噪：同日盘中建仓的持仓（first_buy_date == 报告日）在早报生成时尚未买入，
+    预期不出现于早报 → 跳过告警，消除 600031 类误报；其余持仓未出现仍告警。
+    """
     warn = []
     try:
         sim = json.loads(SIM_PORTFOLIO.read_text())
         sim_pos = sim.get("positions", {})
-        # 报告中模拟盘表格应含这些代码
-        for code in sim_pos:
+        # 报告日期（文件名前8位 YYYYMMDD）
+        m = re.match(r"(\d{8})", name)
+        rdate = m.group(1) if m else None
+        is_morning = "morning" in name
+        for code, pos in sim_pos.items():
+            if not isinstance(pos, dict):
+                continue
+            # 同日建仓 + 早报 → 预期不出现，跳过（消除盘中建仓误报）
+            fbd = pos.get("first_buy_date")
+            if fbd and rdate and is_morning:
+                fbd8 = str(fbd).replace("-", "")[:8]
+                if len(fbd8) == 8 and fbd8.isdigit() and fbd8 == rdate:
+                    continue
+            # 报告中模拟盘表格应含这些代码
             if code not in text:
                 warn.append(
-                    f"[{name}] 模拟盘持仓 {code}({sim_pos[code].get('name', '')}) 未在报告中出现"
+                    f"[{name}] 模拟盘持仓 {code}({pos.get('name', '')}) 未在报告中出现"
                 )
     except Exception as e:  # noqa
         warn.append(f"[{name}] 读取模拟盘 portfolio 失败: {e}")
