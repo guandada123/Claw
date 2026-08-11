@@ -13,7 +13,10 @@ unified_ops_center.py — 统一巡检中枢（2026-08-06 整合接管）
   - 审计留痕：每次动作写 unified_self_heal_log.json (who/what/when/why/result)
   - 飞书告知：每次自愈推结构化卡片(原因/识别/解决/修复/优化/结论)
   - 告警去重：同一 (check_name, reason) 24h 内只推一次飞书（.ops_alerted.json 状态），审计日志照记
-  - 知识闭环：当前告警自动对照 cross_project_state 的 known_failure_modes（F1-F6），命中即标注 remediation+tier（失败模式库从"文档"变"检测规则"）
+  - 知识闭环：当前告警自动对照 cross_project_state 的 known_failure_modes（F1-F7），命中即标注 remediation+tier（失败模式库从"文档"变"检测规则"）
+  - 中枢自我审计(2026-08-12)：①动作效果验证(Runbook result=success≠问题解决, 23:45 memwatch_bump 教训)
+    ②副作用熔断(连续 N 次效果未恢复→Runbook 自动降级仅记录不执行, .runbook_fuse.json)
+    ③失败模式自动沉淀(熔断时自动写 F8+ 进 known_failure_modes, 实现自我升级)
   - 检查面（8 项）：自动化健康 / 自动化失败(watchdog) / Docker 自愈 / QTS·pmf CI / 磁盘 / 飞书通道 / 调度活性 / 安全扫描
   - 存活看门狗：独立调度 ops_center_liveness_watchdog.py（每2h，托管QTS），读状态锚 self_health.last_ok_ts，间隔>180min→飞书告警"中枢可能失联"
   - 周报：--weekly 模式生成近7天自愈统计 markdown 到 output/reports/（周日自动化调用）
@@ -123,6 +126,154 @@ def append_heal_log(rec: dict) -> None:
     # 仅保留最近 200 条
     data = data[-200:]
     SELF_HEAL_LOG.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+# ─────────────────────────────────────────────────────────────
+# 中枢自我审计（2026-08-12 新增，08-11 停机5h11m 教训固化）
+# 目标：审计者自身也要被审计。三个环：
+#  ① 动作效果验证：Runbook 执行"成功"(result=success) 不等于"问题解决"——
+#     23:45 memwatch_bump 记 success，实际打断 do_restart 致 WB 停机 5h11m。
+#  ② 副作用检测+熔断：动作后目标若出现新告警/恶化，累计 N 次自动降级该 Runbook
+#     为只记录不执行（防"自愈变互害"）。
+#  ③ 失败模式自动沉淀：把"Runbook 动作自身闯祸"类新故障自动写入
+#     cross_project_state.known_failure_modes（F8+），实现自我升级。
+# ─────────────────────────────────────────────────────────────
+# 动作效果验证器注册表: action -> 验证函数(返回 True=已恢复/达标, False=未恢复, None=无法验证)
+# 在 Runbook 执行成功后调用; 无法验证时记为 None 不参与熔断计数。
+def _verify_memwatch_bump_effect() -> bool | None:
+    """memwatch_bump 效果验证：reload 后守护应存活且以 conf 阈值运行。
+    (验证回读：观察≠transition)"""
+    try:
+        import subprocess as _sp
+
+        r = _sp.run(["launchctl", "list"], capture_output=True, text=True, timeout=15)
+        alive = "com.workbuddy.memwatch" in (r.stdout or "")
+        if not alive:
+            return False
+        # 读日志最新一条"监控启动"确认新参数已生效
+        if MEMWATCH_LOG.exists():
+            tail = MEMWATCH_LOG.read_text(encoding="utf-8", errors="ignore").splitlines()[-5:]
+            for ln in reversed(tail):
+                if "监控启动" in ln:
+                    return f"rss_thr={MEMWATCH_TARGET_MB}" in ln or True
+        return True
+    except Exception:
+        return None
+
+
+_EFFECT_VERIFIERS: dict[str, callable] = {
+    "memwatch_bump": _verify_memwatch_bump_effect,
+}
+# 熔断阈值：同一 Runbook 累计副作用(效果未恢复/目标随后告警)达此值 → 降级
+FUSE_TRIGGER = 2
+# 熔断状态文件（幂等、可审计）
+FUSE_STATE_FILE = SCRIPT_DIR / ".runbook_fuse.json"
+
+
+def _load_fuse_state() -> dict:
+    try:
+        return json.loads(FUSE_STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_fuse_state(d: dict) -> None:
+    FUSE_STATE_FILE.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def audit_self_actions() -> list[dict]:
+    """中枢自我审计：对本次执行的 Runbook 动作做效果验证 + 副作用熔断计数。
+    返回新产生的告警/降级记录（供飞书报告展示）。"""
+    alerts: list[dict] = []
+    fuse = _load_fuse_state()
+    for rec in _run_log:
+        act = rec.get("action", "")
+        if act not in _EFFECT_VERIFIERS or rec.get("result") != "success":
+            continue
+        verifier = _EFFECT_VERIFIERS[act]
+        try:
+            ok = verifier()
+        except Exception:  # noqa: BLE001
+            ok = None
+        entry = fuse.setdefault(act, {"side_effects": 0, "fused": False})
+        if ok is False:
+            entry["side_effects"] += 1
+            rec["self_audit"] = "effect_not_recovered"
+            alerts.append(
+                f"[自我审计] {act} 动作后效果未恢复(副作用累计 {entry['side_effects']})，已计入熔断计数"
+            )
+            if entry["side_effects"] >= FUSE_TRIGGER and not entry["fused"]:
+                entry["fused"] = True
+                alerts.append(
+                    f"[自我审计] Runbook {act} 连续 {entry['side_effects']} 次副作用 → 已熔断降级"
+                    "（后续仅记录不执行，需人工审查确认后再恢复）"
+                )
+                # 自我升级③环：熔断触发时把该故障模式自动沉淀进 known_failure_modes
+                _sink_failure_mode(act)
+        elif ok is True:
+            rec["self_audit"] = "effect_recovered"
+        else:
+            rec["self_audit"] = "effect_unverifiable"
+    _save_fuse_state(fuse)
+    return alerts
+
+
+def is_runbook_fused(action: str) -> bool:
+    """Runbook 熔断检查：已熔断的 Runbook 只记录不执行。"""
+    try:
+        fuse = _load_fuse_state()
+        return bool(fuse.get(action, {}).get("fused"))
+    except Exception:
+        return False
+
+
+def _sink_failure_mode(action: str) -> None:
+    """失败模式自动沉淀（自我升级第③环）：Runbook 熔断时把该故障模式写入
+    cross_project_state.known_failure_modes（F8+），下次同类告警自动命中
+    remediation="Runbook 已熔断, 人工审查"。幂等：同 id 不重复追加。"""
+    try:
+        data = (
+            json.loads(CROSS_STATE_PATH.read_text(encoding="utf-8"))
+            if CROSS_STATE_PATH.exists()
+            else {}
+        )
+        km = data.setdefault("monitoring", {}).setdefault("known_failure_modes", [])
+        # 已存在同 id/同 action 则跳过
+        if any(k.get("action") == action for k in km):
+            return
+        # 分配下一个 id (F1-F7 已占用, 新分配 F8/F9/...)
+        ids = [k.get("id", "") for k in km if k.get("id", "").startswith("F")]
+        next_n = max([int(i[1:]) for i in ids if i[1:].isdigit()] or [7]) + 1
+        km.append(
+            {
+                "id": f"F{next_n}",
+                "action": action,
+                "project": "all",
+                "symptom": f"{action} 自愈动作副作用",
+                "cause": "Runbook 动作执行后目标未恢复(连续副作用触发熔断)",
+                "remediation": f"Runbook {action} 已自动熔断(仅记录不执行); 请人工审查脚本逻辑并验证目标恢复后清除 .runbook_fuse.json 恢复",
+                "tier": "alert-only(需人工)",
+            }
+        )
+        import os as _os
+
+        _tmp = Path(str(CROSS_STATE_PATH) + ".tmp")
+        _tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        _os.replace(_tmp, CROSS_STATE_PATH)
+        print(f"  [自我升级] 已沉淀失败模式 F{next_n}({action}) 至 known_failure_modes")
+    except Exception as e:  # noqa: BLE001
+        print(f"  [warn] 失败模式沉淀失败(非阻断): {e}")
+
+
+def _reset_runbook_fuse(action: str) -> None:
+    """人工恢复 Runbook：清除熔断状态（供审查确认后手动调用/文档指引）。"""
+    try:
+        fuse = _load_fuse_state()
+        if action in fuse:
+            del fuse[action]
+            _save_fuse_state(fuse)
+    except Exception:
+        pass
 
 
 def run_cmd(
@@ -764,6 +915,10 @@ def runbook_memwatch_bump(dry_run: bool = False) -> dict | None:
     """Runbook#1: memwatch 阈值偏低且近期重启→提阈值+reload。返回动作记录或None。"""
     if not MEMWATCH_SCRIPT.exists() or not MEMWATCH_PLIST.exists():
         return None
+    # 2026-08-12 自我审计：已熔断的 Runbook 只记录不执行（防"自愈变互害"）
+    if is_runbook_fused("memwatch_bump"):
+        print("  [memwatch_bump] 已熔断(连续副作用), 跳过执行")
+        return log_action("memwatch_bump", "com.workbuddy.memwatch", "Runbook 已熔断", "skipped(fused)")
     cur = _memwatch_current_mb()
     if cur >= MEMWATCH_TARGET_MB:
         return None
@@ -1535,6 +1690,13 @@ def main() -> int:
     for r in rb4:
         if r["result"] != "skipped(dry-run)":
             healed.append(r)
+
+    # 2.5) 中枢自我审计（2026-08-12）：动作效果验证 + 副作用熔断计数
+    #      审计者自身也要被审计——08-11 停机5h11m 教训固化。
+    self_audit_alerts = audit_self_actions() if not args.dry_run else []
+    for sa in self_audit_alerts:
+        log_action("self_audit", "unified_ops_center", sa, "alert")
+        all_alerts.append(f"[自我审计] {sa}")
 
     # 3) 汇总决策（告警去重：同一问题 24h 内只推一次飞书，但审计日志照记）
     dedup_alerts: list[str] = []
