@@ -141,22 +141,46 @@ def append_heal_log(rec: dict) -> None:
 # 动作效果验证器注册表: action -> 验证函数(返回 True=已恢复/达标, False=未恢复, None=无法验证)
 # 在 Runbook 执行成功后调用; 无法验证时记为 None 不参与熔断计数。
 def _verify_memwatch_bump_effect() -> bool | None:
-    """memwatch_bump 效果验证：reload 后守护应存活且以 conf 阈值运行。
-    (验证回读：观察≠transition)"""
+    """memwatch_bump 效果验证（双层，2026-08-12 AIOps 对标升级）：
+    短期(①守护存活+新阈值生效) + 长期(②最近 30min 无二次候选/重启 = 无"假性修复")。
+    杜绝"动作成功但系统仍在反复重启"的假性修复(23:45 停机 5h11m 的问题模式)。"""
     try:
+        import re as _re
         import subprocess as _sp
+        from datetime import datetime as _dt
 
+        # ── 短期验证：守护存活 + 新阈值生效 ──
         r = _sp.run(["launchctl", "list"], capture_output=True, text=True, timeout=15)
         alive = "com.workbuddy.memwatch" in (r.stdout or "")
         if not alive:
             return False
-        # 读日志最新一条"监控启动"确认新参数已生效
         if MEMWATCH_LOG.exists():
-            tail = MEMWATCH_LOG.read_text(encoding="utf-8", errors="ignore").splitlines()[-5:]
+            tail = MEMWATCH_LOG.read_text(encoding="utf-8", errors="ignore").splitlines()[-10:]
+            thr_ok = False
             for ln in reversed(tail):
                 if "监控启动" in ln:
-                    return f"rss_thr={MEMWATCH_TARGET_MB}" in ln or True
-        return True
+                    thr_ok = f"rss_thr={MEMWATCH_TARGET_MB}" in ln
+                    break
+            if not thr_ok:
+                return False
+        # ── 长期稳态验证：最近 30min 无二次候选/重启(反弹检测) ──
+        now = _dt.now()
+        rebound = False
+        if MEMWATCH_LOG.exists():
+            for ln in MEMWATCH_LOG.read_text(encoding="utf-8", errors="ignore").splitlines()[-300:]:
+                if "候选" not in ln and "触发重启" not in ln:
+                    continue
+                m = _re.search(r"\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})\]", ln)
+                if not m:
+                    continue
+                try:
+                    ts = _dt.strptime(f"{m.group(1)} {m.group(2)}", "%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    continue
+                if (now - ts).total_seconds() <= 30 * 60:
+                    rebound = True
+                    break
+        return not rebound
     except Exception:
         return None
 
@@ -166,6 +190,9 @@ _EFFECT_VERIFIERS: dict[str, callable] = {
 }
 # 熔断阈值：同一 Runbook 累计副作用(效果未恢复/目标随后告警)达此值 → 降级
 FUSE_TRIGGER = 2
+# 熔断 Half-Open 冷却(秒)：熔断后过此时间自动转 Half-Open，下一轮允许重试探测
+# (业界三态熔断器: Closed→Open→Half-Open→Closed, 2026-08-12 AIOps对标升级)
+FUSE_HALF_OPEN_SEC = 6 * 3600  # 6h 冷却后自动恢复尝试
 # 熔断状态文件（幂等、可审计）
 FUSE_STATE_FILE = SCRIPT_DIR / ".runbook_fuse.json"
 
@@ -179,6 +206,22 @@ def _load_fuse_state() -> dict:
 
 def _save_fuse_state(d: dict) -> None:
     FUSE_STATE_FILE.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _fuse_half_open_elapsed(action: str) -> bool:
+    """Half-Open 判定：熔断时间超过冷却期则允许自动恢复探测(不永久禁用)。"""
+    fuse = _load_fuse_state()
+    e = fuse.get(action) or {}
+    fused_at = e.get("fused_at")
+    if not fused_at:
+        return False
+    try:
+        from datetime import datetime as _dt
+
+        ts = _dt.fromisoformat(fused_at)
+        return (datetime.datetime.now() - ts).total_seconds() >= FUSE_HALF_OPEN_SEC
+    except Exception:
+        return False
 
 
 def audit_self_actions() -> list[dict]:
@@ -204,13 +247,19 @@ def audit_self_actions() -> list[dict]:
             )
             if entry["side_effects"] >= FUSE_TRIGGER and not entry["fused"]:
                 entry["fused"] = True
+                entry["fused_at"] = datetime.datetime.now().isoformat(timespec="seconds")
                 alerts.append(
                     f"[自我审计] Runbook {act} 连续 {entry['side_effects']} 次副作用 → 已熔断降级"
-                    "（后续仅记录不执行，需人工审查确认后再恢复）"
+                    f"(冷却 {FUSE_HALF_OPEN_SEC//3600}h 后自动 Half-Open 恢复探测; 也可人工删 "
+                    f"{FUSE_STATE_FILE.name} 立即恢复)"
                 )
                 # 自我升级③环：熔断触发时把该故障模式自动沉淀进 known_failure_modes
                 _sink_failure_mode(act)
         elif ok is True:
+            # 2026-08-12: 副作用计数衰减——动作效果恢复正常时, 历史副作用计数减半
+            # (Half-Open 成功后 Closed 重置; 防一次旧失误永久锁死)
+            if entry.get("side_effects", 0) > 0:
+                entry["side_effects"] = entry["side_effects"] // 2
             rec["self_audit"] = "effect_recovered"
         else:
             rec["self_audit"] = "effect_unverifiable"
@@ -219,10 +268,17 @@ def audit_self_actions() -> list[dict]:
 
 
 def is_runbook_fused(action: str) -> bool:
-    """Runbook 熔断检查：已熔断的 Runbook 只记录不执行。"""
+    """Runbook 熔断检查：已熔断且未过 Half-Open 冷却期的 Runbook 只记录不执行。
+    冷却期过后自动解除(允许下一轮重试探测), 实现三态熔断自动恢复。"""
     try:
         fuse = _load_fuse_state()
-        return bool(fuse.get(action, {}).get("fused"))
+        if not bool(fuse.get(action, {}).get("fused")):
+            return False
+        # Half-Open: 冷却期已过 → 自动解除熔断, 允许下一轮重试
+        if _fuse_half_open_elapsed(action):
+            print(f"  [熔断恢复] {action} Half-Open 冷却期已过, 自动解除熔断(允许重试探测)")
+            return False
+        return True
     except Exception:
         return False
 
@@ -1536,6 +1592,37 @@ def _generate_weekly_report() -> int:
     success = sum(1 for e in exec_actions if e.get("result") == "success")
     failed = total - success
     rate = round(success / total * 100, 1) if total else None
+    # 2026-08-12: 质量指标扩展——副作用/熔断统计 + 复发率 + MTTR(检测到恢复间隔)
+    side_effects = sum(1 for e in exec_actions if e.get("self_audit") == "effect_not_recovered")
+    unverifiable = sum(1 for e in exec_actions if e.get("self_audit") == "effect_unverifiable")
+    fused_actions: list[str] = []
+    try:
+        fuse = _load_fuse_state()
+        fused_actions = [a for a, v in fuse.items() if v.get("fused")]
+    except Exception:
+        pass
+    # 复发率：同 action 多次执行占比（>=2 次视为可能复发）
+    act_counts: dict[str, int] = {}
+    for e in exec_actions:
+        a = e.get("action", "unknown")
+        act_counts[a] = act_counts.get(a, 0) + 1
+    recurred = [a for a, c in act_counts.items() if c >= 2]
+    # MTTR 近似：动作失败到下一次成功动作的时间间隔中位数（粗粒度）
+    mttr_h: float | None = None
+    try:
+        times = sorted(
+            datetime.datetime.fromisoformat(e["ts"]) for e in recent if e.get("ts")
+        )
+        if len(times) >= 2:
+            gaps = [
+                (times[i + 1] - times[i]).total_seconds() / 3600
+                for i in range(len(times) - 1)
+                if (times[i + 1] - times[i]).total_seconds() > 0
+            ]
+            if gaps:
+                mttr_h = round(sorted(gaps)[len(gaps) // 2], 1)  # 中位间隔
+    except Exception:
+        pass
     by_action: dict[str, dict] = {}
     for e in exec_actions:
         a = e.get("action", "unknown")
@@ -1570,7 +1657,15 @@ def _generate_weekly_report() -> int:
         f"- 成功：**{success}** | 失败/未成功：**{failed}**",
         f"- 成功率：**{rate}%**" if rate is not None else "- 成功率：N/A（无执行记录）",
         "",
-        "## 二、按动作分布",
+        "## 二、自愈质量指标（2026-08-12 新增, AIOps 对标）",
+        "",
+        f"- 副作用次数（动作后目标未恢复）：**{side_effects}**",
+        f"- 效果不可验证次数：**{unverifiable}**",
+        f"- 当前熔断中 Runbook：**{', '.join(fused_actions) if fused_actions else '无'}**",
+        f"- 复发动作（近7天执行≥2次）：**{', '.join(recurred) if recurred else '无'}**",
+        f"- 动作间隔中位数(MTTR 粗估)：**{mttr_h}h**" if mttr_h is not None else "- MTTR：N/A",
+        "",
+        "## 三、按动作分布",
         "",
     ]
     if by_action:
@@ -1583,7 +1678,7 @@ def _generate_weekly_report() -> int:
         lines.append("（近7天无执行类自愈动作记录）")
     lines += [
         "",
-        "## 三、已知失败模式命中（最近一次运行）",
+        "## 四、已知失败模式命中（最近一次运行）",
         "",
     ]
     if known_hits:
@@ -1597,17 +1692,20 @@ def _generate_weekly_report() -> int:
         lines.append("（最近一次运行无已知失败模式命中 — 全绿）")
     lines += [
         "",
-        "## 四、结论",
+        "## 五、结论",
         "",
-        "- 中枢当前覆盖 8 项专项检查 + 4 项 Runbook 自愈 + 知识闭环（F1-F6 失败模式库）。",
-        "- 自愈动作均遵循白名单 + 执行后验证 + 审计留痕，非破坏性、可逆、幂等。",
+        "- 中枢当前覆盖 15 项专项检查 + 4 项 Runbook 自愈 + 知识闭环（F1-F7+ 失败模式库）+ 自我审计（效果验证/熔断/失败模式沉淀）。",
+        "- 自愈动作均遵循白名单 + 双层验证 + 审计留痕，非破坏性、可逆、幂等；Runbook 熔断 6h 后自动 Half-Open 恢复探测。",
         "- 完整运行态见全局状态锚 `monitoring.global.unified_ops_center`。",
         "",
     ]
     out_path = OUT_DIR / f"ops_center_weekly_{now:%Y%m%d}.md"
     out_path.write_text("\n".join(lines), encoding="utf-8")
     print(f"[ops-center] 周报已生成: {out_path}")
-    print(f"  近7天自愈: total={total} success={success} rate={rate}%")
+    print(
+        f"  近7天自愈: total={total} success={success} rate={rate}% "
+        f"side_effects={side_effects} fused={fused_actions}"
+    )
     return 0
 
 
