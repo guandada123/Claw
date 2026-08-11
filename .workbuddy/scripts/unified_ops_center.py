@@ -713,8 +713,38 @@ def _extract_pick_codes(data) -> list[str]:
     return codes
 
 
+def _ci_red_details() -> list:
+    """枚举 QTS/pmf 当前失败的具体 CI run（repo/工作流/run ID）。
+
+    用途：让巡检告警原因携带『具体 run 标识』，避免 dedup 把不同根因的 CI 红灯（如
+    gitleaks license 红灯 vs PMF 迁移 flaky 红灯）塌缩为同一键而被静默跳过。
+    仅在 guard 报 reds>0 时调用；gh 查询失败时返回空列表（退化为通用文案，仍会告警）。"""
+    details: list = []
+    for repo in ("guandada123/QuantTradingSystem", "guandada123/project-monitor-fusion"):
+        try:
+            rr = run_cmd(
+                [
+                    "gh", "run", "list", "--repo", repo, "--status", "failure",
+                    "--limit", "5", "--json", "workflow,databaseId",
+                ],
+                timeout=60,
+            )
+            if rr.returncode == 0:
+                rows = json.loads(rr.stdout or "[]")
+                for row in rows:
+                    wf = row.get("workflow") or "?"
+                    rid = row.get("databaseId")
+                    details.append(f"{repo.split('/')[-1]}/{wf}(run {rid})")
+        except Exception:
+            pass
+    return details
+
+
 def check_qts_pmf_ci() -> dict:
-    """复用 qts_pmf_health_guard.py（CI红+容器存活）。解析其 JSON 输出而非关键词，避免误判。"""
+    """复用 qts_pmf_health_guard.py（CI红+容器存活）。解析其 JSON 输出而非关键词，避免误判。
+
+    修复(2026-08-12)：CI 红灯原因携带具体 run 标识（见 _ci_red_details），使去重按
+    『具体 run/根因』而非『是否红』判断，避免不同根因的红灯被误判为重复项静默跳过。"""
     try:
         r = run_cmd(
             [sys.executable, str(SCRIPT_DIR / "qts_pmf_health_guard.py"), "--dry-run"], timeout=120
@@ -724,25 +754,28 @@ def check_qts_pmf_ci() -> dict:
         out = r.stdout.strip()
         # 解析首段 JSON（含 ts/ci_reds/container_unhealthy/anomaly 字段）
         m = re.search(r'\{[^{}]*"ts"[^{}]*\}', out)
+        reds = 0
+        unhealthy = 0
         if m:
             try:
                 data = json.loads(m.group(0))
                 reds = data.get("ci_reds", 0)
                 unhealthy = data.get("container_unhealthy", 0)
-                if reds or unhealthy:
-                    alerts = []
-                    if reds:
-                        alerts.append(f"GitHub CI 红灯 {reds} 个（详见每日20:00巡检卡）")
-                    if unhealthy:
-                        alerts.append(f"容器异常 {unhealthy} 个")
-                    return {"ok": False, "alerts": alerts}
-                return {"ok": True, "alerts": []}
             except Exception:
                 pass
-        # 退化：仅当明确 anomaly 且无 json 时才告警
-        if '"anomaly": true' in out and 'ci_reds": 0' not in out:
-            return {"ok": False, "alerts": ["qts_guard 报告 anomaly（详情见每日巡检）"]}
-        return {"ok": True, "alerts": []}
+        if not reds and not unhealthy:
+            return {"ok": True, "alerts": []}
+        alerts = []
+        if reds:
+            specifics = _ci_red_details()
+            if specifics:
+                # 具体 run 标识前置，确保 dedup 键（取 reason[:60]）按 run 区分
+                alerts.append("GitHub CI 红灯 " + "; ".join(specifics))
+            else:
+                alerts.append(f"GitHub CI 红灯 {reds} 个（详见每日20:00巡检卡）")
+        if unhealthy:
+            alerts.append(f"容器异常 {unhealthy} 个")
+        return {"ok": False, "alerts": alerts}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "alerts": [f"qts_guard 异常: {e}"]}
 
