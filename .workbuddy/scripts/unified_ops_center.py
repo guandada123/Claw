@@ -250,7 +250,7 @@ def audit_self_actions() -> list[dict]:
                 entry["fused_at"] = datetime.datetime.now().isoformat(timespec="seconds")
                 alerts.append(
                     f"[自我审计] Runbook {act} 连续 {entry['side_effects']} 次副作用 → 已熔断降级"
-                    f"(冷却 {FUSE_HALF_OPEN_SEC//3600}h 后自动 Half-Open 恢复探测; 也可人工删 "
+                    f"(冷却 {FUSE_HALF_OPEN_SEC // 3600}h 后自动 Half-Open 恢复探测; 也可人工删 "
                     f"{FUSE_STATE_FILE.name} 立即恢复)"
                 )
                 # 自我升级③环：熔断触发时把该故障模式自动沉淀进 known_failure_modes
@@ -724,8 +724,17 @@ def _ci_red_details() -> list:
         try:
             rr = run_cmd(
                 [
-                    "gh", "run", "list", "--repo", repo, "--status", "failure",
-                    "--limit", "5", "--json", "workflow,databaseId",
+                    "gh",
+                    "run",
+                    "list",
+                    "--repo",
+                    repo,
+                    "--status",
+                    "failure",
+                    "--limit",
+                    "5",
+                    "--json",
+                    "workflow,databaseId",
                 ],
                 timeout=60,
             )
@@ -1007,7 +1016,9 @@ def runbook_memwatch_bump(dry_run: bool = False) -> dict | None:
     # 2026-08-12 自我审计：已熔断的 Runbook 只记录不执行（防"自愈变互害"）
     if is_runbook_fused("memwatch_bump"):
         print("  [memwatch_bump] 已熔断(连续副作用), 跳过执行")
-        return log_action("memwatch_bump", "com.workbuddy.memwatch", "Runbook 已熔断", "skipped(fused)")
+        return log_action(
+            "memwatch_bump", "com.workbuddy.memwatch", "Runbook 已熔断", "skipped(fused)"
+        )
     cur = _memwatch_current_mb()
     if cur >= MEMWATCH_TARGET_MB:
         return None
@@ -1037,7 +1048,9 @@ def runbook_memwatch_bump(dry_run: bool = False) -> dict | None:
         if conf_path.exists():
             shutil.copy2(conf_path, Path(str(conf_path) + f".bak-autoheal-{ts}"))
             txt = conf_path.read_text(encoding="utf-8")
-            txt = re.sub(r"RSS_RESTART_MB\s*=\s*\d+", f"RSS_RESTART_MB={MEMWATCH_TARGET_MB}", txt, count=1)
+            txt = re.sub(
+                r"RSS_RESTART_MB\s*=\s*\d+", f"RSS_RESTART_MB={MEMWATCH_TARGET_MB}", txt, count=1
+            )
             tmp = Path(str(conf_path) + ".tmp")
             tmp.write_text(txt, encoding="utf-8")
             _os.replace(tmp, conf_path)  # 原子替换
@@ -1080,13 +1093,20 @@ def check_memwatch_integrity() -> dict:
                     break
         script_mb = None
         if MEMWATCH_SCRIPT.exists():
-            m = re.search(r"RSS_RESTART_MB:=(\d+)", MEMWATCH_SCRIPT.read_text(encoding="utf-8", errors="ignore"))
+            m = re.search(
+                r"RSS_RESTART_MB:=(\d+)",
+                MEMWATCH_SCRIPT.read_text(encoding="utf-8", errors="ignore"),
+            )
             if m:
                 script_mb = int(m.group(1))
         if conf_mb is not None and script_mb is not None and conf_mb != script_mb:
-            alerts.append(f"memwatch 脚本内阈值 {script_mb}MB 与 conf {conf_mb}MB 不一致(疑似绕过 conf 直接改脚本, 请检查)")
+            alerts.append(
+                f"memwatch 脚本内阈值 {script_mb}MB 与 conf {conf_mb}MB 不一致(疑似绕过 conf 直接改脚本, 请检查)"
+            )
         if conf_mb is None:
-            alerts.append("memwatch conf 缺失(~/.local/etc/workbuddy_memwatch.conf), 单一配置源失效")
+            alerts.append(
+                "memwatch conf 缺失(~/.local/etc/workbuddy_memwatch.conf), 单一配置源失效"
+            )
     except Exception as e:  # noqa: BLE001
         alerts.append(f"memwatch 完整性检查异常: {e}")
     return {"ok": not alerts, "alerts": alerts}
@@ -1113,7 +1133,9 @@ def check_shared_files_integrity() -> dict:
             if data in (None, [], {}):
                 alerts.append(f"共享文件 {p.name} 内容为空(疑似写坏)")
         except Exception:
-            alerts.append(f"共享文件 {p.name} JSON 解析失败(疑似并发写坏, 检查 .tmp 残留或恢复备份)")
+            alerts.append(
+                f"共享文件 {p.name} JSON 解析失败(疑似并发写坏, 检查 .tmp 残留或恢复备份)"
+            )
     return {"ok": not alerts, "alerts": alerts}
 
 
@@ -1643,9 +1665,7 @@ def _generate_weekly_report() -> int:
     # MTTR 近似：动作失败到下一次成功动作的时间间隔中位数（粗粒度）
     mttr_h: float | None = None
     try:
-        times = sorted(
-            datetime.datetime.fromisoformat(e["ts"]) for e in recent if e.get("ts")
-        )
+        times = sorted(datetime.datetime.fromisoformat(e["ts"]) for e in recent if e.get("ts"))
         if len(times) >= 2:
             gaps = [
                 (times[i + 1] - times[i]).total_seconds() / 3600
