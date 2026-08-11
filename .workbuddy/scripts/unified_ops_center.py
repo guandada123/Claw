@@ -64,7 +64,7 @@ ALERT_DEDUP_TTL_H = 24  # 同一告警 24h 内只推一次
 MEMWATCH_PLIST = Path.home() / "Library" / "LaunchAgents" / "com.workbuddy.memwatch.plist"
 MEMWATCH_SCRIPT = Path.home() / ".local" / "bin" / "watch_workbuddy_mem.sh"
 MEMWATCH_LOG = Path.home() / "Library" / "Logs" / "workbuddy_memwatch.log"
-MEMWATCH_TARGET_MB = 10000
+MEMWATCH_TARGET_MB = 8500  # 2026-08-12: 10000→8500(与脚本一致, 消除拉锯; 10000在WB树10G时系统已OOM先杀, 8500给系统留缓冲抢在OOM前)
 MEMWATCH_LOW_MB = 8000
 
 # ── 运行日志（审计留痕 who/what/when/why/result）──
@@ -739,6 +739,17 @@ def _memwatch_recent_restart(window_min: int = 90) -> bool:
 
 
 def _memwatch_current_mb() -> int:
+    # 2026-08-12: 单一配置源, 优先读 conf (~/.local/etc/workbuddy_memwatch.conf),
+    #   不再解析脚本文件(脚本=只读逻辑, 防双自动化互相覆盖)。
+    try:
+        conf = Path.home() / ".local" / "etc" / "workbuddy_memwatch.conf"
+        if conf.exists():
+            for ln in conf.read_text(encoding="utf-8", errors="ignore").splitlines():
+                m = re.match(r"\s*RSS_RESTART_MB\s*=\s*(\d+)", ln)
+                if m:
+                    return int(m.group(1))
+    except Exception:
+        pass
     try:
         txt = MEMWATCH_SCRIPT.read_text(encoding="utf-8")
         m = re.search(r"RSS_RESTART_MB:=(\d+)", txt)
@@ -756,6 +767,11 @@ def runbook_memwatch_bump(dry_run: bool = False) -> dict | None:
     cur = _memwatch_current_mb()
     if cur >= MEMWATCH_TARGET_MB:
         return None
+    # 2026-08-12: 若最近 2 分钟内有"触发重启"日志(do_restart 执行中/刚结束), 跳过本次 bump,
+    #   避免 unload/load 杀掉正在执行的重启流程(08-11 23:45 停机5h11m 的直接根因)。
+    if _memwatch_recent_restart(window_min=2):
+        print("  [memwatch_bump] 重启流程进行中/刚结束, 跳过 bump (防打断 do_restart)")
+        return None
     if not _memwatch_recent_restart():
         return None
     if dry_run:
@@ -767,11 +783,26 @@ def runbook_memwatch_bump(dry_run: bool = False) -> dict | None:
             f"将提至 {MEMWATCH_TARGET_MB}MB",
         )
     try:
-        bak = MEMWATCH_SCRIPT.with_suffix(".sh.bak-autoheal")
-        shutil.copy2(MEMWATCH_SCRIPT, bak)
-        txt = MEMWATCH_SCRIPT.read_text(encoding="utf-8")
-        txt = re.sub(r"RSS_RESTART_MB:=\d+", f"RSS_RESTART_MB:={MEMWATCH_TARGET_MB}", txt, count=1)
-        MEMWATCH_SCRIPT.write_text(txt, encoding="utf-8")
+        # 2026-08-12: 只改 conf(单一配置源), 不再 sed 脚本文件(防覆盖/防打断 do_restart)
+        # ① 备份带时间戳(保留多份可回滚) ② 原子写(tmp+os.replace 防写一半崩溃留残文件)
+        import datetime as _dt
+        import os as _os
+
+        conf_path = Path.home() / ".local" / "etc" / "workbuddy_memwatch.conf"
+        ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if conf_path.exists():
+            shutil.copy2(conf_path, Path(str(conf_path) + f".bak-autoheal-{ts}"))
+            txt = conf_path.read_text(encoding="utf-8")
+            txt = re.sub(r"RSS_RESTART_MB\s*=\s*\d+", f"RSS_RESTART_MB={MEMWATCH_TARGET_MB}", txt, count=1)
+            tmp = Path(str(conf_path) + ".tmp")
+            tmp.write_text(txt, encoding="utf-8")
+            _os.replace(tmp, conf_path)  # 原子替换
+        else:
+            # conf 不存在则创建(含注释头), 保证单一配置源存在
+            conf = f"RSS_RESTART_MB={MEMWATCH_TARGET_MB}\n"
+            tmp = Path(str(conf_path) + ".tmp")
+            tmp.write_text(conf, encoding="utf-8")
+            _os.replace(tmp, conf_path)
         run_cmd(["launchctl", "unload", str(MEMWATCH_PLIST)])
         run_cmd(["launchctl", "load", str(MEMWATCH_PLIST)])
     except Exception as e:  # noqa: BLE001
@@ -783,8 +814,63 @@ def runbook_memwatch_bump(dry_run: bool = False) -> dict | None:
         "com.workbuddy.memwatch",
         f"阈值 {cur}MB 偏低且近期有重启(根因=看门狗误杀盘前自动化)",
         "success",
-        f"提至 {MEMWATCH_TARGET_MB}MB+reload；备份 {bak.name}",
+        f"提至 {MEMWATCH_TARGET_MB}MB+reload；原子写conf+时间戳备份 {conf_path.name}.bak-autoheal-{ts}",
     )
+
+
+def check_memwatch_integrity() -> dict:
+    """2026-08-12: memwatch 脚本完整性检查 — 防"绕过 conf 直接改脚本"模式重演。
+
+    场景: 08-11 修复二部署时直接 sed 脚本文件把 RSS_RESTART_MB 改回 10000(绕过 conf),
+    与 memwatch/巡检中枢的单一配置源设计冲突。若脚本内阈值与 conf 不一致 → 告警。
+    """
+    alerts: list[str] = []
+    try:
+        conf = Path.home() / ".local" / "etc" / "workbuddy_memwatch.conf"
+        conf_mb = None
+        if conf.exists():
+            for ln in conf.read_text(encoding="utf-8", errors="ignore").splitlines():
+                m = re.match(r"\s*RSS_RESTART_MB\s*=\s*(\d+)", ln)
+                if m:
+                    conf_mb = int(m.group(1))
+                    break
+        script_mb = None
+        if MEMWATCH_SCRIPT.exists():
+            m = re.search(r"RSS_RESTART_MB:=(\d+)", MEMWATCH_SCRIPT.read_text(encoding="utf-8", errors="ignore"))
+            if m:
+                script_mb = int(m.group(1))
+        if conf_mb is not None and script_mb is not None and conf_mb != script_mb:
+            alerts.append(f"memwatch 脚本内阈值 {script_mb}MB 与 conf {conf_mb}MB 不一致(疑似绕过 conf 直接改脚本, 请检查)")
+        if conf_mb is None:
+            alerts.append("memwatch conf 缺失(~/.local/etc/workbuddy_memwatch.conf), 单一配置源失效")
+    except Exception as e:  # noqa: BLE001
+        alerts.append(f"memwatch 完整性检查异常: {e}")
+    return {"ok": not alerts, "alerts": alerts}
+
+
+# 2026-08-12: 全项目共享文件完整性检查 — 跨项目状态锚/数据桥(多写者)被并发写坏时告警
+SHARED_JSON_FILES = [
+    Path.home() / ".workbuddy" / "cross_project_state.json",
+    Path.home() / "WorkBuddy" / "_shared" / "cross_project" / "qts_daily_brief.json",
+    Path.home() / "WorkBuddy" / "_shared" / "cross_project" / "wind_fundamentals.json",
+]
+
+
+def check_shared_files_integrity() -> dict:
+    """2026-08-12: 跨项目共享 JSON 完整性 — 每个文件必须可解析且非空, 防并发写坏(写一半崩溃留残文件)。"""
+    import json as _json
+
+    alerts: list[str] = []
+    for p in SHARED_JSON_FILES:
+        if not p.exists():
+            continue
+        try:
+            data = _json.loads(p.read_text(encoding="utf-8", errors="ignore"))
+            if data in (None, [], {}):
+                alerts.append(f"共享文件 {p.name} 内容为空(疑似写坏)")
+        except Exception:
+            alerts.append(f"共享文件 {p.name} JSON 解析失败(疑似并发写坏, 检查 .tmp 残留或恢复备份)")
+    return {"ok": not alerts, "alerts": alerts}
 
 
 # GitHub 仓库常量（CI 自愈 Runbook 用）
@@ -1263,9 +1349,12 @@ def _sync_state_anchor(
             for h in known_hits
         ]
     try:
-        CROSS_STATE_PATH.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        # 2026-08-12: 原子写(tmp+os.replace), 与 self_heal.py 一致, 防跨项目状态锚并发写坏
+        import os as _os
+
+        _tmp = Path(str(CROSS_STATE_PATH) + ".tmp")
+        _tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        _os.replace(_tmp, CROSS_STATE_PATH)
     except Exception as e:  # noqa: BLE001
         print(f"  [warn] 状态锚写回失败(非阻断): {e}")
 
@@ -1411,6 +1500,8 @@ def main() -> int:
         "微信公众号通道": check_wechat_channel(),
         "成本监控": check_cost_anomaly(),
         "Dependabot": check_dependabot_backlog(),
+        "memwatch完整性": check_memwatch_integrity(),
+        "共享文件完整性": check_shared_files_integrity(),
     }
 
     all_alerts: list[str] = []

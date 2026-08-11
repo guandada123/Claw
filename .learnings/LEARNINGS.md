@@ -18,3 +18,11 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **处置**: 固化三步——①`tail`代理日志+`nc -z`探存活 ②区分三类故障(连不上/reasoning-only/internal error) ③没日志实锤前不抛推断结论。
 - **防复犯**: 写入全局 🔴铁律 + incident-triage skill Step1。
 - **去重**: 首次
+
+### 2026-08-12 双自动化并发修改同一脚本致 WB 停机 5h11m（best_practice → ★升级候选）
+- **类型**: best_practice
+- **现象**: 08-11 23:44 memwatch 正确触发重启(修复一生效, 8500阈值+5s采样抢在系统OOM前), 但 do_restart 清理残留后正要 open 拉起时, 23:45:44 统一巡检中枢 Runbook#1(memwatch_bump) 因"阈值8500<10000且90min内有重启"执行 unload/load 打断重启流程 → open 未执行 → WB 停机至 04:56 用户手动打开。
+- **根因**(日志实锤): ①两个自动化(memwatch 守护 + unified_ops_center 巡检)并发操作同一目标(脚本文件+launchd), 无互斥协调 ②巡检中枢"识别根因"把正确的保护性重启误判为"误杀盘前自动化" ③memwatch_bump 直接 sed 脚本文件改阈值, 与 memwatch 自身 do_restart 冲突。
+- **处置**: ①RSS_RESTART_MB 恢复 8500(修复二误改回10000) ②memwatch 强杀识别升级"告警+自动拉起" ③unified_ops_center MEMWATCH_TARGET_MB 10000→8500 消除拉锯 ④bump 前检查 2min 内"触发重启"日志(do_restart 进行中)即跳过, 防打断。
+- **防复犯**: 单一配置源(参数进 launchd plist EnvironmentVariables, 脚本只读逻辑) + 巡检中枢改 plist 而非 sed 脚本 + 写前 2min 护栏 + 调参先看 memwatch 日志实锤。
+- **去重**: 首次

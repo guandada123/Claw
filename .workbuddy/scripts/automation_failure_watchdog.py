@@ -108,16 +108,27 @@ def push(title: str, content: str) -> bool:
 # ─────────────────────────────────────────────────────────────
 MEMWATCH_PLIST = Path.home() / "Library" / "LaunchAgents" / "com.workbuddy.memwatch.plist"
 MEMWATCH_SCRIPT = Path.home() / ".local" / "bin" / "watch_workbuddy_mem.sh"
+MEMWATCH_CONF = Path.home() / ".local" / "etc" / "workbuddy_memwatch.conf"  # 2026-08-12: 单一配置源
 MEMWATCH_LOG = Path.home() / "Library" / "Logs" / "workbuddy_memwatch.log"
-MEMWATCH_TARGET_MB = 10000  # 16G 机型：6GB 为 WB 常态占用非危险，提到 10GB 绕开盘前高发窗口
+MEMWATCH_TARGET_MB = 8500  # 2026-08-12: 10000→8500, 与统一巡检中枢/脚本 conf 对齐(16G: WB树10G时系统已OOM先杀, 8500抢在OOM前)
 MEMWATCH_LOW_MB = 8000  # 当前阈值低于此值才视为"偏低需自愈"
 
 
 def _read_memwatch_current_mb() -> int:
-    """从守护脚本读当前 RSS_RESTART_MB 默认值（plist 无覆盖时用此值）。"""
-    try:
-        import re
+    """2026-08-12: 从 conf(单一配置源)读当前 RSS_RESTART_MB; 不存在则回退读脚本默认值。"""
+    import re
 
+    # 优先 conf
+    try:
+        if MEMWATCH_CONF.exists():
+            for ln in MEMWATCH_CONF.read_text(encoding="utf-8", errors="ignore").splitlines():
+                m = re.match(r"\s*RSS_RESTART_MB\s*=\s*(\d+)", ln)
+                if m:
+                    return int(m.group(1))
+    except Exception:
+        pass
+    # 回退脚本
+    try:
         txt = MEMWATCH_SCRIPT.read_text(encoding="utf-8")
         m = re.search(r"RSS_RESTART_MB:=(\d+)", txt)
         if m:
@@ -163,17 +174,28 @@ def mitigate_memwatch() -> str | None:
         return None  # 阈值不低且无近期重启，不擅动
     if not _memwatch_restarted_recently():
         return None  # 无近期重启证据，可能是其他根因，仅告警不自愈
-    # ── 执行自愈（护栏：先备份，再改，再 reload）──
+    # ── 执行自愈（护栏：先备份，再改 conf(单一配置源)，再 reload；绝不直接写脚本文件）──
     try:
+        import datetime as _dt
+        import os as _os
         import shutil
 
-        bak = MEMWATCH_SCRIPT.with_suffix(".sh.bak-autoheal")
-        shutil.copy2(MEMWATCH_SCRIPT, bak)
-        txt = MEMWATCH_SCRIPT.read_text(encoding="utf-8")
-        txt = __import__("re").sub(
-            r"RSS_RESTART_MB:=\d+", f"RSS_RESTART_MB:={MEMWATCH_TARGET_MB}", txt, count=1
-        )
-        MEMWATCH_SCRIPT.write_text(txt, encoding="utf-8")
+        ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        if MEMWATCH_CONF.exists():
+            shutil.copy2(MEMWATCH_CONF, Path(str(MEMWATCH_CONF) + f".bak-autoheal-{ts}"))
+            txt = MEMWATCH_CONF.read_text(encoding="utf-8")
+            txt = __import__("re").sub(
+                r"RSS_RESTART_MB\s*=\s*\d+", f"RSS_RESTART_MB={MEMWATCH_TARGET_MB}", txt, count=1
+            )
+            tmp = Path(str(MEMWATCH_CONF) + ".tmp")
+            tmp.write_text(txt, encoding="utf-8")
+            _os.replace(tmp, MEMWATCH_CONF)  # 原子写
+        else:
+            # conf 缺失则创建，保证单一配置源存在
+            conf = f"RSS_RESTART_MB={MEMWATCH_TARGET_MB}\n"
+            tmp = Path(str(MEMWATCH_CONF) + ".tmp")
+            tmp.write_text(conf, encoding="utf-8")
+            _os.replace(tmp, MEMWATCH_CONF)
         # reload 守护使其载入新阈值
         subprocess.run(
             ["launchctl", "unload", str(MEMWATCH_PLIST)], capture_output=True, timeout=30
@@ -182,8 +204,8 @@ def mitigate_memwatch() -> str | None:
     except Exception as e:  # noqa: BLE001
         return f"⚠️ memwatch 自愈执行失败: {e}（未改动或改动未生效，需人工排查）"
     return (
-        f"✅ 已自动缓解根因：memwatch 阈值 {cur}MB → {MEMWATCH_TARGET_MB}MB 并 reload 守护。"
-        f"备份: {MEMWATCH_SCRIPT.name}.bak-autoheal。盘前关键自动化不再落入重启高发窗口。"
+        f"✅ 已自动缓解根因：memwatch 阈值 {cur}MB → {MEMWATCH_TARGET_MB}MB 并 reload 守护(改 conf, 原子写+时间戳备份)。"
+        f"备份: {MEMWATCH_CONF.name}.bak-autoheal-{ts}。盘前关键自动化不再落入重启高发窗口。"
     )
 
 
