@@ -13,6 +13,8 @@ t0_strategy.py — 做T（T+0 日内交易）子策略引擎
   R5. 正T安全垫     — 买入价需低于持仓成本 2% 以上(防追高)
   R6. 时间节点      — 10:10 分时窗口(卡洗盘节奏做补涨)
   R7. T+1 合规      — 正T=卖旧买新(需已有底仓)；反T=先卖后买(当日可回补)
+  R8. 情绪修正      — 自60日低点反弹≥10%强反弹时，价格微低于MA20(≤2%)视为
+                      回踩买点改判正T(2026-08-12 用户指出单均线在强趋势中钝化)
 
 用法:
   python3 scripts/t0_strategy.py evaluate --code 600584 --ma20 78.0
@@ -37,6 +39,9 @@ T_STOP_LOSS_PCT = 0.03  # 单次T浮亏 ≥3% 强制止损（笔记: 日内T亏3
 T_COST_SAFETY_PCT = 0.02  # 正T买入价需低于持仓成本 2% 以上（指南安全垫）
 T_NODE_TIME = "10:10"  # 分时节点（笔记: 10:10 打时间差做补涨）
 T_NODE_WINDOW_MIN = 10  # 节点窗口 ±10 分钟
+# R8 情绪修正（2026-08-12 用户指出: 不能只看指标要看市场情绪）
+STRONG_RALLY_PCT = 10.0  # 自60日低点反弹 ≥10%（百分比数值）→ 强反弹/强情绪
+MA20_GAP_REVERSE = 0.02  # 价格低于MA20 超过 2% 才判反T（强反弹下微回踩≠破位）
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
@@ -52,12 +57,16 @@ class T0Strategy:
         stop_loss_pct: float = T_STOP_LOSS_PCT,
         cost_safety_pct: float = T_COST_SAFETY_PCT,
         node_time: str = T_NODE_TIME,
+        strong_rally_pct: float = STRONG_RALLY_PCT,
+        ma20_gap_reverse: float = MA20_GAP_REVERSE,
     ):
         self.ratio = ratio
         self.max_per_day = max_per_day
         self.stop_loss_pct = stop_loss_pct
         self.cost_safety_pct = cost_safety_pct
         self.node_time = node_time
+        self.strong_rally_pct = strong_rally_pct
+        self.ma20_gap_reverse = ma20_gap_reverse
 
     # ════════════════════════════════════════════════════════════
     # 主入口: 对单个持仓生成做T建议
@@ -69,12 +78,17 @@ class T0Strategy:
         ma20: float | None = None,
         t_count_today: int = 0,
         t_pnl_pct: float | None = None,
+        rally_pct: float | None = None,
         now: datetime | None = None,
     ) -> dict:
         """生成做T建议。
 
         holding 需含: code / shares / avg_cost（可附 current_price / name）
         price/ma20 优先外部传入（盘中监控已有行情时复用，避免重复请求）。
+        rally_pct: 自近60日低点反弹幅度%（市场情绪维度，2026-08-12 新增 R8）——
+            强反弹(≥10%)下价格微低于MA20(≤2%)时视为回踩买点，改判正T，
+            避免单均线在强趋势行情中钝化导致方向反判。
+            注: 用「自低点反弹」而非「近20日涨幅」，V型反转下20日窗口会失真。
         """
         code = holding.get("code", "")
         name = holding.get("name", "")
@@ -159,12 +173,29 @@ class T0Strategy:
             )
             return result
 
-        # R2: 方向（20日线优先，降级用持仓成本）
+        # R2+R8: 方向（20日线为主 + 情绪修正，2026-08-12）
         direction = None
         trend_note = ""
+        sentiment_note = ""
         if price is not None and ma20 is not None:
-            direction = "正T" if price > ma20 else "反T"
-            trend_note = f"价¥{price:.2f} {'>' if price > ma20 else '<'} MA20¥{ma20:.2f}"
+            gap = (price - ma20) / ma20
+            if gap > 0:
+                direction = "正T"
+                trend_note = f"价¥{price:.2f} > MA20¥{ma20:.2f}"
+            elif gap < -self.ma20_gap_reverse:
+                # 显著破位(>2%) → 反T
+                direction = "反T"
+                trend_note = (
+                    f"价¥{price:.2f} 低于 MA20¥{ma20:.2f} 超{self.ma20_gap_reverse * 100:.0f}%"
+                )
+            elif rally_pct is not None and rally_pct >= self.strong_rally_pct:
+                # R8 情绪修正: 强反弹(自60日低点≥10%) + 微回踩MA20(≤2%) → 顺势正T
+                direction = "正T"
+                sentiment_note = f"R8情绪修正: 自低点+{rally_pct:.1f}%强反弹, 微回踩MA20视为买点"
+                trend_note = f"价¥{price:.2f} 微低于 MA20¥{ma20:.2f} ({gap * 100:+.1f}%)"
+            else:
+                direction = "反T"
+                trend_note = f"价¥{price:.2f} 低于 MA20¥{ma20:.2f} 且无强反弹支撑"
         elif price is not None and avg_cost:
             direction = "正T" if price > avg_cost else "反T"
             trend_note = (
@@ -178,6 +209,7 @@ class T0Strategy:
             return result
         result["direction"] = direction
         result["t0"] = True
+        result["sentiment_note"] = sentiment_note
 
         # R5: 正T安全垫（买入价 ≤ 持仓成本 × (1-2%)）
         buy_below = None
@@ -214,6 +246,8 @@ class T0Strategy:
             parts.append(f"买入≤¥{buy_below}")
         if node_hint:
             parts.append(node_hint)
+        if sentiment_note:
+            parts.append(sentiment_note)
         result["summary"] = " | ".join(parts)
 
         if not result["flags"]:

@@ -91,6 +91,34 @@ def test_direction_reverse_below_ma20(strategy):
     assert r["direction"] == "反T"
 
 
+# ── R8: 情绪修正（强反弹下微回踩MA20 → 正T）──
+
+
+def test_r8_strong_rally_slight_dip_below_ma20_is_positive():
+    # 自低点+40%强反弹 + 价格仅低于MA20 0.4% → 顺势正T（修正单均线钝化）
+    r = T0Strategy().evaluate(_holding(), price=77.67, ma20=78.0, rally_pct=40.0)
+    assert r["direction"] == "正T"
+    assert "情绪修正" in r["sentiment_note"]
+
+
+def test_r8_no_strong_rally_slight_dip_is_reverse(strategy):
+    # 弱反弹（自低点+2%）+ 微低于MA20 → 维持反T
+    r = strategy.evaluate(_holding(), price=77.67, ma20=78.0, rally_pct=2.0)
+    assert r["direction"] == "反T"
+    assert r["sentiment_note"] == ""
+
+
+def test_r8_deep_break_below_ma20_always_reverse():
+    # 即使强反弹，破位>2% → 仍反T（情绪修正不掩盖破位）
+    r = T0Strategy().evaluate(_holding(), price=75.0, ma20=78.0, rally_pct=40.0)
+    assert r["direction"] == "反T"
+
+
+def test_r8_above_ma20_positive_regardless(strategy):
+    r = strategy.evaluate(_holding(), price=80.0, ma20=78.0, rally_pct=-5.0)
+    assert r["direction"] == "正T"
+
+
 def test_direction_fallback_to_avg_cost(strategy):
     # 无MA20 → 用持仓成本定向
     r = strategy.evaluate(_holding(avg_cost=75.0), price=80.0, ma20=None)

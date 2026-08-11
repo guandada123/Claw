@@ -66,9 +66,11 @@ except ImportError:
     class WindAnalytics:  # type: ignore[no-redef]
         def get_technicals(self, code: str, period: str = "") -> None:
             return None
+
         @property
         def available(self) -> bool:
             return False
+
 
 # 做T子策略引擎（2026-08-12 落地，来源=小红书做T笔记+系统化指南）
 try:
@@ -81,27 +83,28 @@ CALC_RSI = PROJECT_ROOT / "scripts" / "calc_rsi.py"
 USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
 
 # ── 规则阈值常量 ────────────────────────────────────────────────
-RSI_OVERBOUGHT = 70          # RSI(14) 超买线
-DAY_GAIN_WARN = 5.0          # 当日涨幅预警线(%)
-DOUBLE_ACCT_PCT = 0.33       # 双账户同标合计占比上限
-REBUY_COOLING_DAYS = 30      # 30天内≥2次亏卖 → 冷却
-REBUY_DCA_DAYS = 7           # 7天内≥3次买 → 摊薄标记
+RSI_OVERBOUGHT = 70  # RSI(14) 超买线
+DAY_GAIN_WARN = 5.0  # 当日涨幅预警线(%)
+DOUBLE_ACCT_PCT = 0.33  # 双账户同标合计占比上限
+REBUY_COOLING_DAYS = 30  # 30天内≥2次亏卖 → 冷却
+REBUY_DCA_DAYS = 7  # 7天内≥3次买 → 摊薄标记
 DCA_WARN_COUNT = 3
-T3_LOCK_PROFIT_DAYS = 3      # 持仓≥3天且浮盈 → 锁利建议
-T5_REVIEW_DAYS = 5            # 持仓≥5天 → 每日复盘
-T7_STOPLOSS_DAYS = 7         # 持仓≥7天且回撤≥-8% → 紧急减仓
-RISK_REWARD_MIN = 1.5        # 盈亏比下限
+T3_LOCK_PROFIT_DAYS = 3  # 持仓≥3天且浮盈 → 锁利建议
+T5_REVIEW_DAYS = 5  # 持仓≥5天 → 每日复盘
+T7_STOPLOSS_DAYS = 7  # 持仓≥7天且回撤≥-8% → 紧急减仓
+RISK_REWARD_MIN = 1.5  # 盈亏比下限
 
 # 默认止损/止盈（与 portfolio.json rules 一致）
 DEFAULT_STOP_LOSS = -0.08
-DEFAULT_TAKE_PROFIT = 0.05    # +5% 作为短线目标
+DEFAULT_TAKE_PROFIT = 0.05  # +5% 作为短线目标
 
 
 class AdvisorRules:
     """炒股助理纪律规则引擎"""
 
-    def __init__(self, stop_loss: float = DEFAULT_STOP_LOSS,
-                 take_profit: float = DEFAULT_TAKE_PROFIT):
+    def __init__(
+        self, stop_loss: float = DEFAULT_STOP_LOSS, take_profit: float = DEFAULT_TAKE_PROFIT
+    ):
         self.stop_loss = stop_loss
         self.take_profit = take_profit
 
@@ -137,10 +140,15 @@ class AdvisorRules:
         # 决策价：优先实时快照；无实时价才退用外部传入价（仍需 sanity）
         decision_price = live_price if live_price else price
         sanity = None
-        if price is not None and live_price is not None and abs(price - live_price) / live_price > 0.30:
+        if (
+            price is not None
+            and live_price is not None
+            and abs(price - live_price) / live_price > 0.30
+        ):
             # 外部价与实时偏离>30% → 触发 sanity 强校验
             try:
                 from price_sanity import check as _sanity_check
+
                 sanity = _sanity_check(code, price)
                 if not sanity["ok"]:
                     decision_price = sanity["verified_price"] or live_price
@@ -150,6 +158,7 @@ class AdvisorRules:
             # 无实时价，外部价仍需 sanity（52周/MA20 闸门）
             try:
                 from price_sanity import check as _sanity_check
+
                 sanity = _sanity_check(code, price)
                 if not sanity["ok"]:
                     decision_price = sanity["verified_price"] or price
@@ -165,38 +174,48 @@ class AdvisorRules:
         # 价格 sanity 失败 → 阻断推荐并告警
         if sanity and not sanity["ok"]:
             blocked = True
-            flags.append({
-                "level": "block",
-                "reason": f"🚫 价格合理性校验失败：传入价¥{price:.2f} 不可信（{'; '.join(sanity['fail_reasons'])}）；已改用可信价¥{decision_price:.2f}，请复核后重试"
-            })
+            flags.append(
+                {
+                    "level": "block",
+                    "reason": f"🚫 价格合理性校验失败：传入价¥{price:.2f} 不可信（{'; '.join(sanity['fail_reasons'])}）；已改用可信价¥{decision_price:.2f}，请复核后重试",
+                }
+            )
 
         # E1: RSI 超买
         if rsi is not None and rsi > RSI_OVERBOUGHT:
             blocked = True
-            flags.append({
-                "level": "block",
-                "reason": f"⚠️ RSI(14)={rsi:.1f} 超买区(>70)，追高风险大，建议等回调"
-            })
+            flags.append(
+                {
+                    "level": "block",
+                    "reason": f"⚠️ RSI(14)={rsi:.1f} 超买区(>70)，追高风险大，建议等回调",
+                }
+            )
 
         # E2: 高于 MA20
         if ma20 is not None and decision_price is not None and decision_price > ma20 * 1.02:
-            flags.append({
-                "level": "warn",
-                "reason": f"⚠️ 现价 ¥{decision_price:.2f} 高于 MA20 ¥{ma20:.2f}（+{(decision_price/ma20-1)*100:.1f}%），无安全垫"
-            })
+            flags.append(
+                {
+                    "level": "warn",
+                    "reason": f"⚠️ 现价 ¥{decision_price:.2f} 高于 MA20 ¥{ma20:.2f}（+{(decision_price / ma20 - 1) * 100:.1f}%），无安全垫",
+                }
+            )
         elif ma20 is not None and decision_price is not None and decision_price > ma20:
-            flags.append({
-                "level": "warn",
-                "reason": f"⚠️ 现价 ¥{decision_price:.2f} 略高于 MA20 ¥{ma20:.2f}，注意追高"
-            })
+            flags.append(
+                {
+                    "level": "warn",
+                    "reason": f"⚠️ 现价 ¥{decision_price:.2f} 略高于 MA20 ¥{ma20:.2f}，注意追高",
+                }
+            )
 
         # E3: 当日涨幅过大
         if day_change is not None and day_change > DAY_GAIN_WARN:
             blocked = True
-            flags.append({
-                "level": "block",
-                "reason": f"⚠️ 当日涨幅 {day_change:+.1f}% 已超 {DAY_GAIN_WARN}%，暂缓推荐，等回落"
-            })
+            flags.append(
+                {
+                    "level": "block",
+                    "reason": f"⚠️ 当日涨幅 {day_change:+.1f}% 已超 {DAY_GAIN_WARN}%，暂缓推荐，等回落",
+                }
+            )
 
         # 推荐买区
         suggested = self._suggest_buy_zone(decision_price, ma20, rsi)
@@ -234,8 +253,8 @@ class AdvisorRules:
             return f"参考买区 ¥{zone_low:.2f}~¥{zone_high:.2f}（MA20附近回调介入）"
         # 无 MA20 时退用 RSI 逻辑
         if rsi is not None and rsi > RSI_OVERBOUGHT:
-            return f"建议等待 RSI 回落至 <60 且价格回踩 ¥{price*0.95:.2f} 以下"
-        return f"建议等待回调至 ¥{price*0.95:.2f} 附近"
+            return f"建议等待 RSI 回落至 <60 且价格回踩 ¥{price * 0.95:.2f} 以下"
+        return f"建议等待回调至 ¥{price * 0.95:.2f} 附近"
 
     # ════════════════════════════════════════════════════════════
     # 规则 A: T+3 强制决策（盘中持仓诊断）
@@ -266,27 +285,33 @@ class AdvisorRules:
 
         # A1: 持仓≥3天且浮盈 → 锁利
         if days >= T3_LOCK_PROFIT_DAYS and pnl_pct > 0:
-            flags.append({
-                "level": "warn",
-                "rule": "A",
-                "reason": f"📌 持仓 {days}天 浮盈 {pnl_pct*100:+.1f}% → 建议锁利（T+3短线目标已达成）"
-            })
+            flags.append(
+                {
+                    "level": "warn",
+                    "rule": "A",
+                    "reason": f"📌 持仓 {days}天 浮盈 {pnl_pct * 100:+.1f}% → 建议锁利（T+3短线目标已达成）",
+                }
+            )
 
         # A2: 持仓≥5天 → 每日复盘
         if days >= T5_REVIEW_DAYS:
-            flags.append({
-                "level": "info",
-                "rule": "A",
-                "reason": f"📌 持仓 {days}天 超短线周期 → 每日到期复盘：达到预期？未达则减仓"
-            })
+            flags.append(
+                {
+                    "level": "info",
+                    "rule": "A",
+                    "reason": f"📌 持仓 {days}天 超短线周期 → 每日到期复盘：达到预期？未达则减仓",
+                }
+            )
 
         # A3: 持仓≥7天且回撤≥-8% → 紧急减仓
         if days >= T7_STOPLOSS_DAYS and pnl_pct <= self.stop_loss:
-            flags.append({
-                "level": "block",
-                "rule": "A",
-                "reason": f"🚨 持仓 {days}天 回撤 {pnl_pct*100:+.1f}% 破止损线(-8%) → 紧急减仓"
-            })
+            flags.append(
+                {
+                    "level": "block",
+                    "rule": "A",
+                    "reason": f"🚨 持仓 {days}天 回撤 {pnl_pct * 100:+.1f}% 破止损线(-8%) → 紧急减仓",
+                }
+            )
 
         return flags
 
@@ -318,32 +343,30 @@ class AdvisorRules:
                 "over_limit": None,
             }
 
-        combined_value = sum(
-            h.get("shares", 0) * h.get("avg_cost", 0) for h in matched
-        )
+        combined_value = sum(h.get("shares", 0) * h.get("avg_cost", 0) for h in matched)
         pct = combined_value / total_value
         return {
             "double_account": True,
             "brokers": list(brokers),
             "combined_pct": round(pct, 4),
             "over_limit": pct > DOUBLE_ACCT_PCT,
-            "warn": f"⚠️ 双账户合计占比 {pct*100:.1f}% > {DOUBLE_ACCT_PCT*100:.0f}% 上限"
-                    if pct > DOUBLE_ACCT_PCT else
-                    f"双账户同持 {list(brokers)}，占比 {pct*100:.1f}%",
+            "warn": f"⚠️ 双账户合计占比 {pct * 100:.1f}% > {DOUBLE_ACCT_PCT * 100:.0f}% 上限"
+            if pct > DOUBLE_ACCT_PCT
+            else f"双账户同持 {list(brokers)}，占比 {pct * 100:.1f}%",
         }
 
     # ════════════════════════════════════════════════════════════
     # 规则 B: 禁止重复抄底闸门
     # ════════════════════════════════════════════════════════════
-    def check_rebuy_gate(self, code: str, trade_log: list[dict],
-                         today: date | None = None) -> dict:
+    def check_rebuy_gate(self, code: str, trade_log: list[dict], today: date | None = None) -> dict:
         """根据交易历史判断是否触发抄底闸门
 
         trade_log: [{"date": "2026-07-01", "side": "buy"|"sell", "pnl": float|None}]
         """
         today = today or date.today()
         recent = [
-            t for t in trade_log
+            t
+            for t in trade_log
             if (today - datetime.strptime(t["date"], "%Y-%m-%d").date()).days
             <= max(REBUY_COOLING_DAYS, REBUY_DCA_DAYS)
         ]
@@ -374,8 +397,13 @@ class AdvisorRules:
     # ════════════════════════════════════════════════════════════
     # 规则 D: 盈亏比预演卡片
     # ════════════════════════════════════════════════════════════
-    def _calibrate_confidence(self, entry_price: float, stop_loss_pct: float,
-                              take_profit_pct: float, rsi: float | None = None) -> dict:
+    def _calibrate_confidence(
+        self,
+        entry_price: float,
+        stop_loss_pct: float,
+        take_profit_pct: float,
+        rsi: float | None = None,
+    ) -> dict:
         """置信度校准（呼应调研 #5：每条论断须可追溯 + 校准）。
 
         依据盈亏比 + 是否处于超买区，给出 高/中/低 三级与可读依据，
@@ -383,23 +411,29 @@ class AdvisorRules:
         """
         rr = abs(take_profit_pct / stop_loss_pct) if stop_loss_pct != 0 else 0.0
         if rr >= RISK_REWARD_MIN and (rsi is None or rsi <= RSI_OVERBOUGHT):
-            level, basis = "高", (
-                f"盈亏比 {rr:.2f}:1 ≥ {RISK_REWARD_MIN}:1 且非超买区"
-                + (f"（RSI={rsi:.0f}）" if rsi is not None else "")
+            level, basis = (
+                "高",
+                (
+                    f"盈亏比 {rr:.2f}:1 ≥ {RISK_REWARD_MIN}:1 且非超买区"
+                    + (f"（RSI={rsi:.0f}）" if rsi is not None else "")
+                ),
             )
         elif rr >= 1.0:
-            level, basis = "中", (
-                f"盈亏比 {rr:.2f}:1 中性，需结合量价/板块确认后再加仓"
-            )
+            level, basis = "中", (f"盈亏比 {rr:.2f}:1 中性，需结合量价/板块确认后再加仓")
         else:
-            level, basis = "低", (
-                f"盈亏比 {rr:.2f}:1 < {RISK_REWARD_MIN}:1，风险收益不划算，慎参与"
+            level, basis = (
+                "低",
+                (f"盈亏比 {rr:.2f}:1 < {RISK_REWARD_MIN}:1，风险收益不划算，慎参与"),
             )
         return {"level": level, "basis": basis}
 
-    def risk_reward_card(self, entry_price: float, stop_loss_pct: float = DEFAULT_STOP_LOSS,
-                         take_profit_pct: float = DEFAULT_TAKE_PROFIT,
-                         rsi: float | None = None) -> dict:
+    def risk_reward_card(
+        self,
+        entry_price: float,
+        stop_loss_pct: float = DEFAULT_STOP_LOSS,
+        take_profit_pct: float = DEFAULT_TAKE_PROFIT,
+        rsi: float | None = None,
+    ) -> dict:
         """生成盈亏比预演卡片（含置信度校准）"""
         stop_price = entry_price * (1 + stop_loss_pct)
         target_price = entry_price * (1 + take_profit_pct)
@@ -411,7 +445,9 @@ class AdvisorRules:
             "take_profit_price": round(target_price, 2),
             "risk_reward_ratio": round(rr, 2) if rr else None,
             "verdict": "风险收益良好" if (rr and rr >= RISK_REWARD_MIN) else "风险收益不佳",
-            "confidence": self._calibrate_confidence(entry_price, stop_loss_pct, take_profit_pct, rsi),
+            "confidence": self._calibrate_confidence(
+                entry_price, stop_loss_pct, take_profit_pct, rsi
+            ),
         }
         if rr and rr < RISK_REWARD_MIN:
             card["warn"] = f"⚠️ 盈亏比 {rr:.2f}:1 < {RISK_REWARD_MIN}:1，风险收益不划算"
@@ -445,12 +481,11 @@ class AdvisorRules:
         optimistic = {
             "bias": "持有/加仓",
             "trigger": (
-                f"放量突破 ¥{price*1.03:.2f}（约 +3%）且所属板块续强、"
-                f"或大盘站上 MA20 转强"
+                f"放量突破 ¥{price * 1.03:.2f}（约 +3%）且所属板块续强、或大盘站上 MA20 转强"
             ),
             "action": (
-                f"持有待涨；浮盈达 +{self.take_profit*100:.0f}% 分批锁利，"
-                f"回踩 ¥{price*0.98:.2f} 可加仓 1/3（不超单只上限）"
+                f"持有待涨；浮盈达 +{self.take_profit * 100:.0f}% 分批锁利，"
+                f"回踩 ¥{price * 0.98:.2f} 可加仓 1/3（不超单只上限）"
             ),
         }
         neutral = {
@@ -461,9 +496,12 @@ class AdvisorRules:
         pessimistic = {
             "bias": "减仓/清仓",
             "trigger": (
-                (f"跌破 ¥{stop_price:.2f} 止损线（{self.stop_loss*100:.0f}%）"
-                 if stop_price else "触发纪律止损") +
-                " 或板块证伪/外围大跌破位"
+                (
+                    f"跌破 ¥{stop_price:.2f} 止损线（{self.stop_loss * 100:.0f}%）"
+                    if stop_price
+                    else "触发纪律止损"
+                )
+                + " 或板块证伪/外围大跌破位"
             ),
             "action": "触发纪律止损，减仓/清仓不犹豫；永不摊平亏损仓（利弗莫尔铁律）",
         }
@@ -483,11 +521,17 @@ class AdvisorRules:
     # 规则 G: 做T子策略建议（2026-08-12 落地，来源=小红书做T笔记+系统化指南）
     # 识别口径: T仓=底仓10% / 日≤2次 / 单次亏3%止损 / 20日线定正反T / 10:10节点
     # ════════════════════════════════════════════════════════════
-    def check_t0(self, holding: dict, quotes: dict | None = None,
-                 t_count_today: int = 0, now: datetime | None = None) -> dict | None:
+    def check_t0(
+        self,
+        holding: dict,
+        quotes: dict | None = None,
+        t_count_today: int = 0,
+        now: datetime | None = None,
+    ) -> dict | None:
         """对持仓生成做T建议（仅提示不阻断，做T需已有底仓）。
 
-        quotes 复用盘中已有行情（price/ma20），避免重复请求；
+        quotes 复用盘中已有行情（price/ma20/rally_pct），避免重复请求；
+        rally_pct(自60日低点反弹幅度%) 缺失时自动拉取，失败降级为 None（R8不生效）。
         返回 None 表示引擎不可用或标的无底仓。
         """
         if T0Strategy is None:
@@ -498,9 +542,18 @@ class AdvisorRules:
         ma20 = q.get("ma20")
         if ma20 is None:
             ma20 = self._get_ma20(self._prefix(code))
+        rally_pct = q.get("rally_pct")
+        if rally_pct is None:
+            rally_pct = self._get_rally_pct(self._prefix(code))
         try:
-            return T0Strategy().evaluate(holding, price=price, ma20=ma20,
-                                         t_count_today=t_count_today, now=now)
+            return T0Strategy().evaluate(
+                holding,
+                price=price,
+                ma20=ma20,
+                t_count_today=t_count_today,
+                rally_pct=rally_pct,
+                now=now,
+            )
         except Exception:
             return None
 
@@ -515,9 +568,13 @@ class AdvisorRules:
     # ════════════════════════════════════════════════════════════
     # 组合诊断（盘中监控主入口）
     # ════════════════════════════════════════════════════════════
-    def diagnose_holding(self, holding: dict, quotes: dict | None = None,
-                         trade_log: list[dict] | None = None,
-                         today: date | None = None) -> dict:
+    def diagnose_holding(
+        self,
+        holding: dict,
+        quotes: dict | None = None,
+        trade_log: list[dict] | None = None,
+        today: date | None = None,
+    ) -> dict:
         """对单个持仓执行 A + C + B + D 全规则诊断"""
         today = today or date.today()
         code = holding.get("code", "")
@@ -563,11 +620,13 @@ class AdvisorRules:
         # G: 做T子策略（盘中做T窗口提示；仅提示不阻断）
         t0 = self.check_t0(holding, quotes)
         if t0 and t0.get("t0"):
-            flags.append({
-                "level": "info",
-                "rule": "G",
-                "reason": t0.get("summary", ""),
-            })
+            flags.append(
+                {
+                    "level": "info",
+                    "rule": "G",
+                    "reason": t0.get("summary", ""),
+                }
+            )
 
         return {
             "code": code,
@@ -609,7 +668,9 @@ class AdvisorRules:
         try:
             out = subprocess.run(
                 [sys.executable, str(CALC_RSI), code_prefixed],
-                capture_output=True, text=True, timeout=30
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             for line in out.stdout.splitlines():
                 if line.startswith("JSON:"):
@@ -687,8 +748,10 @@ class AdvisorRules:
                 pass
         # 2) 腾讯 ifzq 前复权
         try:
-            url = (f"https://web.ifzq.gtimg.cn/appstuff/app/fqkline/get"
-                   f"?param={code_prefixed},day,,,60,qfq")
+            url = (
+                f"https://web.ifzq.gtimg.cn/appstuff/app/fqkline/get"
+                f"?param={code_prefixed},day,,,60,qfq"
+            )
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: URL scheme is hardcoded https
                 data = json.loads(resp.read().decode("utf-8"))
@@ -703,14 +766,42 @@ class AdvisorRules:
             pass
         # 3) 新浪回退
         try:
-            url = (f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
-                   f"/CN_MarketData.getKLineData?symbol={code_prefixed}&scale=240&ma=no&datalen=60")
+            url = (
+                f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
+                f"/CN_MarketData.getKLineData?symbol={code_prefixed}&scale=240&ma=no&datalen=60"
+            )
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: URL scheme is hardcoded https
                 arr = json.loads(resp.read().decode("utf-8"))
             closes = [float(row["close"]) for row in arr if row.get("close")]
             if len(closes) >= 20:
                 return sum(closes[-20:]) / len(closes[-20:])
+        except Exception:
+            pass
+        return None
+
+    def _get_rally_pct(self, code_prefixed: str) -> float | None:
+        """自近60日低点反弹幅度（%）。市场情绪维度(做T R8)，新浪K线，失败降级 None。
+
+        用「自低点反弹」而非「近20日涨幅」——V型反转下20日窗口会把高位算进去导致失真。
+        """
+        try:
+            url = (
+                f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
+                f"/CN_MarketData.getKLineData?symbol={code_prefixed}&scale=240&ma=no&datalen=60"
+            )
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: URL scheme is hardcoded https
+                arr = json.loads(resp.read().decode("utf-8"))
+            lows = [float(row["low"]) for row in arr if row.get("low")]
+            closes = [float(row["close"]) for row in arr if row.get("close")]
+            if not lows or not closes:
+                return None
+            low = min(lows)
+            cur = closes[-1]
+            if low <= 0:
+                return None
+            return round((cur / low - 1) * 100, 2)
         except Exception:
             pass
         return None
@@ -729,9 +820,13 @@ class AdvisorRules:
 # ── CLI 入口 ────────────────────────────────────────────────────
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="炒股助理纪律规则引擎")
-    parser.add_argument("--verbose", action="store_true",
-                        help="显示依赖库日志（默认静音，防止 2>&1 时 Wind 提示污染 JSON 输出）")
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="显示依赖库日志（默认静音，防止 2>&1 时 Wind 提示污染 JSON 输出）",
+    )
     sub = parser.add_subparsers(dest="cmd")
 
     p_entry = sub.add_parser("check-entry", help="入场价过滤(规则E)")
@@ -748,6 +843,7 @@ def main():
     # 避免自动化里 2>&1 合流时污染 stdout 的 JSON。--verbose 可恢复。
     if not args.verbose:
         import logging as _logging
+
         for _name in ("claw", "wind"):
             _logging.getLogger(_name).setLevel(_logging.ERROR)
     advisor = AdvisorRules()
