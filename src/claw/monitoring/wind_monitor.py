@@ -22,15 +22,24 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from claw.feeds.wind_analytics import WindAnalytics
 
-PROJECT_ROOT = Path(os.environ.get(
-    "CLAW_PROJECT_ROOT",
-    str(Path(__file__).resolve().parent.parent.parent.parent)
-))
+# 市场情绪层（2026-08-12）: 选股筛选附加大盘/板块情绪维度
+_SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+try:
+    from market_sentiment import MarketSentiment
+except ImportError:
+    MarketSentiment = None  # type: ignore[assignment,misc]
+
+PROJECT_ROOT = Path(
+    os.environ.get("CLAW_PROJECT_ROOT", str(Path(__file__).resolve().parent.parent.parent.parent))
+)
 # canonical 投顾/模拟盘持仓文件（2026-07-22 由 .workbuddy/data/portfolio.json 合并迁入）
 PORTFOLIO_SIM = PROJECT_ROOT / ".workbuddy" / "data" / "simulation" / "portfolio.json"
 # 实盘持仓（国金证券等，A股人民币账户）
@@ -152,6 +161,7 @@ def monitor_technical() -> list[dict]:
                 if k and isinstance(row.get(k), (int, float)):
                     return float(row[k])
                 return None
+
             # 从末尾向前找两根"值不同"的 MACD，判断真实趋势（末根可能为未收盘重复值）
             vals = [v for v in (_macd_of(r) for r in reversed(macd_data)) if v is not None]
             if len(vals) >= 2:
@@ -210,9 +220,9 @@ def monitor_news(top_k: int = 3) -> list[dict]:
         account = HOLDINGS[code]["account"]
         news = wa.get_news(name, top_k=top_k)
         items = (
-            [{"title": n.get("title", "?")[:55], "date": n.get("date", "?")}
-             for n in news]
-            if news else []
+            [{"title": n.get("title", "?")[:55], "date": n.get("date", "?")} for n in news]
+            if news
+            else []
         )
         return {"code": code, "name": name, "account": account, "news": items}
 
@@ -258,8 +268,16 @@ def monitor_risk() -> list[dict]:
                 "vol_suspect": bool(r.get("vol_suspect", False)),
                 "risk_note": r.get("risk_note", ""),
             }
-        return {"code": code, "name": name, "account": account, "beta": None, "volatility": None,
-                "beta_suspect": False, "vol_suspect": False, "risk_note": "无数据"}
+        return {
+            "code": code,
+            "name": name,
+            "account": account,
+            "beta": None,
+            "volatility": None,
+            "beta_suspect": False,
+            "vol_suspect": False,
+            "risk_note": "无数据",
+        }
 
     with ThreadPoolExecutor(max_workers=min(5, len(HOLDINGS))) as pool:
         futures = [pool.submit(_fetch_one, WindAnalytics(), code) for code in HOLDINGS]
@@ -271,25 +289,58 @@ def monitor_risk() -> list[dict]:
 def run_screening(wa: WindAnalytics) -> list[dict]:
     """条件选股：发现潜在机会
 
-    Returns:
-        [{label, stocks: [{code, name}]}]
+    2026-08-12: 附加大盘环境 + 个股板块强度（市场情绪维度，用户指出
+    推荐不能只按技术指标）。结果结构:
+    [{label, regime, stocks: [{code, name, sector, sector_strength}]}]
     """
     conditions = [
         ("沪深市场市值超500亿且连续3日上涨", "大盘企稳"),
         ("沪深市场MACD金叉且市值超100亿", "技术突破"),
         ("沪深市场RSI低于30且成交放量", "超卖反弹"),
     ]
+    # 市场情绪上下文（大盘环境；板块强度逐股附加）
+    sentiment_ctx = {"regime": None, "basis": []}
+    ms = MarketSentiment() if MarketSentiment is not None else None
+    if ms:
+        try:
+            reg = ms.market_regime()
+            sentiment_ctx = {
+                "regime": reg.get("regime"),
+                "score": reg.get("score"),
+                "basis": reg.get("basis", []),
+            }
+        except Exception:
+            sentiment_ctx = {"regime": None, "basis": []}
+
     out: list[dict] = []
     for condition, label in conditions:
         stocks = wa.search_stocks(condition)
         items = []
         if stocks:
             for s in stocks[:5]:
-                items.append({
-                    "code": s.get("Wind代码", s.get("代码", "?")),
+                code = s.get("Wind代码", s.get("代码", "?"))
+                item = {
+                    "code": code,
                     "name": s.get("证券简称", s.get("名称", "?")),
-                })
-        out.append({"label": label, "stocks": items})
+                }
+                # 板块强度标签（失败降级 None，不阻断）
+                if ms and str(code).isdigit():
+                    try:
+                        sec = ms.sector_strength(str(code))
+                        if sec:
+                            item["sector"] = sec.get("sector")
+                            item["sector_strength"] = sec.get("strength")
+                    except Exception:  # noqa: S110 - 板块信息缺失不阻断选股
+                        pass
+                items.append(item)
+        out.append(
+            {
+                "label": label,
+                "regime": sentiment_ctx.get("regime"),
+                "regime_score": sentiment_ctx.get("score"),
+                "stocks": items,
+            }
+        )
     return out
 
 
@@ -338,8 +389,7 @@ def render_markdown(
             if r["beta_suspect"] or r["vol_suspect"]:
                 flag = " ⚠️疑似失真"
             lines.append(
-                f"· {_label(r)} Beta={_fmt(r['beta'])} "
-                f"波动率={_fmt(r['volatility'])}{flag}"
+                f"· {_label(r)} Beta={_fmt(r['beta'])} 波动率={_fmt(r['volatility'])}{flag}"
             )
         lines.append("· 注：Beta/波动率如标⚠️疑似失真，勿用于仓位计算，仅供参考")
         lines.append("")
@@ -391,10 +441,23 @@ def main() -> int:
             print(r)
     if args.screening:
         print("== 选股 ==")
+        if screening:
+            reg = screening[0].get("regime")
+            print(
+                f"📊 大盘环境: {reg or '未知'}"
+                + (
+                    f"（评分{screening[0].get('regime_score')}）"
+                    if screening[0].get("regime_score") is not None
+                    else ""
+                )
+            )
         for s in screening:
-            print(s)
+            print(f"[{s['label']}]" + (f" 大盘:{s.get('regime')}" if s.get("regime") else ""))
+            for st in s.get("stocks", []):
+                sec = st.get("sector_strength")
+                sec_tag = f" 板块:{st.get('sector')}({sec})" if sec else ""
+                print(f"  · {st['code']} {st['name']}{sec_tag}")
     return 0
-
 
 
 if __name__ == "__main__":

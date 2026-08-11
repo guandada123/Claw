@@ -40,12 +40,14 @@ logs/*.log
 !.workbuddy/data/stock_pool.json
 !.workbuddy/data/simulation/
 !.workbuddy/data/simulation/portfolio.json
+!.workbuddy/data/sector_cache.json
 !.workbuddy/data/user/
 
 # L2 Skills 下沉：项目内仅为指向用户级 ~/.workbuddy/skills/ 的本地 symlink
 # （绝对路径，clone 后断链，非项目资产，不提交）。templates/ 为项目实体模板，保留。
 .workbuddy/skills/*
 !.workbuddy/skills/templates/
+!.workbuddy/data/sector_cache.json
 !.workbuddy/data/user/portfolio.json
 # Runtime-only data files under .workbuddy/data/ (explicitly ignored)
 .workbuddy/data/.backup*/

@@ -67,30 +67,39 @@ def test_check_timing_no_bought_date(advisor):
 
 
 def test_check_timing_t3_profit(advisor):
-    flags = advisor.check_timing({
-        "bought_date": "2026-07-14",
-        "avg_cost": 10.0,
-        "current_price": 11.0,
-    }, today=date(2026, 7, 19))
+    flags = advisor.check_timing(
+        {
+            "bought_date": "2026-07-14",
+            "avg_cost": 10.0,
+            "current_price": 11.0,
+        },
+        today=date(2026, 7, 19),
+    )
     # 5天，浮盈 +10%
     assert any("锁利" in f["reason"] for f in flags)
 
 
 def test_check_timing_t7_stoploss(advisor):
-    flags = advisor.check_timing({
-        "bought_date": "2026-07-10",
-        "avg_cost": 100.0,
-        "current_price": 85.0,
-    }, today=date(2026, 7, 19))
+    flags = advisor.check_timing(
+        {
+            "bought_date": "2026-07-10",
+            "avg_cost": 100.0,
+            "current_price": 85.0,
+        },
+        today=date(2026, 7, 19),
+    )
     # 9天，回撤 -15%
     assert any("紧急减仓" in f["reason"] for f in flags)
 
 
 def test_check_timing_no_current_price(advisor):
-    flags = advisor.check_timing({
-        "bought_date": "2026-07-10",
-        "avg_cost": 100.0,
-    }, today=date(2026, 7, 19))
+    flags = advisor.check_timing(
+        {
+            "bought_date": "2026-07-10",
+            "avg_cost": 100.0,
+        },
+        today=date(2026, 7, 19),
+    )
     assert flags == []
 
 
@@ -99,26 +108,20 @@ def test_check_timing_no_current_price(advisor):
 
 def test_risk_reward_card_good_ratio(advisor):
     # 需要 > RISK_REWARD_MIN(1.5):1
-    card = advisor.risk_reward_card(entry_price=50.0,
-                                     stop_loss_pct=-0.05,
-                                     take_profit_pct=0.15)
+    card = advisor.risk_reward_card(entry_price=50.0, stop_loss_pct=-0.05, take_profit_pct=0.15)
     assert card["risk_reward_ratio"] == 3.0
     assert "风险收益良好" in card["verdict"]
 
 
 def test_risk_reward_card_bad_ratio(advisor):
-    card = advisor.risk_reward_card(entry_price=100.0,
-                                     stop_loss_pct=-0.02,
-                                     take_profit_pct=0.02)
+    card = advisor.risk_reward_card(entry_price=100.0, stop_loss_pct=-0.02, take_profit_pct=0.02)
     assert card["risk_reward_ratio"] == pytest.approx(1.0)
     # 1:1 低于 1.5:1 门槛
     assert card["risk_reward_ratio"] < ar.RISK_REWARD_MIN
 
 
 def test_risk_reward_card_zero_stoploss(advisor):
-    card = advisor.risk_reward_card(entry_price=50.0,
-                                     stop_loss_pct=0.0,
-                                     take_profit_pct=0.05)
+    card = advisor.risk_reward_card(entry_price=50.0, stop_loss_pct=0.0, take_profit_pct=0.05)
     assert card["risk_reward_ratio"] is None
 
 
@@ -156,7 +159,10 @@ def test_rebuy_gate_rapid_buys(advisor):
 
 def test_check_double_account_single_broker(tmp_path, advisor):
     p = tmp_path / "portfolio.json"
-    p.write_text('{"holdings": [{"code": "600000", "broker": "GJ"}], "summary": {"total_assets": 100000}}', encoding="utf-8")
+    p.write_text(
+        '{"holdings": [{"code": "600000", "broker": "GJ"}], "summary": {"total_assets": 100000}}',
+        encoding="utf-8",
+    )
     result = advisor.check_double_account("600000", portfolio_path=p)
     assert result is None  # 单账户，不触发
 
@@ -184,10 +190,17 @@ def test_check_double_account_no_portfolio(advisor):
 
 
 def test_check_entry_blocked_rsi_overbought(advisor):
-    """RSI 超买时应被 block。"""
-    with patch.object(advisor, "_get_rsi", return_value=75.0), \
-         patch.object(advisor, "_get_day_change", return_value=2.0), \
-         patch.object(advisor, "_get_ma20", return_value=10.0):
+    """中性市 RSI 超买时应被 block。"""
+    with (
+        patch.object(advisor, "_get_rsi", return_value=75.0),
+        patch.object(advisor, "_get_day_change", return_value=2.0),
+        patch.object(advisor, "_get_ma20", return_value=10.0),
+        patch.object(
+            advisor,
+            "_get_sentiment",
+            return_value={"regime": {"regime": "中", "score": 50.0, "basis": [], "indexes": {}}},
+        ),
+    ):
         result = advisor.check_entry("600000", price=11.0)
     assert result["blocked"] is True
     assert any("RSI" in f["reason"] for f in result["flags"])
@@ -195,9 +208,16 @@ def test_check_entry_blocked_rsi_overbought(advisor):
 
 def test_check_entry_blocked_day_gain(advisor):
     """当日涨幅超限时被 block。"""
-    with patch.object(advisor, "_get_rsi", return_value=50.0), \
-         patch.object(advisor, "_get_day_change", return_value=7.0), \
-         patch.object(advisor, "_get_ma20", return_value=10.0):
+    with (
+        patch.object(advisor, "_get_rsi", return_value=50.0),
+        patch.object(advisor, "_get_day_change", return_value=7.0),
+        patch.object(advisor, "_get_ma20", return_value=10.0),
+        patch.object(
+            advisor,
+            "_get_sentiment",
+            return_value={"regime": {"regime": "中", "score": 50.0, "basis": [], "indexes": {}}},
+        ),
+    ):
         result = advisor.check_entry("600000", price=10.5)
     assert result["blocked"] is True
     assert any("涨幅" in f["reason"] for f in result["flags"])
@@ -205,9 +225,16 @@ def test_check_entry_blocked_day_gain(advisor):
 
 def test_check_entry_ok(advisor):
     """正常数值时不被 block。"""
-    with patch.object(advisor, "_get_rsi", return_value=50.0), \
-         patch.object(advisor, "_get_day_change", return_value=2.0), \
-         patch.object(advisor, "_get_ma20", return_value=10.0):
+    with (
+        patch.object(advisor, "_get_rsi", return_value=50.0),
+        patch.object(advisor, "_get_day_change", return_value=2.0),
+        patch.object(advisor, "_get_ma20", return_value=10.0),
+        patch.object(
+            advisor,
+            "_get_sentiment",
+            return_value={"regime": {"regime": "中", "score": 50.0, "basis": [], "indexes": {}}},
+        ),
+    ):
         result = advisor.check_entry("600000", price=10.2)
     assert result["blocked"] is False
     assert result["suggested_buy_zone"] is not None

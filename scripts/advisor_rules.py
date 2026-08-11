@@ -78,6 +78,12 @@ try:
 except ImportError:
     T0Strategy = None  # type: ignore[assignment,misc]
 
+# 市场情绪层（2026-08-12 落地，用户指出推荐必须考虑板块/大盘情绪）
+try:
+    from market_sentiment import MarketSentiment
+except ImportError:
+    MarketSentiment = None  # type: ignore[assignment,misc]
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CALC_RSI = PROJECT_ROOT / "scripts" / "calc_rsi.py"
 USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
@@ -169,6 +175,9 @@ class AdvisorRules:
         day_change = self._get_day_change(code_prefixed)
         ma20 = self._get_ma20(code_prefixed)
 
+        # 市场情绪层（2026-08-12）: 大盘环境 + 板块强度，调节拦截门槛
+        sentiment = self._get_sentiment(code)
+
         flags = []
         blocked = False
         # 价格 sanity 失败 → 阻断推荐并告警
@@ -181,13 +190,55 @@ class AdvisorRules:
                 }
             )
 
-        # E1: RSI 超买
-        if rsi is not None and rsi > RSI_OVERBOUGHT:
+        # 市场情绪上下文（info 级，先于拦截输出，供推荐说明引用）
+        regime = (sentiment or {}).get("regime", {}).get("regime")
+        sector = (sentiment or {}).get("sector")
+        if regime:
+            flags.append(
+                {
+                    "level": "info",
+                    "rule": "S",
+                    "reason": f"📊 市场情绪: 大盘{regime}"
+                    + (f" | {sector['note']}" if sector and sector.get("note") else ""),
+                }
+            )
+        # 弱市 + 弱板块 → 提高拦截（追高在弱市/弱板块中风险成倍放大）
+        weak_market = regime == "弱"
+        weak_sector = bool(sector) and sector.get("strength") == "弱"
+        if weak_market and weak_sector:
             blocked = True
             flags.append(
                 {
                     "level": "block",
-                    "reason": f"⚠️ RSI(14)={rsi:.1f} 超买区(>70)，追高风险大，建议等回调",
+                    "rule": "S",
+                    "reason": f"🚫 大盘{regime} + 板块「{sector['sector']}」弱势 → 追高风险大，暂缓推荐"
+                    + (
+                        f"（板块当日{sector['change_pct']:+.2f}%）"
+                        if sector.get("change_pct") is not None
+                        else ""
+                    ),
+                }
+            )
+
+        # E1: RSI 超买（阈值随大盘情绪调节: 弱市收紧>60 / 强市放宽>80 防钝化）
+        rsi_block_line = 80.0 if regime == "强" else (60.0 if weak_market else RSI_OVERBOUGHT)
+        if rsi is not None and rsi > rsi_block_line:
+            blocked = True
+            flags.append(
+                {
+                    "level": "block",
+                    "reason": f"⚠️ RSI(14)={rsi:.1f} 超买区(>{rsi_block_line:.0f}，大盘{regime or '中'}调节)，追高风险大，建议等回调",
+                }
+            )
+
+        # E1b: 弱市当日涨幅收紧（弱市追涨=接盘）
+        if weak_market and day_change is not None and day_change > 3.0:
+            blocked = True
+            flags.append(
+                {
+                    "level": "block",
+                    "rule": "S",
+                    "reason": f"🚫 大盘{regime}弱势，当日涨幅 {day_change:+.1f}% 已>3% → 弱市追涨风险大，暂缓",
                 }
             )
 
@@ -240,6 +291,7 @@ class AdvisorRules:
             "day_change_pct": day_change,
             "price_used": decision_price,
             "price_sanity": sanity,
+            "sentiment": sentiment,
             "t0_suggestion": t0_suggestion,
         }
 
@@ -564,6 +616,19 @@ class AdvisorRules:
             if h.get("code") == code:
                 return h
         return None
+
+    def _get_sentiment(self, code: str | None = None) -> dict | None:
+        """市场情绪上下文（大盘环境 + 个股板块强度）。降级: 引擎缺失/失败 → None"""
+        if MarketSentiment is None:
+            return None
+        try:
+            ms = MarketSentiment()
+            ctx: dict = {"regime": ms.market_regime()}
+            if code:
+                ctx["sector"] = ms.sector_strength(code)
+            return ctx
+        except Exception:
+            return None
 
     # ════════════════════════════════════════════════════════════
     # 组合诊断（盘中监控主入口）
