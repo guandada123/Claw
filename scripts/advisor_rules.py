@@ -13,6 +13,8 @@ advisor_rules.py — 炒股助理操作纪律规则引擎
   C. 双账户总仓位警示        — 解决"同标风险×2"
   B. 禁止重复抄底闸门        — 解决"越跌越买摊薄"
   D. 盈亏比预演卡片          — 风险收益可视化
+  F. 双情景预案              — 乐观/中性/悲观触发条件驱动
+  G. 做T子策略(2026-08-12)   — T仓=底仓10%/日≤2次/亏3%止损/20日线定向/10:10节点
 
 用法:
   # 选股推荐前过滤（规则E）
@@ -67,6 +69,12 @@ except ImportError:
         @property
         def available(self) -> bool:
             return False
+
+# 做T子策略引擎（2026-08-12 落地，来源=小红书做T笔记+系统化指南）
+try:
+    from t0_strategy import T0Strategy
+except ImportError:
+    T0Strategy = None  # type: ignore[assignment,misc]
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CALC_RSI = PROJECT_ROOT / "scripts" / "calc_rsi.py"
@@ -193,6 +201,16 @@ class AdvisorRules:
         # 推荐买区
         suggested = self._suggest_buy_zone(decision_price, ma20, rsi)
 
+        # 做T子策略（规则G，2026-08-12）: 若该标的有底仓 → 附加做T建议（选股场景复用持仓做T）
+        t0_suggestion = None
+        if not blocked:
+            try:
+                holding = self._find_holding(code)
+                if holding:
+                    t0_suggestion = self.check_t0(holding)
+            except Exception:
+                t0_suggestion = None
+
         return {
             "code": code,
             "blocked": blocked,
@@ -203,6 +221,7 @@ class AdvisorRules:
             "day_change_pct": day_change,
             "price_used": decision_price,
             "price_sanity": sanity,
+            "t0_suggestion": t0_suggestion,
         }
 
     def _suggest_buy_zone(self, price, ma20, rsi) -> str:
@@ -461,6 +480,39 @@ class AdvisorRules:
         }
 
     # ════════════════════════════════════════════════════════════
+    # 规则 G: 做T子策略建议（2026-08-12 落地，来源=小红书做T笔记+系统化指南）
+    # 识别口径: T仓=底仓10% / 日≤2次 / 单次亏3%止损 / 20日线定正反T / 10:10节点
+    # ════════════════════════════════════════════════════════════
+    def check_t0(self, holding: dict, quotes: dict | None = None,
+                 t_count_today: int = 0, now: datetime | None = None) -> dict | None:
+        """对持仓生成做T建议（仅提示不阻断，做T需已有底仓）。
+
+        quotes 复用盘中已有行情（price/ma20），避免重复请求；
+        返回 None 表示引擎不可用或标的无底仓。
+        """
+        if T0Strategy is None:
+            return None
+        code = holding.get("code", "")
+        q = (quotes or {}).get(code, {})
+        price = holding.get("current_price") or q.get("price")
+        ma20 = q.get("ma20")
+        if ma20 is None:
+            ma20 = self._get_ma20(self._prefix(code))
+        try:
+            return T0Strategy().evaluate(holding, price=price, ma20=ma20,
+                                         t_count_today=t_count_today, now=now)
+        except Exception:
+            return None
+
+    def _find_holding(self, code: str, portfolio_path: Path = USER_PORTFOLIO) -> dict | None:
+        """按代码查持仓（供 check_entry 做T建议复用）"""
+        data = self._load_json(portfolio_path)
+        for h in data.get("holdings", []):
+            if h.get("code") == code:
+                return h
+        return None
+
+    # ════════════════════════════════════════════════════════════
     # 组合诊断（盘中监控主入口）
     # ════════════════════════════════════════════════════════════
     def diagnose_holding(self, holding: dict, quotes: dict | None = None,
@@ -508,12 +560,22 @@ class AdvisorRules:
         # F: 双情景预案（盘前/盘后定，盘中照触发条件执行）
         scenario = self.scenario_plan(holding, quotes)
 
+        # G: 做T子策略（盘中做T窗口提示；仅提示不阻断）
+        t0 = self.check_t0(holding, quotes)
+        if t0 and t0.get("t0"):
+            flags.append({
+                "level": "info",
+                "rule": "G",
+                "reason": t0.get("summary", ""),
+            })
+
         return {
             "code": code,
             "name": holding.get("name", ""),
             "flags": flags,
             "risk_reward": rr_card,
             "scenario_plan": scenario,
+            "t0_strategy": t0,
             "has_block": any(f["level"] == "block" for f in flags),
         }
 
