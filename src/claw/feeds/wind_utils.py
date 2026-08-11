@@ -68,7 +68,9 @@ def plain_code_to_windcode(code: str) -> str:
 # ── 统一 CLI 调用（合并自 data_sources._call_wind_cli + wind_analytics._call_cli）──
 
 # 每日查询上限（保护积分，1000 免费积分/天 ≈ 200 次简单查询 或 20 次分析查询）
-_DAILY_QUERY_LIMIT = 100
+# 2026-08-12 由 100 调至 180：用户确认 AIFin Market 真实配额为 1000 积分/天，
+# 100 过于保守（按注释换算仅用半数），180 贴近 200 次简单查询的 90% 安全线。
+_DAILY_QUERY_LIMIT = 180
 _query_lock = threading.Lock()
 
 # ── 持久化计数器（跨进程累加，修复"日报永远0"测量bug）──
