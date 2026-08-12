@@ -19,11 +19,15 @@ t0_strategy.py — 做T（T+0 日内交易）子策略引擎
                       <VWAP=偏弱(反T加力)；方向与VWAP背离时提示谨慎/降T仓(2026-08-12)
   R10. Pivot 价位   — 用昨日 H/L/C 算 P/S1/S2/R1/R2，输出「S1≈¥xx.xx 低吸 /
                       R1≈¥xx.xx 高抛」具体挂单价，替代"回踩MA20附近"无价提示(2026-08-12)
+  R11. ATR 动态止损 — 止损线随波动率浮动 = ATR14(占价格比)，夹在[1.5%, 6%]；
+                      低波动票收紧(3%→1.5~2%)、高波动票放宽(3%→4~6%)，
+                      替代固定3%一刀切(2026-08-12, 来源=aifa-quant)
 
 用法:
   python3 scripts/t0_strategy.py evaluate --code 600584 --ma20 78.0
   python3 scripts/t0_strategy.py evaluate --holding '{"code":"600584","shares":300,"avg_cost":84.2}' --price 77.67 --t-count 1
   python3 scripts/t0_strategy.py evaluate --code 600584 --ma20 78.0 --vwap 78.4 --prev-high 80.0 --prev-low 77.0 --prev-close 78.5
+  python3 scripts/t0_strategy.py evaluate --code 600584 --ma20 78.0 --atr14 1.8   # 外部传入ATR14(可选)
 
 设计原则: 纯函数式规则，不修改外部状态；网络失败降级为 None 不阻断。
 """
@@ -52,6 +56,11 @@ MA20_GAP_REVERSE = 0.02  # 价格低于MA20 超过 2% 才判反T（强反弹下�
 VWAP_BIAS_PCT = 0.005  # 现价相对VWAP偏差 ≥0.5% 才判偏强/偏弱(否则视为中性区)
 # R10 Pivot Point（2026-08-12 落地，来源=stock_t_analyzer 具体价位化）
 PIVOT_SMA = 0.0  # 占位(经典 Pivot 无平滑因子)
+# R11 ATR 动态止损（2026-08-12 落地，来源=aifa-quant: 固定3%低波动过宽/高波动过窄）
+ATR_PERIOD = 14  # ATR14
+ATR_STOP_FLOOR = 0.015  # 动态止损下限 1.5%（再紧会被日内噪音扫掉）
+ATR_STOP_CAP = 0.06  # 动态止损上限 6%（防过度放宽失去保护）
+# ATR 数据不可用(网络失败/bar不足)时回退固定3%止损，不阻断
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
@@ -93,6 +102,7 @@ class T0Strategy:
         rally_pct: float | None = None,
         vwap: float | None = None,
         prev_bar: dict | None = None,
+        atr14: float | None = None,
         now: datetime | None = None,
     ) -> dict:
         """生成做T建议。
@@ -107,6 +117,8 @@ class T0Strategy:
             拉腾讯分时接口，失败降级 None（R9 不生效，不阻断）。
         prev_bar: 昨日 {high, low, close}（R10）。外部传入优先，None 时自动
             拉日K取昨日 H/L/C，失败降级 None（R10 不生效，不阻断）。
+        atr14: 14日真实波幅（R11 动态止损）。外部传入优先，None 时自动
+            拉日K计算，失败降级 None → 回退固定3%止损（不阻断）。
         """
         code = holding.get("code", "")
         name = holding.get("name", "")
@@ -127,6 +139,9 @@ class T0Strategy:
             "vwap": None,
             "vwap_note": "",
             "pivot": None,
+            "atr14": None,
+            "atr_stop_pct": None,
+            "stop_loss_note": "",
             "plan": None,
             "flags": [],
             "blocked": False,
@@ -178,19 +193,38 @@ class T0Strategy:
             result["summary"] = f"🚫 今日已做T {t_count_today} 次，达上限，停止"
             return result
 
-        # R4: 单次止损（≥3% 强制认错离场）
-        if t_pnl_pct is not None and t_pnl_pct <= -self.stop_loss_pct:
+        # R11: ATR 动态止损线（低波动收紧/高波动放宽，夹在[1.5%,6%]）
+        # 外部传入优先；自动拉取失败降级 → 回退固定3%，不阻断。
+        effective_stop = self.stop_loss_pct
+        if atr14 is None:
+            atr14 = self._fetch_atr14(self._prefix(code))
+        if atr14 and atr14 > 0 and price and price > 0:
+            atr_pct = atr14 / price
+            dynamic = max(ATR_STOP_FLOOR, min(ATR_STOP_CAP, atr_pct))
+            effective_stop = dynamic
+            result["atr14"] = round(atr14, 3)
+            result["atr_stop_pct"] = round(dynamic, 4)
+            anchor = "低波动收紧" if dynamic < self.stop_loss_pct else (
+                "高波动放宽" if dynamic > self.stop_loss_pct else "持平"
+            )
+            result["stop_loss_note"] = (
+                f"ATR动态止损{anchor}: {dynamic * 100:.1f}% (ATR14={atr14:.2f}, "
+                f"占价{atr_pct * 100:.1f}%, 区间[{ATR_STOP_FLOOR * 100:.1f}%, {ATR_STOP_CAP * 100:.0f}%])"
+            )
+
+        # R4: 单次止损（按动态止损线，认错离场）
+        if t_pnl_pct is not None and t_pnl_pct <= -effective_stop:
             result["blocked"] = True
             result["flags"].append(
                 {
                     "level": "block",
                     "rule": "R4",
-                    "reason": f"🚨 单次T浮亏 {t_pnl_pct * 100:.1f}% 已破 {self.stop_loss_pct * 100:.0f}% 止损线"
+                    "reason": f"🚨 单次T浮亏 {t_pnl_pct * 100:.1f}% 已破 {effective_stop * 100:.1f}% 止损线"
                     f" → 强制认错离场，不恋战不摊平",
                 }
             )
             result["summary"] = (
-                f"🚨 单次T亏 {t_pnl_pct * 100:.1f}% 破 {self.stop_loss_pct * 100:.0f}% 线，强制止损"
+                f"🚨 单次T亏 {t_pnl_pct * 100:.1f}% 破 {effective_stop * 100:.1f}% 线，强制止损"
             )
             return result
 
@@ -314,6 +348,8 @@ class T0Strategy:
             parts.append(f"买入≤¥{buy_below}")
         if vwap_note:
             parts.append(vwap_note)
+        if result["stop_loss_note"]:
+            parts.append(result["stop_loss_note"])
         if pivot:
             parts.append(f"Pivot: S1¥{pivot['S1']:.2f}/P¥{pivot['P']:.2f}/R1¥{pivot['R1']:.2f}")
         if node_hint:
@@ -431,6 +467,68 @@ class T0Strategy:
             pass
         return None
 
+    def _fetch_atr14(self, code_prefixed: str) -> float | None:
+        """拉日K计算 ATR14（R11 动态止损）。腾讯 fqkline 优先，失败降级新浪。
+
+        至少需 ATR_PERIOD+1 根K线算 TR 序列；当日 bar 未走完不能用。
+        """
+        bars: list[tuple[float, float, float]] = []  # (high, low, close) 按时间升序
+        # 1) 腾讯 fqkline 前复权
+        try:
+            url = (
+                f"https://web.ifzq.gtimg.cn/appstuff/app/fqkline/get"
+                f"?param={code_prefixed},day,,,{ATR_PERIOD + 5},qfq"
+            )
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
+                d = json.loads(resp.read().decode("utf-8"))
+            sub = d.get("data", {})
+            if isinstance(sub, dict) and d.get("code") != 11:
+                kl = sub.get(code_prefixed, {}).get("qfqday", [])
+                # qfqday 行: [日期, 开, 收, 高, 低, 量, ...]
+                bars = [(float(b[3]), float(b[4]), float(b[2])) for b in kl if len(b) >= 5]
+        except Exception:
+            pass
+        # 2) 新浪日K 降级
+        if len(bars) < ATR_PERIOD + 1:
+            try:
+                url = (
+                    f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
+                    f"/CN_MarketData.getKLineData?symbol={code_prefixed}"
+                    f"&scale=240&ma=no&datalen={ATR_PERIOD + 5}"
+                )
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
+                    arr = json.loads(resp.read().decode("utf-8"))
+                bars = [
+                    (float(b["high"]), float(b["low"]), float(b["close"]))
+                    for b in arr
+                    if b.get("high") and b.get("low") and b.get("close")
+                ]
+            except Exception:
+                pass
+        if len(bars) < ATR_PERIOD + 1:
+            return None
+        # 去掉当日未走完 bar，取最近 ATR_PERIOD+1 根
+        bars = bars[-(ATR_PERIOD + 1):]
+        return self._calc_atr14(bars)
+
+    @staticmethod
+    def _calc_atr14(bars: list[tuple[float, float, float]]) -> float | None:
+        """ATR14 = TR 的14日简单平均。TR = max(H-L, |H-Cprev|, |L-Cprev|)。
+
+        bars: [(high, low, close), ...] 按时间升序，需 ≥15 根。
+        """
+        if len(bars) < ATR_PERIOD + 1:
+            return None
+        trs: list[float] = []
+        for i in range(1, len(bars)):
+            h, l, c = bars[i]
+            prev_c = bars[i - 1][2]
+            tr = max(h - l, abs(h - prev_c), abs(l - prev_c))
+            trs.append(tr)
+        return round(sum(trs[-ATR_PERIOD:]) / ATR_PERIOD, 4)
+
     @staticmethod
     def _calc_pivot(high: float, low: float, close: float) -> dict:
         """经典 Pivot Point（R10）: P/S1/S2/R1/R2。
@@ -491,6 +589,7 @@ def main():
     p_eval.add_argument(
         "--prev-close", type=float, default=None, help="昨日收盘价(可选,缺省自动拉)"
     )
+    p_eval.add_argument("--atr14", type=float, default=None, help="14日ATR(可选,缺省自动拉)")
 
     args = parser.parse_args()
 
@@ -536,6 +635,7 @@ def main():
                 or args.prev_close is not None
                 else None
             ),
+            atr14=args.atr14,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:

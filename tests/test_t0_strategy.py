@@ -68,7 +68,9 @@ def test_frequency_below_limit_ok(strategy):
 
 
 def test_t_pnl_loss_blocks(strategy):
-    r = strategy.evaluate(_holding(), price=77.0, ma20=78.0, t_pnl_pct=-0.04)
+    # 无ATR数据(自动拉取失败) → 固定3%止损线，-4%触发
+    with patch.object(strategy, "_fetch_atr14", return_value=None):
+        r = strategy.evaluate(_holding(), price=77.0, ma20=78.0, t_pnl_pct=-0.04)
     assert r["blocked"] is True
     assert any("止损" in f["reason"] for f in r["flags"])
 
@@ -311,6 +313,83 @@ def test_check_entry_attaches_t0_suggestion(advisor):
     assert r["t0_suggestion"]["direction"] == "正T"
 
 
+# ── R11: ATR 动态止损 ──
+
+
+def test_r11_atr_calculation():
+    # 15根bar → TR序列 → 14日均值
+    bars = [(10.0 + i * 0.5, 9.8 + i * 0.5, 9.9 + i * 0.5) for i in range(15)]
+    atr = T0Strategy._calc_atr14(bars)
+    assert atr is not None
+    assert 0 < atr < 2
+
+
+def test_r11_atr_insufficient_bars_returns_none():
+    assert T0Strategy._calc_atr14([(10, 9, 9.5)]) is None
+
+
+def test_r11_low_volatility_tightens_stop():
+    # 低波动: ATR14/价 ≈ 1% → 动态止损=1.5%(下限), 低于固定3%
+    r = T0Strategy().evaluate(
+        _holding(), price=100.0, ma20=99.0, atr14=1.0
+    )
+    assert r["atr_stop_pct"] == pytest.approx(0.015, abs=0.0001)
+    assert "低波动收紧" in r["stop_loss_note"]
+    # -2% 浮亏在动态1.5%下应触发止损(固定3%不触发)
+    r2 = T0Strategy().evaluate(
+        _holding(), price=100.0, ma20=99.0, atr14=1.0, t_pnl_pct=-0.02
+    )
+    assert r2["blocked"] is True
+    assert any("止损" in f["reason"] for f in r2["flags"])
+
+
+def test_r11_high_volatility_widens_stop():
+    # 高波动: ATR14/价 ≈ 5% → 动态止损=5%(夹在6%内), 高于固定3%
+    r = T0Strategy().evaluate(
+        _holding(), price=100.0, ma20=99.0, atr14=5.0
+    )
+    assert r["atr_stop_pct"] == pytest.approx(0.05, abs=0.0001)
+    assert "高波动放宽" in r["stop_loss_note"]
+    # -4% 浮亏在动态5%下不触发(固定3%会触发)
+    r2 = T0Strategy().evaluate(
+        _holding(), price=100.0, ma20=99.0, atr14=5.0, t_pnl_pct=-0.04
+    )
+    assert r2["blocked"] is False
+
+
+def test_r11_atr_cap_at_6pct():
+    # 极端高波动: ATR14/价 = 10% → 夹到6%上限
+    r = T0Strategy().evaluate(
+        _holding(), price=100.0, ma20=99.0, atr14=10.0
+    )
+    assert r["atr_stop_pct"] == pytest.approx(0.06, abs=0.0001)
+
+
+def test_r11_no_atr_falls_back_to_fixed():
+    # 无ATR(网络失败/未传) → 回退固定3%止损，不阻断
+    s = T0Strategy()
+    with patch.object(s, "_fetch_atr14", return_value=None):
+        r = s.evaluate(_holding(), price=80.0, ma20=78.0)
+    assert r["atr14"] is None
+    assert r["atr_stop_pct"] is None
+    assert r["stop_loss_note"] == ""
+    assert r["t0"] is True
+    # 固定3%下 -4% 触发止损（第二个evaluate不在patch上下文 → 用独立实例mock）
+    s2 = T0Strategy()
+    with patch.object(s2, "_fetch_atr14", return_value=None):
+        r2 = s2.evaluate(_holding(), price=80.0, ma20=78.0, t_pnl_pct=-0.04)
+    assert r2["blocked"] is True
+
+
+def test_r11_atr_auto_fetch():
+    # atr14 未传 → 自动拉取（mock）
+    s = T0Strategy()
+    with patch.object(s, "_fetch_atr14", return_value=2.0):
+        r = s.evaluate(_holding(), price=100.0, ma20=99.0)
+    assert r["atr14"] == pytest.approx(2.0)
+    assert r["atr_stop_pct"] == pytest.approx(0.02, abs=0.0001)
+
+
 # ── 常量 ──
 
 
@@ -320,3 +399,6 @@ def test_constants_reasonable():
     assert pytest.approx(0.03) == t0s.T_STOP_LOSS_PCT
     assert pytest.approx(0.02) == t0s.T_COST_SAFETY_PCT
     assert t0s.T_NODE_TIME == "10:10"
+    assert t0s.ATR_PERIOD == 14
+    assert pytest.approx(0.015) == t0s.ATR_STOP_FLOOR
+    assert pytest.approx(0.06) == t0s.ATR_STOP_CAP
