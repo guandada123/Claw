@@ -15,6 +15,8 @@ advisor_rules.py — 炒股助理操作纪律规则引擎
   D. 盈亏比预演卡片          — 风险收益可视化
   F. 双情景预案              — 乐观/中性/悲观触发条件驱动
   G. 做T子策略(2026-08-12)   — T仓=底仓10%/日≤2次/亏3%止损/20日线定向/10:10节点
+  H. 日亏总额熔断(2026-08-12)— 当日累计浮亏(含持仓+已实现)达账户2% → 全标停手
+  I. 行业集中度上限(2026-08-12)— 单板块持仓占比>40% warn / >50% block 该板块新推荐
 
 用法:
   # 选股推荐前过滤（规则E）
@@ -103,6 +105,14 @@ RISK_REWARD_MIN = 1.5  # 盈亏比下限
 # 默认止损/止盈（与 portfolio.json rules 一致）
 DEFAULT_STOP_LOSS = -0.08
 DEFAULT_TAKE_PROFIT = 0.05  # +5% 作为短线目标
+
+# 规则 H: 日亏总额熔断（2026-08-12 落地，来源=aifa-quant）
+# 单次T亏3%止损挡不住"一天亏2次=6%"的累计损耗 → 账户级当日熔断
+DAY_LOSS_BREAKER_PCT = 0.02  # 当日累计浮亏(含持仓+已实现)达账户2% → 全标停手
+
+# 规则 I: 行业集中度上限（2026-08-12 落地，来源=aifa-quant）
+SECTOR_CONCENTRATION_WARN = 0.40  # 单板块占比>40% → warn
+SECTOR_CONCENTRATION_BLOCK = 0.50  # 单板块占比>50% → block 新推荐该板块
 
 
 class AdvisorRules:
@@ -193,12 +203,30 @@ class AdvisorRules:
         # 市场情绪上下文（info 级，先于拦截输出，供推荐说明引用）
         regime = (sentiment or {}).get("regime", {}).get("regime")
         sector = (sentiment or {}).get("sector")
+        # 情绪周期5段（P1-5, 2026-08-12）: 冰点/退潮/狂热 调节拦截
+        cycle = (sentiment or {}).get("cycle", {})
+        cycle_name = cycle.get("cycle")
+        # 规则 I: 行业集中度上限（2026-08-12）: 推荐标的所属板块超限 → 拦截
+        try:
+            sector_block = self.check_sector_block(code)
+            if sector_block and sector_block["level"] == "block":
+                blocked = True
+                flags.append({"level": "block", "rule": "I", "reason": sector_block["reason"]})
+            elif sector_block and sector_block["level"] == "warn":
+                flags.append({"level": "warn", "rule": "I", "reason": sector_block["reason"]})
+        except Exception:  # noqa: S110 - 集中度检查失败不阻断主流程
+            pass
         if regime:
             flags.append(
                 {
                     "level": "info",
                     "rule": "S",
                     "reason": f"📊 市场情绪: 大盘{regime}"
+                    + (
+                        f" | 周期「{cycle_name}」建议仓位{cycle.get('position_ratio')}"
+                        if cycle_name and cycle_name != "未知"
+                        else ""
+                    )
                     + (f" | {sector['note']}" if sector and sector.get("note") else ""),
                 }
             )
@@ -217,6 +245,28 @@ class AdvisorRules:
                         if sector.get("change_pct") is not None
                         else ""
                     ),
+                }
+            )
+        # 情绪周期拦截（P1-5）: 冰点/退潮 新开仓风险大；狂热 防高位接盘
+        if cycle_name in ("冰点", "退潮"):
+            blocked = True
+            flags.append(
+                {
+                    "level": "block",
+                    "rule": "S",
+                    "reason": f"🚫 市场情绪周期「{cycle_name}」"
+                    f"（{cycle.get('basis', '')}）→ 建议仓位{cycle.get('position_ratio')}，"
+                    f"今日暂缓新开仓/追涨，等赚钱效应修复",
+                }
+            )
+        elif cycle_name == "狂热":
+            blocked = True
+            flags.append(
+                {
+                    "level": "block",
+                    "rule": "S",
+                    "reason": f"🚨 市场情绪周期「狂热」（{cycle.get('basis', '')}）→ "
+                    f"高位过热，建议仓位{cycle.get('position_ratio')}，防退潮踩踏，暂缓追高",
                 }
             )
 
@@ -617,6 +667,221 @@ class AdvisorRules:
                 return h
         return None
 
+    # ════════════════════════════════════════════════════════════
+    # 规则 H: 日亏总额熔断（2026-08-12 落地，来源=aifa-quant）
+    # 单次T亏3%止损挡不住"一天亏2次=6%"的累计损耗 → 账户级当日熔断
+    # ════════════════════════════════════════════════════════════
+    def check_daily_loss_breaker(self, portfolio: dict, quotes: dict | None = None) -> dict:
+        """当日累计浮亏(含持仓浮亏+已实现)达账户2% → 全标 stop-trading-today。
+
+        portfolio: portfolio.json 全文。主源 summary.daily_pct/daily_pnl
+        （账户数据源已含持仓+已实现盈亏）；缺失时用持仓现价 vs prev_close
+        估算当日浮亏（仅持仓部分，无已实现 → 偏保守近似）。
+
+        Returns:
+            {
+              "rule": "H",
+              "triggered": bool,          # 达熔断线
+              "stop_trading_today": bool, # 全标停手标志（触发时=True）
+              "daily_pct": float|None,    # 当日累计盈亏占比(负=亏)
+              "threshold": 0.02,
+              "reason": str,
+            }
+        """
+        summary = portfolio.get("summary", {}) or {}
+        daily_pct = summary.get("daily_pct")
+        daily_pnl = summary.get("daily_pnl")
+        total = summary.get("total_assets")
+
+        # 主源: daily_pnl(元)/total(元) → 小数占比，无单位歧义
+        if daily_pct is None and daily_pnl is not None and total:
+            daily_pct = daily_pnl / total
+        # 次源: daily_pct 单位归一——portfolio.json 存的是百分比数值(-0.58 表示 -0.58%)，
+        # A股单日最大波动±20% → 小数形式不可能超过0.2；abs>0.25 必为百分数，除以100
+        if daily_pct is not None and abs(daily_pct) > 0.25:
+            daily_pct = daily_pct / 100.0
+
+        # 兜底: 持仓当日盈亏估算（现价 vs prev_close）
+        if daily_pct is None:
+            pnl_sum, value_sum = 0.0, 0.0
+            for h in portfolio.get("holdings", []):
+                price = h.get("current_price") or (quotes or {}).get(h.get("code", ""), {}).get(
+                    "price"
+                )
+                prev = h.get("prev_close") or (quotes or {}).get(h.get("code", ""), {}).get(
+                    "prev_close"
+                )
+                shares = h.get("shares", 0)
+                if price and prev and shares and prev > 0:
+                    pnl_sum += (price - prev) * shares
+                    value_sum += prev * shares
+            if value_sum > 0:
+                daily_pct = pnl_sum / value_sum
+
+        if daily_pct is None:
+            return {
+                "rule": "H",
+                "triggered": False,
+                "stop_trading_today": False,
+                "daily_pct": None,
+                "threshold": DAY_LOSS_BREAKER_PCT,
+                "reason": "当日盈亏数据缺失，熔断规则不生效（降级不阻断）",
+            }
+
+        daily_pct = float(daily_pct)
+        triggered = daily_pct <= -DAY_LOSS_BREAKER_PCT
+        return {
+            "rule": "H",
+            "triggered": triggered,
+            "stop_trading_today": triggered,
+            "daily_pct": round(daily_pct, 4),
+            "threshold": DAY_LOSS_BREAKER_PCT,
+            "reason": (
+                f"🚨 当日累计亏损 {daily_pct * 100:.1f}% 达账户 {DAY_LOSS_BREAKER_PCT * 100:.0f}%"
+                f" 熔断线 → 今日停手（全标 stop-trading-today，禁止一切新开仓/做T）"
+                if triggered
+                else f"当日累计盈亏 {daily_pct * 100:+.1f}%，未触及 {DAY_LOSS_BREAKER_PCT * 100:.0f}% 熔断线"
+            ),
+        }
+
+    def diagnose_portfolio(
+        self,
+        portfolio: dict,
+        quotes: dict | None = None,
+        trade_log: list[dict] | None = None,
+        today: date | None = None,
+    ) -> dict:
+        """组合级诊断（盘中监控主入口）：逐持仓全规则 + 规则H日亏熔断。
+
+        输出含 stop_trading_today 全局熔断标志（触发时所有持仓停止交易），
+        供自动化直接消费推送"今日停手"。
+        """
+        today = today or date.today()
+        quotes = quotes or {}
+        breaker = self.check_daily_loss_breaker(portfolio, quotes)
+        # 规则 I: 行业集中度（组合级附加信息）
+        try:
+            concentration = self.check_sector_concentration()
+        except Exception:  # noqa: S110 - 集中度失败不阻断
+            concentration = {"sectors": {}, "warns": [], "blocks": [], "note": "集中度数据不可用"}
+
+        holdings_out = []
+        for h in portfolio.get("holdings", []):
+            diag = self.diagnose_holding(h, quotes, trade_log, today)
+            # 规则H熔断 → 每个持仓注入停手标志（全标）
+            diag["stop_trading_today"] = bool(breaker.get("triggered"))
+            if breaker.get("triggered"):
+                diag["flags"].append({"level": "block", "rule": "H", "reason": breaker["reason"]})
+                diag["has_block"] = True
+            holdings_out.append(diag)
+
+        return {
+            "asof": today.isoformat(),
+            "stop_trading_today": bool(breaker.get("triggered")),
+            "daily_loss_breaker": breaker,
+            "sector_concentration": concentration,
+            "holdings": holdings_out,
+            "has_block": any(d.get("has_block") for d in holdings_out)
+            or bool(breaker.get("triggered")),
+            "push_text": (
+                f"🚨 日亏熔断: 当日累计亏损 {breaker['daily_pct'] * 100:.1f}%"
+                f" 达账户 {DAY_LOSS_BREAKER_PCT * 100:.0f}% 熔断线 → 今日停手，禁止一切新开仓/做T"
+                if breaker.get("triggered")
+                else f"日亏监控: 当日累计盈亏 {breaker['daily_pct'] * 100:+.1f}%"
+                f"（熔断线 {DAY_LOSS_BREAKER_PCT * 100:.0f}%）"
+                if breaker.get("daily_pct") is not None
+                else "日亏监控: 当日盈亏数据缺失"
+            ),
+        }
+
+    # ════════════════════════════════════════════════════════════
+    # 规则 I: 行业集中度上限（2026-08-12 落地，来源=aifa-quant）
+    # 双账户同标已有 C 规则，但缺"同板块多标的上限" → 板块聚合占比控制
+    # ════════════════════════════════════════════════════════════
+    def check_sector_concentration(self, portfolio_path: Path = USER_PORTFOLIO) -> dict:
+        """持仓按板块聚合 → 单板块占比 >40% warn / >50% block。
+
+        板块名: 复用 .workbuddy/data/sector_cache.json（code→行业名，与
+        market_sentiment 同一缓存，缺行业名的持仓归入「未知」不参与聚合）。
+
+        Returns:
+            {
+              "sectors": {板块: 占比},     # 按市值(实时价优先,缺省成本)
+              "warns": [板块],            # >40%
+              "blocks": [板块],           # >50%
+              "note": str,
+            }
+        """
+        data = self._load_json(portfolio_path)
+        holdings = data.get("holdings", [])
+        cache = self._load_json(PROJECT_ROOT / ".workbuddy" / "data" / "sector_cache.json")
+        sector_value: dict[str, float] = {}
+        total_value = 0.0
+        unknown = 0
+        for h in holdings:
+            code = str(h.get("code", ""))
+            shares = h.get("shares", 0) or 0
+            price = h.get("current_price") or h.get("avg_cost") or 0
+            value = shares * price
+            if value <= 0:
+                continue
+            sector = cache.get(code) if isinstance(cache, dict) else None
+            if not sector:
+                unknown += 1
+                continue
+            sector_value[sector] = sector_value.get(sector, 0.0) + value
+            total_value += value
+        if total_value <= 0:
+            return {"sectors": {}, "warns": [], "blocks": [], "note": "无有效持仓数据"}
+
+        pcts = {s: round(v / total_value, 4) for s, v in sector_value.items()}
+        warns = sorted([s for s, p in pcts.items() if p > SECTOR_CONCENTRATION_WARN])
+        blocks = sorted([s for s, p in pcts.items() if p > SECTOR_CONCENTRATION_BLOCK])
+        note_parts = [
+            f"{s} {p * 100:.0f}%"
+            + (" 🚫超50%上限" if p > SECTOR_CONCENTRATION_BLOCK else "")
+            + (" ⚠️超40%警戒" if SECTOR_CONCENTRATION_WARN < p <= SECTOR_CONCENTRATION_BLOCK else "")
+            for s, p in sorted(pcts.items(), key=lambda x: -x[1])
+        ]
+        note = " | ".join(note_parts)
+        if unknown:
+            note += f"（{unknown}只无行业映射未计）"
+        return {"sectors": pcts, "warns": warns, "blocks": blocks, "note": note}
+
+    def check_sector_block(
+        self, code: str, sector: str | None = None, portfolio_path: Path = USER_PORTFOLIO
+    ) -> dict | None:
+        """推荐/建仓前检查: 该标的所属板块是否已超集中度上限。
+
+        sector 缺省时用 sector_cache 查。blocks 命中 → 返回 block 详情，
+        warns 命中 → 返回 warn 详情，未命中 → None。
+        """
+        if sector is None:
+            cache = self._load_json(PROJECT_ROOT / ".workbuddy" / "data" / "sector_cache.json")
+            sector = cache.get(str(code)) if isinstance(cache, dict) else None
+        if not sector:
+            return None
+        conc = self.check_sector_concentration(portfolio_path)
+        if sector in conc["blocks"]:
+            return {
+                "level": "block",
+                "rule": "I",
+                "sector": sector,
+                "pct": conc["sectors"].get(sector),
+                "reason": f"🚫 板块「{sector}」持仓占比 {conc['sectors'].get(sector, 0) * 100:.0f}%"
+                f" 超 {SECTOR_CONCENTRATION_BLOCK * 100:.0f}% 上限 → 禁止新推荐该板块标的",
+            }
+        if sector in conc["warns"]:
+            return {
+                "level": "warn",
+                "rule": "I",
+                "sector": sector,
+                "pct": conc["sectors"].get(sector),
+                "reason": f"⚠️ 板块「{sector}」持仓占比 {conc['sectors'].get(sector, 0) * 100:.0f}%"
+                f" 超 {SECTOR_CONCENTRATION_WARN * 100:.0f}% 警戒线 → 该板块新推荐需谨慎",
+            }
+        return None
+
     def _get_sentiment(self, code: str | None = None) -> dict | None:
         """市场情绪上下文（大盘环境 + 个股板块强度）。降级: 引擎缺失/失败 → None"""
         if MarketSentiment is None:
@@ -922,9 +1187,33 @@ def main():
         holdings = data.get("holdings", [])
         if args.code:
             holdings = [h for h in holdings if h.get("code") == args.code]
+        # 组合级规则（H日亏熔断 + I行业集中度）附加到每只持仓
+        # 保持数组结构向后兼容（automation-1784039316540 按数组解析 flags/risk_reward）
+        try:
+            breaker = advisor.check_daily_loss_breaker(data)
+        except Exception:  # noqa: S110 - 熔断失败不阻断
+            breaker = {
+                "triggered": False,
+                "stop_trading_today": False,
+                "daily_pct": None,
+                "reason": "熔断数据不可用",
+            }
+        try:
+            concentration = advisor.check_sector_concentration(Path(args.portfolio))
+        except Exception:  # noqa: S110 - 集中度失败不阻断
+            concentration = {"sectors": {}, "warns": [], "blocks": [], "note": "集中度数据不可用"}
         out = []
         for h in holdings:
-            out.append(advisor.diagnose_holding(h))
+            diag = advisor.diagnose_holding(h)
+            diag["stop_trading_today"] = bool(breaker.get("triggered"))
+            if breaker.get("triggered"):
+                diag["flags"].append(
+                    {"level": "block", "rule": "H", "reason": breaker["reason"]}
+                )
+                diag["has_block"] = True
+            diag["daily_loss_breaker"] = breaker
+            diag["sector_concentration"] = concentration
+            out.append(diag)
         print(json.dumps(out, ensure_ascii=False, indent=2))
 
     else:

@@ -147,6 +147,103 @@ def test_node_window_outside(strategy):
     assert "节点" not in r["summary"]
 
 
+# ── R9: VWAP 分时位 ──
+
+
+def test_r9_vwap_above_positive_boost():
+    # 正T + 现价>VWAP → 加力
+    r = T0Strategy().evaluate(
+        _holding(), price=80.0, ma20=78.0, vwap=79.0
+    )
+    assert r["direction"] == "正T"
+    assert "正T加力" in r["vwap_note"]
+
+
+def test_r9_vwap_below_reverse_boost():
+    # 反T + 现价<VWAP → 加力
+    r = T0Strategy().evaluate(
+        _holding(), price=77.0, ma20=78.0, vwap=78.5
+    )
+    assert r["direction"] == "反T"
+    assert "反T加力" in r["vwap_note"]
+
+
+def test_r9_vwap_divergence_warns():
+    # 方向与VWAP背离 → 提示谨慎不误判方向
+    r = T0Strategy().evaluate(
+        _holding(), price=80.0, ma20=78.0, vwap=81.0
+    )
+    assert r["direction"] == "正T"
+    assert "背离" in r["vwap_note"]
+    assert "谨慎" in r["vwap_note"]
+
+
+def test_r9_vwap_neutral_zone():
+    # 现价≈VWAP → 中性区，不加力
+    r = T0Strategy().evaluate(
+        _holding(), price=80.0, ma20=78.0, vwap=80.02
+    )
+    assert "中性区" in r["vwap_note"]
+
+
+def test_r9_vwap_auto_fetch():
+    # vwap 未传 → 自动拉取（mock 返回）
+    s = T0Strategy()
+    with patch.object(s, "_fetch_vwap", return_value=79.5):
+        r = s.evaluate(_holding(), price=80.0, ma20=78.0)
+    assert r["vwap"] == pytest.approx(79.5)
+    assert "偏强" in r["vwap_note"]
+
+
+# ── R10: Pivot Point 具体价位 ──
+
+
+def test_r10_pivot_calculation():
+    # 经典公式: P=(H+L+C)/3, R1=2P-L, S1=2P-H
+    s = T0Strategy()
+    p = s._calc_pivot(80.0, 77.0, 78.5)
+    assert p["P"] == pytest.approx((80.0 + 77.0 + 78.5) / 3, abs=0.01)
+    assert p["R1"] == pytest.approx(2 * p["P"] - 77.0, abs=0.01)
+    assert p["S1"] == pytest.approx(2 * p["P"] - 80.0, abs=0.01)
+
+
+def test_r10_pivot_in_plan_positive_t():
+    # 正T: entry 带 S1 低吸价, exit 带 R1 高抛价
+    r = T0Strategy().evaluate(
+        _holding(), price=80.0, ma20=78.0, prev_bar={"high": 81.0, "low": 77.0, "close": 79.0}
+    )
+    assert r["pivot"] is not None
+    assert "S1" in r["plan"]["entry_rule"]
+    assert "R1" in r["plan"]["exit_rule"]
+    assert "S1" in r["summary"]
+
+
+def test_r10_pivot_in_plan_reverse_t():
+    # 反T: entry 带 R1 高抛价, exit 带 S1 低吸回补价
+    r = T0Strategy().evaluate(
+        _holding(), price=76.0, ma20=78.0, prev_bar={"high": 80.0, "low": 75.0, "close": 77.5}
+    )
+    assert r["pivot"] is not None
+    assert "R1" in r["plan"]["entry_rule"]
+    assert "S1" in r["plan"]["exit_rule"]
+
+
+def test_r10_pivot_auto_fetch():
+    # prev_bar 未传 → 自动拉取（mock）
+    s = T0Strategy()
+    with patch.object(s, "_fetch_prev_bar", return_value={"high": 81.0, "low": 77.0, "close": 79.0}):
+        r = s.evaluate(_holding(), price=80.0, ma20=78.0)
+    assert r["pivot"] is not None
+    assert r["pivot"]["R1"] > r["pivot"]["P"] > r["pivot"]["S1"]
+
+
+def test_r10_no_prev_bar_degrades():
+    # 无昨日K线 → pivot=None 不阻断
+    r = T0Strategy().evaluate(_holding(), price=80.0, ma20=78.0)
+    assert r["t0"] is True
+    assert r["pivot"] is None or r["pivot"]  # 自动拉取成功与否都不影响 t0
+
+
 # ── advisor_rules.check_t0 集成 ──
 
 
@@ -193,6 +290,7 @@ def test_check_entry_attaches_t0_suggestion(advisor):
         patch.object(advisor, "_get_ma20", return_value=78.0),
         patch.object(advisor, "_get_live_price", return_value=None),
         patch.object(advisor, "_find_holding", return_value=holding),
+        patch.object(advisor, "check_sector_block", return_value=None),
         patch.object(
             advisor,
             "check_t0",

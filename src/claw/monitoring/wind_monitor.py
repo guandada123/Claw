@@ -37,6 +37,12 @@ try:
 except ImportError:
     MarketSentiment = None  # type: ignore[assignment,misc]
 
+# 选股统一评分卡（P0-4, 2026-08-12）: run_screening 三条件并列 → 评分排序 top5
+try:
+    from stock_score_card import rank_candidates
+except ImportError:
+    rank_candidates = None  # type: ignore[assignment,misc]
+
 PROJECT_ROOT = Path(
     os.environ.get("CLAW_PROJECT_ROOT", str(Path(__file__).resolve().parent.parent.parent.parent))
 )
@@ -287,11 +293,14 @@ def monitor_risk() -> list[dict]:
 
 
 def run_screening(wa: WindAnalytics) -> list[dict]:
-    """条件选股：发现潜在机会
+    """条件选股：发现潜在机会（P0-4 升级: 统一评分卡排序 top5）
 
     2026-08-12: 附加大盘环境 + 个股板块强度（市场情绪维度，用户指出
-    推荐不能只按技术指标）。结果结构:
-    [{label, regime, stocks: [{code, name, sector, sector_strength}]}]
+    推荐不能只按技术指标）。
+    2026-08-12 P0-4: 三条件并列输出无优先级 → 候选集合并去重后
+    用统一评分卡(动量/量价/RSI/MA20/情绪/板块, 100分)排序，输出 top5。
+    结果结构:
+    [{label, regime, stocks: [{code, name, score, breakdown, ...}]}]
     """
     conditions = [
         ("沪深市场市值超500亿且连续3日上涨", "大盘企稳"),
@@ -312,6 +321,47 @@ def run_screening(wa: WindAnalytics) -> list[dict]:
         except Exception:
             sentiment_ctx = {"regime": None, "basis": []}
 
+    # P0-4: 收集三条件候选（每条件 top10）→ 去重
+    candidates: dict[str, str] = {}  # code -> name
+    for condition, label in conditions:
+        stocks = wa.search_stocks(condition)
+        if not stocks:
+            continue
+        for s in stocks[:10]:
+            code = s.get("Wind代码", s.get("代码", "?"))
+            if str(code).isdigit():
+                candidates[str(code)] = s.get("证券简称", s.get("名称", "?"))
+
+    # 评分卡排序（引擎不可用 → 降级回原并列结构）
+    if rank_candidates is not None and candidates:
+        ranked = rank_candidates(
+            list(candidates.keys()),
+            regime=sentiment_ctx.get("regime"),
+            ms=ms,
+            names=candidates,
+        )
+        top = ranked[:5]
+        return [
+            {
+                "label": "评分卡 Top5",
+                "regime": sentiment_ctx.get("regime"),
+                "regime_score": sentiment_ctx.get("score"),
+                "method": "score_card",
+                "stocks": [
+                    {
+                        "code": s["code"],
+                        "name": s["name"],
+                        "score": s["score"],
+                        "sector": s.get("sector_name"),
+                        "sector_strength": s.get("sector_strength"),
+                        "signals": s.get("signals"),
+                    }
+                    for s in top
+                ],
+            }
+        ]
+
+    # 降级: 无评分卡引擎时保留原三条件并列结构
     out: list[dict] = []
     for condition, label in conditions:
         stocks = wa.search_stocks(condition)

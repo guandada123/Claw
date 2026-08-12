@@ -13,6 +13,8 @@ market_sentiment.py — 市场情绪层（大盘环境 + 板块强度）
 模块:
   - market_regime()    大盘环境评分(强/中/弱 + score 0-100)
   - sector_strength()  个股所属行业板块当日强度(强/中/弱)
+  - sentiment_cycle()  情绪周期5段化(冰点/修复/升温/狂热/退潮 + 仓位建议)
+                       —— P1-5, 2026-08-12 落地(来源: 情绪周期方法论)
   - sentiment_context() 综合上下文(供推荐/入场过滤/做T 消费)
 
 用法:
@@ -26,6 +28,7 @@ import argparse
 import json
 import sys
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +73,27 @@ REGIME_STRONG = 70  # score ≥70 → 强
 REGIME_WEAK = 40  # score <40 → 弱
 INDEX_SYMBOLS = [("sh000001", "上证指数"), ("sz399006", "创业板指")]
 RALLY_WINDOW = 60  # 自低点反弹观察窗口(K线根数)
+
+# ── 情绪周期5段化阈值（P1-5, 2026-08-12, 来源: 情绪周期方法论）──
+# 广度指标: 涨停家数 / 最高连板 / 炸板率
+# 映射: 冰点<30家 / 修复30~50 / 升温50~80 / 狂热>90(需连板≥6确认)
+CYCLE_ZT_FREEZE = 30  # 涨停<30 → 冰点
+CYCLE_ZT_REPAIR = 50  # 30~50 → 修复
+CYCLE_ZT_HEAT = 50  # 50~80 → 升温(仓位建议50-70%)
+CYCLE_ZT_FRENZY = 90  # >90 → 狂热(需连板≥6确认)
+CYCLE_ZB_FREEZE = 0.40  # 炸板率>40% → 冰点/退潮
+CYCLE_ZB_TIDE = 0.35  # 炸板率>35% 且 连板<3 → 退潮
+CYCLE_LB_REPAIR = 2  # 最高连板≥2 才升级到修复
+CYCLE_LB_HEAT = 4  # 最高连板≥4 → 升温确认
+CYCLE_LB_FRENZY = 6  # 最高连板≥6 → 狂热确认
+# 每段仓位建议（占总仓位比例）
+CYCLE_POSITION = {
+    "冰点": "≤20%",
+    "修复": "30-50%",
+    "升温": "50-70%",
+    "狂热": "减仓至≤40%",
+    "退潮": "≤10%或空仓",
+}
 
 # 行业名缓存（东财 push2 被风控 2026-08-12 后，行业名以 MCP 预置缓存为准）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -127,6 +151,122 @@ def _fetch_tencent_quote(code: str) -> dict | None:
     except Exception:
         pass
     return None
+
+
+def _fetch_breadth(day: str | None = None) -> dict | None:
+    """市场广度指标（P1-5）: 涨停家数 / 炸板家数 / 最高连板。
+
+    数据源: 东财涨停池(getTopicZTPool) + 炸板池(getTopicZBPool)。
+    返回 {zt_count, zb_count, max_lianban, zhaban_rate}，失败返回 None。
+    """
+    day = day or datetime.now().strftime("%Y%m%d")
+    headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"}
+    zt_count = zb_count = max_lianban = None
+    try:
+        url = (
+            "https://push2ex.eastmoney.com/getTopicZTPool"
+            f"?ut=7eea3edcaed734bea9cbfc24409ed989&dpt=wz.ztzt"
+            f"&Pageindex=0&pagesize=300&sort=fbt%3Aasc&date={day}"
+        )
+        req = urllib.request.Request(url, headers=headers)
+        d = json.loads(urllib.request.urlopen(req, timeout=8).read().decode("utf-8"))
+        data = d.get("data") or {}
+        pool = data.get("pool") or []
+        zt_count = int(data.get("tc") if data.get("tc") is not None else len(pool))
+        if pool:
+            max_lianban = max(int(p.get("lbc", 1) or 1) for p in pool)
+    except Exception:
+        pass
+    try:
+        url = (
+            "https://push2ex.eastmoney.com/getTopicZBPool"
+            f"?ut=7eea3edcaed734bea9cbfc24409ed989&dpt=wz.ztzt"
+            f"&Pageindex=0&pagesize=300&sort=fbt%3Aasc&date={day}"
+        )
+        req = urllib.request.Request(url, headers=headers)
+        d = json.loads(urllib.request.urlopen(req, timeout=8).read().decode("utf-8"))
+        data = d.get("data") or {}
+        pool = data.get("pool") or []
+        zb_count = int(data.get("tc") if data.get("tc") is not None else len(pool))
+    except Exception:
+        pass
+    if zt_count is None and zb_count is None:
+        return None
+    total = (zt_count or 0) + (zb_count or 0)
+    zhaban_rate = (zb_count or 0) / total if total > 0 else 0.0
+    return {
+        "zt_count": zt_count,
+        "zb_count": zb_count,
+        "max_lianban": max_lianban,
+        "zhaban_rate": round(zhaban_rate, 4),
+    }
+
+
+def classify_cycle(
+    zt_count: int | None,
+    zhaban_rate: float | None,
+    max_lianban: int | None,
+) -> dict:
+    """广度指标 → 情绪周期5段（纯函数，P1-5）。
+
+    映射逻辑（情绪周期方法论）:
+      冰点: 涨停<30 或 炸板率>40%
+      修复: 涨停30~50 且 连板≥2
+      升温: 涨停50~80 且 连板≥4
+      狂热: 涨停>90 且 连板≥6（高位过热，仓位建议反而降）
+      退潮: 炸板率>35% 且 连板<3（赚钱效应崩塌，宁可空仓）
+      数据不足 → 未知（调用方降级，不阻断）
+
+    Returns: {cycle, position_ratio, basis}
+    """
+    if zt_count is None and zhaban_rate is None:
+        return {"cycle": "未知", "position_ratio": None, "basis": "广度数据不可用"}
+
+    basis_parts = []
+    if zt_count is not None:
+        basis_parts.append(f"涨停{zt_count}家")
+    if max_lianban is not None:
+        basis_parts.append(f"最高{max_lianban}连板")
+    if zhaban_rate is not None:
+        basis_parts.append(f"炸板率{zhaban_rate * 100:.0f}%")
+    basis = " | ".join(basis_parts)
+
+    # 退潮优先判断（赚钱效应崩塌信号强于其他）
+    if (
+        zhaban_rate is not None
+        and zhaban_rate > CYCLE_ZB_TIDE
+        and (max_lianban or 0) < CYCLE_LB_REPAIR + 1
+    ):
+        return {"cycle": "退潮", "position_ratio": CYCLE_POSITION["退潮"], "basis": basis}
+    # 冰点
+    if (zt_count is not None and zt_count < CYCLE_ZT_FREEZE) or (
+        zhaban_rate is not None and zhaban_rate > CYCLE_ZB_FREEZE
+    ):
+        return {"cycle": "冰点", "position_ratio": CYCLE_POSITION["冰点"], "basis": basis}
+    # 狂热
+    if (
+        zt_count is not None
+        and zt_count > CYCLE_ZT_FRENZY
+        and (max_lianban or 0) >= CYCLE_LB_FRENZY
+    ):
+        return {"cycle": "狂热", "position_ratio": CYCLE_POSITION["狂热"], "basis": basis}
+    # 升温
+    if zt_count is not None and zt_count >= CYCLE_ZT_HEAT and (max_lianban or 0) >= CYCLE_LB_HEAT:
+        return {"cycle": "升温", "position_ratio": CYCLE_POSITION["升温"], "basis": basis}
+    # 修复
+    if (
+        zt_count is not None
+        and zt_count >= CYCLE_ZT_REPAIR
+        and (max_lianban or 0) >= CYCLE_LB_REPAIR
+    ):
+        return {"cycle": "修复", "position_ratio": CYCLE_POSITION["修复"], "basis": basis}
+    # 升温与修复之间的过渡: 涨停50-80但连板<4 → 修复偏强
+    if zt_count is not None and zt_count >= CYCLE_ZT_REPAIR:
+        return {"cycle": "修复", "position_ratio": CYCLE_POSITION["修复"], "basis": basis}
+    # 涨停30-50但连板<2 → 冰点偏修复
+    if zt_count is not None and zt_count >= CYCLE_ZT_FREEZE:
+        return {"cycle": "修复", "position_ratio": CYCLE_POSITION["修复"], "basis": basis}
+    return {"cycle": "冰点", "position_ratio": CYCLE_POSITION["冰点"], "basis": basis}
 
 
 def _fetch_industry_name(code: str) -> str | None:
@@ -259,11 +399,41 @@ class MarketSentiment:
         }
 
     # ════════════════════════════════════════════════════════════
+    # 情绪周期5段化（P1-5, 2026-08-12, 来源: 情绪周期方法论）
+    # ════════════════════════════════════════════════════════════
+    def sentiment_cycle(self, day: str | None = None) -> dict:
+        """市场广度 → 情绪周期5段 + 仓位建议。
+
+        广度指标: 涨停家数/最高连板/炸板率（东财涨停池+炸板池）。
+        失败降级: {"cycle": "未知", "position_ratio": None}，不阻断。
+        """
+        breadth = _fetch_breadth(day)
+        if breadth is None:
+            return {
+                "cycle": "未知",
+                "position_ratio": None,
+                "breadth": None,
+                "basis": "广度数据不可用",
+            }
+        cycle = classify_cycle(
+            breadth.get("zt_count"),
+            breadth.get("zhaban_rate"),
+            breadth.get("max_lianban"),
+        )
+        return {
+            "cycle": cycle["cycle"],
+            "position_ratio": cycle["position_ratio"],
+            "breadth": breadth,
+            "basis": cycle["basis"],
+        }
+
+    # ════════════════════════════════════════════════════════════
     # 综合上下文
     # ════════════════════════════════════════════════════════════
     def sentiment_context(self, code: str | None = None) -> dict:
         """综合情绪上下文（供推荐/入场过滤/做T 消费）"""
         ctx: dict[str, Any] = {"regime": self.market_regime()}
+        ctx["cycle"] = self.sentiment_cycle()
         if code:
             ctx["sector"] = self.sector_strength(code)
         return ctx
@@ -272,11 +442,15 @@ class MarketSentiment:
 def main():
     parser = argparse.ArgumentParser(description="市场情绪层")
     parser.add_argument("--sector", default=None, help="查个股所属板块强度(6位代码)")
+    parser.add_argument("--cycle", action="store_true", help="仅查情绪周期5段(广度)")
     args = parser.parse_args()
 
     ms = MarketSentiment()
+    if args.cycle:
+        print(json.dumps(ms.sentiment_cycle(), ensure_ascii=False, indent=2))
+        return
     ctx = ms.sentiment_context(args.sector)
-    out = {"regime": ctx["regime"]}
+    out = {"regime": ctx["regime"], "cycle": ctx["cycle"]}
     if args.sector:
         out["sector"] = ctx["sector"]
     print(json.dumps(out, ensure_ascii=False, indent=2))

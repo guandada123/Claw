@@ -229,7 +229,135 @@ def test_check_entry_sentiment_in_output(advisor):
     assert r["sentiment"]["regime"]["regime"] == "强"
 
 
+# ── 情绪周期5段化（P1-5）──
+
+
+def test_cycle_freeze_low_zt():
+    r = ms.classify_cycle(zt_count=20, zhaban_rate=0.30, max_lianban=1)
+    assert r["cycle"] == "冰点"
+    assert r["position_ratio"] == "≤20%"
+
+
+def test_cycle_freeze_high_zhaban():
+    r = ms.classify_cycle(zt_count=60, zhaban_rate=0.45, max_lianban=3)
+    assert r["cycle"] == "冰点"  # 炸板率>40% 优先
+
+
+def test_cycle_repair():
+    r = ms.classify_cycle(zt_count=40, zhaban_rate=0.20, max_lianban=3)
+    assert r["cycle"] == "修复"
+    assert r["position_ratio"] == "30-50%"
+
+
+def test_cycle_heating():
+    r = ms.classify_cycle(zt_count=65, zhaban_rate=0.15, max_lianban=5)
+    assert r["cycle"] == "升温"
+    assert r["position_ratio"] == "50-70%"
+
+
+def test_cycle_frenzy():
+    r = ms.classify_cycle(zt_count=95, zhaban_rate=0.10, max_lianban=6)
+    assert r["cycle"] == "狂热"
+    assert "减仓" in r["position_ratio"]
+
+
+def test_cycle_tide_high_zhaban_low_lianban():
+    r = ms.classify_cycle(zt_count=45, zhaban_rate=0.38, max_lianban=2)
+    assert r["cycle"] == "退潮"
+    assert "空仓" in r["position_ratio"]
+
+
+def test_cycle_unknown_no_data():
+    r = ms.classify_cycle(zt_count=None, zhaban_rate=None, max_lianban=None)
+    assert r["cycle"] == "未知"
+    assert r["position_ratio"] is None
+
+
+def test_sentiment_cycle_degrades_on_fetch_fail(sentiment):
+    with patch.object(ms, "_fetch_breadth", return_value=None):
+        r = sentiment.sentiment_cycle()
+    assert r["cycle"] == "未知"
+    assert r["position_ratio"] is None
+
+
+def test_sentiment_cycle_with_breadth(sentiment):
+    with patch.object(
+        ms,
+        "_fetch_breadth",
+        return_value={"zt_count": 60, "zb_count": 10, "max_lianban": 4, "zhaban_rate": 0.143},
+    ):
+        r = sentiment.sentiment_cycle()
+    assert r["cycle"] == "升温"
+    assert r["breadth"]["zt_count"] == 60
+
+
+# ── check_entry 情绪周期拦截（P1-5）──
+
+
+def _sentiment_with_cycle(regime: str, cycle: dict | None = None) -> dict:
+    ctx = _sentiment(regime)
+    ctx["cycle"] = cycle or {"cycle": "修复", "position_ratio": "30-50%", "basis": "涨停40家"}
+    return ctx
+
+
+def test_check_entry_ice_cycle_blocked(advisor):
+    """情绪周期冰点 → 新开仓 block"""
+    with (
+        patch.object(advisor, "_get_rsi", return_value=50.0),
+        patch.object(advisor, "_get_day_change", return_value=1.0),
+        patch.object(advisor, "_get_ma20", return_value=10.0),
+        patch.object(advisor, "_get_live_price", return_value=None),
+        patch.object(advisor, "_find_holding", return_value=None),
+        patch.object(
+            advisor,
+            "_get_sentiment",
+            return_value=_sentiment_with_cycle("中", {"cycle": "冰点", "position_ratio": "≤20%", "basis": "涨停15家"}),
+        ),
+    ):
+        r = advisor.check_entry("600000", price=10.2)
+    assert r["blocked"] is True
+    assert any("冰点" in f["reason"] for f in r["flags"])
+
+
+def test_check_entry_frenzy_cycle_blocked(advisor):
+    """情绪周期狂热 → 防高位接盘 block"""
+    with (
+        patch.object(advisor, "_get_rsi", return_value=50.0),
+        patch.object(advisor, "_get_day_change", return_value=1.0),
+        patch.object(advisor, "_get_ma20", return_value=10.0),
+        patch.object(advisor, "_get_live_price", return_value=None),
+        patch.object(advisor, "_find_holding", return_value=None),
+        patch.object(
+            advisor,
+            "_get_sentiment",
+            return_value=_sentiment_with_cycle("强", {"cycle": "狂热", "position_ratio": "减仓至≤40%", "basis": "涨停100家"}),
+        ),
+    ):
+        r = advisor.check_entry("600000", price=10.2)
+    assert r["blocked"] is True
+    assert any("狂热" in f["reason"] for f in r["flags"])
+
+
+def test_check_entry_repair_cycle_not_blocked_by_cycle(advisor):
+    """修复周期 → 不由周期拦截（正常放行，除非其他规则）"""
+    with (
+        patch.object(advisor, "_get_rsi", return_value=50.0),
+        patch.object(advisor, "_get_day_change", return_value=1.0),
+        patch.object(advisor, "_get_ma20", return_value=10.0),
+        patch.object(advisor, "_get_live_price", return_value=None),
+        patch.object(advisor, "_find_holding", return_value=None),
+        patch.object(
+            advisor,
+            "_get_sentiment",
+            return_value=_sentiment_with_cycle("强", {"cycle": "修复", "position_ratio": "30-50%", "basis": "涨停40家"}),
+        ),
+    ):
+        r = advisor.check_entry("600000", price=10.2)
+    assert not any("周期" in f["reason"] and f["level"] == "block" for f in r["flags"])
+
+
 def test_constants_reasonable():
     assert ms.REGIME_STRONG == 70
     assert ms.REGIME_WEAK == 40
     assert "半导体" in ms.SECTOR_CODE_MAP
+    assert ms.CYCLE_POSITION["退潮"] == "≤10%或空仓"

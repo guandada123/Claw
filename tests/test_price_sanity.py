@@ -122,6 +122,9 @@ def test_advisor_rules_integration_pass_on_real_price(monkeypatch):
                         lambda c: {"low_52w": 33.59, "high_52w": 106.64, "ma20": 79.21})
     monkeypatch.setattr(ar.AdvisorRules, "_get_live_price",
                         lambda self, c: {"price": 77.75, "change_pct": -1.0})
+    # 隔离规则I(行业集中度): 该测试聚焦价格sanity，真实持仓(半导体100%)会误触发block
+    monkeypatch.setattr(ar.AdvisorRules, "check_sector_block",
+                        lambda self, *a, **k: None)
 
     res = ar.AdvisorRules().check_entry("600584", price=77.75)
     assert res["blocked"] is False

@@ -15,10 +15,15 @@ t0_strategy.py — 做T（T+0 日内交易）子策略引擎
   R7. T+1 合规      — 正T=卖旧买新(需已有底仓)；反T=先卖后买(当日可回补)
   R8. 情绪修正      — 自60日低点反弹≥10%强反弹时，价格微低于MA20(≤2%)视为
                       回踩买点改判正T(2026-08-12 用户指出单均线在强趋势中钝化)
+  R9. VWAP 分时位   — 盘中分时 VWAP(成交量加权均价)；现价>VWAP=当日偏强(正T加力)，
+                      <VWAP=偏弱(反T加力)；方向与VWAP背离时提示谨慎/降T仓(2026-08-12)
+  R10. Pivot 价位   — 用昨日 H/L/C 算 P/S1/S2/R1/R2，输出「S1≈¥xx.xx 低吸 /
+                      R1≈¥xx.xx 高抛」具体挂单价，替代"回踩MA20附近"无价提示(2026-08-12)
 
 用法:
   python3 scripts/t0_strategy.py evaluate --code 600584 --ma20 78.0
   python3 scripts/t0_strategy.py evaluate --holding '{"code":"600584","shares":300,"avg_cost":84.2}' --price 77.67 --t-count 1
+  python3 scripts/t0_strategy.py evaluate --code 600584 --ma20 78.0 --vwap 78.4 --prev-high 80.0 --prev-low 77.0 --prev-close 78.5
 
 设计原则: 纯函数式规则，不修改外部状态；网络失败降级为 None 不阻断。
 """
@@ -28,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import urllib.request
 from datetime import datetime, time
 from pathlib import Path
 from typing import Any
@@ -42,6 +48,10 @@ T_NODE_WINDOW_MIN = 10  # 节点窗口 ±10 分钟
 # R8 情绪修正（2026-08-12 用户指出: 不能只看指标要看市场情绪）
 STRONG_RALLY_PCT = 10.0  # 自60日低点反弹 ≥10%（百分比数值）→ 强反弹/强情绪
 MA20_GAP_REVERSE = 0.02  # 价格低于MA20 超过 2% 才判反T（强反弹下微回踩≠破位）
+# R9 VWAP 分时位（2026-08-12 落地，来源=stock_t_analyzer: 现价>VWAP偏强/偏弱）
+VWAP_BIAS_PCT = 0.005  # 现价相对VWAP偏差 ≥0.5% 才判偏强/偏弱(否则视为中性区)
+# R10 Pivot Point（2026-08-12 落地，来源=stock_t_analyzer 具体价位化）
+PIVOT_SMA = 0.0  # 占位(经典 Pivot 无平滑因子)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
@@ -59,6 +69,7 @@ class T0Strategy:
         node_time: str = T_NODE_TIME,
         strong_rally_pct: float = STRONG_RALLY_PCT,
         ma20_gap_reverse: float = MA20_GAP_REVERSE,
+        vwap_bias_pct: float = VWAP_BIAS_PCT,
     ):
         self.ratio = ratio
         self.max_per_day = max_per_day
@@ -67,6 +78,7 @@ class T0Strategy:
         self.node_time = node_time
         self.strong_rally_pct = strong_rally_pct
         self.ma20_gap_reverse = ma20_gap_reverse
+        self.vwap_bias_pct = vwap_bias_pct
 
     # ════════════════════════════════════════════════════════════
     # 主入口: 对单个持仓生成做T建议
@@ -79,6 +91,8 @@ class T0Strategy:
         t_count_today: int = 0,
         t_pnl_pct: float | None = None,
         rally_pct: float | None = None,
+        vwap: float | None = None,
+        prev_bar: dict | None = None,
         now: datetime | None = None,
     ) -> dict:
         """生成做T建议。
@@ -89,6 +103,10 @@ class T0Strategy:
             强反弹(≥10%)下价格微低于MA20(≤2%)时视为回踩买点，改判正T，
             避免单均线在强趋势行情中钝化导致方向反判。
             注: 用「自低点反弹」而非「近20日涨幅」，V型反转下20日窗口会失真。
+        vwap: 盘中分时 VWAP（R9）。外部传入优先（盘中监控复用），None 时自动
+            拉腾讯分时接口，失败降级 None（R9 不生效，不阻断）。
+        prev_bar: 昨日 {high, low, close}（R10）。外部传入优先，None 时自动
+            拉日K取昨日 H/L/C，失败降级 None（R10 不生效，不阻断）。
         """
         code = holding.get("code", "")
         name = holding.get("name", "")
@@ -106,6 +124,9 @@ class T0Strategy:
             "t_position_value": None,
             "t_position_shares": None,
             "buy_below": None,
+            "vwap": None,
+            "vwap_note": "",
+            "pivot": None,
             "plan": None,
             "flags": [],
             "blocked": False,
@@ -211,6 +232,38 @@ class T0Strategy:
         result["t0"] = True
         result["sentiment_note"] = sentiment_note
 
+        # R9: VWAP 分时位（现价>VWAP=偏强正T加力 / <VWAP=偏弱反T加力；背离提示谨慎）
+        vwap_note = ""
+        if price is not None:
+            if vwap is None:
+                vwap = self._fetch_vwap(self._prefix(code))
+            if vwap and vwap > 0:
+                result["vwap"] = round(vwap, 2)
+                gap = (price - vwap) / vwap
+                if gap >= self.vwap_bias_pct:
+                    vwap_note = f"现价¥{price:.2f} > VWAP¥{vwap:.2f}(+{gap * 100:.1f}%) 当日偏强"
+                    if direction == "正T":
+                        vwap_note += " → 正T加力"
+                    else:
+                        vwap_note += " → 与反T方向背离，反T需谨慎(冲高不追空)"
+                elif gap <= -self.vwap_bias_pct:
+                    vwap_note = f"现价¥{price:.2f} < VWAP¥{vwap:.2f}({gap * 100:.1f}%) 当日偏弱"
+                    if direction == "反T":
+                        vwap_note += " → 反T加力"
+                    else:
+                        vwap_note += " → 与正T方向背离，正T需谨慎(弱市不抄底)"
+                else:
+                    vwap_note = f"现价¥{price:.2f} ≈ VWAP¥{vwap:.2f}(±{gap * 100:+.1f}%) 中性区"
+        result["vwap_note"] = vwap_note
+
+        # R10: Pivot Point 具体价位（用昨日 H/L/C → P/S1/S2/R1/R2）
+        pivot = None
+        if prev_bar is None:
+            prev_bar = self._fetch_prev_bar(self._prefix(code))
+        if prev_bar and prev_bar.get("high") and prev_bar.get("low") and prev_bar.get("close"):
+            pivot = self._calc_pivot(prev_bar["high"], prev_bar["low"], prev_bar["close"])
+        result["pivot"] = pivot
+
         # R5: 正T安全垫（买入价 ≤ 持仓成本 × (1-2%)）
         buy_below = None
         if direction == "正T" and avg_cost:
@@ -223,18 +276,33 @@ class T0Strategy:
 
         # 行动计划
         if direction == "正T":
+            s1_text = f" / S1≈¥{pivot['S1']:.2f} 低吸" if pivot and pivot.get("S1") else ""
+            entry_rule = (
+                f"买入价需 ≤ 持仓成本×{1 - self.cost_safety_pct:.2f} 即 ≤¥{buy_below}（安全垫{self.cost_safety_pct * 100:.0f}%）"
+                f"{s1_text}"
+                if buy_below
+                else "买入需低于持仓成本2%"
+            )
             plan = {
                 "action": "正T：先买后卖（T+1下买入的是新仓，卖出的是昨日底仓）",
-                "entry_rule": f"买入价需 ≤ 持仓成本×{1 - self.cost_safety_pct:.2f} 即 ≤¥{buy_below}（安全垫{self.cost_safety_pct * 100:.0f}%）"
-                if buy_below
-                else "买入需低于持仓成本2%",
-                "exit_rule": "反弹后卖出等量原底仓，T仓当日不做第二次",
+                "entry_rule": entry_rule,
+                "exit_rule": "反弹后卖出等量原底仓，T仓当日不做第二次"
+                + (
+                    f"；上方 R1≈¥{pivot['R1']:.2f} 压力位可高抛"
+                    if pivot and pivot.get("R1")
+                    else ""
+                ),
             }
         else:
+            r1_text = f" / R1≈¥{pivot['R1']:.2f} 高抛" if pivot and pivot.get("R1") else ""
             plan = {
                 "action": "反T：先卖后买（卖的是已有底仓，当日可回补，合规）",
-                "entry_rule": "冲高遇阻（分时双顶）时卖出",
-                "exit_rule": "回落至支撑位回补同量，锁定差价",
+                "entry_rule": f"冲高遇阻（分时双顶）时卖出{r1_text}",
+                "exit_rule": (
+                    f"回落至支撑位回补同量，锁定差价；下方 S1≈¥{pivot['S1']:.2f} 可低吸回补"
+                    if pivot and pivot.get("S1")
+                    else "回落至支撑位回补同量，锁定差价"
+                ),
             }
         result["plan"] = plan
         result["buy_below"] = buy_below
@@ -244,6 +312,10 @@ class T0Strategy:
         parts.append(f"T仓额度¥{result['t_position_value']:.0f}(底仓{self.ratio * 100:.0f}%)")
         if buy_below:
             parts.append(f"买入≤¥{buy_below}")
+        if vwap_note:
+            parts.append(vwap_note)
+        if pivot:
+            parts.append(f"Pivot: S1¥{pivot['S1']:.2f}/P¥{pivot['P']:.2f}/R1¥{pivot['R1']:.2f}")
         if node_hint:
             parts.append(node_hint)
         if sentiment_note:
@@ -273,6 +345,112 @@ class T0Strategy:
             datetime.combine(now.date(), cur) - datetime.combine(now.date(), node)
         ).total_seconds()
         return abs(delta) <= T_NODE_WINDOW_MIN * 60
+
+    @staticmethod
+    def _prefix(code: str) -> str:
+        """标准化为带市场前缀的代码（sh/sz）"""
+        code = code.strip().lower()
+        if code.startswith(("sh", "sz")):
+            return code
+        return f"sh{code}" if code.startswith("6") else f"sz{code}"
+
+    def _fetch_vwap(self, code_prefixed: str) -> float | None:
+        """盘中分时 VWAP（成交量加权均价）。腾讯分时接口(铁律)，失败降级 None。
+
+        腾讯分时 data.data.data 每行为空格分隔字符串:
+          "0930 77.10 7043 54301530.10" = [时间, 价格, 累计成交量(手), 累计成交额(元)]
+        VWAP = 当前累计成交额 / 当前累计成交量(手×100股)。
+        """
+        try:
+            url = f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={code_prefixed}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: https 硬编码
+                d = json.loads(resp.read().decode("utf-8"))
+            sub = d.get("data", {}).get(code_prefixed, {})
+            rows = (sub.get("data") or {}).get("data", [])
+            if not rows:
+                return None
+            # 末条为当日累计
+            last = rows[-1]
+            parts = last.split() if isinstance(last, str) else [str(x) for x in last]
+            if len(parts) >= 4:
+                amount = float(parts[3]) if parts[3] else 0.0
+                volume_shares = float(parts[2]) * 100 if parts[2] else 0.0
+                if amount > 0 and volume_shares > 0:
+                    return amount / volume_shares
+        except Exception:
+            pass
+        return None
+
+    def _fetch_prev_bar(self, code_prefixed: str) -> dict | None:
+        """昨日 K 线 {high, low, close}。腾讯 fqkline 优先，接口不可用时降级新浪。
+
+        盘中需昨日 H/L/C 算 Pivot；当日 bar 未走完不能用，取倒数第2根。
+        """
+        # 1) 腾讯 fqkline 前复权
+        try:
+            url = (
+                f"https://web.ifzq.gtimg.cn/appstuff/app/fqkline/get"
+                f"?param={code_prefixed},day,,,10,qfq"
+            )
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: https 硬编码
+                d = json.loads(resp.read().decode("utf-8"))
+            sub = d.get("data", {})
+            if isinstance(sub, dict) and d.get("code") != 11:
+                kl = sub.get(code_prefixed, {}).get("qfqday", [])
+                if len(kl) >= 2:
+                    prev = kl[-2]
+                    # qfqday 行: [日期, 开, 收, 高, 低, 量, ...]
+                    if len(prev) >= 5:
+                        return {
+                            "high": float(prev[3]),
+                            "low": float(prev[4]),
+                            "close": float(prev[2]),
+                        }
+        except Exception:
+            pass
+        # 2) 新浪日K（fqkline 接口 2026-08-12 起返回 code=11 时降级）
+        try:
+            url = (
+                f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
+                f"/CN_MarketData.getKLineData?symbol={code_prefixed}&scale=240&ma=no&datalen=5"
+            )
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310: https 硬编码
+                arr = json.loads(resp.read().decode("utf-8"))
+            if len(arr) >= 2:
+                prev = arr[-2]
+                if prev.get("high") and prev.get("low") and prev.get("close"):
+                    return {
+                        "high": float(prev["high"]),
+                        "low": float(prev["low"]),
+                        "close": float(prev["close"]),
+                    }
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _calc_pivot(high: float, low: float, close: float) -> dict:
+        """经典 Pivot Point（R10）: P/S1/S2/R1/R2。
+
+        P  = (H + L + C) / 3
+        R1 = 2P - L ; S1 = 2P - H
+        R2 = P + (H - L) ; S2 = P - (H - L)
+        """
+        p = (high + low + close) / 3
+        r1 = 2 * p - low
+        s1 = 2 * p - high
+        r2 = p + (high - low)
+        s2 = p - (high - low)
+        return {
+            "P": round(p, 2),
+            "R1": round(r1, 2),
+            "S1": round(s1, 2),
+            "R2": round(r2, 2),
+            "S2": round(s2, 2),
+        }
 
     @staticmethod
     def load_portfolio(path: Path = USER_PORTFOLIO) -> dict:
@@ -307,6 +485,12 @@ def main():
     p_eval.add_argument("--ma20", type=float, default=None, help="MA20(可选)")
     p_eval.add_argument("--t-count", type=int, default=0, help="今日已做T次数")
     p_eval.add_argument("--t-pnl", type=float, default=None, help="当前单次T浮亏比例(如-0.02)")
+    p_eval.add_argument("--vwap", type=float, default=None, help="盘中VWAP(可选,缺省自动拉)")
+    p_eval.add_argument("--prev-high", type=float, default=None, help="昨日最高价(可选,缺省自动拉)")
+    p_eval.add_argument("--prev-low", type=float, default=None, help="昨日最低价(可选,缺省自动拉)")
+    p_eval.add_argument(
+        "--prev-close", type=float, default=None, help="昨日收盘价(可选,缺省自动拉)"
+    )
 
     args = parser.parse_args()
 
@@ -340,6 +524,18 @@ def main():
             ma20=args.ma20,
             t_count_today=args.t_count,
             t_pnl_pct=args.t_pnl,
+            vwap=args.vwap,
+            prev_bar=(
+                {
+                    "high": args.prev_high,
+                    "low": args.prev_low,
+                    "close": args.prev_close,
+                }
+                if args.prev_high is not None
+                or args.prev_low is not None
+                or args.prev_close is not None
+                else None
+            ),
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
