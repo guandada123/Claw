@@ -2,8 +2,8 @@
 """
 pull_qts_signals.py — 从 QTS 回测日报提取 WF 验证通过的股票信号
 =================================================================
-通过 Docker exec 在 QTS 容器内执行 Python 脚本，读取最新回测日报，
-提取 WF stability >= 50% 的策略-股票对。
+服务直连（2026-08-13 打通：废除 docker exec 容器注入，改 qts_client 只读 PG），
+读取最新回测日报，提取 WF stability >= 50% 的策略-股票对。
 
 输出：data/qts_daily_signals.json
 
@@ -15,10 +15,7 @@ pull_qts_signals.py — 从 QTS 回测日报提取 WF 验证通过的股票信�
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -26,85 +23,42 @@ from typing import Any
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _OUTPUT = _PROJECT_ROOT / "data" / "qts_daily_signals.json"
 
-_QTS_SCRIPT = r"""
-import json, sys
-try:
-    from models.database import get_db_session
-    from sqlalchemy import text
-    with get_db_session() as db:
-        rows = db.execute(text(
-            "SELECT report_type, report_date, detail_content "
-            "FROM backtest_reports "
-            "ORDER BY created_at DESC LIMIT 1"
-        )).fetchall()
-        if not rows:
-            print(json.dumps({"error": "no_report_in_db", "hint": "回测日报尚未生成，等15:35或手动触发"}))
-            sys.exit(0)
-        r = rows[0]
-        data = r[2] if isinstance(r[2], dict) else json.loads(r[2])
-        wf = data.get("wf_validated", {})
-        top = data.get("top_strategies", [])[:15]
-        output_signals = []
-        for s in top:
-            ts_code = s.get("ts_code", "")
-            wf_data = wf.get(ts_code, {})
-            stability = wf_data.get("stability")
-            output_signals.append({
-                "ts_code": ts_code,
-                "strategy": s.get("strategy", ""),
-                "sharpe": s.get("sharpe", 0),
-                "total_return": s.get("total_return", 0),
-                "win_rate": s.get("win_rate", 0),
-                "wf_stability": stability,
-                "wf_overfit_ratio": wf_data.get("overfit_ratio"),
-                "wf_passed": (stability is not None and stability >= 50),
-            })
-        result = {
-            "report_date": str(r[1]) if r[1] else None,
-            "report_type": r[0],
-            "signals": output_signals,
-            "total_wf_passed": sum(1 for o in output_signals if o.get("wf_passed")),
-        }
-        print(json.dumps(result, ensure_ascii=False))
-except Exception as e:
-    print(json.dumps({"error": str(e)}))
-"""
-
 
 def _connect() -> dict:
-    """通过 Docker exec 在 QTS 容器内执行查询"""
-    # 把脚本写入临时文件
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False, encoding="utf-8"
-    ) as f:
-        f.write(_QTS_SCRIPT)
-        tmp_path = f.name
+    """直连 QTS PG 读取最新回测日报（2026-08-13 打通：废除 docker exec 容器注入）。
 
-    try:
-        # 复制脚本到容器（用 /app 目录避免权限问题）
-        subprocess.run(
-            ["docker", "cp", tmp_path, "quant-strategy:/app/_pull_signals.py"],
-            capture_output=True, text=True, timeout=10,
-        )
-        result = subprocess.run(
-            ["docker", "exec", "quant-strategy",
-             "python", "/app/_pull_signals.py"],
-            capture_output=True, text=True, timeout=30,
-        )
+    原实现: docker cp + docker exec 注入容器内 Python 脚本读 backtest_reports。
+    现实现: qts_client.get_daily_report() 服务直连(只读PG 15432)，零容器依赖。
+    """
+    from qts_client import get_daily_report
 
-        if result.returncode != 0:
-            return {"error": f"docker exec failed: {result.stderr[:200]}"}
-
-        output = result.stdout.strip()
-        # 提取最后一行 JSON
-        for line in reversed(output.split("\n")):
-            line = line.strip()
-            if line.startswith("{"):
-                return json.loads(line)  # type: ignore[no-any-return]
-
-        return {"error": f"no JSON in output: {output[:200]}"}
-    finally:
-        os.unlink(tmp_path)
+    report = get_daily_report()
+    if report is None:
+        return {"error": "no_report_in_db", "hint": "回测日报尚未生成，等15:35或手动触发"}
+    detail = report.get("detail") or {}
+    wf = detail.get("wf_validated", {})
+    top = (detail.get("top_strategies") or [])[:15]
+    output_signals = []
+    for s in top:
+        ts_code = s.get("ts_code", "")
+        wf_data = wf.get(ts_code, {})
+        stability = wf_data.get("stability")
+        output_signals.append({
+            "ts_code": ts_code,
+            "strategy": s.get("strategy", ""),
+            "sharpe": s.get("sharpe", 0),
+            "total_return": s.get("total_return", 0),
+            "win_rate": s.get("win_rate", 0),
+            "wf_stability": stability,
+            "wf_overfit_ratio": wf_data.get("overfit_ratio"),
+            "wf_passed": (stability is not None and stability >= 50),
+        })
+    return {
+        "report_date": report.get("report_date"),
+        "report_type": report.get("report_type"),
+        "signals": output_signals,
+        "total_wf_passed": sum(1 for o in output_signals if o.get("wf_passed")),
+    }
 
 
 def pull(min_stability: float = 50, top_n: int = 10) -> dict[str, Any]:

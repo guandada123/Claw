@@ -1113,18 +1113,32 @@ def check_memwatch_integrity() -> dict:
 
 
 # 2026-08-12: 全项目共享文件完整性检查 — 跨项目状态锚/数据桥(多写者)被并发写坏时告警
+# 2026-08-13 打通: qts_daily_brief 已落库 PG, 巡检升级为服务直连检查(PG表), 文件桥降级
 SHARED_JSON_FILES = [
     Path.home() / ".workbuddy" / "cross_project_state.json",
-    Path.home() / "WorkBuddy" / "_shared" / "cross_project" / "qts_daily_brief.json",
     Path.home() / "WorkBuddy" / "_shared" / "cross_project" / "wind_fundamentals.json",
 ]
 
 
 def check_shared_files_integrity() -> dict:
-    """2026-08-12: 跨项目共享 JSON 完整性 — 每个文件必须可解析且非空, 防并发写坏(写一半崩溃留残文件)。"""
+    """2026-08-12: 跨项目共享 JSON 完整性 — 每个文件必须可解析且非空, 防并发写坏(写一半崩溃留残文件)。
+    2026-08-13 打通: qts_daily_brief 改查 PG 表(qts_client.get_daily_brief), 文件桥已废除。
+    """
     import json as _json
 
     alerts: list[str] = []
+    # QTS brief: 服务直连 PG 检查（替代原 /tmp/qts_daily_brief.json 文件检查）
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+        from qts_client import get_daily_brief
+
+        _qb = get_daily_brief()
+        if _qb is None:
+            alerts.append("QTS qts_daily_brief 表无数据(15:00 未落库, 检查 QTS report_service)")
+        elif not _qb.get("brief"):
+            alerts.append("QTS qts_daily_brief 内容为空(疑似写坏)")
+    except Exception as e:  # noqa: BLE001
+        alerts.append(f"QTS qts_daily_brief PG 检查异常: {e}")
     for p in SHARED_JSON_FILES:
         if not p.exists():
             continue

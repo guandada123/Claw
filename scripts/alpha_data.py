@@ -2,8 +2,8 @@
 """
 alpha_data.py — Alpha101 数据访问层（复用 QTS PostgreSQL，不重复造轮子）
 
-铁律: Claw↔QTS 禁交叉 import。本模块只做「只读 SQL 访问 QTS 数据」，
-不 import 任何 QTS 代码；仅共享 QTS 已采集的全市场日线数据。
+2026-08-13 打通: 统一走 qts_client 服务直连（唯一连接入口），
+废除本模块独立 psycopg2 连接（单一配置源 QTS_PG_*）。
 
 QTS daily_quote(quant-postgres:15432/quant_trading):
   ts_code / trade_date / open / high / low / close / pre_close /
@@ -17,17 +17,11 @@ QTS daily_quote(quant-postgres:15432/quant_trading):
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pandas as pd
-import psycopg2
 
-PG_HOST = os.environ.get("QTS_PG_HOST", "127.0.0.1")
-PG_PORT = int(os.environ.get("QTS_PG_PORT", "15432"))
-PG_USER = os.environ.get("QTS_PG_USER", "quant_user")
-PG_PASS = os.environ.get("QTS_PG_PASS", "quant_pass")
-PG_DB = os.environ.get("QTS_PG_DB", "quant_trading")
+import qts_client  # noqa: E402 - 服务直连唯一入口(2026-08-13 打通)
 
 # 除权跳变阈值: 单日 pct_change 绝对值超过此值(排除涨跌停极限)视为未复权跳空
 GAP_PCT_THRESHOLD = 19.5
@@ -38,13 +32,6 @@ BLOCKED_PREFIXES = ("688", "689", "8", "4", "920")
 # 本地缓存(因子引擎频繁读, 落盘避免每次全量 PG 往返)
 CACHE_DIR = Path(__file__).resolve().parent.parent / ".workbuddy" / "data" / "alpha"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _connect():
-    return psycopg2.connect(
-        host=PG_HOST, port=PG_PORT, user=PG_USER, password=PG_PASS,
-        dbname=PG_DB, connect_timeout=8,
-    )
 
 
 def _read_sql(conn, sql: str, params: tuple | None = None) -> pd.DataFrame:
@@ -64,7 +51,7 @@ def load_universe(min_days: int = 60) -> list[str]:
         data = json.loads(cache.read_text(encoding="utf-8"))
         if data.get("min_days") == min_days:
             return data["codes"]
-    with _connect() as conn:
+    with qts_client._pg() as conn:
         df = _read_sql(
             conn,
             "SELECT ts_code, COUNT(*) AS n FROM daily_quote GROUP BY ts_code",
@@ -94,7 +81,7 @@ def load_bars(code: str) -> pd.DataFrame | None:
     """
     ts_code = f"{code}.SH" if code.startswith("6") else f"{code}.SZ"
     try:
-        with _connect() as conn:
+        with qts_client._pg() as conn:
             df = _read_sql(
                 conn,
                 """
@@ -106,7 +93,7 @@ def load_bars(code: str) -> pd.DataFrame | None:
                 """,
                 (ts_code,),
             )
-    except psycopg2.Error:
+    except Exception:  # noqa: BLE001 - QTS 不可用降级
         return None
     if df.empty:
         return None

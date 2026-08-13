@@ -931,20 +931,32 @@ def build_evening_report():
         lines.append("    1. 严格执行止损纪律（持仓股浮亏>5%必须止损）")
         lines.append("    2. 记录每笔操作的买入理由，周复盘时总结")
 
-    # 八、🧪 量化策略验证（QTS 11策略全市场回测，消费 /tmp/qts_daily_brief.json）
+    # 八、🧪 量化策略验证（QTS 11策略全市场回测，2026-08-13 打通: 服务直连读PG）
     lines.append("\n八、🧪 量化策略验证（QTS 11策略全市场回测）")
-    brief_path = "/tmp/qts_daily_brief.json"  # noqa: S108 跨项目桥接文件(QTS容器写→Claw读)，约定路径
     brief = None
-    if os.path.exists(brief_path):  # noqa: E742 独立判断QTS数据文件是否存在，与上方准确率if无关
-        try:
-            with open(brief_path, encoding="utf-8") as f:
-                brief = json.load(f)
+    try:  # 优先服务直连: QTS 落库 PG → Claw 只读 (qts_client)
+        from qts_client import get_daily_brief
+
+        _qb = get_daily_brief()
+        if _qb:
+            brief = _qb.get("brief")
             # 消费外部数据铁律：必须校验 report_date 为今日，否则视为旧数据丢弃
-            if brief.get("report_date") != now.strftime("%Y-%m-%d"):
+            if brief and brief.get("report_date") != now.strftime("%Y-%m-%d"):
                 brief = None
                 lines.append("  ⚠️ QTS 日评数据非今日（report_date 不匹配），不填入旧数据")
-        except Exception:
-            brief = None
+    except Exception:  # noqa: BLE001 - 服务直连失败降级旧文件桥接
+        brief = None
+    if brief is None:  # 降级: /tmp 文件桥接(旧链路, 待 15:00 自动化落库后移除)
+        brief_path = "/tmp/qts_daily_brief.json"  # noqa: S108 降级文件桥接
+        if os.path.exists(brief_path):
+            try:
+                with open(brief_path, encoding="utf-8") as f:
+                    brief = json.load(f)
+                if brief.get("report_date") != now.strftime("%Y-%m-%d"):
+                    brief = None
+                    lines.append("  ⚠️ QTS 日评数据非今日（report_date 不匹配），不填入旧数据")
+            except Exception:
+                brief = None
     if brief:
         sm = brief.get("summary", {})
         top5 = brief.get("top5", [])
@@ -952,7 +964,7 @@ def build_evening_report():
         avg_sharpe = sm.get("avg_sharpe", 0)
         wf_passed = sm.get("wf_passed", 0)
         wf_candidates = sm.get("wf_candidates", 0)
-        lines.append("  数据来源: `/tmp/qts_daily_brief.json`（15:00 🧪QTS策略日评预生成）")
+        lines.append("  数据来源: QTS 回测日评（服务直连 PG，15:00 预生成）")
         lines.append(
             f"  回测概况：{total} 次回测 | 均 Sharpe {avg_sharpe:+.2f} | "
             f"WF 验证候选 {wf_candidates} 个 / 通过 {wf_passed} 个"
