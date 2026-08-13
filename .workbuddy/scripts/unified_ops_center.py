@@ -1128,8 +1128,17 @@ def check_shared_files_integrity() -> dict:
 
     alerts: list[str] = []
     # QTS brief: 服务直连 PG 检查（替代原 /tmp/qts_daily_brief.json 文件检查）
+    # 2026-08-13 修复: qts_client.py 已迁移至 Claw/scripts/（唯一入口，见跨项目集成决策），
+    #   原路径 .workbuddy/scripts/ 失效导致 ImportError。改为双候选路径，向后兼容。
     try:
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+        _here = Path(__file__).resolve().parent
+        for _c in (
+            _here.parent.parent / "scripts",  # 规范位置: /Claw/scripts
+            _here.parent / "scripts",  # 旧位置: /Claw/.workbuddy/scripts
+        ):
+            _cs = str(_c)
+            if _cs not in sys.path:
+                sys.path.insert(0, _cs)
         from qts_client import get_daily_brief
 
         _qb = get_daily_brief()
