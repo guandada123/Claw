@@ -36,15 +36,33 @@ from typing import Any
 
 import psycopg2
 
-# ── QTS 连接配置（环境变量可覆盖）────────────────────────────
-QTS_PG_HOST = os.environ.get("QTS_PG_HOST", "127.0.0.1")
-QTS_PG_PORT = int(os.environ.get("QTS_PG_PORT", "15432"))
-QTS_PG_USER = os.environ.get("QTS_PG_USER", "quant_user")
-QTS_PG_PASS = os.environ.get("QTS_PG_PASS", "quant_pass")
-QTS_PG_DB = os.environ.get("QTS_PG_DB", "quant_trading")
-QTS_API_HOST = os.environ.get("QTS_API_HOST", "127.0.0.1")
-QTS_API_PORT = int(os.environ.get("QTS_API_PORT", "8000"))
-QTS_API_KEY = os.environ.get("QTS_API_KEY", "")  # 配了则带 X-API-Key
+# ── .env 加载（与 secrets.py 同模式; 环境变量优先）────────────
+_ENV: dict[str, str] = {}
+_env_path = Path(__file__).resolve().parent.parent / ".env"
+try:
+    for _line in _env_path.read_text(encoding="utf-8").splitlines():
+        _line = _line.strip()
+        if not _line or _line.startswith("#") or "=" not in _line:
+            continue
+        _k, _, _v = _line.partition("=")
+        _ENV[_k.strip()] = _v.strip().strip('"').strip("'")
+except OSError:
+    pass
+
+
+def _cfg(key: str, default: str) -> str:
+    return os.environ.get(key) or _ENV.get(key, default)
+
+
+# ── QTS 连接配置（.env / 环境变量覆盖）────────────────────────
+QTS_PG_HOST = _cfg("QTS_PG_HOST", "127.0.0.1")
+QTS_PG_PORT = int(_cfg("QTS_PG_PORT", "15432"))
+QTS_PG_USER = _cfg("QTS_PG_USER", "quant_user")
+QTS_PG_PASS = _cfg("QTS_PG_PASS", "quant_pass")
+QTS_PG_DB = _cfg("QTS_PG_DB", "quant_trading")
+QTS_API_HOST = _cfg("QTS_API_HOST", "127.0.0.1")
+QTS_API_PORT = int(_cfg("QTS_API_PORT", "8000"))
+QTS_API_KEY = _cfg("QTS_API_KEY", "")  # 配了则带 X-API-Key
 
 PG_TIMEOUT = 8
 API_TIMEOUT = 5
@@ -225,7 +243,13 @@ def api_signals(limit: int = 50) -> dict | None:
 
 
 def api_backtest_status() -> dict | None:
-    return _api("/api/v1/backtest/status")
+    d = _api("/api/v1/backtest/status")
+    if d is None:
+        return None
+    # QTS 返回 {success, data} 结构
+    if "data" in d:
+        return d["data"]
+    return d
 
 
 def api_account_summary() -> dict | None:
