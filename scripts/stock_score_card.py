@@ -59,6 +59,52 @@ REGIME_SCORE = {"强": W_SENTIMENT, "中": 10, "弱": 5, "未知": 0}
 # 板块强度 → 分数
 SECTOR_SCORE = {"强": W_SECTOR, "中": 10, "弱": 5}
 
+# ── Alpha101 增强层（P2-8, 2026-08-12）────────────────────────
+# 在六维100分基础上叠加 -10~+10 修正分（alpha 维度），不动原权重。
+# 达标因子清单由 alpha_eval 评估产出（ICIR/方向一致性过滤），缺省空=不启用。
+ALPHA_BONUS_RANGE = 10.0  # ±10 修正
+ALPHA_FACTORS_JSON = PROJECT_ROOT / ".workbuddy" / "data" / "alpha" / "alpha_factors_kept.json"
+
+
+def _load_kept_factors() -> list[str]:
+    """读取评估保留因子清单（无文件/异常 → 空=alpha层不启用）"""
+    try:
+        data = json.loads(ALPHA_FACTORS_JSON.read_text(encoding="utf-8"))
+        return [f for f in data.get("kept", []) if isinstance(f, str)]
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def alpha_bonus(code: str, kept: list[str] | None = None) -> tuple[float, dict]:
+    """Alpha101 增强分: 达标因子截面 rank 加权 → [-1,1] × ALPHA_BONUS_RANGE。
+
+    返回 (bonus, detail)；任何失败 → (0, {}) 不阻断（降级哲学一致）。
+    """
+    if kept is None:
+        kept = _load_kept_factors()
+    if not kept:
+        return 0.0, {}
+    try:
+        from alpha_factors import compute_factor
+
+        vals: dict[str, float] = {}
+        for f in kept:
+            s = compute_factor(code, f)
+            if s is not None and not s.empty and len(s.dropna()) >= 20:
+                vals[f] = float(s.dropna().iloc[-1])
+        if not vals:
+            return 0.0, {}
+        # 截面 rank: 各因子在候选内 rank → [0,1]，均值 → [-1,1] 归中
+        ranked = {f: vals[f] for f in vals}
+        import pandas as pd
+
+        r = pd.Series(ranked).rank(pct=True)
+        alpha_rank = float(r.mean())  # 0~1
+        bonus = round((alpha_rank - 0.5) * 2 * ALPHA_BONUS_RANGE, 1)
+        return bonus, {"alpha_rank": round(alpha_rank, 3), "factors": len(vals)}
+    except Exception:  # noqa: BLE001 - alpha 增强失败不阻断评分
+        return 0.0, {}
+
 
 def _fetch_kline(symbol: str, n: int = 40) -> list[dict] | None:
     """新浪日K: [{day, close, volume, high, low}]，失败返回 None"""
@@ -240,6 +286,12 @@ def analyze_stock(
         "vol_ratio": round(vol_ratio, 2) if vol_ratio is not None else None,
     }
 
+    # Alpha101 增强层（P2-8）: 达标因子截面 rank → ±10 修正分
+    # 基础K线全缺失(数据源降级)时跳过, 与全降级=0分语义一致
+    alpha_extra, alpha_detail = (0.0, {})
+    if kl:
+        alpha_extra, alpha_detail = alpha_bonus(code)
+
     # 板块强度（失败降级 0 分不阻断）
     sector_strength = None
     sector_name = None
@@ -259,7 +311,11 @@ def analyze_stock(
     bd["ma20"] = round(score_ma20(ma20_dist), 1)
     bd["sentiment"] = round(score_sentiment(regime), 1)
     bd["sector"] = round(score_sector(sector_strength), 1)
-    out["score"] = round(sum(bd.values()), 1)
+    base = sum(bd.values())
+    out["score"] = round(base + alpha_extra, 1)
+    if alpha_detail:
+        out["alpha_bonus"] = alpha_extra
+        out["alpha_detail"] = alpha_detail
     out["sector_name"] = sector_name
     out["sector_strength"] = sector_strength
     return out

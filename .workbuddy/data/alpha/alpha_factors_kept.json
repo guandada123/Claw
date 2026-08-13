@@ -1,0 +1,6 @@
+{
+  "generated": "2026-08-13",
+  "method": "300只采样 ICIR>0.3 + IC>0占比>55% + 样本外70/30验证 valid_ICIR>0.2",
+  "kept": ["alpha5", "alpha11", "alpha15"],
+  "note": "alpha5最强(IC 0.085/ICIR 0.544): 开盘vs10日均VWAP背离+收盘vs VWAP; alpha11: vwap-close 3日极值+量变化; alpha15: high-vol 相关3日秩和"
+}

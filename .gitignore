@@ -132,3 +132,5 @@ src/claw/strategies/reports/
 
 # Stray 文件防回归（源自两日变更审计）
 $DB
+.workbuddy/data/alpha/*
+!.workbuddy/data/alpha/alpha_factors_kept.json
