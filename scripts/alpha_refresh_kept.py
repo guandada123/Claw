@@ -36,7 +36,7 @@ def latest_report() -> Path | None:
 
 
 def extract_kept(report: Path) -> tuple[list[str], dict]:
-    """从报告 JSON 提取 (kept因子列表, 因子统计)。"""
+    """从报告 JSON 提取 (kept因子列表, 因子统计)，按 IC 强弱降序。"""
     data = json.loads(report.read_text(encoding="utf-8"))
     kept = [f for f in data.get("kept", []) if isinstance(f, str)]
     stats = {
@@ -46,6 +46,7 @@ def extract_kept(report: Path) -> tuple[list[str], dict]:
         and isinstance(data["factors"][f], dict)
         and data["factors"][f].get("ok")
     }
+    kept.sort(key=lambda f: stats.get(f, {}).get("ic", 0), reverse=True)
     return kept, stats
 
 

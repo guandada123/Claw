@@ -20,7 +20,6 @@ alpha_eval.py — Alpha101 因子评估与防过拟合（P2-8 落地，2026-08-1
 用法:
   python3 scripts/alpha_eval.py --codes 600584,002185 --factors alpha3,alpha101
   python3 scripts/alpha_eval.py --sample 300 --factors alpha1,alpha2,alpha3
-  python3 scripts/alpha_eval.py --sample 300 --o2o            # 只跑时间序IC(快)
 """
 
 from __future__ import annotations
@@ -218,12 +217,13 @@ def main():
             [round(x, 3) for x in ic.dropna().tail(60).tolist()] if not ic.empty else []
         )
 
-    # 保留清单: ICIR 达标 + 方向一致
+    # 保留清单: ICIR 达标 + 方向一致，按 IC 强弱降序（可读性，不影响评分卡 rank）
     kept = [
         f
         for f, m in report["factors"].items()
         if m.get("ok") and m.get("ic_pos", 0) >= IC_POS_RATIO
     ]
+    kept.sort(key=lambda f: report["factors"][f].get("ic", 0), reverse=True)
     report["kept"] = kept
     print(f"\n达标因子({len(kept)}): {kept}")
 
