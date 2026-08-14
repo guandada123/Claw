@@ -143,3 +143,48 @@
 - 单月回撤 > 10%：暂停交易 3 天，复盘调整
 - 连续 3 笔亏损：仓位降至 50%，直到恢复正收益
 - 绝不因追赶月度目标而放宽止损
+
+---
+
+## 板块强弱层（2026-08-14 落地，复盘「砍科技」后修复）
+
+> 背景：2026-08 初系统在「大级别板块启动前(08-03 绝对底部)」砍/弃科技与半导体。
+> 根因=板块强弱用「单日涨跌幅」判定（market_sentiment.py 旧逻辑），动量-only 在筑底区
+> 把最强 upcoming 板块判为最弱。本层用 QTS PG 多周期动量重定义板块强弱，并识别「早期转折」。
+
+### 运行时机（每天输出当前最强板块 Top3）
+- **选股流程第一步**：先刷新层再扫描。在选股 prompt 开头执行：
+  `source $CLAW/.workbuddy/scripts/automation_preamble.sh && $PYTHON $CLAW/scripts/sector_strength_layer.py --quiet`
+  （落库 `$CLAW/.workbuddy/data/sector_strength.json`；PG 不可用时跳过，回退全市场均匀扫）
+- 注：Claw 本地工作区按平台限制不托管新定时自动化，故由既有 Claw 托管的选股自动化每日选股前调用，等效「每日输出」。
+
+### 扫描范式切换：从「全市场均匀扫」→「强势板块内扫」
+- 选股候选生成**优先在 `scan_focus_codes` 内**（当前最强 Top3 + 早期转折板块的代表股，仅主板+创业板，禁科创/北交），而非全市场均匀枚举。
+- 取数调用 `sector_strength_layer.format_scan_focus_prompt()` 或直接 Read `data/sector_strength.json` 的 `scan_focus_sectors` / `scan_focus_codes`。
+
+### 三层强度定义（取代单日涨跌幅）
+- **强**：20 日动量 ≥ +8% 且 5 日动量 ≥ 0
+- **早期转折**：弱势板块中动量拐头（5d-20d 斜率 > +2%）或已站上 MA20 但 20d 仍为负 = **筑底反转 / 刚启动**
+- **中 / 弱**：介于两者之间
+
+### 🔴 铁律（禁回退）
+1. **早期转折板块 = 布局窗口，绝非「弱板块暂缓推荐」**：`advisor_rules.check_entry` 已对 `layer_early=True` 的板块降级为 warn 而非 block。选股不得对早期转折板块按「弱」回避——**这正是 08-03 砍在启动前的根因，禁止重犯**。
+2. **拥挤度预警（近5日板块涨幅>25%）必须为个股级**，禁止用于整个科技/半导体主题级阻断 re-entry（历史「科技板块全弃」即此误用）。
+3. 板块强度以 `data/sector_strength.json`（多周期动量）为准，单日涨跌幅仅作参考，不得单独据以判「弱」。
+
+### F3/F4/F6 补遗（实盘止损智能升级，2026-08-14 用户确认落地）
+> 配套 `.learnings/2026-08-14-cut-tech-timing-error.md`（★升级候选）。实盘(国金)长电+华天 100% 封测链，曾在大级别启动前(08-03 底)触发 -8% 止损建议（砍科技错误）。下列改动让纪律引擎「感知板块状态」而非机械止损。
+
+**F3 实盘接入相关性监控**：`correlation_monitor.py` 支持 `--source sim|user|both`（默认 sim 向后兼容）。
+- 实盘源 `min_holdings` 降至 **2**（同源双标如封测链通常仅 2 只，旧阈值 3 会漏报）。
+- 触发时提示：「减仓最相关一只，单只上限 50%→40%，保留单因子暴露，**勿对同源(同板块)双标『双杀』**」。
+- 调用示例：`.workbuddy/scripts/correlation_monitor.py --source user --verbose`（实测 600584+002185 相关 0.92 → WARN）。
+
+**F4 止损板块级低位例外**：`advisor_rules.check_timing` 的 A3 紧急减仓分支。
+- 若标的板块处「早期转折」（`sector_strength_layer` 的 `layer_early=True`＝筑底反转/刚启动）→ **降级为 warn「持有观察/低位不裸卖」**，不裸卖在周期性底部。
+- 仅当个股利空（非板块同步下挫）或层不可用/真弱势时，仍按 block 紧急减仓（**安全不误放行**）。
+- 🔴 铁律：持仓破 -8% 但板块早期转折 → 持有观察；勿裸卖在底。
+
+**F6 砍仓后回溯再进入 gate**：`advisor_rules.check_reentry_signal()` + `diagnose_holding` 集成。
+- 近期(≤30d)有卖出且板块转强(Top3)/早期转折 → 输出「🔄 再进入评估」提示，避免砍在底后彻底错过启动。
+- `diagnose` CLI 新增 `--trade-log <json>`（数组 `[{date,side,pnl}]`）喂交易历史激活；用户手动 QMT 成交未落 JSON 前该 gate 休眠（逻辑已就绪）。

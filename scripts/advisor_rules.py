@@ -86,6 +86,17 @@ try:
 except ImportError:
     MarketSentiment = None  # type: ignore[assignment,misc]
 
+# 板块强弱层（2026-08-14 落地，复盘「砍科技」后修复 R1/R2）
+# 用 QTS PG 多周期动量取代单日涨跌幅，并识别「早期转折」避免底部误杀。
+try:
+    from sector_strength_layer import (
+        SECTORS as _SSL_SECTORS,
+        get_sector_label as _ssl_get_sector_label,
+    )
+except ImportError:
+    _ssl_get_sector_label = None  # type: ignore[assignment,misc]
+    _SSL_SECTORS = {}  # type: ignore[assignment,misc]
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CALC_RSI = PROJECT_ROOT / "scripts" / "calc_rsi.py"
 USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
@@ -231,20 +242,38 @@ class AdvisorRules:
                 }
             )
         # 弱市 + 弱板块 → 提高拦截（追高在弱市/弱板块中风险成倍放大）
+        # 2026-08-14 修复(复盘「砍科技」R1/R2): 板块强弱以板块强弱层(多周期动量)为准，
+        # 且「早期转折」板块(筑底反转/刚启动)即使大盘弱也不 block，避免底部误杀。
         weak_market = regime == "弱"
-        weak_sector = bool(sector) and sector.get("strength") == "弱"
-        if weak_market and weak_sector:
+        # 优先用层的标签判定板块强弱；层不可用时回退旧单日 strength
+        if sector and sector.get("layer_label") is not None:
+            sector_strength_label = sector["layer_label"]
+        else:
+            sector_strength_label = sector.get("strength") if sector else None
+        weak_sector = bool(sector) and sector_strength_label == "弱"
+        sector_is_turning = bool(sector) and sector.get("layer_early") is True
+        if weak_market and weak_sector and not sector_is_turning:
             blocked = True
             flags.append(
                 {
                     "level": "block",
                     "rule": "S",
-                    "reason": f"🚫 大盘{regime} + 板块「{sector['sector']}」弱势 → 追高风险大，暂缓推荐"
+                    "reason": f"🚫 大盘{regime} + 板块「{sector.get('sector')}」弱势 → 追高风险大，暂缓推荐"
                     + (
-                        f"（板块当日{sector['change_pct']:+.2f}%）"
+                        f"（板块当日{sector.get('change_pct'):+.2f}%）"
                         if sector.get("change_pct") is not None
                         else ""
                     ),
+                }
+            )
+        elif (weak_market or weak_sector) and sector_is_turning:
+            # 早期转折：筑底反转/刚启动，弱势中反而是布局窗口，降级为提示而非拦截
+            flags.append(
+                {
+                    "level": "warn",
+                    "rule": "S",
+                    "reason": f"⚠️ 板块「{sector.get('sector')}」处早期转折(动量拐头/站上MA20)，"
+                    f"虽当前{sector_strength_label}但非追高区，可逢回调布局，不按弱板块暂缓",
                 }
             )
         # 情绪周期拦截（P1-5）: 冰点/退潮 新开仓风险大；狂热 防高位接盘
@@ -380,6 +409,7 @@ class AdvisorRules:
         days = (today - bdate).days
         cost = holding.get("avg_cost", 0)
         price = holding.get("current_price")
+        code = holding.get("code", "")
         if not cost or price is None:
             return flags
 
@@ -407,13 +437,32 @@ class AdvisorRules:
 
         # A3: 持仓≥7天且回撤≥-8% → 紧急减仓
         if days >= T7_STOPLOSS_DAYS and pnl_pct <= self.stop_loss:
-            flags.append(
-                {
-                    "level": "block",
-                    "rule": "A",
-                    "reason": f"🚨 持仓 {days}天 回撤 {pnl_pct * 100:+.1f}% 破止损线(-8%) → 紧急减仓",
-                }
-            )
+            # F4 (2026-08-14 复盘「砍科技」): 板块级低位例外
+            # 当下跌由板块级同步下挫(相关性事件)触发，且板块处于中段低位/刚启动
+            # (板块强弱层 early 信号＝筑底反转/刚启动)，降级为「持有观察/低位不裸卖」，
+            # 避免砍在周期性底部（正是 8 月初「砍科技」的同类错误）。
+            layer = self._sector_layer_info(code) if code else None
+            if layer and layer.get("early") is True:
+                flags.append(
+                    {
+                        "level": "warn",
+                        "rule": "A",
+                        "reason": (
+                            f"⚠️ 持仓 {days}天 回撤 {pnl_pct * 100:+.1f}% 破止损线，但所属板块"
+                            f"「{layer['sector']}」处早期转折(动量拐头/站上MA20，RPS{layer['rps']})，"
+                            f"疑似板块级同步下挫的周期性低位(非个股利空) → 降级为『持有观察/低位不裸卖』，"
+                            f"待板块确认反转再处置，勿砍在底部"
+                        ),
+                    }
+                )
+            else:
+                flags.append(
+                    {
+                        "level": "block",
+                        "rule": "A",
+                        "reason": f"🚨 持仓 {days}天 回撤 {pnl_pct * 100:+.1f}% 破止损线(-8%) → 紧急减仓",
+                    }
+                )
 
         return flags
 
@@ -495,6 +544,30 @@ class AdvisorRules:
             )
 
         return result
+
+    def check_reentry_signal(self, code: str, today: date | None = None) -> dict | None:
+        """F6 (2026-08-14 复盘「砍科技」): 砍仓后回溯再进入 gate。
+
+        若原砍仓标的所属板块当前进入 Top3 强或早期转折(layer)，给出『再进入评估』提示，
+        避免砍在底部后彻底错过板块启动。需配合 trade_log 中的近期卖出(见 diagnose_holding)。
+        """
+        today = today or date.today()
+        layer = self._sector_layer_info(code)
+        if not layer:
+            return None
+        strong = layer.get("label") == "强"
+        early = layer.get("early") is True
+        if strong or early:
+            return {
+                "level": "info",
+                "rule": "B",
+                "reason": (
+                    f"🔄 再进入评估: 原砍仓标的「{code}」所属板块「{layer['sector']}」"
+                    f"当前{layer['label']}(RPS{layer['rps']})，板块性机会已现，"
+                    f"可重新评估建仓(按规则E重新体检价，勿追高)"
+                ),
+            }
+        return None
 
     # ════════════════════════════════════════════════════════════
     # 规则 D: 盈亏比预演卡片
@@ -883,17 +956,71 @@ class AdvisorRules:
         return None
 
     def _get_sentiment(self, code: str | None = None) -> dict | None:
-        """市场情绪上下文（大盘环境 + 个股板块强度）。降级: 引擎缺失/失败 → None"""
+        """市场情绪上下文（大盘环境 + 个股板块强度）。降级: 引擎缺失/失败 → None
+
+        2026-08-14 增强：若板块强弱层可用，将层结论(label/early/rps/mom20)合并进
+        ctx["sector"]，覆盖旧单日涨跌幅判定，避免筑底区把「早期转折」板块误判为「弱」。
+        """
         if MarketSentiment is None:
             return None
         try:
             ms = MarketSentiment()
             ctx: dict = {"regime": ms.market_regime()}
             if code:
-                ctx["sector"] = ms.sector_strength(code)
+                sector = ms.sector_strength(code) or {}
+                # 合并板块强弱层（多周期动量 + 早期转折），降级时 sector 仅含旧单日字段
+                if _ssl_get_sector_label is not None:
+                    layer = _ssl_get_sector_label(code)
+                    if layer:
+                        sector["layer_label"] = layer["label"]
+                        sector["layer_early"] = layer["early"]
+                        sector["layer_rps"] = layer["rps"]
+                        sector["layer_mom20"] = layer["mom20"]
+                        sector["layer_ma20_pos"] = layer["ma20_pos"]
+                        sector["note"] = (
+                            sector.get("note", "")
+                            + f" | 板块强弱层:{layer['label']}(RPS{layer['rps']},20d{layer['mom20']:+.1%})"
+                        ).strip(" |")
+                ctx["sector"] = sector
             return ctx
         except Exception:
             return None
+
+    # ── 板块强弱层查询（带缓存，避免逐持仓重算 PG）─────────────────
+    def _sector_layer_info(self, code: str) -> dict | None:
+        """返回个股所属板块的强弱层结论 {sector,label,early,rps,mom20}。
+
+        优先读当日快照 data/sector_strength.json（避免每只持仓各打一次 PG），
+        缺失/非当日再回退 get_sector_label 实时 compute（仍降级 None 不阻断）。
+        """
+        if not code:
+            return None
+        cache_path = PROJECT_ROOT / ".workbuddy" / "data" / "sector_strength.json"
+        try:
+            if cache_path.exists():
+                data = json.loads(cache_path.read_text(encoding="utf-8"))
+                if data.get("report_date") == date.today().isoformat():
+                    sec = next(
+                        (s for s, cs in _SSL_SECTORS.items() if code in cs), None
+                    )
+                    if sec:
+                        row = next(
+                            (x for x in data.get("sectors", []) if x["sector"] == sec), None
+                        )
+                        if row:
+                            return {
+                                "sector": sec,
+                                "label": row["label"],
+                                "early": row["early"],
+                                "rps": row["rps"],
+                                "mom20": row["mom20"],
+                            }
+        except Exception:
+            pass
+        # 回退：实时 compute（PG 不可用时返回 None）
+        if _ssl_get_sector_label is not None:
+            return _ssl_get_sector_label(code)
+        return None
 
     # ════════════════════════════════════════════════════════════
     # 组合诊断（盘中监控主入口）
@@ -938,6 +1065,17 @@ class AdvisorRules:
             if rb.get("triggered"):
                 for r in rb["reasons"]:
                     flags.append({"level": "block", "rule": "B", "reason": r})
+            # F6: 砍仓后回溯再进入——近期有卖出且板块已转强/早期转折 → 再进入评估
+            recent = [
+                t
+                for t in trade_log
+                if (today - datetime.strptime(t["date"], "%Y-%m-%d").date()).days
+                <= REBUY_COOLING_DAYS
+            ]
+            if any(t.get("side") == "sell" for t in recent):
+                reentry = self.check_reentry_signal(code, today)
+                if reentry:
+                    flags.append(reentry)
 
         # D: 盈亏比（若有入场价）
         rr_card = None
@@ -1166,6 +1304,11 @@ def main():
     p_diag = sub.add_parser("diagnose", help="持仓全规则诊断(A/C/B/D)")
     p_diag.add_argument("--portfolio", default=str(USER_PORTFOLIO))
     p_diag.add_argument("--code", default=None, help="只诊断指定代码")
+    p_diag.add_argument(
+        "--trade-log",
+        default=None,
+        help="交易历史JSON路径(数组[{date,side,pnl}])，用于规则B抄底闸门与F6再进入评估",
+    )
 
     args = parser.parse_args()
 
@@ -1187,6 +1330,14 @@ def main():
         holdings = data.get("holdings", [])
         if args.code:
             holdings = [h for h in holdings if h.get("code") == args.code]
+        # 规则B/F6 交易历史（可选）
+        trade_log: list[dict] = []
+        if args.trade_log:
+            try:
+                with open(args.trade_log, encoding="utf-8") as f:
+                    trade_log = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                trade_log = []
         # 组合级规则（H日亏熔断 + I行业集中度）附加到每只持仓
         # 保持数组结构向后兼容（automation-1784039316540 按数组解析 flags/risk_reward）
         try:
@@ -1204,7 +1355,7 @@ def main():
             concentration = {"sectors": {}, "warns": [], "blocks": [], "note": "集中度数据不可用"}
         out = []
         for h in holdings:
-            diag = advisor.diagnose_holding(h)
+            diag = advisor.diagnose_holding(h, quotes=None, trade_log=trade_log)
             diag["stop_trading_today"] = bool(breaker.get("triggered"))
             if breaker.get("triggered"):
                 diag["flags"].append(

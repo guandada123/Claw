@@ -12,7 +12,9 @@ correlation_monitor.py — 持仓相关性风险监控（08-05 新增，B1 优�
   UNKNOWN         数据失败
 
 用法：
-  python3 correlation_monitor.py                # 从模拟盘 portfolio.json 读持仓
+  python3 correlation_monitor.py                      # 模拟盘(默认)
+  python3 correlation_monitor.py --source user        # 实盘(国金)持仓, 同源双标也预警
+  python3 correlation_monitor.py --source both        # 模拟+实盘合并去重
   python3 correlation_monitor.py --codes 600036,601668  # 指定代码
   python3 correlation_monitor.py --threshold 0.7 --verbose
 
@@ -29,8 +31,14 @@ import urllib.request
 
 KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={sym},day,,,60,qfq"
 THRESHOLD = 0.7  # 相关性预警阈值
-MIN_HOLDINGS = 3  # 涉及持仓数 ≥3 才触发（B1 规则）
-PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/simulation/portfolio.json"
+MIN_HOLDINGS = 3  # 涉及持仓数 ≥3 才触发（B1 规则，模拟盘多标）
+SIM_PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/simulation/portfolio.json"
+USER_PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/user/portfolio.json"
+PORTFOLIO = SIM_PORTFOLIO  # 默认读模拟盘（向后兼容旧调用）
+
+# F3 (2026-08-14 复盘「砍科技」): 实盘(国金)单账户同源标的(如封测链 长电+华天)
+# 通常只有 2 只，故实盘源 min_holdings 降至 2，避免「同源双标双杀」漏报。
+REAL_MIN_HOLDINGS = 2
 
 
 def _to_symbol(code: str) -> str:
@@ -72,8 +80,10 @@ def _pearson(a: list[float], b: list[float]) -> float | None:
     return num / den
 
 
-def get_correlation_state(codes: list[str]) -> tuple[str, list[tuple[str, str, float]]]:
-    """返回 (state, high_pairs)"""
+def get_correlation_state(
+    codes: list[str], min_holdings: int = MIN_HOLDINGS, threshold: float = THRESHOLD
+) -> tuple[str, list[tuple[str, str, float]]]:
+    """返回 (state, high_pairs)。min_holdings/threshold 可覆盖默认。"""
     series: dict[str, list[float]] = {}
     for c in codes:
         try:
@@ -91,35 +101,79 @@ def get_correlation_state(codes: list[str]) -> tuple[str, list[tuple[str, str, f
     for i in range(len(keys)):
         for j in range(i + 1, len(keys)):
             r = _pearson(series[keys[i]], series[keys[j]])
-            if r is not None and r > THRESHOLD:
+            if r is not None and r > threshold:
                 high_pairs.append((keys[i], keys[j], round(r, 2)))
                 involved.add(keys[i])
                 involved.add(keys[j])
 
-    if high_pairs and len(involved) >= MIN_HOLDINGS:
+    if high_pairs and len(involved) >= min_holdings:
         return "WARN", high_pairs
     return "NORMAL", high_pairs
 
 
-def main() -> int:
-    codes: list[str] = []
-    verbose = "--verbose" in sys.argv
-    if "--codes" in sys.argv:
-        idx = sys.argv.index("--codes")
-        codes = [c.strip() for c in sys.argv[idx + 1].split(",") if c.strip()]
-    else:
-        with open(PORTFOLIO) as f:
-            sim = json.load(f)
-        pos = sim.get("positions", {})
-        codes = [c for c in pos if c.isdigit()]
+def _read_portfolio_codes(path: str) -> list[str]:
+    """从 portfolio.json 提取持仓代码。兼容 positions(dict) 与 holdings(list) 两种结构。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+    pos = d.get("positions") or d.get("holdings") or {}
+    if isinstance(pos, dict):
+        return [c for c in pos if str(c).isdigit()]
+    if isinstance(pos, list):
+        return [str(h.get("code", "")).strip() for h in pos if str(h.get("code", "")).isdigit()]
+    return []
 
-    state, pairs = get_correlation_state(codes)
+
+def main() -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(description="持仓相关性风险监控")
+    ap.add_argument(
+        "--source",
+        choices=["sim", "user", "both"],
+        default="sim",
+        help="持仓源: sim=模拟盘(默认) / user=实盘(国金) / both=合并去重",
+    )
+    ap.add_argument("--codes", default=None, help="直接指定代码, 逗号分隔(覆盖 --source)")
+    ap.add_argument("--threshold", type=float, default=THRESHOLD)
+    ap.add_argument("--verbose", action="store_true")
+    args = ap.parse_args()
+
+    codes: list[str] = []
+    sources_used: list[str] = []
+    if args.codes:
+        codes = [c.strip() for c in args.codes.split(",") if c.strip()]
+    else:
+        if args.source in ("sim", "both"):
+            codes += _read_portfolio_codes(SIM_PORTFOLIO)
+            sources_used.append("sim")
+        if args.source in ("user", "both"):
+            codes += _read_portfolio_codes(USER_PORTFOLIO)
+            sources_used.append("user")
+        # 去重保序
+        seen = set()
+        codes = [c for c in codes if not (c in seen or seen.add(c))]
+
+    # 实盘单账户同源双标(如封测链)通常只有 2 只 → 降低触发门槛
+    min_holdings = REAL_MIN_HOLDINGS if "user" in sources_used and "sim" not in sources_used else MIN_HOLDINGS
+    state, pairs = get_correlation_state(codes, min_holdings=min_holdings, threshold=args.threshold)
     print(state, flush=True)
-    if verbose:
-        print(json.dumps({"codes": codes, "high_pairs": pairs}, ensure_ascii=False), flush=True)
+    if args.verbose:
+        print(
+            json.dumps(
+                {"source": args.source, "codes": codes, "high_pairs": pairs},
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
         if state == "WARN":
+            involved = len({c for p in pairs for c in p[:2]})
             print(
-                f"⚠️ 高相关预警：{len(pairs)} 对相关>0.7（{len({c for p in pairs for c in p[:2]})}只），单只上限50%→40%",
+                f"⚠️ 高相关预警：{len(pairs)} 对相关>{args.threshold}（涉及 {involved} 只，源={args.source}）。"
+                f"→ 减仓最相关的一只，单只上限50%→40%，保留单因子暴露；"
+                f"勿对同源(同板块)双标『双杀』(复盘「砍科技」F3)",
                 file=sys.stderr,
                 flush=True,
             )
