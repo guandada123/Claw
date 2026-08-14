@@ -37,6 +37,7 @@ def _candidates(*names):
 HOLDINGS_SCRIPT = next((p for p in _candidates("fetch_holdings_quotes.py") if os.path.exists(p)), None)
 NORTH_SCRIPT = next((p for p in _candidates("fetch_northbound_flow.py") if os.path.exists(p)), None)
 ADVISOR_SCRIPT = next((p for p in _candidates("advisor_rules.py") if os.path.exists(p)), None)
+SECTOR_LAYER_SCRIPT = next((p for p in _candidates("sector_strength_layer.py") if os.path.exists(p)), None)
 PUSH_SH = next((p for p in _candidates("push_feishu.sh") if os.path.exists(p)), None)
 
 
@@ -105,6 +106,14 @@ def main():
         if n_err:
             print(f"  {n_err}")
     rules, a_err = (None, None)
+    # ── 板块强弱层刷新（F4 可靠性）：诊断前确保消费当日快照 ──
+    # 失败不阻断，advisor_rules 会回退实时 compute（PG 不可用时再回退旧逻辑）。
+    if SECTOR_LAYER_SCRIPT:
+        _, sl_err = _run(SECTOR_LAYER_SCRIPT, "--quiet", claw=claw)
+        if sl_err:
+            print(f"  ⚠️ 板块强弱层刷新失败（F4 回退实时 compute）: {sl_err[:120]}")
+    else:
+        print("  ⚠️ sector_strength_layer.py 未找到，F4 回退实时 compute")
     if ADVISOR_SCRIPT:
         out, err = _run(ADVISOR_SCRIPT, "diagnose", "--portfolio", portfolio, claw=claw)
         rules, a_err = _load_json(out, "advisor_rules")
