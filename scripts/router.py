@@ -53,9 +53,14 @@ except ImportError:
 import os
 
 try:
-    from secrets import CATROUTER_API_KEY, CATROUTER_BASE_URL, DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL
+    from legacy_secrets import (
+        CATROUTER_API_KEY,
+        CATROUTER_BASE_URL,
+        DEEPSEEK_API_KEY,
+        DEEPSEEK_BASE_URL,
+    )
 except ImportError:
-    # 没有 secrets.py → 从环境变量读取（CI / Docker 场景）
+    # 没有 legacy_secrets.py → 从环境变量读取（CI / Docker 场景）
     DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
     CATROUTER_API_KEY = os.environ.get("CATROUTER_API_KEY", "")
     DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
@@ -383,7 +388,20 @@ def _parse_success_response(
     prices = MODEL_PRICES.get(model_key, {"input": cost_per_10k / 2, "output": cost_per_10k})
     cost_cny = (input_tokens * prices["input"] + output_tokens * prices["output"]) / 10000
 
-    response_text = body.get("choices", [{}])[0].get("message", {}).get("content", "")
+    _msg = body.get("choices", [{}])[0].get("message", {})
+    response_text = _msg.get("content", "") or ""
+    # 🔴 08-13 修复（对齐 debate_engine 08-11 兜底）：proxy 对 deepseek-v4-flash 注入
+    # THINK_BUDGET=high → 主 content 为空、仅 reasoning_content 有值（reasoning-only 降级）。
+    # 兜底：content 为空时回退取 reasoning_content 当答案，避免 JSON 解析失败误判为死链。
+    # 仅影响 content 为空的失败路径；content 正常时行为完全不变（共享所有 call_llm 调用方）。
+    if not response_text:
+        _rc = _msg.get("reasoning_content", "") or ""
+        if _rc:
+            response_text = _rc
+            print(
+                f"   [router] ⚠️ content 为空，已回退 reasoning_content (len={len(response_text)})",
+                flush=True,
+            )
 
     _try_log_call(model, input_tokens, output_tokens, task, project, hit_tokens, miss_tokens)
 
@@ -405,6 +423,7 @@ def call_llm(
     system: str | None = None,
     temperature: float = 0.3,
     max_tokens: int = 4096,
+    extra_body: dict | None = None,
     task: str = "",
     project: str = "Claw",
 ) -> dict:
@@ -498,6 +517,10 @@ def call_llm(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    # 🔴 08-13 新增：透传 extra_body（如 {"thinking": {"type": "disabled"}}），
+    # 让结构化 JSON 抽取类调用可关闭代理注入的 thinking，提升 content 稳定性。
+    if extra_body:
+        payload["extra_body"] = extra_body
 
     url = f"{base_url}/chat/completions"
     data = json.dumps(payload).encode("utf-8")
