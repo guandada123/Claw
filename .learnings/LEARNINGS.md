@@ -26,3 +26,39 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **处置**: ①RSS_RESTART_MB 恢复 8500(修复二误改回10000) ②memwatch 强杀识别升级"告警+自动拉起" ③unified_ops_center MEMWATCH_TARGET_MB 10000→8500 消除拉锯 ④bump 前检查 2min 内"触发重启"日志(do_restart 进行中)即跳过, 防打断。
 - **防复犯**: 单一配置源(参数进 launchd plist EnvironmentVariables, 脚本只读逻辑) + 巡检中枢改 plist 而非 sed 脚本 + 写前 2min 护栏 + 调参先看 memwatch 日志实锤。
 - **去重**: 首次
+
+### 2026-08-13 知识库LLM阅读层误杀新文入死链黑名单（correction → ★升级候选）
+- **类型**: correction
+- **现象**: 08-13 10:49 知识库自动化待读1篇《150元/股，很多人担心会破发》(猫笔刀)，LLM 解析 JSON 连败3次 → 误入死链黑名单(490df5942c10)，read=0 静默丢失正经文。
+- **根因**(日志实锤): 代理 `🧠 Thinking mode injected: budget=high` 给 deepseek-v4-flash 注入 thinking → content 空仅 reasoning_content 有值(reasoning-only)。read_wx_articles 经 router.call_llm 只取 content → JSON 解析失败。debate_engine 已加 reasoning_content 兜底，但 read_wx_articles 未覆盖；且 reasoning_content 是思考链非 JSON，兜底仍解析失败 → 触发死链黑名单误判。
+- **处置**: ①router._parse_success_response content空回退reasoning_content(防御) ②proxy 尊重客户端显式 extra_body.thinking(per-request opt-out，不覆盖) ③router.call_llm 新增 extra_body 透传 ④read_wx_articles 传 extra_body={"thinking":{"type":"disabled"}} 关闭思考(文章JSON抽取无需推理) ⑤launchctl 重启代理加载新逻辑 ⑥解黑名单+清失败计数→重读→read=1/actionable=1/signals=3→推送飞书。
+- **防复犯**: 凡结构化 JSON 抽取类自动化(deepseek-v4-flash)必须 per-request 关闭 thinking；代理注入逻辑改「尊重客户端显式设置」而非无条件覆盖。
+- **去重**: 与 08-11 辩论降级同根因(THINK_BUDGET=high)，但本例暴露三处新增缺口——①未覆盖调用方(read_wx_articles) ②reasoning_content 兜底对 JSON 任务无效 ③失败即入死链黑名单致正经文永久丢失。
+
+### 2026-08-13 watchdog 误归因：关键失败真凶是 Marvis 外部重启，非 memwatch（correction → ★升级候选）
+- **类型**: correction
+- **现象**: 08-13 全天 8+ 关键自动化(投顾策略执行/午间选股/助理实盘监控)在 10:55–13:27 高峰时段"会话未拉起（排队/资源紧张）"静默失败。watchdog digest 自动归因"根因=memwatch 内存看门狗超阈值重启主进程，必要时自动提阈值"。
+- **根因**(日志实锤): ①`workbuddy_memwatch.log` 今日(08-13) **零条 `==> 触发重启`**(memwatch 最后真实触发是 08-12 14:45)，即 memwatch 根本没动。②今日 8 次重启全是 `workbuddy_graceful_restart.sh`(日志前缀 `[graceful-restart]`, 原因=`外部触发`默认无 --reason)，时间戳 08:11/08:52/09:33/10:33/10:52/11:22/12:22/19:23。③该脚本注释写明"供外部调度方(马维斯/Marvis 检测到内存压力)调用"，且 `launchctl` 显示 `com.tencent.mac.marvis.app` 仍在运行 → 真凶是 **Marvis 每小时外部重启 WB 主进程**，打断高峰自动化 session 队列。**memwatch 阈值(8500MB)与此无关，提阈值无效**。④watchdog 脚本 `automation_failure_watchdog.py` 第5-7行 + 第76行**硬编码**"元凶=memwatch，Marvis 已关"——注释已与现状相悖(Marvis daemon 仍在跑且是实际外部重启方)，致 digest 持续误归因并误导"提 memwatch 阈值"。
+- **处置**: 提出修正——①Marvis 在高峰(09:00–16:30)避让重启或改由调用传 `--reason` 以便溯源 ②修正 watchdog 硬编码归因(去掉"Marvis已关"误述，根因判定改为读日志实锤而非写死)。
+- **防复犯**: 根因判定必须读 `workbuddy_memwatch.log` 的 `==> 触发重启` 实锤，而非脚本硬写；"会话未拉起"类失败优先排查外部重启方(Marvis/launchd)，非内存守护。
+- **去重**: 与 08-12「双自动化并发改脚本致停机」同涉 memwatch 体系，但本例是**归因错位**(把 Marvis 重启算到 memwatch 头上)，非并发冲突；watchdog 分类逻辑需与实际日志对齐。
+- **★08-13 20:44 深化(实锤 daemon 孤儿残留致 9h 全挂)**: 失败窗口实为 **10:55:25–19:59:26 共 58 次失败 0 成功**(非 13:27 结束)。深挖三实锤：①10:52:13 外部重启降级 TERM 强杀 8 进程(364/99765/99766/99803/99804/99811/99931/99938)，主进程 99766 被杀，但 **daemon-app-server 99824(10:34 启动)因"绝不 KILL daemon"保护幸存成孤儿(PPID=1)**；②此后 11:22/12:22/19:23 三次重启**只换主进程、不换 daemon**，daemon 99824 一直带病(stdio 管道已断) → 自动化持续 `Run did not create a session within 60000ms`，重启无法自愈；③**20:02:43 用户手动完整重启**(memwatch 无记录，主进程 73304 + 新 daemon 73361)后 20:03:45 立即恢复。**结论: 重启本身不是致命伤，致命的是 daemon-app-server 未随主进程重建，孤儿 daemon 阻断调度器**。当前残留: 99824 仍存活与 73361 并存，应清理。
+- **★22:44 修复闭环(三处落地, 防复犯)**: ①`watch_workbuddy_mem.sh` + `workbuddy_graceful_restart.sh` 的 `wb_killable_procs` 移除 `daemon-app-server-entry` 排除(保留 `sidecar-entry`/`--serve`; daemon=调度器可清理, sidecar=对话载体不可动), 备份 .bak-20260813; ②`graceful_restart.sh` 新增 `mem_threshold_hit()` 内置护栏: 外部调用先自检(WB树>8500MB 或 整机可用<512MB)才执行, 否则打日志拒绝——dry-run 实测 WB=3902MB/可用=3217MB 拦截生效, **证明 Marvis 定时任务 id=26(每30min LLM 检测)今日 7 次触发全为误判**(与 memwatch 重启时间 08:52/10:52/11:22/12:22/19:23 精确对应, 记录 869~891); ③watchdog `automation_failure_watchdog.py` 归因文案改"会话未拉起(建会话超时: 资源争抢或调度器/会话服务故障)"+ 新增全失败窗口识别(关键失败≥2h 且窗口内 0 成功 → 提示系统级故障非资源争抢), py_compile + dry-run 验证通过; ④memwatch kickstart reload 加载新逻辑, 当前仅 1 个健康 daemon 73361 无孤儿。**遗留**: Marvis 任务 id=26 每30min 仍执行(护栏已兜底), 彻底停用需在腾讯 Marvis 客户端删除该定时任务, 勿直接改其数据库。
+
+### 2026-08-13 投顾【盘中】策略执行(小时级)冗余且自锁=无效自动化（insight）
+- **类型**: insight
+- **现象**: 巡检报告把 automation-1784039339114(📈【盘中】投顾策略执行, rrule=HOURLY)的 19:03/19:59 会话失败列为"2 关键失败"。核实发现该自动化**冗余且自阻塞**，其失败零产物损失。
+- **根因**(日志/DB 实锤): ①真实盘中交易执行由 5 个窗口自动化(1784506600526/634/523/665/706, rrule=BYHOUR=9,10,11,13,14;BYMINUTE=10, **prompt 内无 check_schedule/done_schedule**)承担,盘中直接跑 PHASE3。②本小时级自动化**独自**用 `check_schedule "投顾策略执行"` 日锁;HOURLY rrule 令首个凌晨运行(~01:34)抢到日锁,之后所有盘中运行命中"已锁"退出,且凌晨那次因 prompt 写明"非交易时段→跳过执行"——**其 PHASE3 交易执行永不在交易时段发生**。③故该自动化 24 次/日运行基本是 no-op;今日 19:03/19:59 会话失败本就会命中日锁跳过,无交易需补跑。
+- **处置**: 标记冗余;建议删除该小时级自动化或改 rrule 为 5 窗口(与真实执行器对齐),消除 24 次/日空跑与"关键失败"误报。真实执行器今日 09:10/10:10 成功、11:10/13:10/14:10 因舰队故障漏跑,但今日 5 持仓均未触发止损/止盈(中国建筑收 4.44>4.40 减半阈值),无实际交易损失。
+- **防复犯**: 自动化 rrule 须与 prompt 文档频率一致;带日锁的自动化禁止 HOURLY(否则凌晨抢锁阻塞自身);新增自动化前先查是否已有同功能窗口自动化。
+- **去重**: 与同日本条 Marvis→daemon 孤儿舰队故障是不同问题——本例是该自动化**自身配置缺陷**,非本次故障受害者。
+- **★校正**: 同日本条"watchdog digest 误归因 memwatch"已过时——watchdog 08-13 已修正运行时逻辑(328–333 行),本次 digest 实际准确输出"外部触发，非内存超阈值";仅第 76 行分类函数仍硬编码"memwatch 内存看门狗,非 Marvis"残留,可在下次维护时清掉。
+
+### 2026-08-14 scripts/secrets.py 遮蔽标准库致 numpy 全线 ImportError（correction → ★升级候选）
+- **类型**: correction
+- **现象**: Claw venv 跑 `alpha_eval.py` 报 `ImportError: cannot import name randbits`(numpy/random/bit_generator.pyx)。`python -c "import numpy,pandas"` 单独跑成功、脚本跑必失败;重装 numpy/清 __pycache__ 均无效。
+- **根因**(隔离实验实锤): `scripts/secrets.py`(旧密钥兼容层)与 Python 标准库 `secrets` **同名**。脚本运行时 `scripts/` 自动进入 `sys.path[0]`,numpy.random 内部 `import secrets` 解析到 Claw 的 secrets.py(无 randbits 符号)→ C 扩展 init 失败。判定实验: `sys.path.insert(0, scripts)` 后 `import numpy.random` 必挂;不加必过;`import secrets` 打印 `__file__` 指向 scripts/secrets.py 证实。
+- **处置**: ①重命名 `scripts/secrets.py → legacy_secrets.py`(git mv 不可用,文件未跟踪,直接 mv),`router.py` 的 `from secrets import ...` 同步改 `from legacy_secrets import ...`;②清 scripts/__pycache__/secrets*.pyc;③连带补 `requirements.txt`+`pyproject.toml` 的 `scipy>=1.10`(alpha_eval Spearman IC 依赖缺失,同批暴露);④420 tests passed 零回归 + ruff 全绿。
+- **防复犯**: 项目脚本目录内**禁止出现标准库同名模块**(secrets/random/sys/os/subprocess...),尤其是被 numpy/pandas 内部依赖的模块;新增脚本前 `python -c "import <name>; print(__file__)"` 自查。numpy 相关 ImportError 优先怀疑 sys.path 遮蔽而非 numpy 本体。
+- **去重**: 与 08-13 其它 numpy/环境类故障不同源(那是依赖缺失 scipy);本例是**命名遮蔽**,scipy 是暴露出的第二个问题。
+- **★升级候选**: 建议加 CI 检查——grep 脚本目录内是否存在与 stdlib 同名的 .py 文件。
