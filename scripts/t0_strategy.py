@@ -44,6 +44,7 @@ from typing import Any
 
 # ── 规则阈值常量 ────────────────────────────────────────────────
 T_POSITION_RATIO = 0.10  # T仓 = 底仓市值 10%（笔记: 1000万拿100万）
+LOT_SIZE = 100  # A股最小交易单位=1手=100股，且必须为100整数倍（2026-08-14 整手约束修复）
 MAX_T_PER_DAY = 2  # 日内做T ≤2 次（合并指南"日≤2次"与笔记"分5次"→ 取严）
 T_STOP_LOSS_PCT = 0.03  # 单次T浮亏 ≥3% 强制止损（笔记: 日内T亏3个点认错离场）
 T_COST_SAFETY_PCT = 0.02  # 正T买入价需低于持仓成本 2% 以上（指南安全垫）
@@ -177,8 +178,41 @@ class T0Strategy:
             )
             result["summary"] = "🚫 T仓超底仓，违反铁律，停止做T"
             return result
-        result["t_position_value"] = round(t_value, 2)
-        result["t_position_shares"] = round(t_value / price) if price else None
+        result["t_position_value"] = round(t_value, 2)  # T仓额度(底仓市值×ratio)
+        # ── A股整手约束（最小1手=100股，且须为100整数倍）── 2026-08-14 修复
+        # 按额度算理想股数 → 整手取整；不足1手时至少取1手(否则无法成交)；不超底仓。
+        result["t_position_shares"] = None
+        result["t_lot_cost"] = None
+        if price and price > 0:
+            raw_shares = t_value / price
+            lot = int(round(raw_shares / LOT_SIZE)) * LOT_SIZE
+            lot = max(lot, LOT_SIZE)  # 至少1手，否则无法成交
+            max_lot = (shares // LOT_SIZE) * LOT_SIZE  # 底仓向下取整到整手
+            lot = min(lot, max_lot)
+            if lot >= LOT_SIZE:
+                result["t_position_shares"] = lot
+                result["t_lot_cost"] = round(lot * price, 2)
+                # 整手导致占比高于1/10纪律时提示（小底仓不可避免，仅告知不拦截）
+                if shares > 0 and lot / shares > self.ratio + 1e-9:
+                    result["flags"].append(
+                        {
+                            "level": "info",
+                            "rule": "LOT",
+                            "reason": (
+                                f"整手限制: T仓{lot}股(占底仓{lot / shares * 100:.0f}%)"
+                                f"高于1/10纪律({self.ratio * 100:.0f}%)，"
+                                f"因A股最小1手=100股已整手取整"
+                            ),
+                        }
+                    )
+            else:
+                result["flags"].append(
+                    {
+                        "level": "info",
+                        "rule": "LOT",
+                        "reason": "底仓不足1手(100股)，无法做整手T交易",
+                    }
+                )
 
         # R3: 频率上限（日≤2次，防佣金侵蚀利润）
         if t_count_today >= self.max_per_day:
@@ -343,7 +377,13 @@ class T0Strategy:
 
         # 汇总可读文本（供卡片）
         parts = [f"{name or code} {direction}"]
-        parts.append(f"T仓额度¥{result['t_position_value']:.0f}(底仓{self.ratio * 100:.0f}%)")
+        if result.get("t_position_shares"):
+            parts.append(
+                f"T仓{result['t_position_shares']}股(¥{result['t_lot_cost']:.0f}, "
+                f"占底仓{result['t_position_shares'] / shares * 100:.0f}%)"
+            )
+        else:
+            parts.append(f"T仓额度¥{result['t_position_value']:.0f}(底仓{self.ratio * 100:.0f}%)")
         if buy_below:
             parts.append(f"买入≤¥{buy_below}")
         if vwap_note:

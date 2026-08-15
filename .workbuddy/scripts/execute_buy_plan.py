@@ -45,6 +45,11 @@ AFTERNOON_OPEN = time(13, 0)
 AFTERNOON_CLOSE = time(14, 55)
 MARKET_STEADY_THRESHOLD = -0.5  # 上证涨跌幅%下限，低于此视为不稳
 
+# A股整手约束（2026-08-14 整手审计整改）：最小交易单位=1手=100股，
+# 买入股数须为100整数倍且≥100；sim_trade.py cmd_buy 已 fail-closed 拒绝非整手，
+# 这里在消费端先规整，避免计划写入非整手导致真实下单被拒（自动化静默失败）。
+LOT_SIZE = 100
+
 # ── name 字段护栏（防选股理由污染持仓 name）───────────────
 # 选股流程曾把整段理由写入 buy_plan.name（如"午间确认早盘选中...回踩买区触发"），
 # 落库后污染 portfolio.positions[name]，导致持仓名变成选股文案。
@@ -216,6 +221,15 @@ def do_buy(plan: dict, price: float, execute: bool) -> dict | None:
     """调用 sim_trade.py buy。execute=False 时返回模拟结果不落盘"""
     code = plan["code"]
     shares = int(plan["shares"])
+    # 整手约束深度防御（2026-08-14 审计整改）：消费端先规整，非整手向下取整到100整数倍；
+    # 若计划股数不足1手(100股)直接跳过，避免触发 sim_trade 失败闭合导致自动化静默失败。
+    if shares < LOT_SIZE:
+        print(f"[ERR] 计划股数 {shares} 不足1手(100股)，无法成交，跳过 {code}", file=sys.stderr)
+        return None
+    lot = (shares // LOT_SIZE) * LOT_SIZE
+    if lot != shares:
+        print(f"[WARN] 计划股数 {shares} 非整手，已向下规整为 {lot} 股", file=sys.stderr)
+        shares = lot
     name = _sanitize_name(plan.get("name", ""), code)
     if not execute:
         # dry-run：构造模拟结果

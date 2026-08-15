@@ -65,6 +65,10 @@ COMMISSION_RATE = 0.0003  # 佣金 0.03%
 STAMP_TAX_RATE = 0.001  # 印花税（仅卖出）0.1%
 MIN_COMMISSION = 5.0  # 最低佣金 5 元
 
+# A股整手约束（2026-08-14 整手审计整改）：最小交易单位=1手=100股，
+# 买入及部分卖出数量必须为100整数倍且≥100；全仓卖出允许零股尾仓。
+LOT_SIZE = 100
+
 # 不可交易的板块（科创板/北交所/ST）。创业板(300/301)已于 07-29 放开。
 RESTRICTED_PREFIXES = ["688", "689", "8", "4"]
 
@@ -416,6 +420,8 @@ def check_take_profit(pf: dict, code: str) -> dict:
         level = levels[current_level - 1]
         if pnl_pct >= level["pct"] * 100:
             shares_to_sell = int(pos["shares"] * level["sell_ratio"])
+            # 整手约束（2026-08-14 审计整改）：部分卖出须为100整数倍
+            shares_to_sell = (shares_to_sell // LOT_SIZE) * LOT_SIZE
             if shares_to_sell < 100:  # A股最小交易单位100股
                 shares_to_sell = pos["shares"]  # 如果剩余太少，直接清仓
 
@@ -600,6 +606,14 @@ def cmd_buy(code: str, shares: int, price: float, name: str = ""):
     if err:
         return {"ok": False, "error": err}
 
+    # 整手约束门禁（2026-08-14 审计整改）：A股买入须为100整数倍且≥100，
+    # 非整手直接拒绝（失败闭合，避免落库不可成交的零股仓位）
+    if not isinstance(shares, int) or shares < LOT_SIZE or shares % LOT_SIZE != 0:
+        return {
+            "ok": False,
+            "error": f"股数必须为100整数倍且≥100，收到 {shares} 股（A股最小1手=100股）",
+        }
+
     # 计算费用
     gross = shares * price
     commission = calc_commission(gross)
@@ -700,7 +714,18 @@ def cmd_sell(code: str, shares: int, price: float, reason: str = ""):
         return {"ok": False, "error": f"持仓不足：需要 {shares} 股，持有 {pos['shares']} 股"}
 
     if shares <= 0:
-        shares = pos["shares"]  # 全部卖出
+        shares = pos["shares"]  # 全部卖出（允许零股尾仓）
+
+    # 整手约束（2026-08-14 审计整改）：部分卖出须为100整数倍；
+    # 全仓卖出(pos["shares"]) 允许零股尾仓，不强制整手
+    if 0 < shares < pos["shares"]:
+        lot = (shares // LOT_SIZE) * LOT_SIZE
+        if lot < LOT_SIZE:
+            return {
+                "ok": False,
+                "error": f"部分卖出股数须为100整数倍且≥100，收到 {shares} 股",
+            }
+        shares = lot
 
     # 计算费用和盈亏
     gross = shares * price

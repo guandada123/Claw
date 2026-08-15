@@ -100,6 +100,7 @@ def build_eval_row(strategy: T0Strategy, holding: dict, t_count: int = 0) -> dic
         "direction": direction,
         "t_shares": t_shares,
         "t_value": result.get("t_position_value"),
+        "t_cost": result.get("t_lot_cost"),
         "vwap_note": result.get("vwap_note", ""),
         "stop": stop,
         "s1": pivot.get("S1"), "p": pivot.get("P"), "r1": pivot.get("R1"),
@@ -117,7 +118,8 @@ def fmt_row(row: dict) -> str:
         f"🎯 {row['name']}({row['code']}) → **{row['direction']}**",
     ]
     if row["t_shares"]:
-        lines.append(f"  📐 T仓: {row['t_shares']}股 (~¥{row['t_value']:.0f})")
+        cost = row.get("t_cost") or row["t_value"]
+        lines.append(f"  📐 T仓: {row['t_shares']}股 (整手, ~¥{cost:.0f})")
     if row["s1"] and row["r1"]:
         lines.append(f"  💰 挂单价: S1低吸¥{row['s1']:.2f} / P¥{row['p']:.2f} / R1高抛¥{row['r1']:.2f}")
     if row["vwap_note"]:
