@@ -75,7 +75,7 @@ def classify(title: str) -> tuple[str, str]:
     if any(m in t for m in HARD_KILL_MARKERS):
         return "hard", "被编排器重启杀掉（根因=memwatch 内存看门狗，非 Marvis）"
     if "did not create a session" in t:
-        return "hard", "会话未拉起（排队/资源紧张）"
+        return "hard", "会话未拉起（建会话超时：资源争抢 或 调度器/会话服务故障）"
     return "other", (t[:60] or "未知失败")
 
 
@@ -139,7 +139,20 @@ def _read_memwatch_current_mb() -> int:
 
 
 def _memwatch_restarted_recently(window_min: int = 90) -> bool:
-    """读 memwatch 日志，判断是否近期发生过"触发重启"(主因=WB树超阈值)。"""
+    """读 memwatch 日志，判断是否近期发生过"memwatch 内存看门狗超阈值自愈重启主进程"。
+
+    ⚠️ 2026-08-13 修正（重要，避免根因误判）：
+    memwatch 日志里"重启主进程"有两种来源，必须看【原因】字段区分，不能看执行方式——
+      • "=== 正常重启开始 (原因: 外部触发, dry_run=0) ==="
+          外部某套调度（如巡检中枢/看门狗的 restart 调用）触发，memwatch 守护只负责
+          优雅退出(AppleScript quit)+拉起。这**不是**内存超阈值，不代表 memwatch 看门狗动作。
+      • "=== 正常重启开始 (原因: 内存超阈值 ...) ==="
+          才是 memwatch 内存看门狗自身判定 WB 树 RSS 超 RSS_RESTART_MB 后的自愈重启。
+    旧逻辑（及一次误改）用 "AppleScript quit"/"触发重启"/"重启成功" 匹配，会把"外部触发"类
+    也算进来 → 卡片文案"根因=memwatch 内存看门狗超阈值"失真（今日实测 WB 进程树仅 4GB，
+    远低于 8500MB，且 7 次重启原因全是"外部触发"即证）。
+    本函数现在只认 '原因: 内存超阈值' 作为 memwatch 内存根因信号。
+    """
     if not MEMWATCH_LOG.exists():
         return False
     try:
@@ -147,11 +160,12 @@ def _memwatch_restarted_recently(window_min: int = 90) -> bool:
     except Exception:
         return False
     now = datetime.now()
-    for ln in lines[-200:]:
-        if "触发重启" not in ln and "重启成功" not in ln:
+    import re
+    for ln in lines[-300:]:
+        # 仅匹配"内存超阈值"自愈重启（真·memwatch 看门狗动作）
+        if "内存超阈值" not in ln and "memory" not in ln and "RSS" not in ln:
             continue
-        # 行首形如 [2026-08-06 09:00:27]
-        m = __import__("re").search(r"\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})\]", ln)
+        m = re.search(r"\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})\]", ln)
         if not m:
             continue
         try:
@@ -263,6 +277,11 @@ def main() -> int:
         """,
         (since_ms,),
     ).fetchall()
+    # 2026-08-13 增强: 窗口内成功数 — 全失败窗口识别(系统级故障 vs 资源争抢)
+    ok_count = con.execute(
+        "SELECT COUNT(*) FROM automation_runs WHERE created_at > ? AND result_success = 1",
+        (since_ms,),
+    ).fetchone()[0]
     con.close()
 
     if not rows:
@@ -309,8 +328,24 @@ def main() -> int:
         if minor:
             lines.append(f"（另有 {len(minor)} 条次要失败，未列出）")
         lines.append("")
-        lines.append("建议：确认产物是否生成，未生成则补跑一次（巡检已尝试自动补跑+根因自愈）。")
-        lines.append("根因=memwatch 内存看门狗超阈值重启主进程；巡检已自动诊断，必要时自动提阈值。")
+        lines.append("建议：确认产物是否生成，未生成则补跑一次（单次独立自动化可安全补跑；交易类需走专项脚本做幂等校验）。")
+        # 2026-08-13 增强: 全失败窗口识别 — 关键失败跨 ≥2h 且窗口内 0 成功 = 系统级故障
+        # (08-13 事故: Marvis 定时任务误判内存超限触发重启 → daemon 孤儿占 IPC 端口 → 10h 全挂,
+        #  旧文案"资源争抢"误导处置方向; 现升级为系统级故障提示)
+        if ok_count == 0 and len(critical) >= 3:
+            span_h = (max(it["ts"] for it in critical) - min(it["ts"] for it in critical)) / 3600000
+            if span_h >= 2:
+                lines.append(
+                    "⚠️ 关键失败持续 ≥2h 且窗口内 0 成功 → 疑似系统级故障（调度器/会话服务不可用），"
+                    "非单纯资源争抢；优先检查 WorkBuddy daemon 是否有孤儿进程/端口冲突、主进程是否被外部触发重启。"
+                )
+        # 2026-08-13 修正：根因文案依赖实际检测，不再硬编码"memwatch 内存看门狗"。
+        # 若确为 memwatch 超阈值重启 → 巡检已尝试自动提阈值；否则通常为主进程被外部触发重启
+        # （清空排队会话）所致，需排查外部重启来源（如巡检中枢/看门狗的 restart 调度）。
+        if _memwatch_restarted_recently():
+            lines.append("根因=memwatch 内存看门狗超阈值重启主进程；巡检已自动诊断，必要时自动提阈值。")
+        else:
+            lines.append("根因=主进程近期被重启（日志显示为「外部触发」，非内存超阈值），重启时清空排队会话致部分定时任务「会话未拉起」；建议排查外部重启来源（如巡检中枢/看门狗的 restart 调度）。")
         pushed = push("自动化失败巡检", "\n".join(lines))
         if pushed:
             alerted.update(key_of(it) for it in new_critical)

@@ -95,7 +95,7 @@ def main() -> int:
             f"• 上次成功运行：{last_ok}（{gap_min} 分钟前）\n"
             f"• 阈值：{args.threshold_min} 分钟\n"
             f"• 可能原因：中枢自动化静默失败 / 宿主进程挂死 / 调度系统异常\n"
-            f"• 建议：检查 automation-1785506975961（统一巡检中枢）运行记录，必要时手动重跑"
+            f"• 建议：检查 automation-1785982929477（统一巡检中枢，真正写 last_ok_ts 的中枢）运行记录，必要时手动重跑"
         )
         print("[liveness-watchdog] 超阈值 → 飞书告警")
         if not args.dry_run:

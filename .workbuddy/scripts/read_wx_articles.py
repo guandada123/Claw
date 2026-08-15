@@ -290,6 +290,9 @@ def read_one_article(title: str, content: str, account: str):
             system=SYSTEM_PROMPT,
             temperature=0.2,
             max_tokens=2400,
+            # 🔴 08-13 修复：关闭代理注入的 thinking（THINK_BUDGET=high 会致 content 为空、
+            # 仅 reasoning_content 有值，结构化 JSON 抽取必失败）。文章阅读理解不需要深度推理。
+            extra_body={"thinking": {"type": "disabled"}},
             task="wx_article_read",
             project="Claw",
         )
