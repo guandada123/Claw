@@ -49,6 +49,47 @@ def test_iron_rule_t_position_never_exceeds_base():
     assert any("铁律" in f["reason"] for f in r["flags"])
 
 
+# ── A股整手约束（最小1手=100股整数倍）── 2026-08-14 修复
+
+
+def test_t_position_shares_is_valid_lot(strategy):
+    # 长电300股底仓, 价77.67 → 理想30股 → 整手取整必须=100股(可成交)
+    r = strategy.evaluate(_holding(shares=300, avg_cost=84.2), price=77.67, ma20=78.0)
+    assert r["t_position_shares"] is not None
+    assert r["t_position_shares"] % 100 == 0  # 整手
+    assert r["t_position_shares"] >= 100
+    assert r["t_position_shares"] <= 300  # 不超底仓
+    # 实际整手成本 = 股数 × 价
+    assert r["t_lot_cost"] == pytest.approx(r["t_position_shares"] * 77.67, abs=1.0)
+
+
+def test_t_position_shares_floor_to_one_lot(strategy):
+    # 理想股数远低于1手(仅30股) → 至少取1手(100股)以便成交
+    r = strategy.evaluate(_holding(shares=300), price=77.67, ma20=78.0)
+    assert r["t_position_shares"] == 100
+
+
+def test_t_position_shares_rounds_to_nearest_lot(strategy):
+    # 理想股数接近整手中点 → 四舍五入到最近整手
+    # 底仓3000股, 价10元 → 额度3000 → 理想300股 → 整手300股
+    r = strategy.evaluate(_holding(shares=3000), price=10.0, ma20=9.0)
+    assert r["t_position_shares"] == 300
+
+
+def test_base_below_one_lot_no_t(strategy):
+    # 底仓不足100股 → 无法整手做T，t_position_shares=None
+    r = strategy.evaluate(_holding(shares=50), price=77.0, ma20=78.0)
+    assert r["t_position_shares"] is None
+    assert any("不足1手" in f["reason"] for f in r["flags"])
+
+
+def test_small_base_lot_exceeds_ratio_flagged(strategy):
+    # 300股底仓做100股T=33% > 1/10 → 应给LOT提示(不拦截)
+    r = strategy.evaluate(_holding(shares=300), price=77.67, ma20=78.0)
+    assert r["blocked"] is False
+    assert any(f["rule"] == "LOT" for f in r["flags"])
+
+
 # ── R3: 频率上限 ──
 
 

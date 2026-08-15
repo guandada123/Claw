@@ -4,13 +4,11 @@
 gap 日收益作废 / 无数据降级 / 注册表完整性 / IC 计算骨架。
 """
 
-from datetime import datetime
 
+import alpha_factors as af
 import numpy as np
 import pandas as pd
 import pytest
-
-import alpha_factors as af
 from alpha_eval import winsorize_mad
 
 

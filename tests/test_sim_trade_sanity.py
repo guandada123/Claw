@@ -142,3 +142,122 @@ def test_auto_check_good_price_proceeds(monkeypatch):
     # 不应抛异常，正常返回（无信号则为空列表）
     sugs = st.auto_check_all_positions(pf)
     assert isinstance(sugs, list)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 整手约束回归（2026-08-14 审计整改）
+# A股最小交易单位=1手=100股；买入及部分卖出须为100整数倍；全仓卖出允许零股尾仓。
+# 全部用例隔离 load/save/限制/价格校验，避免污染真实模拟盘持仓。
+# ═══════════════════════════════════════════════════════════════════════════
+
+LOT = 100
+
+
+def _fake_sanity_ok():
+    """构造 fake sanity 校验器：一律通过。"""
+
+    def _f(code, price):
+        return {"ok": True, "reliable_price": price, "reason": ""}
+
+    return _f
+
+
+def _patch_isolated(monkeypatch, positions, cash=1_000_000.0):
+    """构造隔离环境：返回 fake pf 并 monkeypatch 掉落库与校验副作用。"""
+    fake = {
+        "cash": cash,
+        "initial_capital": 50_000.0,
+        "positions": positions,
+        "transactions": [],
+    }
+    monkeypatch.setattr(st, "load_portfolio", lambda: fake)
+    monkeypatch.setattr(st, "save_portfolio", lambda pf: None)
+    monkeypatch.setattr(st, "check_restricted", lambda code: "")
+    monkeypatch.setattr(st, "_sanity_check_price", _fake_sanity_ok())
+    return fake
+
+
+def test_cmd_buy_rejects_non_lot(monkeypatch):
+    """非整手买入(165股) → 失败闭合拒绝，不越界落库。"""
+    _patch_isolated(monkeypatch, {})
+    res = st.cmd_buy("XBUY", 165, 10.0, "非整手")
+    assert res["ok"] is False
+    assert "100整数倍" in res["error"]
+
+
+def test_cmd_buy_accepts_valid_lot(monkeypatch):
+    """整手买入(300股) → 通过门禁，真实建仓300股。
+
+    注意：cmd_buy 成功返回体既有无 "ok" 键（仅返回 cash_remaining/total_asset，
+    既有行为），故用持仓副作用验证成交，而非 res["ok"]。
+    """
+    fake = _patch_isolated(monkeypatch, {})
+    res = st.cmd_buy("XBUY", 300, 10.0, "整手")
+    assert "XBUY" in fake["positions"]
+    assert fake["positions"]["XBUY"]["shares"] == 300
+
+
+def test_cmd_sell_rejects_non_lot_partial(monkeypatch):
+    """部分卖出非整手(<1手, 50股) → 拒绝。"""
+    _patch_isolated(monkeypatch, {
+        "XSELL": {"name": "T", "shares": 100, "avg_cost": 10.0,
+                  "total_cost": 1000.0, "current_price": 10.0,
+                  "highest_price": 10.0, "take_profit_level": 1},
+    })
+    res = st.cmd_sell("XSELL", 50, 10.0, "非整手")
+    assert res["ok"] is False
+    assert "100整数倍" in res["error"]
+
+
+def test_cmd_sell_partial_lot_rounds_and_full_allows_odd(monkeypatch):
+    """部分卖出165股 → 规整为100股成交；全仓卖出(0) → 允许零股尾仓。"""
+    fake = _patch_isolated(monkeypatch, {
+        "XSELL": {"name": "T", "shares": 500, "avg_cost": 10.0,
+                  "total_cost": 5000.0, "current_price": 10.0,
+                  "highest_price": 10.0, "take_profit_level": 1},
+    })
+    res = st.cmd_sell("XSELL", 165, 10.0, "整手")
+    assert res["ok"] is True
+    assert res["transaction"]["shares"] == 100
+    # 全仓卖出允许零股尾仓（如550股的零股尾仓）
+    fake["positions"]["XSELL"] = {"name": "T", "shares": 550, "avg_cost": 10.0,
+                                  "total_cost": 5500.0, "current_price": 10.0,
+                                  "highest_price": 10.0, "take_profit_level": 1}
+    res2 = st.cmd_sell("XSELL", 0, 10.0, "清仓")
+    assert res2["ok"] is True
+    assert res2["transaction"]["shares"] == 550
+
+
+def test_check_take_profit_lot_rounds(monkeypatch):
+    """止盈部分卖出整手取整：500股×33%→165→规整为100股（纯计算无落库）。"""
+    monkeypatch.setattr(st, "_sanity_check_price", _fake_sanity_ok())
+    pf = {
+        "cash": 0.0,
+        "initial_capital": 50_000.0,
+        "positions": {
+            "XTP": {"name": "T", "shares": 500, "avg_cost": 10.0,
+                    "current_price": 20.0, "highest_price": 20.0,
+                    "take_profit_level": 1},
+        },
+    }
+    res = st.check_take_profit(pf, "XTP")
+    assert res["should_sell"] is True
+    assert res["shares_to_sell"] == 100
+    assert res["shares_to_sell"] % 100 == 0
+
+
+def test_check_take_profit_lot_floor_to_full(monkeypatch):
+    """小持仓100股×33%→33→不足1手 → 兜底整仓卖出(100股)。"""
+    monkeypatch.setattr(st, "_sanity_check_price", _fake_sanity_ok())
+    pf = {
+        "cash": 0.0,
+        "initial_capital": 50_000.0,
+        "positions": {
+            "XTP": {"name": "T", "shares": 100, "avg_cost": 10.0,
+                    "current_price": 20.0, "highest_price": 20.0,
+                    "take_profit_level": 1},
+        },
+    }
+    res = st.check_take_profit(pf, "XTP")
+    assert res["should_sell"] is True
+    assert res["shares_to_sell"] == 100
