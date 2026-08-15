@@ -75,17 +75,58 @@ def _call_llm(
             )
             resp.raise_for_status()
             data = resp.json()
-            content = data["choices"][0]["message"].get("content", "")
-            # 🔴 08-04 加固：content 为空(仅reasoning_content被max_tokens吞掉/代理异常)视为失败重试，
+            message = data["choices"][0]["message"]
+            content = (message.get("content") or "").strip()
+            # 🔴 08-11 修复（根因=THINK_BUDGET=high 给 deepseek-v4-flash 注入 thinking
+            #   → 主 content 为空、仅 reasoning_content 有值 → 整专家 3 次重试全失败降级 HOLD）。
+            #   兜底：content 为空时回退取 reasoning_content 当答案，避免 reasoning-only 误判失败。
+            #   ⚠️ 仅用于解析兜底，reasoning 内容仍可被 _parse_json_response 提取 JSON 论点。
+            if not content:
+                rc = (message.get("reasoning_content") or "").strip()
+                if rc:
+                    content = rc
+                    logger.warning(
+                        "debate: content 为空，已回退 reasoning_content (len=%d)", len(content)
+                    )
+            # 🔴 08-04 加固：content 仍为空(既无 content 也无 reasoning_content)才视为失败重试，
             # 避免静默返回空串 → 解析失败 → 全体降级(曾致15:50辩论0B/7H/0S)
-            if not content or not content.strip():
+            if not content:
                 raise RuntimeError("LLM returned empty content (reasoning-only)")
+            # 🔴 08-11 噪声过滤：DeepSeek 后端偶发 internal error 会吐垃圾 token 流
+            #   （如整段 "!+!+..." 噪声串，末尾 "Model service internal error"）。
+            #   这类响应虽非空串，但无法解析出 JSON 论点，应视为失败重试而非返回乱码。
+            if _is_noise_response(content):
+                raise RuntimeError("LLM returned garbage/noise response (service internal error)")
             return content
         except (requests.Timeout, requests.ConnectionError, requests.HTTPError, RuntimeError) as exc:
             if attempt < 2:
                 time.sleep(1.5 ** attempt)
             else:
                 raise RuntimeError(f"LLM call failed after 3 attempts: {exc}") from exc
+
+
+def _is_noise_response(text: str) -> bool:
+    """判断 LLM 返回是否为垃圾噪声（服务端内部错误吐出的无意义 token 流）。
+
+    判别规则（任一命中即判噪声）：
+      1. 含显式服务端错误标记（Model service internal error / internal error）；
+      2. 非 ASCII 噪声符（如 !+*# 等）占比过高且缺乏可读中英文结构；
+      3. 长度异常（>4000 且几乎无空格/标点，典型 token 崩坏特征）。
+    命中后交由调用方重试，避免乱码污染辩论结论。
+    """
+    if not text:
+        return False
+    low = text.lower()
+    if "model service internal error" in low or "internal error" in low:
+        return True
+    # 非 ASCII 噪声符：! + * # ) ( 等（不含正常中英文/标点）
+    noise_chars = sum(1 for ch in text if ch in "!+*#)(")
+    if len(text) > 80 and noise_chars / len(text) > 0.5:
+        return True
+    # 超长且无明显句子结构（无空格、无句号、无中文标点）
+    return len(text) > 4000 and not any(
+        sep in text for sep in [" ", "。", "，", ".", "、", "\n"]
+    )
 
 
 def _parse_json_response(text: str) -> dict:
@@ -166,7 +207,7 @@ def _stance_phase(code: str, name: str, data: dict) -> list[dict]:
                 logger.warning("专家 %s 第 %d 次调用失败: %s", key, attempt + 1, exc)
                 if attempt < 2:
                     time.sleep(1)
-        # 3 次失败后返回降级意见
+        # 3 次失败后返回降级意见（显式标 degraded，供报告层识别辩论降级）
         return {
             "expert": key,
             "name": EXPERT_DEFINITIONS[key]["name"],
@@ -174,6 +215,7 @@ def _stance_phase(code: str, name: str, data: dict) -> list[dict]:
             "confidence": 0.3,
             "reasoning": "分析调用失败，默认持有",
             "risk_flags": ["LLM调用失败"],
+            "degraded": True,
         }
 
     results: list[dict] = []

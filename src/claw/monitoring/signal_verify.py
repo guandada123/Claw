@@ -248,18 +248,41 @@ def fetch_history(code: str, start: str, end: str, retries: int = 5):
     if ak is None:
         return (None, None)
     sym = gtimg_prefix(code) + code
-    last = None
-    for attempt in range(retries):
+    # 🔴 根治挂死(08-14)：akshare 无 timeout 参数，代理不可达时 stock_zh_a_daily
+    # 永久阻塞 → 整个 verify_signals 卡死在报告写入前（os._exit 修不到此处）。
+    # 用 daemon 线程 + join(timeout) 兜底：超时即放弃该 code 的历史(走 None 降级)，
+    # 保证主循环继续推进、报告能落盘；单 code 最多阻塞 AKSHARE_TIMEOUT 秒。
+    AKSHARE_TIMEOUT = float(os.environ.get("SIGNAL_AKSHARE_TIMEOUT", "15"))
+    return _akshare_daily_with_timeout(sym, start, end, timeout=AKSHARE_TIMEOUT)
+
+
+def _akshare_daily_with_timeout(sym: str, start: str, end: str, timeout: float = 15):
+    """akshare 兜底调用线程超时包装。挂死/超时任其放弃，返回 None 走降级。"""
+    import threading
+
+    box: dict = {}
+
+    def _run():
         try:
-            df = ak.stock_zh_a_daily(symbol=sym, start_date=start, end_date=end, adjust="qfq")
-            if df is not None and not df.empty:
-                date_col = "date" if "date" in df.columns else df.columns[0]
-                m = {str(row[date_col])[:10]: float(row["close"]) for _, row in df.iterrows()}
-                last_close = float(df["close"].iloc[-1])
-                return (m, last_close)
+            box["df"] = ak.stock_zh_a_daily(symbol=sym, start_date=start, end_date=end, adjust="qfq")
         except Exception as e:  # noqa: BLE001
-            last = e
-            time.sleep(1.5 + attempt * 0.5)
+            box["err"] = e
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        # 仍在跑 → 视为挂死，放弃（daemon 线程会随进程退出被回收）
+        return (None, None)
+    df = box.get("df")
+    if df is not None and not getattr(df, "empty", True):
+        try:
+            date_col = "date" if "date" in df.columns else df.columns[0]
+            m = {str(row[date_col])[:10]: float(row["close"]) for _, row in df.iterrows()}
+            last_close = float(df["close"].iloc[-1])
+            return (m, last_close)
+        except Exception:  # noqa: BLE001
+            return (None, None)
     return (None, None)
 
 
@@ -532,6 +555,18 @@ def main():
 
 
 if __name__ == "__main__":
+    # 🔴 根治挂死(08-14)：全局看门狗。verify_signals 内任一网络调用若仍
+    # 绕过线程超时兜底而永久阻塞，看门狗在 WATCHDOG_SEC 后强制 os._exit，
+    # 杜绝进程 S 态空跑（此前每日手动 kill -9，浪费 reasoner 调用）。
+    import threading
+
+    WATCHDOG_SEC = float(os.environ.get("SIGNAL_VERIFY_WATCHDOG", "900"))
+
+    def _watchdog():
+        time.sleep(WATCHDOG_SEC)
+        os._exit(2)  # 超时退出（非0，便于识别挂死）
+
+    threading.Thread(target=_watchdog, daemon=True).start()
     ok = main() is not None
     # 🔴 根治挂死(08-04)：akshare/Wind 残留非daemon线程致进程S态不退出
     # (连续8天报告落盘后挂10~17min被kill -9)。报告已落盘，强制os._exit绕过解释器线程等待
