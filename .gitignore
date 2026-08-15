@@ -34,7 +34,6 @@ logs/*.log
 .workbuddy/workbuddy.db
 # Core data files (tracked) — whitelist only these, ignore rest
 .workbuddy/data/*
-!.workbuddy/data/article_signals.json
 !.workbuddy/data/automation_health.json
 !.workbuddy/data/macro_data.json
 !.workbuddy/data/stock_pool.json
@@ -97,6 +96,14 @@ archive/
 # 密钥（本地使用，不上传 GitHub）
 scripts/secrets.py
 scripts/.prompt_cache_config.json
+
+# 运行时状态/一次性产物 (不提交, 防仓库膨胀与无意义 churn)
+.workbuddy/data/article_signals.json
+.workbuddy/scripts/.ops_alerted.json
+.workbuddy/scripts/.watchdog_alerted.json
+.workbuddy/scripts/.runbook_fuse.json
+.workbuddy/scripts/_refresh_close_*.py
+.workbuddy/scripts/bt_kdj_scan_result.json
 
 # 临时
 tmp/
