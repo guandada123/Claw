@@ -20,7 +20,6 @@ import json
 from pathlib import Path
 
 import pandas as pd
-
 import qts_client  # noqa: E402 - 服务直连唯一入口(2026-08-13 打通)
 
 # 除权跳变阈值: 单日 pct_change 绝对值超过此值(排除涨跌停极限)视为未复权跳空

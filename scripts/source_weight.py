@@ -125,25 +125,42 @@ def _write_output(data: dict):
 
 
 if __name__ == "__main__":
+    # 🔴 修复(08-14)：变化检测须在写盘前读取旧快照，否则旧文件已被覆盖→diff永远为空
+    old_file = _PROJECT_ROOT / "data" / "source_weights.json"
+    old_weights: dict = {}
+    if old_file.exists():
+        try:
+            old_weights = json.loads(old_file.read_text(encoding="utf-8")).get("weights", {})
+        except Exception:
+            old_weights = {}
+
     result = compute_weights()
     print(f"✅ 信源权重更新完成: {result['verified_accounts']} 个已验证账号")
     print(f"   数据源: {result['source']}")
     for d in result.get("details", [])[:8]:
         print(f"   {d['account']:15s} 胜率{d['win_rate']:.1f}% 信号{d['signals']}条 → 权重{d['weight']:.1f} {d['rationale']}")
 
-    # 检查有无权重变化
-    old_file = _PROJECT_ROOT / "data" / "source_weights.json"
-    if old_file.exists():
-        old_data = json.loads(old_file.read_text(encoding="utf-8"))
-        old_weights = old_data.get("weights", {})
-        new_weights = result["weights"]
-        changes = [
-            (k, old_weights[k], new_weights[k])
-            for k in set(old_weights) & set(new_weights)
-            if old_weights[k] != new_weights[k]
-        ]
-        if changes:
-            print(f"\n⚠️ 权重变化: {len(changes)} 项")
-            for k, old, new in changes:
-                direction = "↑" if new > old else "↓"
-                print(f"   {k}: {old:.1f} → {new:.1f} {direction}")
+    # 检查有无权重变化（评级阈值: ≥1.0⭐推荐 / ≥0.8✅正常 / ≥0.5⚠️监控 / <0.5极低）
+    new_weights = result["weights"]
+
+    def _cat(w):
+        if w is None:
+            return "?"
+        if w >= 1.0:
+            return "⭐"
+        if w >= 0.8:
+            return "✅"
+        if w >= 0.5:
+            return "⚠️"
+        return "🔻"
+
+    changes = [
+        (k, old_weights.get(k), new_weights.get(k))
+        for k in set(old_weights) & set(new_weights)
+        if old_weights.get(k) != new_weights.get(k)
+    ]
+    if changes:
+        print(f"\n⚠️ 权重变化: {len(changes)} 项")
+        for k, old, new in changes:
+            direction = "↑" if (new or 0) > (old or 0) else "↓"
+            print(f"   {k}: {old} → {new} {direction}  [{_cat(old)}→{_cat(new)}]")
