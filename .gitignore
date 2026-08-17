@@ -115,6 +115,14 @@ lark-auth-qr*.png
 
 # 自动生成的 git 状态日志
 .workbuddy/memory/git_status_log_*.md
+.workbuddy/memory/2026-*-*.md
+.workbuddy/automations/*/dedup_*.json
+.workbuddy/automations/*/.backups/
+.workbuddy/scripts/unified_self_heal_log.json
+.workbuddy/scripts/.ops_alerted.json
+.workbuddy/scripts/.watchdog_alerted.json
+# 运行时自动生成的自动化目录（非源码，仅运行态）
+.workbuddy/automations/automation-1785123941471/
 .benchmarks/
 
 # 运行时数据 (不提交)
@@ -141,3 +149,6 @@ src/claw/strategies/reports/
 $DB
 .workbuddy/data/alpha/*
 !.workbuddy/data/alpha/alpha_factors_kept.json
+
+# 死副本：经验库权威位置为根 .learnings/，.workbuddy/.learnings 不再跟踪
+.workbuddy/.learnings/
