@@ -163,14 +163,30 @@ def debate_from_codes(codes_str: str, learn: bool = False):
     _print_summary(results)
 
 
+def _load_fundamental_cache() -> dict:
+    """读取持仓基本面快照缓存（Wind 财务数据，离线 JSON）。
+
+    缓存来源：wind-finance 连接器抓取，存于 .workbuddy/data/debate/fundamental_cache.json。
+    更新方式：持仓变动或定期(周)重抓 wind-finance 覆盖此文件（脚本不直接调 MCP）。
+    任一字段缺失不影响主流程，fundamental 留空由专家基于价格+技术判断。
+    """
+    cache_path = Path(__file__).parent.parent / ".workbuddy" / "data" / "debate" / "fundamental_cache.json"
+    try:
+        raw = json.loads(cache_path.read_text(encoding="utf-8"))
+        return raw
+    except Exception:
+        return {}
+
+
 def _enrich_stock_data(code: str, base: dict) -> dict:
     """补全辩论所需的技術/基本面/资金面数据，让 7 专家有料可辩。
 
     数据来源（均带降级，任一失败不影响主流程）：
       - 技术面(RSI/MA20)：advisor_rules.AdvisorRules（Wind→calc_rsi 降级）
       - 技术面(MACD/量比)：qts_client.get_kline 本地计算
-      - 基本面(PE/PB/ROE/增速)：qts_client 暂未直连财务，留空由专家基于价格+技术判断
-    返回 enriched data dict（在 base 基础上追加 technical 等字段）。
+      - 基本面(PE/PB/ROE/营收增速/市值)：fundamental_cache.json（wind-finance 抓取快照）
+        映射专家 prompt 所需键：pe / pb / roe / revenue_growth / market_cap
+    返回 enriched data dict（在 base 基础上追加 technical / fundamental 等字段）。
     """
     data = dict(base)
     try:
@@ -211,6 +227,27 @@ def _enrich_stock_data(code: str, base: dict) -> dict:
             pass
         if tech:
             data["technical"] = tech
+
+        # 基本面：读缓存（wind-finance 快照），映射到专家 prompt 期望键
+        fund = {}
+        try:
+            _fcache = _load_fundamental_cache()
+            rec = _fcache.get(code)
+            if isinstance(rec, dict):
+                if rec.get("pe_ttm") is not None:
+                    fund["pe"] = rec["pe_ttm"]
+                if rec.get("pb") is not None:
+                    fund["pb"] = rec["pb"]
+                if rec.get("roe") is not None:
+                    fund["roe"] = rec["roe"]
+                if rec.get("revenue_growth") is not None:
+                    fund["revenue_growth"] = rec["revenue_growth"]
+                if rec.get("total_market_cap") is not None:
+                    fund["market_cap"] = f"{rec['total_market_cap']}亿"
+        except Exception:
+            pass
+        if fund:
+            data["fundamental"] = fund
     except Exception as exc:
         print(f"  ⚠️ {code} 技术数据补全失败: {exc}")
     return data
