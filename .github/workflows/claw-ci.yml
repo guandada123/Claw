@@ -86,11 +86,21 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-cov
-      - name: Run tests with coverage
+      - name: Run tests with coverage (.workbuddy/tests)
         # 代码包为 scripts/（非 lib/）；当前单测仅覆盖部分脚本，覆盖率门禁设为 0（仅上报，不阻塞），
         # 待测试面扩大后逐步抬高 COV_FAIL_UNDER。
+        # 两个目录拆独立 pytest 进程：test_router 在模块顶层注入 sys.modules mock，
+        # 若与根 tests/ 同进程会跨文件污染（如 test_local_model）。分进程隔离，零污染。
         run: |
           cd .workbuddy && python -m pytest tests/ -v --tb=short \
+            --cov=scripts \
+            --cov-report=term-missing \
+            --cov-fail-under=${{ env.COV_FAIL_UNDER }}
+      - name: Run root tests/ (CI 覆盖补全)
+        # 根 tests/ 含 42 个核心逻辑测试（advisor_rules/cost_tracker/price_sanity 等），
+        # 此前 CI 未覆盖（仅本地 pytest 跑）。独立进程跑，避免被 test_router 的 sys.modules mock 污染。
+        run: |
+          python -m pytest tests/ -v --tb=short \
             --cov=scripts \
             --cov-report=term-missing \
             --cov-fail-under=${{ env.COV_FAIL_UNDER }}

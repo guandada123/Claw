@@ -1,6 +1,12 @@
-# Claw — A股投资辅助系统 核心依赖
-akshare>=1.16.0
-numpy>=1.24.0
-pandas>=2.0.0
-requests>=2.31.0
-scipy>=1.10.0  # alpha_eval Spearman IC 依赖(2026-08-14 修复缺失)
+# Claw — A股投资辅助系统 依赖
+#
+# ⚠️ 单一来源声明：核心依赖以 pyproject.toml 的 [project.dependencies] 为准，
+# 本文件仅作 pip 直接安装的兼容入口，不再单独维护版本号，避免与 pyproject 漂移。
+#
+# 推荐安装方式（开发）：
+#   pip install -e .
+# 或仅装运行依赖：
+#   pip install akshare numpy pandas requests scipy
+#
+# 如需从 pyproject 自动生成冻结清单：
+#   pip freeze | grep -E "akshare|numpy|pandas|requests|scipy" > requirements.txt
