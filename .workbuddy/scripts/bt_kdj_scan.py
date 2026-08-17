@@ -65,7 +65,7 @@ def fetch_history(codes):
         cur = conn.cursor()
         placeholders = ",".join(["%s"] * len(codes))
         sql = (
-            "SELECT ts_code, open, high, low, close, volume, trade_date FROM daily_quote "
+            "SELECT ts_code, open, high, low, close, volume, trade_date FROM daily_quote "  # nosec B608
             f"WHERE ts_code IN ({placeholders}) "
             "AND trade_date >= %s AND trade_date <= %s ORDER BY ts_code, trade_date"
         )
