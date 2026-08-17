@@ -122,6 +122,10 @@ def test_advisor_rules_integration_pass_on_real_price(monkeypatch):
                         lambda c: {"low_52w": 33.59, "high_52w": 106.64, "ma20": 79.21})
     monkeypatch.setattr(ar.AdvisorRules, "_get_live_price",
                         lambda self, c: {"price": 77.75, "change_pct": -1.0})
+    # 同步 mock 日涨幅源（_get_day_change 从 Wind/腾讯拉真实涨幅，未 mock 会拉到 +9% 触发 E3 拦截）
+    # 让 mock 自洽：外部价=实时价=微跌，不应触发"当日涨幅过大"拦截
+    monkeypatch.setattr(ar.AdvisorRules, "_get_day_change",
+                        lambda self, c: -1.0)
     # 隔离规则I(行业集中度): 该测试聚焦价格sanity，真实持仓(半导体100%)会误触发block
     monkeypatch.setattr(ar.AdvisorRules, "check_sector_block",
                         lambda self, *a, **k: None)

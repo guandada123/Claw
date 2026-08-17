@@ -85,6 +85,24 @@ from router import (  # noqa: E402 — mock 注入必须在 import 之前
 )
 
 # ================================================================
+# 测试隔离：清理进程级 sys.modules mock 注入
+# 本文件在模块顶层把 cost_tracker/local_model/secrets/legacy_secrets 替换成 MagicMock
+# （router.py 在模块级 from 这些包 import，必须在 import 前注入）。
+# 但若本文件先于其他测试（如 test_local_model）执行，这些 sys.modules 替换会残留，
+# 导致后续 import local_model 拿到 MagicMock 而非真实模块 → 跨测试污染。
+# 用 autouse fixture 在每个用例后还原（del sys.modules），让后续测试重新加载真实模块。
+# 注：router 自身用例已在模块加载时绑定了引用，del sys.modules 不影响本文件内用例。
+import pytest
+
+
+@pytest.fixture(autouse=True, scope="function")
+def _restore_sys_modules():
+    yield
+    for mod in ("cost_tracker", "local_model", "secrets", "legacy_secrets"):
+        sys.modules.pop(mod, None)
+
+
+# ================================================================
 # P1: route_task — 核心路由
 # ================================================================
 
