@@ -55,6 +55,17 @@ mock_secrets.DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 mock_secrets.randbelow = lambda n: 0  # 确定性 jitter，避免 MagicMock < int 比较错误
 sys.modules["secrets"] = mock_secrets
 
+# --- mock legacy_secrets ---
+# 🔴 根因修复：router.py 优先 `from legacy_secrets import ...`，而原测试只 mock 了
+# `secrets`，对 `legacy_secrets` 无影响 → CI/本地都拿不到测试假值 → 断言失败。
+# 必须把 `legacy_secrets` 也 mock 成同一套测试假值，routers 导入时才能拿到 test-*-key。
+mock_legacy_secrets = MagicMock()
+mock_legacy_secrets.CATROUTER_API_KEY = "test-catrouter-key"
+mock_legacy_secrets.CATROUTER_BASE_URL = "https://api.catrouter.net/v1"
+mock_legacy_secrets.DEEPSEEK_API_KEY = "test-deepseek-key"
+mock_legacy_secrets.DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
+sys.modules["legacy_secrets"] = mock_legacy_secrets
+
 # 现在安全导入 router
 from router import (  # noqa: E402 — mock 注入必须在 import 之前
     FALLBACK_CHAIN,
