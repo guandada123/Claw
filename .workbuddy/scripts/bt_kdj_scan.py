@@ -14,6 +14,7 @@
 输入：QTS PG daily_quote (127.0.0.1:15432)
 输出：回测绩效 + 与基准/随机对照对比
 """
+
 import importlib.util
 import json
 import os
@@ -24,18 +25,18 @@ from collections import defaultdict
 # ── 复用 scan_mainboard_local 的指标与规则（保证一致性）──
 _CLAW = "/Users/guan/WorkBuddy/Claw"
 sys.path.insert(0, os.path.join(_CLAW, ".workbuddy", "scripts"))
-import scan_mainboard_local as SCAN  # noqa: E402
+import scan_mainboard_local as SCAN  # noqa: E402,N812
 
 # ── 回测参数 ──
 START = "20240101"
 END = "20260814"
-STOP_LOSS = 0.08          # 主板 -8% 止损
-MAX_HOLD = 15             # 最大持有交易日
-SLIPPAGE = 0.001          # 0.1%
-COMMISSION = 0.00025      # 万2.5
-STAMP = 0.001             # 千1（仅卖）
+STOP_LOSS = 0.08  # 主板 -8% 止损
+MAX_HOLD = 15  # 最大持有交易日
+SLIPPAGE = 0.001  # 0.1%
+COMMISSION = 0.00025  # 万2.5
+STAMP = 0.001  # 千1（仅卖）
 INIT_CASH = 1_000_000.0
-POS_SIZE = 0.10           # 单只最大仓位 10%（模拟分散）
+POS_SIZE = 0.10  # 单只最大仓位 10%（模拟分散）
 
 DB_CFG = SCAN.DB_CFG
 POOL_PATH = SCAN.POOL_PATH
@@ -53,6 +54,7 @@ def load_pool():
 def fetch_history(codes):
     """从 PG 拉全历史日线（2024 起），返回 {ts_code: [(open,high,low,close,vol,td)]}。"""
     import psycopg2
+
     bars = defaultdict(list)
     try:
         conn = psycopg2.connect(**DB_CFG, connect_timeout=10)
@@ -69,9 +71,7 @@ def fetch_history(codes):
         )
         cur.execute(sql, tuple(codes) + (START, END))
         for ts_code, o, h, l, c, v, td in cur.fetchall():
-            bars[ts_code].append(
-                (float(o), float(h), float(l), float(c), float(v or 0), str(td))
-            )
+            bars[ts_code].append((float(o), float(h), float(l), float(c), float(v or 0), str(td)))
     finally:
         conn.close()
     return bars
@@ -256,8 +256,8 @@ def perf_metrics(equity, trades):
     n = len(daily)
     mean = sum(daily) / n
     var = sum((x - mean) ** 2 for x in daily) / max(n - 1, 1)
-    std = var ** 0.5
-    sharpe = (mean / std * (252 ** 0.5)) if std > 0 else 0.0
+    std = var**0.5
+    sharpe = (mean / std * (252**0.5)) if std > 0 else 0.0
     peak = vals[0]
     mdd = 0.0
     for v in vals:
@@ -352,6 +352,7 @@ def random_baseline(bars, n_signals):
     同成本模型。验证策略是否显著优于随机。
     """
     import random
+
     random.seed(20260814)
     all_dates = sorted({d for b in bars.values() for (_, _, _, _, _, d) in b})
     date_pos = {d: i for i, d in enumerate(all_dates)}
@@ -374,9 +375,10 @@ def random_baseline(bars, n_signals):
             if not ob:
                 continue
             open_p = ob[0]
-            if open_p <= p["cost"] * (1 - STOP_LOSS) or date_pos[d] - date_pos[
-                p["buy_date"]
-            ] >= MAX_HOLD:
+            if (
+                open_p <= p["cost"] * (1 - STOP_LOSS)
+                or date_pos[d] - date_pos[p["buy_date"]] >= MAX_HOLD
+            ):
                 cash += open_p * p["qty"] * (1 - SLIPPAGE - COMMISSION - STAMP)
                 trades.append(("SELL", d, c, open_p, p["qty"], "R"))
                 positions.pop(c)
@@ -385,7 +387,7 @@ def random_baseline(bars, n_signals):
         for c in bars:
             if c in positions:
                 continue
-            if random.random() < (per_stock / max(len(all_dates), 1)):
+            if random.random() < (per_stock / max(len(all_dates), 1)):  # noqa: S311
                 ob = ohlc[c].get(d)
                 if not ob:
                     continue
@@ -450,11 +452,17 @@ def main():
     print(f"回测区间        : {START} ~ {END}")
     print(f"有效标的        : {len(bars)} 只")
     print(f"总交易次数      : {len(trades)} | 已平仓 {m.get('n_closed', 0)}")
-    print(f"平仓胜率        : {m.get('win_rate', 0)*100:.1f}%")
+    print(f"平仓胜率        : {m.get('win_rate', 0) * 100:.1f}%")
     print("-" * 68)
-    print(f"[策略] KDJ金叉+ADX>=25+RSI<=80 : 总收益 {m['total_return']*100:+.2f}% | 年化 {m['annual_return']*100:+.2f}% | Sharpe {m['sharpe']:.3f} | 回撤 {m['max_drawdown']*100:.2f}%")
-    print(f"[对照A] 等权买入持有全池        : 总收益 {ew_total*100:+.2f}% | 年化 {ew_annual*100:+.2f}% | 回撤 {ew_mdd*100:.2f}%")
-    print(f"[对照B] 随机入场(同频次)        : 总收益 {rand_total*100:+.2f}% | 年化 {rand_annual*100:+.2f}% | 回撤 {rand_mdd*100:.2f}%")
+    print(
+        f"[策略] KDJ金叉+ADX>=25+RSI<=80 : 总收益 {m['total_return'] * 100:+.2f}% | 年化 {m['annual_return'] * 100:+.2f}% | Sharpe {m['sharpe']:.3f} | 回撤 {m['max_drawdown'] * 100:.2f}%"
+    )
+    print(
+        f"[对照A] 等权买入持有全池        : 总收益 {ew_total * 100:+.2f}% | 年化 {ew_annual * 100:+.2f}% | 回撤 {ew_mdd * 100:.2f}%"
+    )
+    print(
+        f"[对照B] 随机入场(同频次)        : 总收益 {rand_total * 100:+.2f}% | 年化 {rand_annual * 100:+.2f}% | 回撤 {rand_mdd * 100:.2f}%"
+    )
     print("=" * 68)
     dur = time.monotonic() - t0
     print(f"耗时 {dur:.1f}s")

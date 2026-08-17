@@ -14,9 +14,20 @@
 
 import json
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 
 CLAW = "/Users/guan/WorkBuddy/Claw"
+
+
+def last_trading_friday(reference=None):
+    """周日运行 -> 上一个交易日=上周五；通用: 取 <= reference 最近周五"""
+    ref = reference or datetime.now()
+    d = ref.date()
+    while d.weekday() != 4:  # 4 = Friday
+        d -= timedelta(days=1)
+    return d.strftime("%Y-%m-%d")
+
+
 DATA = f"{CLAW}/.workbuddy/data"
 STOCK_POOL = f"{DATA}/stock_pool.json"
 USER_PF = f"{DATA}/user/portfolio.json"
@@ -235,7 +246,7 @@ summary = (
 
 health = {
     "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    "data_as_of": "2026-08-07 收盘 (周日无交易，行情反映最近交易日)",
+    "data_as_of": f"{last_trading_friday()} 收盘 (周日无交易，行情反映最近交易日)",
     "pool_size": total_stocks,
     "sector_count": len(sector_stats),
     "holdings_total": len(holdings_in_pool),

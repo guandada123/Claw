@@ -1,6 +1,6 @@
 {
   "config": {
-    "initial_capital": 30000.0,
+    "initial_capital": 50000.0,
     "capital_additions": [
       {
         "amount": 20000.0,
@@ -9,7 +9,7 @@
       }
     ],
     "created_at": "2026-07-05",
-    "updated_at": "2026-08-08 14:51:52"
+    "updated_at": "2026-08-16 01:30:59"
   },
   "cash": 10208.02,
   "positions": {
@@ -23,12 +23,12 @@
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
       "mode": "normal",
-      "market_value": 8350.0,
-      "floating_pnl": 478.0,
-      "pnl_pct": 6.07
+      "market_value": 8303.0,
+      "floating_pnl": 189.5,
+      "pnl_pct": 2.34
     },
     "601899": {
       "name": "紫金矿业",
@@ -40,60 +40,61 @@
       "take_profit_level": 3,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
       "mode": "normal",
-      "market_value": 3515.0,
-      "floating_pnl": 758.5,
-      "pnl_pct": 27.52
+      "market_value": 3253.0,
+      "floating_pnl": 496.5,
+      "pnl_pct": 18.01
     },
     "600036": {
       "name": "招商银行",
       "shares": 200,
       "avg_cost": 38.935,
       "total_cost": 7787.0,
-      "current_price": 38.8,
+      "current_price": 38.59,
       "highest_price": 40.55,
       "take_profit_level": 1,
       "first_buy_date": "2026-07-23",
-      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
       "mode": "normal",
-      "market_value": 7760.0,
-      "floating_pnl": -27.0,
-      "pnl_pct": -0.35
+      "market_value": 7718.0,
+      "floating_pnl": -69.0,
+      "pnl_pct": -0.89
     },
     "601668": {
       "name": "中国建筑",
       "shares": 4000,
       "avg_cost": 4.5814,
       "total_cost": 18325.5,
-      "current_price": 4.52,
+      "current_price": 4.4,
       "highest_price": 4.65,
       "take_profit_level": 1,
       "first_buy_date": "2026-08-05",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
-      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
       "risk_note": "C1-20260805: 中金8月低配建筑与工程→跌破4.40减半(卖出2000股)，止损4.27不变；8月中报窗口业绩不及预期亦减半",
       "mode": "normal",
-      "market_value": 18080.0,
-      "floating_pnl": -245.6,
-      "pnl_pct": -1.34
+      "market_value": 17600.0,
+      "floating_pnl": -725.6,
+      "pnl_pct": -3.96
     },
     "600031": {
       "name": "三一重工",
       "shares": 300,
       "avg_cost": 19.4767,
       "total_cost": 5843.0,
-      "current_price": 19.58,
+      "current_price": 18.75,
       "highest_price": 19.58,
       "take_profit_level": 1,
       "first_buy_date": "2026-08-07",
-      "market_value": 5874.0,
-      "floating_pnl": 30.99,
-      "pnl_pct": 0.53,
-      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46"
+      "market_value": 5625.0,
+      "floating_pnl": -218.01,
+      "pnl_pct": -3.73,
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "mode": "normal"
     }
   },
   "transactions": [
@@ -310,8 +311,54 @@
         }
       },
       "time": "2026-08-02 23:05:19"
+    },
+    "2026-08-13": {
+      "total_asset": 53136.02,
+      "cash": 10208.02,
+      "pnl": 3136.02,
+      "pnl_pct": 6.27,
+      "positions": {
+        "000333": {
+          "name": "美的集团",
+          "shares": 100,
+          "price": 84.16,
+          "market_value": 8416.0
+        },
+        "601899": {
+          "name": "紫金矿业",
+          "shares": 100,
+          "price": 32.83,
+          "market_value": 3283.0
+        },
+        "600036": {
+          "name": "招商银行",
+          "shares": 200,
+          "price": 38.65,
+          "market_value": 7730.0
+        },
+        "601668": {
+          "name": "中国建筑",
+          "shares": 4000,
+          "price": 4.47,
+          "market_value": 17880.0
+        },
+        "600031": {
+          "name": "三一重工",
+          "shares": 300,
+          "price": 18.73,
+          "market_value": 5619.0
+        }
+      },
+      "time": "2026-08-13 11:08:01"
     }
   },
   "initial_capital": 50000.0,
-  "total_assets": 53787.02
+  "total_assets": 52707.02,
+  "summary": {
+    "total_assets": 53033.13,
+    "total_market_value": 42499.0,
+    "cash": 10534.13,
+    "floating_pnl": -326.61,
+    "updated": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47"
+  }
 }

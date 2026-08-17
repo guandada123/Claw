@@ -1,6 +1,6 @@
 # 项目记忆（精炼版）
 
-> 架构：本文件=FACT层(铁律/技术决策)，变更→原条目加 `→superseded by <日期>` 保留可回溯，禁平行堆重复。SCHEMA.md=L5｜INTENT.md=L6｜CHRONICLE.md=编年史｜日日志=RAW+SUMMARY(首行记原始指令)。检索：查历史先Grep日日志标题+MEMORY/INTENT/SCHEMA关键词再Read；L3仅具体数据才Read(≤3文件)；审计→memory-consistency-audit；left-brain-memory已装。蒸馏：日日志>30天→蒸馏进对应层→源移`.backups/`；单文件>15KB优先蒸馏；豁免🔴铁律+演化链段。
+> 架构：本文件=FACT层(铁律/技术决策)，变更→原条目加 `→superseded by <日期>` 可回溯，禁平行堆重复。SCHEMA.md=L5｜INTENT.md=L6｜CHRONICLE.md=编年史｜日日志=RAW+SUMMARY(首行记原始指令)。检索：先Grep日日志标题+MEMORY/INTENT/SCHEMA关键词再Read；L3仅具体数据才Read(≤3文件)；审计→memory-consistency-audit；蒸馏：日日志>30天→蒸馏进对应层→源移`.backups/`；单文件>15KB优先蒸馏；豁免🔴铁律+演化链段。
 
 ## 🔴 不可违反铁律
 - 渠道：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346(免审直推)；维护类默认不推仅⚠️/🔴异常推；前缀📈投顾操盘/📊炒股助理/🇺🇸美股监控
@@ -11,8 +11,7 @@
 - 自动化调LLM必走本地代理:9999：provider≠deepseek/catrouter(如local_proxy)+base_url="http://127.0.0.1:9999/v1"；preamble内置ensure_proxy(:9999 DOWN自动load两plist自愈)
 - 实时价铁律(07-29)：盘中/监控/信号取价**必须走腾讯 qt.gtimg.cn**，Wind仅降级兜底；wind_quote.py已改「腾讯优先→Wind降级」DO NOT REVERT；新取价脚本禁直接wind优先
 
-### 股价与推荐防错铁律（08-07·根因=8/6早报选股价数量级错误）
-报告/选股/持仓中所有股价与买区不允许出错：
+### 股价与推荐防错铁律（08-07·根因=8/6早报选股价数量级错误）：报告/选股/持仓中所有股价与买区不允许出错
 - ①选股段价位必须由 advisor_rules.py check-entry --code X 脚本取价(gtimg实时+MA20+52周)，禁AI手填；②scripts/price_sanity.py 三闸门(G1实时偏差>30%/G2 52周区间/G3 MA20偏离>60%)任一失败→SANITY_FAIL+改用可信价；支持美股(--market us走Yahoo,G3跳过)；③check_entry外部价必经sanity，失败→blocked=True不输出离谱买区；④早报1782741941693+晚报1782741945710/1782817769722 prompt已嵌防错，price_sanity.ok=false标的标「🚫价格校验失败，已拦截」
 - ⑤盘中监控全覆盖：fetch_holdings_quotes.py 加 `_apply_sanity()`(实盘/模拟盘每只current_price必经sanity，失败标price_sanity_fail+回填reliable_current_price，顶层sanity_failed计数)；6个盘中自动化(实盘1784039316540+投顾5策略1784506600526/634/523/665/706) prompt加「现价防错铁律」
 - ⑥美股监控1780615006148：AAPL/TSLA/NVDA收盘价必过 price_sanity --market us，FAIL→标「🚫价格校验失败，已隔离」+重搜；禁手填美股价
@@ -42,22 +41,18 @@
 - 选股池增量补全(07-29)：refill_scan_pool.py枚举允许板块腾讯qt增量拉新，过滤退/PT/零成交/ST；自动化1785309382755@08:30
 - 多智能体辩论(07-29)：run_debate.py→src/claw/debate/(7专家三环)；接入09:10策略(1784506600526)+15:50复盘(1782817769722)
 - 持仓数不限制(08-05)：保留单只≤50%/行业≤60%/同日仅开1仓/留现≥15%风控
-- 策略风控体系(08-05)：market_gate大盘门控/correlation_monitor/position_coeff仓位系数/止盈市场状态驱动/risk_note机制(中国建筑601668跌破4.40减半)/C2风格平衡；7处投顾prompt全部接入
-- 绩效面板(07-29)performance_dashboard.py｜信号追溯trace_signal.py｜绩效周报1785336744681@周日16:00
+- 策略风控体系(08-05)：market_gate大盘门控/correlation_monitor/position_coeff仓位系数/止盈市场状态驱动/risk_note机制(中国建筑601668跌破4.40减半)/C2风格平衡；7处投顾prompt全部接入｜绩效面板(07-29)performance_dashboard.py/信号追溯trace_signal.py/绩效周报1785336744681@周日16:00
 
 ## 盘中监控双链（07-20方案B）
 - 助理实盘1784039316540(:00)｜投顾策略5×DAILY(:10)：1784506600526/1784506634174/1784506653523/1784506653665/1784506653706
-- 投顾推送统一(07-24)：智能选股1780738597945+午间选股1782188906018用 push_feishu.sh "$TITLE" "$CONTENT" 封装禁--json-stdin；model=deepseek-v4-flash；PORTFOLIO/EXP_DIR须指simulation/
-- 科技红利聚焦扫描：仅保留 automation-1784821193894；依赖fetch_holdings_quotes.py+fetch_northbound_flow.py(缺失降级)；sim读positions优先(holdings=死副本勿依赖)
+- 投顾推送统一(07-24)：智能选股1780738597945+午间选股1782188906018用 push_feishu.sh "$TITLE" "$CONTENT" 封装禁--json-stdin；model=deepseek-v4-flash；PORTFOLIO/EXP_DIR须指simulation/｜科技红利聚焦扫描仅保留 automation-1784821193894(依赖fetch_holdings_quotes+fetch_northbound_flow缺失降级)；sim读positions优先(holdings=死副本勿依赖)
 
 ## 防回退锁定（07-14，禁未经确认改）
 - 鱼盆1783472286775=deepseek-v4-flash(禁glm-5.0-turbo)；OCR必LLM Read→JSON(v4)禁tesseract；早报唯一推送1782741941693
-- 鱼盆文件名：raw=抓取日期，结构化=表头数据日期，常差1天勿混淆；补抓 fetch_yupen_rss.py --article-id <URL> --date <日>
-- 鱼盆双源(07-21)：yupen_primary_*=Wind主源(07-23起Wind+雅虎)，yupen_*=RSS OCR兜底；read_yupen_data.py自动merge Wind优先+RSS补缺；v5.1双推已根治：rss_updated==False才推未推进
+- 鱼盆文件名：raw=抓取日期，结构化=表头数据日期，常差1天勿混淆；补抓 fetch_yupen_rss.py --article-id <URL> --date <日>｜鱼盆双源(07-21)：yupen_primary_*=Wind主源(07-23起Wind+雅虎)，yupen_*=RSS OCR兜底；read_yupen_data.py自动merge Wind优先+RSS补缺；v5.1双推已根治：rss_updated==False才推未推进
 
 ## 公众号抓取链（07-31根因修复）
-- 🔴 付费RSS wechatrss.waytomaster.com/api/article 有服务端防风控限流→请求间隔须≥1.5s
-- 🔴 铁律：抓取失败绝不落盘空壳(空壳落盘该文永不重抓、正文永久丢失)→用 fetch_article_content_ex() 返回(content,err)区分限流；禁 except:return "" 吞错
+- 🔴 付费RSS wechatrss.waytomaster.com/api/article 有服务端防风控限流→请求间隔须≥1.5s｜抓取失败绝不落盘空壳(空壳落盘该文永不重抓、正文永久丢失)→用 fetch_article_content_ex() 返回(content,err)区分限流；禁 except:return "" 吞错
 - 回填 backfill_wx_content.py(幂等)+自动化1785506323216每2h跑40篇，remaining==0才推；processed主键=file_key()=md5(filename)[:12]
 - 🔴 公众号双轨状态(08-06)：付费云停更(07-29起)；本地 wechat-download-api 登录有效(isExpired=false)但**轮询器卡07-20**。决策：sync_wx_articles.py 暂保持 --source cloud，待轮询器恢复过07-29再切local
 
@@ -68,8 +63,7 @@
 - user/portfolio.json current_price空(仅成本)，诊断实时拉qt.gtimg.cn；健康检查对月/周度误报stale勿自动PAUSED
 - 存储=致态SSD(/Volumes/ZHITAI)+Colima，~/.workbuddy等符号链接禁删/移
 - 断链澄清(07-20误报07-29更正)：1781778427910已DELETED；1782741941693引calc_rsi.py存在无断链；审计须排除DELETED状态
-- proxy看门狗(07-26)：com.workbuddy.proxy-watchdog(StartInterval=30)；launchd后台agent须managed python3直跑.py
-- 自动化运维排障(08-04)：①查automation_runs表必须用带 automation- 前缀ID；②status恒PENDING_REVIEW属默认记录态非失败；③验真运行看last_run_at/created_at；④Claw本地助手工作区禁托管新定时自动化(平台级限制)→新建须用其他项目工作区宿主(如QTS)，git用git -C <abs>
+- proxy看门狗(07-26)：com.workbuddy.proxy-watchdog(StartInterval=30)；launchd后台agent须managed python3直跑.py｜自动化运维排障(08-04)：①查automation_runs表必须用带 automation- 前缀ID；②status恒PENDING_REVIEW属默认记录态非失败；③验真运行看last_run_at/created_at；④新建定时自动化须走 automation API(勿直插DB绕过调度注册)，建后须验证next_run_at+实测触发；盘中监控明确归Claw托管(既有可用)勿迁QTS；git用git -C <abs>
 - 备份清理核实(08-04)：output/.backups/daily/ 15个tar.gz是14天滚动正常(156M预期)；禁自动prune
 - Claw CI全绿(08-04)：ci.yml已删；ruff锁0.15.17；🔐DeepSeek key轮换完成(活跃sk-faaf…2796)
 

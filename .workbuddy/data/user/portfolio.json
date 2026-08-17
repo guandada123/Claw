@@ -2,7 +2,7 @@
   "broker": "国金证券",
   "account_type": "人民币账户A股",
   "created": "2026-06-05",
-  "updated": "2026-08-07T15:46",
+  "updated": "2026-08-13 15:47",
   "data_source": "收盘刷新(腾讯qt.gtimg·2026-08-05收盘); 8/4收来自风险快照08-05 08:38",
   "rules": {
     "stop_loss": -0.08,
@@ -11,18 +11,18 @@
     "note": "止损8%，止盈不设"
   },
   "summary": {
-    "total_assets": 52693.95,
+    "total_assets": 52981.95,
     "cash_available": 22176.95,
     "cash_withdrawable": 22176.95,
-    "floating_pnl": -3501.9,
-    "daily_pnl": 852.0,
-    "daily_pct": 1.64,
-    "position_pct": 0.579,
-    "total_market_value": 30517.0,
+    "floating_pnl": -3213.9,
+    "daily_pnl": 307.0,
+    "daily_pct": 0.58,
+    "position_pct": 0.5814,
+    "total_market_value": 30805.0,
     "invested_cost_stocks": 34018.9,
-    "invested_return_pct_stocks": -10.29,
+    "invested_return_pct_stocks": -9.54,
     "return_basis": "国金APP截图OCR(2026-08-02 21:00): 总资产=可用+市值自洽; 收益率=浮动盈亏/已投成本; 日收益率=当日参考盈亏/总资产",
-    "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46"
+    "updated": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47"
   },
   "holdings": [
     {
@@ -31,14 +31,14 @@
       "shares": 300,
       "shares_available": 300,
       "avg_cost": 84.203,
-      "current_price": 77.75,
-      "market_value": 23325.0,
-      "floating_pnl": -1935.9,
-      "pnl_pct": -7.66,
+      "current_price": 78.71,
+      "market_value": 23613.0,
+      "floating_pnl": -1647.9,
+      "pnl_pct": -6.52,
       "broker": "GJ",
-      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
-      "note": "成本84.203/2026-08-05收盘68.97浮亏-18.09%(含佣基数); 已深穿-8%止损线(77.47)约-10.1pp; shares_available=300 全流通",
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "note": "成本84.203/2026-08-12收盘78.18浮亏-7.15%",
       "bought_date": "2026-07-15",
       "bought_date_note": "最早可证持有日; 用于A规则T+N判定"
     },
@@ -53,9 +53,9 @@
       "floating_pnl": -1566.0,
       "pnl_pct": -17.88,
       "broker": "GJ",
-      "updated": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-07 15:46",
-      "note": "成本21.895/2026-08-05收盘16.59浮亏-24.23%(含佣基数); 已深穿-8%止损线(20.14)约-16.2pp; shares_available=400 全流通",
+      "updated": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
+      "note": "成本21.895/2026-08-12收盘18.3浮亏-16.42%",
       "bought_date": "2026-07-15",
       "bought_date_note": "最早可证持有日; 用于A规则T+N判定"
     }

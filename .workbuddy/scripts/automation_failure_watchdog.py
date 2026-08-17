@@ -161,6 +161,7 @@ def _memwatch_restarted_recently(window_min: int = 90) -> bool:
         return False
     now = datetime.now()
     import re
+
     for ln in lines[-300:]:
         # 仅匹配"内存超阈值"自愈重启（真·memwatch 看门狗动作）
         if "内存超阈值" not in ln and "memory" not in ln and "RSS" not in ln:
@@ -328,7 +329,9 @@ def main() -> int:
         if minor:
             lines.append(f"（另有 {len(minor)} 条次要失败，未列出）")
         lines.append("")
-        lines.append("建议：确认产物是否生成，未生成则补跑一次（单次独立自动化可安全补跑；交易类需走专项脚本做幂等校验）。")
+        lines.append(
+            "建议：确认产物是否生成，未生成则补跑一次（单次独立自动化可安全补跑；交易类需走专项脚本做幂等校验）。"
+        )
         # 2026-08-13 增强: 全失败窗口识别 — 关键失败跨 ≥2h 且窗口内 0 成功 = 系统级故障
         # (08-13 事故: Marvis 定时任务误判内存超限触发重启 → daemon 孤儿占 IPC 端口 → 10h 全挂,
         #  旧文案"资源争抢"误导处置方向; 现升级为系统级故障提示)
@@ -343,9 +346,13 @@ def main() -> int:
         # 若确为 memwatch 超阈值重启 → 巡检已尝试自动提阈值；否则通常为主进程被外部触发重启
         # （清空排队会话）所致，需排查外部重启来源（如巡检中枢/看门狗的 restart 调度）。
         if _memwatch_restarted_recently():
-            lines.append("根因=memwatch 内存看门狗超阈值重启主进程；巡检已自动诊断，必要时自动提阈值。")
+            lines.append(
+                "根因=memwatch 内存看门狗超阈值重启主进程；巡检已自动诊断，必要时自动提阈值。"
+            )
         else:
-            lines.append("根因=主进程近期被重启（日志显示为「外部触发」，非内存超阈值），重启时清空排队会话致部分定时任务「会话未拉起」；建议排查外部重启来源（如巡检中枢/看门狗的 restart 调度）。")
+            lines.append(
+                "根因=主进程近期被重启（日志显示为「外部触发」，非内存超阈值），重启时清空排队会话致部分定时任务「会话未拉起」；建议排查外部重启来源（如巡检中枢/看门狗的 restart 调度）。"
+            )
         pushed = push("自动化失败巡检", "\n".join(lines))
         if pushed:
             alerted.update(key_of(it) for it in new_critical)

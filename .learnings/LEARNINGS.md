@@ -11,7 +11,7 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **防复犯**: 全局 MEMORY.md 🔴铁律新增诊断纪律 + `automation-llm-local-proxy` skill 补「故障诊断流程」节 + 本 incident-triage skill。
 - **去重**: 首次
 
-### 2026-08-11 诊断纪律：先取证禁脑补（best_practice → ★升级候选）
+### 2026-08-11 诊断纪律：先取证禁脑补（best_practice → ✅已升级(2026-08-16)）
 - **类型**: best_practice
 - **现象**: 用户指出"老自己脑补结论，不是第一次犯"。
 - **根因**: 故障排查未执行"先看日志再定性"纪律，凭表面现象猜根因。
@@ -19,7 +19,7 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **防复犯**: 写入全局 🔴铁律 + incident-triage skill Step1。
 - **去重**: 首次
 
-### 2026-08-12 双自动化并发修改同一脚本致 WB 停机 5h11m（best_practice → ★升级候选）
+### 2026-08-12 双自动化并发修改同一脚本致 WB 停机 5h11m（best_practice → ✅已升级(2026-08-16)）
 - **类型**: best_practice
 - **现象**: 08-11 23:44 memwatch 正确触发重启(修复一生效, 8500阈值+5s采样抢在系统OOM前), 但 do_restart 清理残留后正要 open 拉起时, 23:45:44 统一巡检中枢 Runbook#1(memwatch_bump) 因"阈值8500<10000且90min内有重启"执行 unload/load 打断重启流程 → open 未执行 → WB 停机至 04:56 用户手动打开。
 - **根因**(日志实锤): ①两个自动化(memwatch 守护 + unified_ops_center 巡检)并发操作同一目标(脚本文件+launchd), 无互斥协调 ②巡检中枢"识别根因"把正确的保护性重启误判为"误杀盘前自动化" ③memwatch_bump 直接 sed 脚本文件改阈值, 与 memwatch 自身 do_restart 冲突。
@@ -27,7 +27,7 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **防复犯**: 单一配置源(参数进 launchd plist EnvironmentVariables, 脚本只读逻辑) + 巡检中枢改 plist 而非 sed 脚本 + 写前 2min 护栏 + 调参先看 memwatch 日志实锤。
 - **去重**: 首次
 
-### 2026-08-13 知识库LLM阅读层误杀新文入死链黑名单（correction → ★升级候选）
+### 2026-08-13 知识库LLM阅读层误杀新文入死链黑名单（correction → ✅已升级(2026-08-16)）
 - **类型**: correction
 - **现象**: 08-13 10:49 知识库自动化待读1篇《150元/股，很多人担心会破发》(猫笔刀)，LLM 解析 JSON 连败3次 → 误入死链黑名单(490df5942c10)，read=0 静默丢失正经文。
 - **根因**(日志实锤): 代理 `🧠 Thinking mode injected: budget=high` 给 deepseek-v4-flash 注入 thinking → content 空仅 reasoning_content 有值(reasoning-only)。read_wx_articles 经 router.call_llm 只取 content → JSON 解析失败。debate_engine 已加 reasoning_content 兜底，但 read_wx_articles 未覆盖；且 reasoning_content 是思考链非 JSON，兜底仍解析失败 → 触发死链黑名单误判。
@@ -35,7 +35,7 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **防复犯**: 凡结构化 JSON 抽取类自动化(deepseek-v4-flash)必须 per-request 关闭 thinking；代理注入逻辑改「尊重客户端显式设置」而非无条件覆盖。
 - **去重**: 与 08-11 辩论降级同根因(THINK_BUDGET=high)，但本例暴露三处新增缺口——①未覆盖调用方(read_wx_articles) ②reasoning_content 兜底对 JSON 任务无效 ③失败即入死链黑名单致正经文永久丢失。
 
-### 2026-08-13 watchdog 误归因：关键失败真凶是 Marvis 外部重启，非 memwatch（correction → ★升级候选）
+### 2026-08-13 watchdog 误归因：关键失败真凶是 Marvis 外部重启，非 memwatch（correction → ✅已升级(2026-08-16)）
 - **类型**: correction
 - **现象**: 08-13 全天 8+ 关键自动化(投顾策略执行/午间选股/助理实盘监控)在 10:55–13:27 高峰时段"会话未拉起（排队/资源紧张）"静默失败。watchdog digest 自动归因"根因=memwatch 内存看门狗超阈值重启主进程，必要时自动提阈值"。
 - **根因**(日志实锤): ①`workbuddy_memwatch.log` 今日(08-13) **零条 `==> 触发重启`**(memwatch 最后真实触发是 08-12 14:45)，即 memwatch 根本没动。②今日 8 次重启全是 `workbuddy_graceful_restart.sh`(日志前缀 `[graceful-restart]`, 原因=`外部触发`默认无 --reason)，时间戳 08:11/08:52/09:33/10:33/10:52/11:22/12:22/19:23。③该脚本注释写明"供外部调度方(马维斯/Marvis 检测到内存压力)调用"，且 `launchctl` 显示 `com.tencent.mac.marvis.app` 仍在运行 → 真凶是 **Marvis 每小时外部重启 WB 主进程**，打断高峰自动化 session 队列。**memwatch 阈值(8500MB)与此无关，提阈值无效**。④watchdog 脚本 `automation_failure_watchdog.py` 第5-7行 + 第76行**硬编码**"元凶=memwatch，Marvis 已关"——注释已与现状相悖(Marvis daemon 仍在跑且是实际外部重启方)，致 digest 持续误归因并误导"提 memwatch 阈值"。
@@ -54,7 +54,7 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **去重**: 与同日本条 Marvis→daemon 孤儿舰队故障是不同问题——本例是该自动化**自身配置缺陷**,非本次故障受害者。
 - **★校正**: 同日本条"watchdog digest 误归因 memwatch"已过时——watchdog 08-13 已修正运行时逻辑(328–333 行),本次 digest 实际准确输出"外部触发，非内存超阈值";仅第 76 行分类函数仍硬编码"memwatch 内存看门狗,非 Marvis"残留,可在下次维护时清掉。
 
-### 2026-08-14 scripts/secrets.py 遮蔽标准库致 numpy 全线 ImportError（correction → ★升级候选）
+### 2026-08-14 scripts/secrets.py 遮蔽标准库致 numpy 全线 ImportError（correction → ✅已升级(2026-08-16)）
 - **类型**: correction
 - **现象**: Claw venv 跑 `alpha_eval.py` 报 `ImportError: cannot import name randbits`(numpy/random/bit_generator.pyx)。`python -c "import numpy,pandas"` 单独跑成功、脚本跑必失败;重装 numpy/清 __pycache__ 均无效。
 - **根因**(隔离实验实锤): `scripts/secrets.py`(旧密钥兼容层)与 Python 标准库 `secrets` **同名**。脚本运行时 `scripts/` 自动进入 `sys.path[0]`,numpy.random 内部 `import secrets` 解析到 Claw 的 secrets.py(无 randbits 符号)→ C 扩展 init 失败。判定实验: `sys.path.insert(0, scripts)` 后 `import numpy.random` 必挂;不加必过;`import secrets` 打印 `__file__` 指向 scripts/secrets.py 证实。
@@ -62,3 +62,26 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **防复犯**: 项目脚本目录内**禁止出现标准库同名模块**(secrets/random/sys/os/subprocess...),尤其是被 numpy/pandas 内部依赖的模块;新增脚本前 `python -c "import <name>; print(__file__)"` 自查。numpy 相关 ImportError 优先怀疑 sys.path 遮蔽而非 numpy 本体。
 - **去重**: 与 08-13 其它 numpy/环境类故障不同源(那是依赖缺失 scipy);本例是**命名遮蔽**,scipy 是暴露出的第二个问题。
 - **★升级候选**: 建议加 CI 检查——grep 脚本目录内是否存在与 stdlib 同名的 .py 文件。
+
+### 2026-08-14 做T报告 T仓股数未取整到100整手（用户指出"30/40股无法买卖"）(✅已升级(2026-08-16))
+- **类型**: correction
+- **现象**: 08-14 09:15 推送的「做T早盘自检」卡片中，长电科技 T仓=30股、华天科技 T仓=40股。用户指出"又犯了这个错误，100股才能买卖"——A股最小交易单位=1手=100股且须为100整数倍，30/40股根本无法下单成交。
+- **根因**(代码实锤): `t0_strategy.py` 原第181行 `result["t_position_shares"] = round(t_value / price)` 仅四舍五入到整数，未做整手取整。长电300股底仓×10%额度≈¥2339，÷价77.99≈30股；华天同理≈40股。额度算法正确，唯独"股数→成交量"漏了整手约束。
+- **处置**: ①新增 `LOT_SIZE=100` 常量；②`t_position_shares` 改为整手取整(理想股数÷100四舍五入×100，不足1手至少取100，且不超底仓向下取整)，新增 `t_lot_cost`(股数×价)保证卡片金额与股数一致；③小底仓下整手占比高于1/10时加 LOT info 提示(不拦截)；④`t0_daily_check.py` 卡片展示改用 `整手` 标注+实际成本；⑤补 5 个测试(test_t_position_shares_is_valid_lot/floor_to_one_lot/rounds_to_nearest_lot/base_below_one_lot_no_t/small_base_lot_exceeds_ratio_flagged)。修复后重跑：长电/华天均=100股(整手,~¥7782/~¥1788)，并已重推更正卡片到飞书群。44 tests passed 零回归。
+- **防复犯**: A股任何"股数"输出(T仓/买卖量/补仓量)都必须 `int(round(x/100))*100` 且 ≥100；持仓/选股/交易执行类脚本统一复用 LOT_SIZE 常量，禁止裸 `round(金额/价)`。
+- **去重**: 与 08-13 自动化失败/Marvis 故障不同源(那是调度层)，本例是**数量计算漏整手约束**的纯逻辑 bug。
+- **★升级候选**: 建议在 `sim_trade.py`/选股/任何涉及"股数"的脚本做一次整手约束审计(grep `round(.*/.*price)` 或 `// 100` 缺失处)，避免同类再生产。
+
+### 2026-08-14 整手约束审计闭环（sim_trade.py/选股脚本，上条★升级候选已执行）
+- **触发**: 上条★升级候选建议的整手约束审计已执行。
+- **审计范围**: grep `scripts/` + `.workbuddy/scripts/` 全部"股数"计算点；逐文件核验买入/卖出/止盈/T仓股数是否 `×100整数倍且≥100`。
+- **已合规(无需改)**: `sim_signal_advisor.py`(653/922 `int(.../100)*100`)、`scan_mainboard_local.py`(343)、`scan_mainboard_full.py`(145)、`backtest.py`(145/215/395 `int(capital/price/100)*100`+`>=100`)、`validate_constraints.py`(已有 `validate_lot(shares, lot_size=100)`)；根 `scripts/` 无裸 `round(value/price)`。
+- **发现并修复的违规（3处 sim_trade.py + 1处 execute_buy_plan.py）**:
+  1. `sim_trade.py` 新增 `LOT_SIZE=100` 常量（整手约束单一真相源）。
+  2. `check_take_profit`：`int(pos["shares"]*sell_ratio)` 产生非整手(如500×0.33=165) → 改为 `//LOT_SIZE*LOT_SIZE`，<100 兜底整仓卖出。
+  3. `cmd_buy`：无整手门禁 → 加 fail-closed 拒绝（非100整数倍或<100 直接返回错误，落库前拦截）。
+  4. `cmd_sell` 部分卖出：`0<shares<pos["shares"]` 段加整手取整；全仓卖出(pos["shares"]) 保留零股尾仓放行。
+  5. `execute_buy_plan.py` `do_buy`：消费端深度防御，计划股数 `int(plan["shares"])` 后向下规整到100整数倍，<100 跳过并告警（避免触发 sim_trade 失败闭合导致自动化静默失败）。
+- **回归**: 新增 6 个整手约束用例于 tests/test_sim_trade_sanity.py（cmd_buy 拒绝非整手/接受整手、cmd_sell 拒绝非整手部分/部分整手取整+全仓零股尾仓、check_take_profit 整手取整/小持仓兜底整仓）。连同原有用例共 **57 passed 零回归**(19.85s)。
+- **遗留(非本次范围)**: `cmd_buy` 成功返回体不含 `ok` 键（仅返回 cash_remaining/total_asset，既有不一致），测试中改以"持仓副作用"验证成交；建议后续单列小重构统一返回体（可选）。
+- **闭环**: ★升级候选 → 已执行+修复完成；已升级(2026-08-16)为🔴铁律（"任何股数输出须 `int(round(x/100))*100` 且≥100，统一复用 LOT_SIZE，禁裸 round(金额/价)"）。

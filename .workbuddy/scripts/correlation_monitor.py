@@ -157,7 +157,9 @@ def main() -> int:
         codes = [c for c in codes if not (c in seen or seen.add(c))]
 
     # 实盘单账户同源双标(如封测链)通常只有 2 只 → 降低触发门槛
-    min_holdings = REAL_MIN_HOLDINGS if "user" in sources_used and "sim" not in sources_used else MIN_HOLDINGS
+    min_holdings = (
+        REAL_MIN_HOLDINGS if "user" in sources_used and "sim" not in sources_used else MIN_HOLDINGS
+    )
     state, pairs = get_correlation_state(codes, min_holdings=min_holdings, threshold=args.threshold)
     print(state, flush=True)
     if args.verbose:

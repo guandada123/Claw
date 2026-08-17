@@ -9,7 +9,7 @@
     "_source": "wind"
   },
   "cpi": {
-    "cpi_national_yoy": 1,
+    "cpi_national_yoy": 0.5,
     "_source": "wind"
   },
   "pmi": {
@@ -17,11 +17,11 @@
     "_source": "wind"
   },
   "money_supply": {
-    "m2_yoy": 8,
+    "m2_yoy": 7.7,
     "_source": "wind"
   },
   "shibor": {
-    "overnight": 1.361,
+    "overnight": 1.363,
     "_source": "wind"
   },
   "lpr": {
@@ -29,14 +29,14 @@
     "_source": "wind"
   },
   "social_financing": {
-    "aggregate": null,
+    "aggregate": 14017,
     "_source": "wind"
   },
   "forex_reserve": {
-    "amount": 34162.62,
+    "amount": 34187.76,
     "_source": "wind"
   },
   "_source": "wind",
-  "generated_at": "2026-08-07 15:48:31",
+  "generated_at": "2026-08-17 08:37:13",
   "indicator_count": 8
 }

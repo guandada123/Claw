@@ -66,9 +66,9 @@ generate_signals = _sig.generate_signals
 #   * COMBO<=-1.0 → 明确弱势(全市场约 45% 分位), 才标 SELL
 ADX_FILTER = 25
 RSI_BLOCK = 80
-COMBO_BUY = 0.2        # 买入阈值(正向信号, 当前市场实际无触发)
-COMBO_STRONG = 0.4     # 强买阈值
-COMBO_SELL = -1.0      # 明确弱势阈值(原 -0.2 过严, 误把轻度逆向信号标成卖压)
+COMBO_BUY = 0.2  # 买入阈值(正向信号, 当前市场实际无触发)
+COMBO_STRONG = 0.4  # 强买阈值
+COMBO_SELL = -1.0  # 明确弱势阈值(原 -0.2 过严, 误把轻度逆向信号标成卖压)
 MIN_BARS = 30
 LOOKBACK = 60
 
@@ -451,7 +451,9 @@ def main():
     dist_str = dict(sorted(dist.items(), key=lambda x: -x[1]))
 
     # 信号健康度变量已在表前计算 (combo_median / n_pos_signal / n_buy / health_tag)
-    print(f"\n[信号健康度·复验] median_COMBO={combo_median} | 正向信号股={n_pos_signal}只 | 买入候选={n_buy}只 | {health_tag}")
+    print(
+        f"\n[信号健康度·复验] median_COMBO={combo_median} | 正向信号股={n_pos_signal}只 | 买入候选={n_buy}只 | {health_tag}"
+    )
 
     out = {
         "scan_date": scan_date,
