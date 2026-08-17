@@ -57,19 +57,30 @@ def _call_llm(
 ) -> str:
     """调 LLM，返回文本响应。内置 3 次重试+指数退避。失败抛 RuntimeError"""
     cfg = _llm_config()
+    # 🔴 08-13 同源修复：本地代理(9999)会注入 THINK_BUDGET=high → deepseek-v4-flash
+    #   仅返回 reasoning_content、content 为空 → 结构化 JSON 无法解析 → 误判降级。
+    #   关闭 thinking 让模型直接输出 content，提升辩论 JSON 稳定性。
+    payload = {
+        "model": "deepseek-v4-flash",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        # 🔴 08-13 同源修复：本地代理(9999)注入 THINK_BUDGET=high 会让 deepseek-v4-flash
+        # 仅返 reasoning_content、content 为空 → 结构化 JSON 无法解析 → 误判降级。
+        # 双保险关闭推理模式：①顶层 thinking（实测后端透传生效）②extra_body.thinking
+        # （代理 proxy-deepseek.py 显式检查此字段做 opt-out，见其 L100-110）。
+        # 8/15 那次只加回退兜底、未关注入 → 收敛阶段 JSON 仍解析失败 → 降级未消除。
+        "thinking": {"type": "disabled"},
+        "extra_body": {"thinking": {"type": "disabled"}},
+    }
     for attempt in range(3):
         try:
             resp = requests.post(
                 f"{cfg['base_url']}/chat/completions",
-                json={
-                    "model": "deepseek-v4-flash",
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                },
+                json=payload,
                 headers={"Authorization": f"Bearer {cfg['api_key']}"},
                 timeout=45,
             )

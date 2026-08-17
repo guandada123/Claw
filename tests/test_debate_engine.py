@@ -1,10 +1,48 @@
 """测试 src/claw/debate/debate_engine.py（无 LLM 依赖部分）"""
 import sys
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from claw.debate.debate_engine import _fallback_verdict, _parse_json_response
+
+
+class TestCallLlmThinkingOptOut:
+    """🔴 固化 8/15 复发根因：_call_llm 请求必须双写 thinking opt-out，
+    否则本地代理(9999)注入 THINK_BUDGET=high → content 空 → 收敛 JSON 降级。
+    若此测试失败，说明有人删掉了 thinking 关闭逻辑，必须补回。"""
+
+    def _capture_payload(self):
+        """mock requests.post，捕获实际发出的 JSON payload"""
+        captured = {}
+
+        def fake_post(url, json=None, headers=None, timeout=None):
+            captured["payload"] = json
+            resp = mock.Mock()
+            resp.raise_for_status.return_value = None
+            resp.json.return_value = {
+                "choices": [{"message": {"content": '{"x": 1}'}}]
+            }
+            return resp
+
+        with mock.patch("claw.debate.debate_engine.requests.post", side_effect=fake_post):
+            from claw.debate.debate_engine import _call_llm
+            _call_llm("sys", "user")
+        return captured["payload"]
+
+    def test_top_level_thinking_disabled(self):
+        payload = self._capture_payload()
+        assert payload.get("thinking") == {"type": "disabled"}, (
+            "请求必须携带顶层 thinking=disabled 关闭推理模式"
+        )
+
+    def test_extra_body_thinking_disabled(self):
+        payload = self._capture_payload()
+        assert payload.get("extra_body", {}).get("thinking") == {"type": "disabled"}, (
+            "请求必须携带 extra_body.thinking=disabled（代理 proxy-deepseek.py 显式检查此字段）"
+        )
+
 
 
 class TestParseJsonResponse:
