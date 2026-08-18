@@ -1,6 +1,6 @@
 {
   "config": {
-    "initial_capital": 50000.0,
+    "initial_capital": 30000.0,
     "capital_additions": [
       {
         "amount": 20000.0,
@@ -9,7 +9,7 @@
       }
     ],
     "created_at": "2026-07-05",
-    "updated_at": "2026-08-16 01:30:59"
+    "updated_at": "2026-08-18 10:03:46"
   },
   "cash": 10208.02,
   "positions": {
@@ -18,7 +18,7 @@
       "shares": 100,
       "avg_cost": 81.135,
       "total_cost": 8113.5,
-      "current_price": 83.5,
+      "current_price": 82.57,
       "highest_price": 89.39,
       "take_profit_level": 1,
       "entry_mode": "normal",
@@ -35,7 +35,7 @@
       "shares": 100,
       "avg_cost": 27.565,
       "total_cost": 2756.5,
-      "current_price": 35.15,
+      "current_price": 33.05,
       "highest_price": 35.8,
       "take_profit_level": 3,
       "entry_mode": "normal",
@@ -52,7 +52,7 @@
       "shares": 200,
       "avg_cost": 38.935,
       "total_cost": 7787.0,
-      "current_price": 38.59,
+      "current_price": 38.16,
       "highest_price": 40.55,
       "take_profit_level": 1,
       "first_buy_date": "2026-07-23",
@@ -68,7 +68,7 @@
       "shares": 4000,
       "avg_cost": 4.5814,
       "total_cost": 18325.5,
-      "current_price": 4.4,
+      "current_price": 4.37,
       "highest_price": 4.65,
       "take_profit_level": 1,
       "first_buy_date": "2026-08-05",
