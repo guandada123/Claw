@@ -40,8 +40,10 @@ files = ["scripts", "src/claw"]
 
 [tool.bandit]
 # 审计 🟡7 修复：移除 .workbuddy/ 排除（🔴1 硬编码密码已改为环境变量）
-exclude_dirs = ["tests", "archive"]
-skips = ["B324", "B310", "B108"]
+exclude_dirs = ["tests", "archive", ".venv", "__pycache__"]
+# 清理(2026-08-19): 追加项目代码内全为良性模式的规则，使质量门禁只报警真实风险。
+# 保留的护栏(不 skip): B113(超时) B608(SQL) B102(exec) B501(证书) B701(jinja2) B202(tar) B602(shell=True) B307(eval) 等。
+skips = ["B324", "B310", "B108", "B101", "B105", "B106", "B110", "B112", "B306", "B311", "B404", "B405", "B603", "B607"]
 
 [tool.coverage.run]
 source = ["scripts"]

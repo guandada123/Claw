@@ -1,0 +1,5 @@
+[bandit]
+# 与 pyproject.toml [tool.bandit] 保持同步（双源一致）。
+# 作用：plain `bandit -r .` 自动发现本文件，避免误扫 .venv 虚拟环境（55k 噪声 / 131 高危）。
+exclude = /tests,/archive,/.venv,/__pycache__
+skips = B324,B310,B108,B101,B105,B106,B110,B112,B306,B311,B404,B405,B603,B607

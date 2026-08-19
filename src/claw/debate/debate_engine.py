@@ -102,12 +102,12 @@ def _call_llm(
             # 🔴 08-04 加固：content 仍为空(既无 content 也无 reasoning_content)才视为失败重试，
             # 避免静默返回空串 → 解析失败 → 全体降级(曾致15:50辩论0B/7H/0S)
             if not content:
-                raise RuntimeError("LLM returned empty content (reasoning-only)")
+                raise RuntimeError("LLM returned empty content (reasoning-only)")  # noqa: TRY301 — 重试保障：空内容须在此抛出而非静默返回
             # 🔴 08-11 噪声过滤：DeepSeek 后端偶发 internal error 会吐垃圾 token 流
             #   （如整段 "!+!+..." 噪声串，末尾 "Model service internal error"）。
             #   这类响应虽非空串，但无法解析出 JSON 论点，应视为失败重试而非返回乱码。
             if _is_noise_response(content):
-                raise RuntimeError("LLM returned garbage/noise response (service internal error)")
+                raise RuntimeError("LLM returned garbage/noise response (service internal error)")  # noqa: TRY301 — 重试保障：噪声响应视为失败重试而非返回乱码
             return content
         except (requests.Timeout, requests.ConnectionError, requests.HTTPError, RuntimeError) as exc:
             if attempt < 2:
