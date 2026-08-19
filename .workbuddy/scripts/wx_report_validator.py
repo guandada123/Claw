@@ -220,16 +220,15 @@ def main() -> int:
     if args.report:
         files = [Path(args.report)]
     elif args.hours:
-        # 覆盖「当日 + 前一日」双日期前缀，修复跨日边界漏判（08-03 记录：
-        # 21:00 运行时 since 落在前一日，原 glob 只匹配前一日前缀，漏掉当日报告）
-        now = datetime.now()
-        day_prefixes = {(now - timedelta(days=d)).strftime("%Y%m%d") for d in range(2)}
+        # 按文件修改时间筛选近 N 小时内的报告（修复 08-19: 原实现忽略 hours
+        # 参数、硬编码扫当日+前一日，长窗口历史漏判；mtime 法天然跨日边界）
+        cutoff = datetime.now() - timedelta(hours=args.hours)
         files = [
             f
             for f in REPORT_DIR.glob("*.md")
             if f.name[:8].isdigit()
-            and f.name[:8] in day_prefixes
             and ("morning" in f.name or "evening" in f.name)
+            and datetime.fromtimestamp(f.stat().st_mtime) >= cutoff
         ]
     else:
         # 最新一对

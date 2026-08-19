@@ -33,6 +33,22 @@ DEFAULT_CHAT = "oc_9ee5303497f5e0e71666b610d6bdc346"
 WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
 
+def _normalize_risk_heading(md: str) -> str:
+    """防御 LLM 偶发对风险段加「一、」编号（2026-08-06 / 2026-08-17 已复现）。
+
+    风险段标题在模板中本无编号（`## 🩺 收盘风险复盘（...）`），但模型偶发在首段
+    前加「一、」→ SECTION_RE 截断为「🩺 一」→ 校验器报「缺失风险段 / 多余主段落」。
+    此处剥离开头的中文数字编号 + 顿号，保留模板分隔符（如 `（`），确保标题仍含
+    风险关键词。仅作用于 `## 🩺` 风险段，不动其他段落。
+    """
+    def repl(m: "re.Match") -> str:
+        rest = m.group(2)
+        cleaned = re.sub(r"^[一二三四五六七八九十]+、", "", rest)
+        return m.group(1) + cleaned
+
+    return re.sub(r"^(##\s+🩺\s+)(.*)$", repl, md, flags=re.MULTILINE)
+
+
 def _create_feishu_doc(title: str, content: str) -> str | None:
     """生成飞书文档（仅 user 身份，确保创建者即用户、文档可直接打开）。
 
@@ -171,6 +187,14 @@ def main():
 
     with open(md_path, encoding="utf-8") as f:
         md = f.read()
+
+    # 0) 规范化风险段标题（剥离开头「一、」编号），落盘 + 推送同源，避免校验告警
+    md_norm = _normalize_risk_heading(md)
+    if md_norm != md:
+        print("🧹 风险段标题规范化（剥离误加编号），回写文件")
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(md_norm)
+        md = md_norm
 
     title = f"📊 炒股助理·收盘晚报 — {ymd[:4]}-{ymd[4:6]}-{ymd[6:]}（{weekday}）"
 
