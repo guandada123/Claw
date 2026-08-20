@@ -42,7 +42,7 @@ def _normalize_risk_heading(md: str) -> str:
     此处剥离开头的中文数字编号 + 顿号，保留模板分隔符（如 `（`），确保标题仍含
     风险关键词。仅作用于 `## 🩺` 风险段，不动其他段落。
     """
-    def repl(m: "re.Match") -> str:
+    def repl(m: re.Match) -> str:
         rest = m.group(2)
         cleaned = re.sub(r"^[一二三四五六七八九十]+、", "", rest)
         return m.group(1) + cleaned

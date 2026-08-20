@@ -100,6 +100,14 @@ def get_subscriptions() -> dict:
             timeout=15,
             verify=False,  # noqa: S501  # nosec 本地RSS代理自签证书，禁用校验保障抓取(无敏感凭证)
         )
+        if resp.status_code != 200:
+            # 08-19 实测：token 失效时返回 401{"detail":"无效的认证凭证"}，
+            # 旧逻辑静默吞成空列表 → 上游误判"未找到订阅"。此处显式暴露状态码。
+            print(
+                f"  ⚠️ 订阅列表接口 HTTP {resp.status_code}: {resp.text[:200]}",
+                file=sys.stderr,
+            )
+            return {"subscriptions": []}
         data = resp.json()
         subs = data.get("subscriptions", [])
         # 只取 wx_morning_report.py 需要的字段
@@ -229,6 +237,9 @@ def fetch_article_content_ex(
                 timeout=20,
                 verify=False,  # noqa: S501  # nosec 同上本地RSS代理自签证书
             )
+            if resp.status_code == 401:
+                # 认证失效（token 过期/吊销/套餐到期）：重试无意义，直接返回
+                return "", f"auth_401: {resp.text[:120]}"
             data = resp.json()
             if data.get("success") and data.get("data"):
                 d = data["data"]
