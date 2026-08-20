@@ -1,7 +1,7 @@
 {
   "total_count": 63,
-  "healthy_count": 62,
-  "warning_count": 1,
+  "healthy_count": 54,
+  "warning_count": 9,
   "critical_count": 0,
   "by_category": {
     "投顾操盘": [
@@ -9,7 +9,7 @@
         "name": "StockInsight 收盘选股扫描",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T15:27:20.612000",
+        "last_run": "2026-08-19T15:45:41.480000",
         "issues": [],
         "run_count_24h": 1,
         "running": false
@@ -18,18 +18,18 @@
         "name": "📈【投顾操盘】午间选股",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T12:28:56.965000",
+        "last_run": "2026-08-19T12:30:43.884000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📈【投顾操盘】智能选股",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T09:14:14.244000",
+        "last_run": "2026-08-19T09:14:20.071000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 1,
         "running": false
       },
       {
@@ -38,60 +38,62 @@
         "health": "🟢",
         "last_run": "2026-08-16T16:00:31.323000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "📈【投顾操盘】策略执行-09:10",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T09:06:10.044000",
+        "last_run": "2026-08-19T09:19:12.497000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📈【投顾操盘】策略执行-10:10",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T10:03:56.776000",
+        "last_run": "2026-08-19T10:18:25.210000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📈【投顾操盘】策略执行-11:10",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T11:08:14.833000",
+        "last_run": "2026-08-19T11:15:55.930000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📈【投顾操盘】策略执行-13:10",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T13:08:12.554000",
+        "last_run": "2026-08-19T13:12:58.570000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📈【投顾操盘】策略执行-14:10",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T14:10:45.672000",
+        "last_run": "2026-08-19T14:12:29.504000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📈【盘中】投顾策略执行",
         "status": "ACTIVE",
-        "health": "🟢",
-        "last_run": "2026-08-17T08:06:59.740000",
-        "issues": [],
+        "health": "🟡",
+        "last_run": "2026-08-19T21:28:26.396000",
+        "issues": [
+          "历史错误: Automation prompt stopped before complet"
+        ],
         "run_count_24h": 5,
         "running": false
       },
@@ -99,26 +101,28 @@
         "name": "📈投顾·科技红利聚焦扫描",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T09:15:42.950000",
+        "last_run": "2026-08-19T09:34:58.194000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📊助理选股扫描(含创业板)(收盘)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T15:37:19.467000",
+        "last_run": "2026-08-19T15:42:36.414000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 1,
         "running": false
       },
       {
         "name": "📝【周报】每周综合复盘(投顾+项目)",
         "status": "ACTIVE",
-        "health": "🟢",
+        "health": "🟡",
         "last_run": "2026-08-14T17:04:44.109000",
-        "issues": [],
+        "issues": [
+          "134h未运行"
+        ],
         "run_count_24h": 0,
         "running": false
       },
@@ -126,9 +130,9 @@
         "name": "🔄【选股池】新上市标的增量补全(每日)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T08:21:24.121000",
+        "last_run": "2026-08-19T08:38:47.977000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       }
     ],
@@ -137,54 +141,54 @@
         "name": "🇺🇸【美股监控】盘前+收盘",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-17T04:27:32.881000",
+        "last_run": "2026-08-19T04:31:16.485000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "🇼🆆 Wind持仓监控",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T15:32:22.845000",
+        "last_run": "2026-08-19T15:36:44.579000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📅 盘前持仓/盘面摘要（08:50 dry-run）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T08:40:52.152000",
+        "last_run": "2026-08-19T08:56:13.376000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📅【持仓】财报日历(每日+周报)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-17T07:52:30.566000",
+        "last_run": "2026-08-19T08:06:58.416000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📊 微信早报生成推送",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T08:45:34.090000",
+        "last_run": "2026-08-19T08:57:36.979000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 1,
         "running": false
       },
       {
         "name": "📊【收盘】综合复盘+晚报（vFinal-E v2）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T16:02:38.443000",
+        "last_run": "2026-08-19T16:00:14.683000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 1,
         "running": false
       },
       {
@@ -193,15 +197,17 @@
         "health": "🟢",
         "last_run": "2026-08-16T19:57:38.041000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "📊【炒股助理】宏观数据周报",
         "status": "ACTIVE",
-        "health": "🟢",
+        "health": "🟡",
         "last_run": "2026-08-15T09:55:13.816000",
-        "issues": [],
+        "issues": [
+          "117h未运行"
+        ],
         "run_count_24h": 0,
         "running": false
       },
@@ -211,7 +217,7 @@
         "health": "🟢",
         "last_run": "2026-08-16T08:56:52.372000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
@@ -227,25 +233,25 @@
         "name": "📊【盘中】助理实盘监控",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T08:52:04.218000",
+        "last_run": "2026-08-19T09:13:35.252000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📊【盘中】助理实盘监控-10:00",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T09:52:15.859000",
+        "last_run": "2026-08-19T10:21:09.867000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📊【盘中】助理实盘监控-11:00",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T10:56:58.711000",
+        "last_run": "2026-08-19T11:04:53.795000",
         "issues": [],
         "run_count_24h": 1,
         "running": false
@@ -254,7 +260,7 @@
         "name": "📊【盘中】助理实盘监控-13:00",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T12:57:46.498000",
+        "last_run": "2026-08-19T13:00:10.618000",
         "issues": [],
         "run_count_24h": 1,
         "running": false
@@ -263,27 +269,27 @@
         "name": "📊【盘中】助理实盘监控-14:00",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T13:55:53.516000",
+        "last_run": "2026-08-19T14:03:20.809000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "🔄【公众号】RSS文章同步落盘(每日)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-17T07:27:28.015000",
+        "last_run": "2026-08-19T07:32:11.837000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "🧪 QTS 策略日评（收盘回测 → 晚报消费）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T15:07:51.579000",
+        "last_run": "2026-08-19T15:00:46.878000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 1,
         "running": false
       }
     ],
@@ -292,30 +298,30 @@
       {
         "name": "🔍【治理】双副本/软链审计(重构后自动)",
         "status": "ACTIVE",
-        "health": "🟢",
-        "last_run": "2026-08-16T21:01:53.651000",
-        "issues": [],
-        "run_count_24h": 1,
+        "health": "🟡",
+        "last_run": "2026-08-19T21:00:30.077000",
+        "issues": [
+          "历史错误: Automation prompt stopped before complet"
+        ],
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "🛡️ 统一巡检中枢（接管所有健康巡检）",
         "status": "ACTIVE",
-        "health": "🔵",
-        "last_run": "2026-08-17T07:23:06.837000",
-        "issues": [
-          "运行中"
-        ],
+        "health": "🟢",
+        "last_run": "2026-08-20T07:35:26.333000",
+        "issues": [],
         "run_count_24h": 5,
-        "running": true
+        "running": false
       },
       {
         "name": "🧹【系统维护】记忆+上下文维护",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-17T03:26:03.176000",
+        "last_run": "2026-08-19T03:30:55.671000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       }
     ],
@@ -336,16 +342,16 @@
         "name": "QTS日线全市场回填(腾讯源)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T16:27:16.498000",
+        "last_run": "2026-08-19T16:32:54.956000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "WIND→QTS基本面桥",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T14:48:47.203000",
+        "last_run": "2026-08-19T14:50:21.355000",
         "issues": [],
         "run_count_24h": 1,
         "running": false
@@ -354,45 +360,50 @@
         "name": "WIND信号富化(盘后)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T15:31:03.088000",
+        "last_run": "2026-08-19T15:40:39.317000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "🐟 鱼盆主生成（Wind+东财自建）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T08:37:48.639000",
+        "last_run": "2026-08-19T08:53:43.947000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "🐟 鱼盆数据提取（每日）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T08:48:18.222000",
+        "last_run": "2026-08-19T08:57:31.987000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "💰【成本看板】飞书成本仪表盘日报(22:10)",
-        "status": "ACTIVE",
-        "health": "🟢",
-        "last_run": "2026-08-16T22:05:56.153000",
-        "issues": [],
-        "run_count_24h": 1,
+        "status": "PAUSED",
+        "health": "🟡",
+        "last_run": "2026-08-18T22:10:58.990000",
+        "issues": [
+          "已暂停",
+          "33h未运行"
+        ],
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "💰【系统维护】成本监控(6h)",
-        "status": "ACTIVE",
-        "health": "🟢",
-        "last_run": "2026-08-17T03:54:03.966000",
-        "issues": [],
-        "run_count_24h": 4,
+        "status": "PAUSED",
+        "health": "🟡",
+        "last_run": "2026-08-19T03:35:35.588000",
+        "issues": [
+          "已暂停"
+        ],
+        "run_count_24h": 0,
         "running": false
       },
       {
@@ -401,16 +412,16 @@
         "health": "🟢",
         "last_run": "2026-08-16T20:26:12.266000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "💾【系统维护】每日数据备份",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-17T04:14:20.637000",
+        "last_run": "2026-08-19T15:30:10.501000",
         "issues": [],
-        "run_count_24h": 4,
+        "run_count_24h": 2,
         "running": false
       },
       {
@@ -419,79 +430,81 @@
         "health": "🟢",
         "last_run": "2026-08-16T20:55:58.506000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "📊【知识库】信号溯源+升降级+CSV(05:00)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-17T05:12:50.006000",
+        "last_run": "2026-08-19T05:21:15.662000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "📊【知识库】信号溯源+升降级+CSV(15:00)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T15:00:45.891000",
+        "last_run": "2026-08-19T15:06:16.359000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📊【系统维护】Quant 数据管线",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T09:28:09.129000",
+        "last_run": "2026-08-19T09:39:57.647000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📊【系统维护】工程质量报告",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T17:58:25.806000",
+        "last_run": "2026-08-19T18:01:16.743000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📋 日报结构校验（异常推送）",
         "status": "ACTIVE",
-        "health": "🟢",
-        "last_run": "2026-08-16T20:55:41.191000",
-        "issues": [],
-        "run_count_24h": 1,
+        "health": "🟡",
+        "last_run": "2026-08-19T21:00:30.231000",
+        "issues": [
+          "历史错误: Automation prompt stopped before complet"
+        ],
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📋 盘后账户汇总报告",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T15:02:49.303000",
+        "last_run": "2026-08-19T15:09:57.855000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📋【做T】尾盘决策(14:25)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T14:20:22.396000",
+        "last_run": "2026-08-19T14:25:37.367000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📋【做T】早盘自检(9:25)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T09:15:40.046000",
+        "last_run": "2026-08-19T09:27:45.243000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
@@ -500,25 +513,25 @@
         "health": "🟢",
         "last_run": "2026-08-16T19:57:55.226000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "📚【知识库】全网挖掘+文章精读(LLM)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-17T03:58:57.355000",
+        "last_run": "2026-08-19T16:08:17.931000",
         "issues": [],
-        "run_count_24h": 4,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "📦 Dependabot 日清 — 午休执行(12:00)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-16T11:57:05.123000",
+        "last_run": "2026-08-19T12:02:30.771000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 2,
         "running": false
       },
       {
@@ -527,7 +540,7 @@
         "health": "🟢",
         "last_run": "2026-08-16T22:09:51.870000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
@@ -536,24 +549,29 @@
         "health": "🟢",
         "last_run": "2026-08-16T21:02:25.122000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false
       },
       {
         "name": "🛡️ 巡检中枢存活看门狗（每2h）",
         "status": "ACTIVE",
-        "health": "🟢",
-        "last_run": "2026-08-17T06:41:15.213000",
-        "issues": [],
+        "health": "🔵",
+        "last_run": "2026-08-19T21:17:29.474000",
+        "issues": [
+          "运行中",
+          "历史错误: Automation prompt stopped before complet"
+        ],
         "run_count_24h": 5,
-        "running": false
+        "running": true
       },
       {
         "name": "🛡️ 自动化失败扫表 watchdog（每小时）",
         "status": "ACTIVE",
-        "health": "🟢",
-        "last_run": "2026-08-17T07:55:03.487000",
-        "issues": [],
+        "health": "🟡",
+        "last_run": "2026-08-19T21:09:29.177000",
+        "issues": [
+          "历史错误: Automation prompt stopped before complet"
+        ],
         "run_count_24h": 5,
         "running": false
       },
@@ -561,30 +579,30 @@
         "name": "🛡️【自动补跑】漏报直接补推",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T16:28:07.195000",
+        "last_run": "2026-08-19T16:32:09.586000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "🧬 Alpha因子清单每日刷新(17:10)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T17:05:50.709000",
+        "last_run": "2026-08-19T17:11:02.382000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       },
       {
         "name": "🩺【项目管理】风险巡检+写入JSON",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-08-14T08:40:26.190000",
+        "last_run": "2026-08-19T08:48:26.015000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 2,
         "running": false
       }
     ]
   },
-  "generated_at": "2026-08-17T08:14:19.711298"
+  "generated_at": "2026-08-20T07:35:35.063333"
 }

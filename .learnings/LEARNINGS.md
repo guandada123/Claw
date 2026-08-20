@@ -85,3 +85,21 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **回归**: 新增 6 个整手约束用例于 tests/test_sim_trade_sanity.py（cmd_buy 拒绝非整手/接受整手、cmd_sell 拒绝非整手部分/部分整手取整+全仓零股尾仓、check_take_profit 整手取整/小持仓兜底整仓）。连同原有用例共 **57 passed 零回归**(19.85s)。
 - **遗留(非本次范围)**: `cmd_buy` 成功返回体不含 `ok` 键（仅返回 cash_remaining/total_asset，既有不一致），测试中改以"持仓副作用"验证成交；建议后续单列小重构统一返回体（可选）。
 - **闭环**: ★升级候选 → 已执行+修复完成；已升级(2026-08-16)为🔴铁律（"任何股数输出须 `int(round(x/100))*100` 且≥100，统一复用 LOT_SIZE，禁裸 round(金额/价)"）。
+
+### 2026-08-20 automation_runs "refusal" 集群实为 429 配额耗尽（correction + insight → ★升级候选）
+- **类型**: correction（修正初判）/ insight（诊断模式）
+- **现象**: 08-19 20:09–21:28 出现 12 条 `Automation prompt stopped before completion: refusal` 集群，watchdog 归次要 SILENT。初判误写为"模型拒绝执行/内容策略异常"。
+- **根因**(DB 实锤): 实际是 **HTTP 429 配额/频率限制**（code -32003, "Quota exceeded: 429 您的使用量已超出频率限制，将在 2026-08-20 02:09:25 UTC+8 重置"）。6 个互不相干自动化同享同一 reset 时间戳 → 单一模型路由当日配额耗尽（系统性）。08-16/17/18 均 0 条、08-20 02:10 重置后 0 条 → 偶发用量 spike 非周期。关联待办：DeepSeek 直连余额近枯竭/路由切换待完成。
+- **处置**: 无需修复，配额每日 02:09 UTC+8 重置后自愈，08-20 巡检全绿印证。
+- **防复犯**: ①"refusal" 字眼≠内容安全拒绝，含 429；诊断须取完整 thread_title 看 code/message。②同享 reset 时间戳 + 多互不相干自动化同时失败 = 单路由配额耗尽（系统性）。③确认恢复看 reset 后是否还有新 429。④watchdog 归次要 SILENT 行为正确，但 digest "refusal" 文案易误导，建议对 429 单独标注。
+- **去重**: 与 08-11/08-13 THINK_BUDGET 注入（content 空）不同源；与 08-13 Marvis 重启（会话未拉起）不同源。
+- **★升级候选**: 若 429 复现频率上升，给 watchdog 加「429 配额集群」专项检测（窗口内 ≥3 条同 reset 时间戳 429 → 推飞书提示切模型/查路由）。
+
+### 2026-08-17 北辰辩论降级复发：兜底式修复未关注入源头（correction → ★升级候选）
+- **类型**: correction
+- **现象**: 8/15 `482a030` 已"修复"辩论降级（content 空回退 reasoning_content 兜底），但 8/17 用户反馈北辰"完全没有参考度"，实测 13 只持仓辩论 conf 全=0.4、专家 risk_flags=["LLM调用失败"]、降级 HOLD。
+- **根因**(实锤): 8/15 修复方向错——只加 content 空→reasoning_content 兜底，**未关闭代理 THINK_BUDGET=high 注入**。①stance 阶段用 reasoning 顶上；②但收敛阶段要**严格 JSON**，从 reasoning 自由文本提不出 → `_fallback_verdict` 简单多数降级；③更严重：生产环境专家仍 3 次重试全失败（`LLM调用失败` 降级 HOLD），兜底根本没兜住。**8/15 修复形同虚设**。
+- **处置**: ①`debate_engine._call_llm` 请求**双写** thinking opt-out（顶层 `thinking` + `extra_body.thinking`），实测后端透传生效，content 正常返回，收敛 JSON 可解析；②新增 `tests/test_debate_engine.py::TestCallLlmThinkingOptOut` 固化防 8/15 复发；③`run_debate.py` 顺带修 gtimg 行情解析（GBK 崩溃+字段错位）+ 新增 `_enrich_stock_data()` 补全 RSI/MA20/MACD/量比，消除"数据饥饿"第二根因；④`proxy-deepseek.py` 注释固化 opt-out 契约。验证：601668 conf 0.40→0.75、因子全50→V75/Q55/G45/M30、0 降级专家。commit `97f040b`。
+- **防复犯**: 🔴 **结构化 JSON 抽取类调用（deepseek-v4-flash）的修复必须"从源头关闭思考注入"，不能靠 content 空回退 reasoning 兜底**——reasoning 是思考链非 JSON，兜底对 JSON 任务无效，必降级。正确做法见 router.py / read_wx_articles.py / debate_engine.py：请求携带 `thinking=disabled`（顶层+extra_body 双写）。
+- **去重**: 与 08-11 / 08-13 同根因（THINK_BUDGET=high 注入）。但本例暴露**新缺口**：8/15 那次只做了"症状缓解"（加兜底）而非"根因消除"（关注入），且**假设 reasoning 能当 JSON 用**——逻辑假设错误。这是典型的"假修复"，须记入反模式。
+- **★升级候选**: 建议升级为🔴铁律：①凡结构化 JSON 抽取调用必须 per-request 关 thinking（双写），禁仅靠 content 空兜底；②修复"LLM 返回空/content 异常"类故障时，先查代理 THINK_BUDGET 注入日志（`Thinking mode injected`）而非加兜底；③CI 加契约测试：JSON 类调用方 payload 须含 thinking 关闭字段（已有 test_debate_engine 示例，建议推广到 router.call_llm / read_wx_articles）。
