@@ -46,9 +46,9 @@ def trace(code: str | None = None):
             continue
 
         name = pos.get("name", c)
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  {name} ({c})")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # 持仓
         shares = pos.get("shares", 0)
@@ -69,18 +69,30 @@ def trace(code: str | None = None):
                 action = "买入" if t.get("type") == "BUY" else "卖出"
                 pnl_str = ""
                 if t.get("type") == "SELL":
-                    pnl_str = f"| 盈亏 ¥{t.get('realized_pnl',0):+,.2f} ({t.get('pnl_pct',0):+.2f}%)"
-                print(f"  {t.get('date','')} {action} {t.get('shares',0)}股 @¥{t.get('price',0):.2f} {pnl_str}")
+                    pnl_str = (
+                        f"| 盈亏 ¥{t.get('realized_pnl', 0):+,.2f} ({t.get('pnl_pct', 0):+.2f}%)"
+                    )
+                print(
+                    f"  {t.get('date', '')} {action} {t.get('shares', 0)}股 @¥{t.get('price', 0):.2f} {pnl_str}"
+                )
 
         # 交易记忆
-        memories = [m for m in trade_memories if c in m.get("symbols", [])] if isinstance(trade_memories, list) else []
+        memories = (
+            [m for m in trade_memories if c in m.get("symbols", [])]
+            if isinstance(trade_memories, list)
+            else []
+        )
         if memories:
             print(f"\n  ── 交易记忆 ({len(memories)}条) ──")
             for m in memories[-3:]:
-                print(f"  {m.get('created_at','')[:10]}: {m.get('title','')} — {m.get('lesson','')[:60]}")
+                print(
+                    f"  {m.get('created_at', '')[:10]}: {m.get('title', '')} — {m.get('lesson', '')[:60]}"
+                )
 
         # 辩论
-        stock_debates = [d for d in debates if d.get("code") == c] if isinstance(debates, list) else []
+        stock_debates = (
+            [d for d in debates if d.get("code") == c] if isinstance(debates, list) else []
+        )
         if stock_debates:
             print(f"\n  ── 辩论历史 ({len(stock_debates)}次) ──")
             for d in stock_debates[-5:]:
@@ -88,7 +100,13 @@ def trace(code: str | None = None):
                 buys = sum(1 for s in d.get("stances", []) if s["stance"] == "BUY")
                 holds = sum(1 for s in d.get("stances", []) if s["stance"] == "HOLD")
                 sells = sum(1 for s in d.get("stances", []) if s["stance"] == "SELL")
-                print(f"  {d.get('timestamp','')[:16]} → {v.get('consensus','?')} [{buys}B/{holds}H/{sells}S] conf={v.get('confidence',0):.0%}")
+                print(
+                    f"  {d.get('timestamp', '')[:16]} → {v.get('consensus', '?')} [{buys}B/{holds}H/{sells}S] conf={v.get('confidence', 0):.0%}"
+                )
+                # 08-21 接线：数据完整性标记（审计 P1-2）—— 数据不足 ≠ LLM 失败
+                insuff = v.get("data_insufficient")
+                if insuff:
+                    print(f"    ⚠️ 数据不足:[{','.join(insuff)}] → 置信度偏低属数据问题，须先补数据")
                 if v.get("summary"):
                     print(f"    {v['summary'][:100]}")
 
@@ -97,9 +115,11 @@ def trace(code: str | None = None):
         has_debates = len(stock_debates) > 0
         has_memories = len(memories) > 0
         has_trades = len(related_txns) > 0
-        print(f"  信号→决策: {'✅' if has_debates else '❌ 缺辩论'} | "
-              f"  决策→执行: {'✅' if has_trades else '❌ 无交易'} | "
-              f"  执行→回顾: {'✅' if has_memories else '❌ 缺记忆'}")
+        print(
+            f"  信号→决策: {'✅' if has_debates else '❌ 缺辩论'} | "
+            f"  决策→执行: {'✅' if has_trades else '❌ 无交易'} | "
+            f"  执行→回顾: {'✅' if has_memories else '❌ 缺记忆'}"
+        )
 
 
 def main():

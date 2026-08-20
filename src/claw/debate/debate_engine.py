@@ -109,9 +109,14 @@ def _call_llm(
             if _is_noise_response(content):
                 raise RuntimeError("LLM returned garbage/noise response (service internal error)")  # noqa: TRY301 — 重试保障：噪声响应视为失败重试而非返回乱码
             return content
-        except (requests.Timeout, requests.ConnectionError, requests.HTTPError, RuntimeError) as exc:
+        except (
+            requests.Timeout,
+            requests.ConnectionError,
+            requests.HTTPError,
+            RuntimeError,
+        ) as exc:
             if attempt < 2:
-                time.sleep(1.5 ** attempt)
+                time.sleep(1.5**attempt)
             else:
                 raise RuntimeError(f"LLM call failed after 3 attempts: {exc}") from exc
 
@@ -135,9 +140,7 @@ def _is_noise_response(text: str) -> bool:
     if len(text) > 80 and noise_chars / len(text) > 0.5:
         return True
     # 超长且无明显句子结构（无空格、无句号、无中文标点）
-    return len(text) > 4000 and not any(
-        sep in text for sep in [" ", "。", "，", ".", "、", "\n"]
-    )
+    return len(text) > 4000 and not any(sep in text for sep in [" ", "。", "，", ".", "、", "\n"])
 
 
 def _parse_json_response(text: str) -> dict:
@@ -261,7 +264,8 @@ def _peer_review_phase(
             f"你是牛市研究员，负责为 {name}({code}) 寻找买入理由。\n"
             f"看多论据: {buy_summary}\n看空论据: {sell_summary}\n观望: {hold_summary or '无'}\n"
             f"请用 3-5 句话阐述最有力的买入理由。即使多数人看空也要找积极因素。<=150字",
-            temperature=0.5, max_tokens=250,
+            temperature=0.5,
+            max_tokens=250,
         )
     except Exception:
         bull_view = buy_summary
@@ -271,16 +275,20 @@ def _peer_review_phase(
             f"你是熊市研究员，负责为 {name}({code}) 寻找风险信号。\n"
             f"看多论据: {buy_summary}\n看空论据: {sell_summary}\n观望: {hold_summary or '无'}\n"
             f"请用 3-5 句话阐述最值得警惕的风险。即使多数人看多也要找隐患。<=150字",
-            temperature=0.5, max_tokens=250,
+            temperature=0.5,
+            max_tokens=250,
         )
     except Exception:
         bear_view = sell_summary
 
-    reviews.append({
-        "round": 1, "mode": "bull_bear_opening",
-        "bull_view": bull_view.strip()[:250],
-        "bear_view": bear_view.strip()[:250],
-    })
+    reviews.append(
+        {
+            "round": 1,
+            "mode": "bull_bear_opening",
+            "bull_view": bull_view.strip()[:250],
+            "bear_view": bear_view.strip()[:250],
+        }
+    )
 
     # 第二轮：互相质疑
     if max_rounds < 2:
@@ -291,7 +299,8 @@ def _peer_review_phase(
             "你在反驳对手但保持理性。承认对手的有效观点，同时指出其盲区。",
             f"熊市研究员认为: {bear_view.strip()[:150]}\n"
             f"作为牛市研究员，请逐条反驳或承认其中有效风险，更新你的买入建议。<=120字",
-            temperature=0.4, max_tokens=200,
+            temperature=0.4,
+            max_tokens=200,
         )
     except Exception:
         bull_rebuttal = ""
@@ -300,16 +309,20 @@ def _peer_review_phase(
             "你在质疑对手的乐观假设。用数据和逻辑而非情绪。",
             f"牛市研究员认为: {bull_view.strip()[:150]}\n"
             f"作为熊市研究员，请逐条质疑或用数据反驳其乐观假设。<=120字",
-            temperature=0.4, max_tokens=200,
+            temperature=0.4,
+            max_tokens=200,
         )
     except Exception:
         bear_rebuttal = ""
 
-    reviews.append({
-        "round": 2, "mode": "bull_bear_rebuttal",
-        "bull_rebuttal": bull_rebuttal.strip()[:200],
-        "bear_rebuttal": bear_rebuttal.strip()[:200],
-    })
+    reviews.append(
+        {
+            "round": 2,
+            "mode": "bull_bear_rebuttal",
+            "bull_rebuttal": bull_rebuttal.strip()[:200],
+            "bear_rebuttal": bear_rebuttal.strip()[:200],
+        }
+    )
 
     return reviews
 
@@ -330,26 +343,32 @@ def _convergence_phase(
         )
         short_stances = []
         for s in stances:
-            short_stances.append(f"  {s['name']}: {s['stance']} ({s['confidence']:.0%}) — {s['reasoning'][:80]}")
+            short_stances.append(
+                f"  {s['name']}: {s['stance']} ({s['confidence']:.0%}) — {s['reasoning'][:80]}"
+            )
 
         # 适应新 Bull/Bear 模式
         debate_lines = []
         for r in reviews:
             mode = r.get("mode", "")
             if mode == "bull_bear_opening":
-                debate_lines.append(f"  牛方: {r.get('bull_view','')[:100]}")
-                debate_lines.append(f"  熊方: {r.get('bear_view','')[:100]}")
+                debate_lines.append(f"  牛方: {r.get('bull_view', '')[:100]}")
+                debate_lines.append(f"  熊方: {r.get('bear_view', '')[:100]}")
             elif mode == "bull_bear_rebuttal":
                 if r.get("bull_rebuttal"):
                     debate_lines.append(f"  牛方反驳: {r['bull_rebuttal'][:100]}")
                 if r.get("bear_rebuttal"):
                     debate_lines.append(f"  熊方反驳: {r['bear_rebuttal'][:100]}")
             else:
-                debate_lines.append(f"  {r.get('reviewer','')} -> {r.get('target','')}: {r.get('challenge','')[:80]}")
+                debate_lines.append(
+                    f"  {r.get('reviewer', '')} -> {r.get('target', '')}: {r.get('challenge', '')[:80]}"
+                )
 
         price = data.get("price", "N/A")
         change_pct = data.get("change_pct", 0)
-        vol_hint = "高波动" if abs(change_pct) > 3 else ("低波动" if abs(change_pct) < 1 else "正常波动")
+        vol_hint = (
+            "高波动" if abs(change_pct) > 3 else ("低波动" if abs(change_pct) < 1 else "正常波动")
+        )
 
         convergence_prompt = (
             f"请审阅对 {name}({code}) 的完整辩论并做出最终判决。\n\n"
@@ -379,16 +398,23 @@ def _convergence_phase(
         fs_parts = {}
         if isinstance(fs_raw, str) and "/" in fs_raw:
             import re as _re
+
             for m in _re.finditer(r"([VGQM])(\d+)", fs_raw):
                 key_map = {"V": "value", "Q": "quality", "G": "growth", "M": "momentum"}
                 fs_parts[key_map.get(m.group(1), m.group(1))] = int(m.group(2))
         elif isinstance(fs_raw, dict):
             fs_parts = fs_raw
 
-        factor = parsed.get("factor_scores", fs_parts) if isinstance(parsed.get("factor_scores"), dict) else fs_parts
+        factor = (
+            parsed.get("factor_scores", fs_parts)
+            if isinstance(parsed.get("factor_scores"), dict)
+            else fs_parts
+        )
         return {
             "consensus": consensus,
-            "weighted_score": min(max(float(parsed.get("ws", parsed.get("weighted_score", 0.5))), 0), 1),
+            "weighted_score": min(
+                max(float(parsed.get("ws", parsed.get("weighted_score", 0.5))), 0), 1
+            ),
             "confidence": min(max(float(parsed.get("cf", parsed.get("confidence", 0.5))), 0), 1),
             "summary": parsed.get("sm", parsed.get("summary", ""))[:150],
             "risk_flags": parsed.get("rf", parsed.get("risk_flags", []))[:5],
@@ -428,6 +454,19 @@ def _fallback_verdict(stances: list[dict]) -> dict:
     }
 
 
+def _assess_data_sufficiency(data: dict) -> tuple[list[str], list[str]]:
+    """评估辩论输入数据完整性（纯函数，可独立测试，不依赖 LLM）。
+
+    - 返回 (missing, design_gap)：
+      - missing → data_insufficient：设计内必备维度缺失（technical/fundamental/fund_flow），
+        报告层应据此降级置信度解读（数据问题而非模型问题）
+      - design_gap → 设计上未承诺补全的维度（sentiment），仅说明，不降级
+    """
+    missing = [k for k in ("technical", "fundamental", "fund_flow") if not data.get(k)]
+    design_gap = ["sentiment"] if not data.get("sentiment") else []
+    return missing, design_gap
+
+
 # ============================================================
 #  主入口
 # ============================================================
@@ -464,6 +503,16 @@ def run_debate(code: str, name: str, data: dict, learn: bool = False) -> dict:
     # 第三环：Convergence
     verdict = _convergence_phase(stances, reviews, code, name, data)
 
+    # 🔴 08-21 修复：标注数据完整性（区分「真降级=LLM失败」与「数据不足=LLM正常但没料可辩」）。
+    #   报告层据此判断：data_insufficient 非空 → 置信度低属数据问题而非模型问题，须先补数据。
+    #   08-21 审计修正：判定键 = _enrich_stock_data 设计内必备三维（technical/fundamental/fund_flow），
+    #   sentiment 无本地数据源不承诺补全 → 单列 design_gap（只说明不降级），消除恒标噪音。
+    missing, design_gap = _assess_data_sufficiency(data)
+    if missing:
+        verdict["data_insufficient"] = missing
+    if design_gap:
+        verdict["design_gap"] = design_gap
+
     elapsed = time.time() - t0
     logger.info("辩论完成: %s %s → %s (%.1fs)", code, name, verdict.get("consensus"), elapsed)
 
@@ -472,6 +521,11 @@ def run_debate(code: str, name: str, data: dict, learn: bool = False) -> dict:
         "name": name,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
         "elapsed_s": round(elapsed, 1),
+        # 🔴 08-21 修复：记录辩论时实际注入的数据快照（排除内部记忆上下文），
+        #   便于审计数据完整性 —— 之前 data 缺失导致「以为降级、实际空跑」无法复盘。
+        "data": {
+            k: v for k, v in data.items() if k not in ("memory_context", "debate_memory_context")
+        },
         "stances": stances,
         "peer_reviews": reviews,
         "verdict": verdict,
@@ -515,7 +569,9 @@ def _save_result(result: dict):
             records.append(result)
             if len(records) > 500:
                 records = records[-500:]
-            RESULT_FILE.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+            RESULT_FILE.write_text(
+                json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
@@ -576,9 +632,7 @@ def _learn_from_debate(result: dict):
             constraint_risk = r["bear_view"].strip()[:200]
             break
     # 高可靠因子（≥75 视为强信号维度，下轮作为约束搜索锚点）
-    reliable_signals = [
-        k for k, v in fs.items() if isinstance(v, int) and v >= 75
-    ]
+    reliable_signals = [k for k, v in fs.items() if isinstance(v, int) and v >= 75]
 
     entry = {
         "code": code,
@@ -688,10 +742,7 @@ def _retrieve_memory_context(code: str, data: dict, max_items: int = 5) -> str:
                     for m in (monitor if isinstance(monitor, list) else [])
                 )
                 if stock_in_monitor:
-                    lines.append(
-                        f"  [投顾决策] {date} 本日决策: {action} "
-                        f"({reason})"
-                    )
+                    lines.append(f"  [投顾决策] {date} 本日决策: {action} ({reason})")
     except (json.JSONDecodeError, OSError):
         pass
 
@@ -711,10 +762,11 @@ def _retrieve_memory_context(code: str, data: dict, max_items: int = 5) -> str:
                     )
             # 如果实盘有止损触发的股票，作为全局风控参考
             breached = [
-                h for h in upf.get("holdings", [])
+                h
+                for h in upf.get("holdings", [])
                 if h.get("current_price", 0) > 0
-                and (h.get("current_price", 0) - h.get("avg_cost", 1))
-                / h.get("avg_cost", 1) < -0.08
+                and (h.get("current_price", 0) - h.get("avg_cost", 1)) / h.get("avg_cost", 1)
+                < -0.08
             ]
             if breached and not any("实盘止损" in line for line in lines):
                 lines.append(
@@ -747,7 +799,7 @@ def _reflect_and_learn(result: dict, _async: bool = True):
 
     reflection_prompt = (
         f"你刚刚完成了对 {name}({code}) 的一次投资辩论。\n"
-        f"辩论投票: {buys}B/{holds}H/{sells}S → 共识 {verdict.get('consensus','?')}\n"
+        f"辩论投票: {buys}B/{holds}H/{sells}S → 共识 {verdict.get('consensus', '?')}\n"
         f"专家观点:\n" + "\n".join(stance_lines) + "\n\n"
         "请提炼一条投资教训（<=60字），格式："
         "「教训陈述 + 下次应采取什么行动」。\n"
@@ -756,14 +808,17 @@ def _reflect_and_learn(result: dict, _async: bool = True):
     try:
         lesson = _call_llm(
             "你是一位投资反思教练。从每次辩论中提炼一条可操作的教训。",
-            reflection_prompt, temperature=0.3, max_tokens=150,
+            reflection_prompt,
+            temperature=0.3,
+            max_tokens=150,
         )
     except Exception:
         return  # 反思失败静默跳过，不阻塞主流程
 
     # 写入 trading_memory
     import hashlib as _hashlib
-    raw_fp = f"reflect:{code}:{time.strftime('%Y-%m-%d')}:{verdict.get('consensus','')}"
+
+    raw_fp = f"reflect:{code}:{time.strftime('%Y-%m-%d')}:{verdict.get('consensus', '')}"
     fingerprint = _hashlib.sha256(raw_fp.encode()).hexdigest()[:16]
 
     memory_entry = {
@@ -772,7 +827,7 @@ def _reflect_and_learn(result: dict, _async: bool = True):
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
         "updated_at": time.strftime("%Y-%m-%dT%H:%M:%S+08:00"),
         "memory_type": "reflection",
-        "title": f"辩论反思: {name}({code}) → {verdict.get('consensus','?')}",
+        "title": f"辩论反思: {name}({code}) → {verdict.get('consensus', '?')}",
         "summary": f"{buys}B/{holds}H/{sells}S 投票",
         "lesson": lesson.strip()[:200],
         "symbols": [code],
@@ -803,7 +858,9 @@ def _reflect_and_learn(result: dict, _async: bool = True):
                     existing = []
             if not any(r.get("fingerprint") == fingerprint for r in existing):
                 existing.append(memory_entry)
-                MEMORY_FILE.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+                MEMORY_FILE.write_text(
+                    json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
                 logger.info("反思已写入: %s", memory_entry["title"])
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)

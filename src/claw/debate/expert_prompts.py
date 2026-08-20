@@ -99,7 +99,7 @@ def build_system_prompt(expert_key: str) -> str:
     """构建专家的 system prompt"""
     expert = EXPERT_DEFINITIONS[expert_key]
     framework_lines = "\n".join(f"  · {f}" for f in expert["framework"])
-    return f"""{expert['role']}
+    return f"""{expert["role"]}
 
 分析框架：
 {framework_lines}
@@ -128,15 +128,17 @@ def build_user_prompt(code: str, name: str, data: dict) -> str:
         f"  股票代码：{code}",
         f"  股票名称：{name}",
         f"  所属行业：{sector}",
-        f"  最新价：{price}（当日涨跌：{change:+.2f}%）" if isinstance(change, (int, float)) else f"  最新价：{price}",
+        f"  最新价：{price}（当日涨跌：{change:+.2f}%）"
+        if isinstance(change, (int, float))
+        else f"  最新价：{price}",
         f"  市值：{mcap}",
         "",
         "【技术指标】" if tech else "",
     ]
     if tech:
         prompt_parts.append(
-            f"  RSI={tech.get('rsi','?')} / MACD={tech.get('macd','?')} / "
-            f"MA5={tech.get('ma5','?')} / MA20={tech.get('ma20','?')} / 成交量={tech.get('volume_ratio','?')}"
+            f"  RSI={tech.get('rsi', '?')} / MACD={tech.get('macd', '?')} / "
+            f"MA5={tech.get('ma5', '?')} / MA20={tech.get('ma20', '?')} / 成交量={tech.get('volume_ratio', '?')}"
         )
         kline = tech.get("kline_summary", "")
         if kline:
@@ -145,23 +147,28 @@ def build_user_prompt(code: str, name: str, data: dict) -> str:
     if fund:
         prompt_parts.extend(["", "【财务数据】"])
         prompt_parts.append(
-            f"  PE={fund.get('pe','?')} / PB={fund.get('pb','?')} / "
-            f"ROE={fund.get('roe','?')} / 营收增速={fund.get('revenue_growth','?')} / "
-            f"净利增速={fund.get('profit_growth','?')}"
+            f"  PE={fund.get('pe', '?')} / PB={fund.get('pb', '?')} / "
+            f"ROE={fund.get('roe', '?')} / 营收增速={fund.get('revenue_growth', '?')} / "
+            f"净利增速={fund.get('profit_growth', '?')}"
         )
 
     if flow:
         prompt_parts.extend(["", "【资金面】"])
-        prompt_parts.append(
-            f"  主力净流入={flow.get('main_net_inflow','?')} / 北向持仓变化={flow.get('northbound_change','?')} / "
-            f"融资变化={flow.get('margin_change','?')}"
-        )
+        if flow.get("_source") == "unavailable":
+            # 08-21 修复：数据源整体不可达（东财 push2 断连）→ 显式告知，避免 LLM 把"数据缺失"当"个股差"
+            prompt_parts.append(
+                "  数据源不可用（东财资金流接口未响应）——资金面缺失，须明确标注不确定性，不得据此强判"
+            )
+        else:
+            prompt_parts.append(
+                f"  主力净流入={flow.get('main_net_inflow', '?')}万元 / 主力净流入占比={flow.get('main_pct', '?')}%"
+            )
 
     if senti:
         prompt_parts.extend(["", "【情绪面】"])
         prompt_parts.append(
-            f"  新闻情绪={senti.get('news_sentiment','?')} / 公众号信号={senti.get('wechat_signals','?')} / "
-            f"讨论热度={senti.get('social_heat','?')}"
+            f"  新闻情绪={senti.get('news_sentiment', '?')} / 公众号信号={senti.get('wechat_signals', '?')} / "
+            f"讨论热度={senti.get('social_heat', '?')}"
         )
 
     return "\n".join(prompt_parts)

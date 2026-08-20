@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from pathlib import Path
+
+logger = logging.getLogger("run_debate")
 
 # 确保 src/claw 在 path 中
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -49,9 +52,12 @@ def parse_args():
     p.add_argument("--codes", help="逗号分隔的股票代码列表，自动拉行情后批量辩论")
     p.add_argument("--latest", action="store_true", help="查看最近辩论结果")
     p.add_argument("--dry-run", action="store_true", help="仅打印参数，不调 LLM")
-    p.add_argument("--learn", action="store_true",
-                   help="辩论后将「风险约束+高可靠因子」沉淀进 debate_memory.json，"
-                        "供后续辩论作为约束搜索锚点注入")
+    p.add_argument(
+        "--learn",
+        action="store_true",
+        help="辩论后将「风险约束+高可靠因子」沉淀进 debate_memory.json，"
+        "供后续辩论作为约束搜索锚点注入",
+    )
     return p.parse_args()
 
 
@@ -97,11 +103,21 @@ def debate_from_scan(path: str, learn: bool = False):
 
     stocks = []
     for item in scan_data if isinstance(scan_data, list) else scan_data.get("candidates", []):
-        stocks.append({
-            "code": item.get("code", ""),
-            "name": item.get("name", ""),
-            "data": item.get("data", {}),
-        })
+        code = item.get("code", "")
+        # 08-21 审计修复：scan 路径同样走数据补全（与 codes/holdings 对齐），
+        # 避免原始 scan data 只有价格 → 专家数据缺失 → 盲猜降级。
+        base = dict(item.get("data", {})) or {
+            "price": item.get("price", 0),
+            "change_pct": 0,
+            "sector": item.get("sector", "未知"),
+        }
+        stocks.append(
+            {
+                "code": code,
+                "name": item.get("name", ""),
+                "data": _enrich_stock_data(code, base),
+            }
+        )
 
     if not stocks:
         print("无候选股需要辩论")
@@ -123,14 +139,13 @@ def debate_from_codes(codes_str: str, learn: bool = False):
         return
 
     # 自动拉取行情
-    market_codes = ",".join(
-        f"sh{c}" if c.startswith("6") else f"sz{c}" for c in codes
-    )
+    market_codes = ",".join(f"sh{c}" if c.startswith("6") else f"sz{c}" for c in codes)
     quotes = {}
     try:
         raw = subprocess.run(
             ["curl", "-s", f"http://qt.gtimg.cn/q={market_codes}"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         text = raw.stdout.decode("gbk", errors="replace")
         for line in text.split("\n"):
@@ -139,24 +154,38 @@ def debate_from_codes(codes_str: str, learn: bool = False):
                 continue
             inner = line.split('="', 1)[1].rstrip('"')
             parts = inner.split("~")
-            if len(parts) < 4:
+            if len(parts) < 5:
                 continue
             try:
                 qt_price = float(parts[3])
             except ValueError:
                 qt_price = 0
-            quotes[pre.group(2)] = {"name": parts[1], "price": qt_price}
-    except Exception:
-        pass
+            try:
+                prev_close = float(parts[4])
+            except ValueError:
+                prev_close = 0
+            # 08-21 修复：解析昨收算涨跌幅（此前 change_pct 恒 0 → 专家无法判断日内强弱）
+            change_pct = (
+                round((qt_price - prev_close) / prev_close * 100, 2) if prev_close > 0 else 0
+            )
+            quotes[pre.group(2)] = {"name": parts[1], "price": qt_price, "change_pct": change_pct}
+    except Exception as exc:
+        logger.debug("行情拉取失败(%s): %s", codes_str, exc)
 
     stocks = []
     for c in codes:
         q = quotes.get(c, {})
-        stocks.append({
-            "code": c,
-            "name": q.get("name", c),
-            "data": {"price": q.get("price", 0), "change_pct": 0},
-        })
+        base = {"price": q.get("price", 0), "change_pct": q.get("change_pct", 0), "sector": "未知"}
+        # 🔴 08-21 修复：codes 路径同样走数据补全（此前只喂价格+涨跌幅 →
+        #   候选股辩论数据缺失 → 专家盲猜 → 置信度偏低），技术面本地化不耗 Wind 配额。
+        enriched = _enrich_stock_data(c, base)
+        stocks.append(
+            {
+                "code": c,
+                "name": q.get("name", c),
+                "data": enriched,
+            }
+        )
 
     print(f"开始对 {len(stocks)} 只股票进行多智能体辩论...\n")
     results = batch_debate(stocks, learn=learn)
@@ -170,7 +199,9 @@ def _load_fundamental_cache() -> dict:
     更新方式：持仓变动或定期(周)重抓 wind-finance 覆盖此文件（脚本不直接调 MCP）。
     任一字段缺失不影响主流程，fundamental 留空由专家基于价格+技术判断。
     """
-    cache_path = Path(__file__).parent.parent / ".workbuddy" / "data" / "debate" / "fundamental_cache.json"
+    cache_path = (
+        Path(__file__).parent.parent / ".workbuddy" / "data" / "debate" / "fundamental_cache.json"
+    )
     try:
         raw = json.loads(cache_path.read_text(encoding="utf-8"))
         return raw
@@ -179,78 +210,220 @@ def _load_fundamental_cache() -> dict:
 
 
 def _enrich_stock_data(code: str, base: dict) -> dict:
-    """补全辩论所需的技術/基本面/资金面数据，让 7 专家有料可辩。
+    """补全辩论所需的技术/基本面/资金面数据，让 7 专家有料可辩。
 
-    数据来源（均带降级，任一失败不影响主流程）：
-      - 技术面(RSI/MA20)：advisor_rules.AdvisorRules（Wind→calc_rsi 降级）
-      - 技术面(MACD/量比)：qts_client.get_kline 本地计算
-      - 基本面(PE/PB/ROE/营收增速/市值)：fundamental_cache.json（wind-finance 抓取快照）
-        映射专家 prompt 所需键：pe / pb / roe / revenue_growth / market_cap
+    🔴 08-21 修复（Wind 配额耗尽致辩论降级）：技术面全部本地化，辩论链路零 Wind 配额消耗——
+      - RSI(14)：calc_rsi.py 子进程（腾讯 ifzq 前复权），不再走 AdvisorRules 的 Wind 分支
+      - MA20/MACD/量比：qts_client.get_kline 本地 K 线计算（腾讯源）
+      基本面（PE/PB/ROE/营收增速/市值）：fundamental_cache.json 优先（wind-finance 快照）；
+      缓存缺失的股票（候选股等）用 anysearch_helper.a_stock_quote/a_stock_indicator 兜底
+      （westock CLI 优先 → AnySearch 降级，均不耗 Wind 配额），并回写缓存。
+
     返回 enriched data dict（在 base 基础上追加 technical / fundamental 等字段）。
     """
-    data = dict(base)
-    try:
-        # scripts/ 目录加入 path（advisor_rules / qts_client 均位于此）
-        _scripts_dir = str(Path(__file__).parent)
-        if _scripts_dir not in sys.path:
-            sys.path.insert(0, _scripts_dir)
-        from advisor_rules import AdvisorRules
-        ar = AdvisorRules()
-        prefixed = ("sh" if code.startswith("6") else "sz") + code
-        rsi = ar._get_rsi(prefixed)
-        ma20 = ar._get_ma20(prefixed)
-        tech = {}
-        if rsi is not None:
-            tech["rsi"] = round(rsi, 1)
-        if ma20 is not None:
-            tech["ma20"] = round(ma20, 2)
-        # MACD/量比 用本地 K 线计算（K线按日期 DESC 返回，需反转成时间正序）
-        try:
-            from qts_client import get_kline
-            kline = get_kline(code, limit=60)
-            if kline and len(kline) >= 26:
-                closes = [float(k["close"]) for k in reversed(kline)]  # 时间正序
-                ema12_series = _ema_series(closes, 12)
-                ema26_series = _ema_series(closes, 26)
-                dif_series = [a - b for a, b in zip(ema12_series, ema26_series)]
-                dea_series = _ema_series(dif_series, 9)
-                dif = dif_series[-1]
-                dea = dea_series[-1]
-                macd_hist = (dif - dea) * 2
-                tech["macd"] = "金叉" if dif > dea else ("死叉" if dif < dea else "neutral")
-                tech["macd_hist"] = round(macd_hist, 3)
-                vol = float(kline[0]["volume"])
-                vol_ma5 = sum(float(k["volume"]) for k in kline[:5]) / min(5, len(kline))
-                if vol_ma5 > 0:
-                    tech["volume_ratio"] = round(vol / vol_ma5, 2)
-        except Exception:
-            pass
-        if tech:
-            data["technical"] = tech
+    import subprocess as _subprocess
 
-        # 基本面：读缓存（wind-finance 快照），映射到专家 prompt 期望键
-        fund = {}
-        try:
-            _fcache = _load_fundamental_cache()
-            rec = _fcache.get(code)
-            if isinstance(rec, dict):
-                if rec.get("pe_ttm") is not None:
-                    fund["pe"] = rec["pe_ttm"]
-                if rec.get("pb") is not None:
-                    fund["pb"] = rec["pb"]
-                if rec.get("roe") is not None:
-                    fund["roe"] = rec["roe"]
-                if rec.get("revenue_growth") is not None:
-                    fund["revenue_growth"] = rec["revenue_growth"]
-                if rec.get("total_market_cap") is not None:
-                    fund["market_cap"] = f"{rec['total_market_cap']}亿"
-        except Exception:
-            pass
-        if fund:
-            data["fundamental"] = fund
+    data = dict(base)
+    _scripts_dir = str(Path(__file__).parent)
+    if _scripts_dir not in sys.path:
+        sys.path.insert(
+            0, _scripts_dir
+        )  # ── 1) 技术面：全本地（腾讯 K 线 + calc_rsi.py），零 Wind ──
+    tech = {}
+    try:
+        from qts_client import get_kline
+
+        kline = get_kline(code, limit=60)
+        if kline and len(kline) >= 26:
+            closes = [float(k["close"]) for k in reversed(kline)]  # K线 DESC → 时间正序
+            # MA20
+            if len(closes) >= 20:
+                tech["ma20"] = round(sum(closes[-20:]) / 20, 2)
+            # MACD（EMA12/26/9）
+            ema12_series = _ema_series(closes, 12)
+            ema26_series = _ema_series(closes, 26)
+            dif_series = [a - b for a, b in zip(ema12_series, ema26_series)]
+            dea_series = _ema_series(dif_series, 9)
+            dif = dif_series[-1]
+            dea = dea_series[-1]
+            tech["macd"] = "金叉" if dif > dea else ("死叉" if dif < dea else "neutral")
+            tech["macd_hist"] = round((dif - dea) * 2, 3)
+            # 量比（最新量 / 5日均量）
+            vol = float(kline[0]["volume"])
+            vol_ma5 = sum(float(k["volume"]) for k in kline[:5]) / min(5, len(kline))
+            if vol_ma5 > 0:
+                tech["volume_ratio"] = round(vol / vol_ma5, 2)
     except Exception as exc:
-        print(f"  ⚠️ {code} 技术数据补全失败: {exc}")
+        logger.debug("技术面 K线补全失败(%s): %s", code, exc)
+    # RSI：calc_rsi.py 子进程（腾讯 ifzq，独立于 Wind 配额）
+    if "rsi" not in tech:
+        try:
+            prefixed = ("sh" if code.startswith("6") else "sz") + code
+            out = _subprocess.run(
+                [sys.executable, str(Path(__file__).parent / "calc_rsi.py"), prefixed],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            for line in out.stdout.splitlines():
+                if line.startswith("JSON:"):
+                    d = json.loads(line[5:].strip())
+                    if d and d[0].get("rsi14") is not None:
+                        tech["rsi"] = round(float(d[0]["rsi14"]), 1)
+                        break
+        except Exception as exc:
+            logger.debug("RSI 子进程失败(%s): %s", code, exc)
+    if tech:
+        data["technical"] = tech
+
+    # ── 2) 基本面：缓存优先 → westock/AnySearch 兜底 ──
+    fund = {}
+    try:
+        _fcache = _load_fundamental_cache()
+        rec = _fcache.get(code)
+        if isinstance(rec, dict):
+            if rec.get("pe_ttm") is not None:
+                fund["pe"] = rec["pe_ttm"]
+            if rec.get("pb") is not None:
+                fund["pb"] = rec["pb"]
+            if rec.get("roe") is not None:
+                fund["roe"] = rec["roe"]
+            if rec.get("revenue_growth") is not None:
+                fund["revenue_growth"] = rec["revenue_growth"]
+            if rec.get("total_market_cap") is not None:
+                fund["market_cap"] = f"{rec['total_market_cap']}亿"
+    except Exception as exc:
+        logger.debug("基本面缓存读取失败(%s): %s", code, exc)
+    # 缓存缺失 → anysearch_helper 兜底（不耗 Wind 配额）
+    if not fund:
+        try:
+            from anysearch_helper import a_stock_indicator, a_stock_quote
+
+            cn = f"{code}.{'SH' if code.startswith('6') else 'SZ'}"
+            q = a_stock_quote(cn)
+            if isinstance(q, dict) and "error" not in q:
+                if q.get("pe_ttm") is not None:
+                    fund["pe"] = round(float(q["pe_ttm"]), 2)
+                if q.get("pb") is not None:
+                    fund["pb"] = round(float(q["pb"]), 2)
+                if q.get("total_mv") is not None:
+                    fund["market_cap"] = (
+                        f"{round(float(q['total_mv']) / 1e4, 1)}亿"  # westock total_mv 单位:万元
+                    )
+            ind = a_stock_indicator(cn)
+            if isinstance(ind, dict) and "error" not in ind:
+                if ind.get("roe") is not None:
+                    fund["roe"] = ind["roe"]
+                if ind.get("revenue_growth") is not None:
+                    fund["revenue_growth"] = ind["revenue_growth"]
+        except Exception as exc:
+            logger.debug("基本面兜底失败(%s): %s", code, exc)
+        # 兜底成功后回写缓存（次日复用，避免重复 CLI 调用）
+        if fund:
+            try:
+                _write_fundamental_cache(code, fund)
+            except Exception as exc:
+                logger.debug("基本面缓存回写失败(%s): %s", code, exc)
+    if fund:
+        data["fundamental"] = fund
+
+    # ── 3) 资金面：东财 ulist.np 资金流（零 Wind，见 _fetch_money_flow）──
+    # 08-21 审计二次修正：
+    #   a) 键名对齐 expert_prompts 消费键 main_net_inflow（此前写 main_net_wan → prompt 显示全 "?"）
+    #   b) 数据源整体不可达（东财 push2 断连）→ 写 {"_source": "unavailable"} 显式标记，
+    #      避免 fund_flow 恒标 data_insufficient 噪音（环境问题 ≠ 个股数据不足，须先修数据源）
+    try:
+        mf = _fetch_money_flow(code)
+        if mf and "error" not in mf:
+            data["fund_flow"] = {
+                "main_net_inflow": round(float(mf.get("main_net", 0)) / 1e4, 1),  # 元→万元
+                "main_pct": round(float(mf.get("main_pct", 0)), 2),
+            }
+        else:
+            data["fund_flow"] = {"_source": "unavailable"}
+            logger.debug("资金流数据源不可达(%s): %s", code, (mf or {}).get("error"))
+    except Exception as exc:
+        data["fund_flow"] = {"_source": "unavailable"}
+        logger.debug("资金流补全异常(%s): %s", code, exc)
     return data
+
+
+def _fetch_money_flow(code: str) -> dict:
+    """东方财富个股资金流（主力净流入额+占比，单请求）。
+
+    数据源：东财 push2 ulist.np 接口（f62=主力净流入额元 / f184=主力净流入占比 0.01%）。
+    注：cron_monitor.fetch_money_flow 用 daykline 端点，当前环境该端点返回空（08-21 实测）；
+    东财 push2 整体间歇性不可达（08-21 实测时通时断），故重试 3 次 × 0.5s。
+    本地 curl 直取，不耗 Wind 配额。失败返回 {"error": ...}。
+    """
+    import subprocess as _subprocess
+    import time as _time
+
+    secid = ("1." if code.startswith(("6", "9")) else "0.") + code
+    url = (
+        "http://push2.eastmoney.com/api/qt/ulist.np/get"
+        f"?secids={secid}&fields=f62,f184&ut=fa5fd1943c7b386f172d6893dbfba10b"
+    )
+    last_err = "no_money_flow_data"
+    for _attempt in range(3):
+        try:
+            raw = _subprocess.run(["curl", "-s", url], capture_output=True, text=True, timeout=10)
+            data = json.loads(raw.stdout or "{}")
+            diff = (data.get("data") or {}).get("diff") or []
+            if data.get("rc") == 0 and diff:
+                row = diff[0]
+                main_net = row.get("f62")
+                main_pct_bp = row.get("f184")
+                return {
+                    "main_net": float(main_net) if main_net is not None else 0.0,  # 元
+                    "main_pct": round(float(main_pct_bp) / 100, 2)
+                    if main_pct_bp is not None
+                    else 0.0,  # bp→%
+                }
+        except Exception as exc:
+            last_err = str(exc)
+        _time.sleep(0.5)
+    return {"error": last_err}
+
+
+def _write_fundamental_cache(code: str, fund: dict) -> None:
+    """把兜底抓到的基本面回写 fundamental_cache.json（保留 _meta，文件锁防并发）。"""
+    import fcntl as _fcntl
+
+    cache_path = (
+        Path(__file__).parent.parent / ".workbuddy" / "data" / "debate" / "fundamental_cache.json"
+    )
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = str(cache_path) + ".lock"
+    with open(lock_path, "w") as lock_fd:
+        _fcntl.flock(lock_fd, _fcntl.LOCK_EX)
+        try:
+            cache = {}
+            if cache_path.exists():
+                try:
+                    cache = json.loads(cache_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    cache = {}
+            if not isinstance(cache, dict):
+                cache = {}
+            meta = cache.get("_meta", {})
+            meta["updated"] = "2026-08-21"
+            meta.setdefault("source", "wind-finance + westock/AnySearch 兜底")
+            meta.setdefault("note", "缓存缺失股票由 anysearch_helper 兜底后回写（08-21 起）")
+            cache["_meta"] = meta
+            cache[code] = {
+                "name": "",
+                "pe_ttm": fund.get("pe"),
+                "pb": fund.get("pb"),
+                "roe": fund.get("roe"),
+                "revenue_growth": fund.get("revenue_growth"),
+                "total_market_cap": float(fund.get("market_cap", "0").rstrip("亿"))
+                if isinstance(fund.get("market_cap"), str) and fund["market_cap"].endswith("亿")
+                else None,
+            }
+            cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+        finally:
+            _fcntl.flock(lock_fd, _fcntl.LOCK_UN)
 
 
 def _ema(values: list[float], period: int) -> float:
@@ -268,6 +441,8 @@ def _ema_series(values: list[float], period: int) -> list[float]:
     """返回完整 EMA 序列（与输入等长，前 period-1 点用 SMA 种子）"""
     if not values:
         return []
+    if len(values) < period:  # 防御：样本不足时无完整 SMA 种子，原样返回避免误解
+        return list(values)
     k = 2 / (period + 1)
     out = []
     ema = sum(values[:period]) / period  # SMA 种子
@@ -296,9 +471,7 @@ def debate_from_holdings(path: str, learn: bool = False):
         # 兼容实盘结构：holdings 为 array（user/portfolio.json）
         holdings = pf.get("holdings", [])
         if isinstance(holdings, list) and holdings:
-            positions = {
-                h["code"]: h for h in holdings if isinstance(h, dict) and h.get("code")
-            }
+            positions = {h["code"]: h for h in holdings if isinstance(h, dict) and h.get("code")}
     if not positions:
         print("无持仓")
         return
@@ -310,9 +483,11 @@ def debate_from_holdings(path: str, learn: bool = False):
     try:
         import re
         import subprocess
+
         raw = subprocess.run(
             ["curl", "-s", f"http://qt.gtimg.cn/q={market_codes}"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         # gtimg 真实格式: v_sh601668="1~名称~代码~当前价~昨收~开盘~..."
         #   field[1]=名称  field[2]=代码  field[3]=当前价  field[4]=昨收
@@ -349,12 +524,15 @@ def debate_from_holdings(path: str, learn: bool = False):
         q = quotes.get(code)
         # 优先用实时价；缺失时回退 current_price；再缺失才用 avg_cost（避免 change_pct 恒为 0 误导）
         price = (
-            q["price"] if q and q["price"] > 0
-            else pos.get("current_price", pos.get("avg_cost", 0))
+            q["price"] if q and q["price"] > 0 else pos.get("current_price", pos.get("avg_cost", 0))
         )
         # 昨收优先用实时返回的 prev_close，否则用 avg_cost 近似
-        prev_close = (q["prev_close"] if q and q["prev_close"] > 0 else pos.get("avg_cost", price))
-        change_pct = round((price - prev_close) / prev_close * 100, 2) if prev_close and prev_close > 0 else 0
+        prev_close = q["prev_close"] if q and q["prev_close"] > 0 else pos.get("avg_cost", price)
+        change_pct = (
+            round((price - prev_close) / prev_close * 100, 2)
+            if prev_close and prev_close > 0
+            else 0
+        )
         base_data = {
             "price": price,
             "change_pct": change_pct,
@@ -362,11 +540,13 @@ def debate_from_holdings(path: str, learn: bool = False):
         }
         # 补全技术/资金面，避免专家饿成"数据缺失→一律观望"
         enriched = _enrich_stock_data(code, base_data)
-        stocks.append({
-            "code": code,
-            "name": (q.get("name") if q else None) or pos.get("name", code),
-            "data": enriched,
-        })
+        stocks.append(
+            {
+                "code": code,
+                "name": (q.get("name") if q else None) or pos.get("name", code),
+                "data": enriched,
+            }
+        )
 
     print(f"开始对 {len(stocks)} 只持仓进行多智能体辩论...\n")
     results = batch_debate(stocks, learn=learn)
@@ -382,15 +562,17 @@ def _print_summary(results: list[dict]):
         sl = v.get("stop_loss_pct", -8.0)
         fs = v.get("factor_scores", {})
         factor_str = (
-            f"V{fs.get('value',50)}/Q{fs.get('quality',50)}"
-            f"/G{fs.get('growth',50)}/M{fs.get('momentum',50)}"
+            f"V{fs.get('value', 50)}/Q{fs.get('quality', 50)}"
+            f"/G{fs.get('growth', 50)}/M{fs.get('momentum', 50)}"
         )
-        print(f"  {r['name']}({r['code']}): {v.get('consensus','?')} "
-              f"[{buys}B/{holds}H/{sells}S] "
-              f"conf={v.get('confidence',0):.0%} "
-              f"止损{sl:+.0f}% "
-              f"因子[{factor_str}] "
-              f"({v.get('summary','')[:60]})")
+        print(
+            f"  {r['name']}({r['code']}): {v.get('consensus', '?')} "
+            f"[{buys}B/{holds}H/{sells}S] "
+            f"conf={v.get('confidence', 0):.0%} "
+            f"止损{sl:+.0f}% "
+            f"因子[{factor_str}] "
+            f"({v.get('summary', '')[:60]})"
+        )
 
 
 def show_latest():
@@ -404,13 +586,23 @@ def show_latest():
         v = r.get("verdict", {})
         fs = v.get("factor_scores", {})
         factor_str = (
-            f"V{fs.get('value',50)}/Q{fs.get('quality',50)}"
-            f"/G{fs.get('growth',50)}/M{fs.get('momentum',50)}"
-        ) if fs else ""
-        print(f"[{r.get('timestamp','')[:16]}] {r.get('name','')}({r.get('code','')}): "
-              f"{v.get('consensus','?')} | conf={v.get('confidence',0):.0%} | "
-              f"止损{v.get('stop_loss_pct',-8.0):+.0f}% | {factor_str} | "
-              f"{v.get('summary','')[:80]}")
+            (
+                f"V{fs.get('value', 50)}/Q{fs.get('quality', 50)}"
+                f"/G{fs.get('growth', 50)}/M{fs.get('momentum', 50)}"
+            )
+            if fs
+            else ""
+        )
+        # 08-21 接线：展示数据完整性标记（审计 P1-2 —— 此前字段无消费方）
+        insuff = v.get("data_insufficient")
+        insuff_str = f" ⚠️数据不足:[{','.join(insuff)}]" if insuff else ""
+        gap_str = f" 设计缺口:[{','.join(v.get('design_gap', []))}]" if v.get("design_gap") else ""
+        print(
+            f"[{r.get('timestamp', '')[:16]}] {r.get('name', '')}({r.get('code', '')}): "
+            f"{v.get('consensus', '?')} | conf={v.get('confidence', 0):.0%}{insuff_str}{gap_str} | "
+            f"止损{v.get('stop_loss_pct', -8.0):+.0f}% | {factor_str} | "
+            f"{v.get('summary', '')[:80]}"
+        )
 
 
 def main():
