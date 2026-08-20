@@ -222,7 +222,9 @@ def _cli() -> int:
 
 def _selftest() -> int:
     import shutil
-    tmp = tempfile.mktemp(suffix=".json")
+    fd, tmp = tempfile.mkstemp(suffix=".json")  # 替代 mktemp(B306): 随机路径,消除可预测竞态
+    os.close(fd)
+    os.remove(tmp)  # 保留"未占用唯一路径"语义(selftest 专用临时文件)
     try:
         # 1) 未知 identity 首次 check -> 允许
         r = check_backoff("test_a", tmp)

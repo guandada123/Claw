@@ -72,7 +72,9 @@ def get_cookies_from_browser():
     ab(["open", "https://weread.qq.com/"])
     time.sleep(1)
 
-    tmp = tempfile.mktemp(suffix=".json")
+    fd, tmp = tempfile.mkstemp(suffix=".json")  # 替代 mktemp(B306): 随机路径,消除可预测竞态
+    os.close(fd)
+    os.remove(tmp)  # 语义同 mktemp(未占用唯一路径),agent-browser 全新写入
     try:
         ab(["state", "save", tmp])
         if not os.path.exists(tmp):
