@@ -205,7 +205,7 @@ def fmt_row(row: dict) -> str:
             lines.append(f"  📐 T仓: {t}股（=卖出量，当日买回等量）")
         lines.append("  🛑 止损: 回补价>卖出价≥1.5%即认错收手")
     else:
-        lines.append(f"  理由: {row.get('summary', '当前信号不足')}")
+        lines.append(f"  理由: {row.get('summary') or '当前信号不足'}")
         lines.append("  操作: 不动，等下一时段")
     return "\n".join(lines)
 
