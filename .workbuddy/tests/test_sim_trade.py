@@ -262,21 +262,28 @@ class TestCheckTakeProfit:
         assert result["should_sell"] is False
 
     def test_not_enough_profit(self):
-        """盈利不足，不触发止盈"""
-        from sim_trade import check_take_profit
+        """盈利不足，不触发止盈（固定正常期模式：+5% < 正常期首级 15%/18%）。
 
-        pf = {
-            "positions": {
-                "600519": {
-                    "shares": 100,
-                    "avg_cost": 100.0,
-                    "current_price": 105.0,
-                    "take_profit_level": 1,
+        08-20 修复：此前未固定模式，每月 20 号后 _is_sprint_period()=True
+        使冲刺期首级阈值降为 +5%，本用例(+5%)恰好触发 → CI 时间相关 flaky 红灯。
+        """
+        from unittest.mock import patch
+
+        with patch("sim_trade._is_sprint_period", return_value=False):
+            from sim_trade import check_take_profit
+
+            pf = {
+                "positions": {
+                    "600519": {
+                        "shares": 100,
+                        "avg_cost": 100.0,
+                        "current_price": 105.0,
+                        "take_profit_level": 1,
+                    }
                 }
             }
-        }
-        result = check_take_profit(pf, "600519")
-        assert result["should_sell"] is False
+            result = check_take_profit(pf, "600519")
+            assert result["should_sell"] is False
 
     def test_level1_take_profit(self):
         """一级止盈触发 (盈利>=首级阈值, 双模: 冲刺5%/正常15%)"""
