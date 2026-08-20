@@ -99,6 +99,30 @@ class TestFetchMoneyFlow:
             mf = run_debate._fetch_money_flow("600584")
         assert "error" in mf
 
+    def test_delay_host_fallback(self):
+        """08-21 二次修复：实时端 push2 不可达(空) → 延时端 push2delay 兜底成功。
+        实测 push2delay 稳定可达，资金流不再 unavailable 降级。"""
+        calls = []
+
+        def fake_run(cmd, capture_output=False, text=False, timeout=None):
+            url = cmd[2]  # cmd = ["curl", "-s", url]
+            calls.append(url)
+            if "push2.eastmoney.com" in url:
+                resp = mock.Mock()
+                resp.stdout = ""
+                return resp
+            resp = mock.Mock()
+            resp.stdout = json.dumps(
+                {"rc": 0, "data": {"diff": [{"f62": 157098016.0, "f184": 159}]}}
+            )
+            return resp
+
+        with mock.patch("subprocess.run", side_effect=fake_run):
+            mf = run_debate._fetch_money_flow("600584")
+        assert mf["main_net"] == 157098016.0
+        assert mf["main_pct"] == 1.59
+        assert any("push2delay.eastmoney.com" in c for c in calls)
+
     def test_enrich_attaches_fund_flow(self):
         """集成：_enrich_stock_data 成功补全资金面 → data['fund_flow'] 非空，
         data_insufficient 不再恒标 fund_flow；键名对齐 prompt 消费键 main_net_inflow。"""

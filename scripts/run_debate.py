@@ -351,38 +351,44 @@ def _enrich_stock_data(code: str, base: dict) -> dict:
 def _fetch_money_flow(code: str) -> dict:
     """东方财富个股资金流（主力净流入额+占比，单请求）。
 
-    数据源：东财 push2 ulist.np 接口（f62=主力净流入额元 / f184=主力净流入占比 0.01%）。
-    注：cron_monitor.fetch_money_flow 用 daykline 端点，当前环境该端点返回空（08-21 实测）；
-    东财 push2 整体间歇性不可达（08-21 实测时通时断），故重试 3 次 × 0.5s。
-    本地 curl 直取，不耗 Wind 配额。失败返回 {"error": ...}。
+    数据源：东财 ulist.np 接口（f62=主力净流入额元 / f184=主力净流入占比 0.01%）。
+    08-21 实测：push2（实时端）间歇性不可达返回空，**push2delay（延时端）稳定可达** →
+    双域名顺序降级（实时优先，空/失败 → 延时兜底），每域名重试 2 次。
+    东财免费接口无 Wind 式 180 次/日配额限制，本地 curl 直取，不耗 Wind 配额。
+    失败返回 {"error": ...}。
     """
     import subprocess as _subprocess
     import time as _time
 
     secid = ("1." if code.startswith(("6", "9")) else "0.") + code
-    url = (
-        "http://push2.eastmoney.com/api/qt/ulist.np/get"
-        f"?secids={secid}&fields=f62,f184&ut=fa5fd1943c7b386f172d6893dbfba10b"
-    )
+    hosts = ("push2.eastmoney.com", "push2delay.eastmoney.com")  # 实时 → 延时兜底
     last_err = "no_money_flow_data"
-    for _attempt in range(3):
-        try:
-            raw = _subprocess.run(["curl", "-s", url], capture_output=True, text=True, timeout=10)
-            data = json.loads(raw.stdout or "{}")
-            diff = (data.get("data") or {}).get("diff") or []
-            if data.get("rc") == 0 and diff:
-                row = diff[0]
-                main_net = row.get("f62")
-                main_pct_bp = row.get("f184")
-                return {
-                    "main_net": float(main_net) if main_net is not None else 0.0,  # 元
-                    "main_pct": round(float(main_pct_bp) / 100, 2)
-                    if main_pct_bp is not None
-                    else 0.0,  # bp→%
-                }
-        except Exception as exc:
-            last_err = str(exc)
-        _time.sleep(0.5)
+    for host in hosts:
+        url = (
+            f"http://{host}/api/qt/ulist.np/get"
+            f"?secids={secid}&fields=f62,f184&ut=fa5fd1943c7b386f172d6893dbfba10b"
+        )
+        for _attempt in range(2):
+            try:
+                raw = _subprocess.run(
+                    ["curl", "-s", url], capture_output=True, text=True, timeout=10
+                )
+                data = json.loads(raw.stdout or "{}")
+                diff = (data.get("data") or {}).get("diff") or []
+                if data.get("rc") == 0 and diff:
+                    row = diff[0]
+                    main_net = row.get("f62")
+                    main_pct_bp = row.get("f184")
+                    return {
+                        "main_net": float(main_net) if main_net is not None else 0.0,  # 元
+                        "main_pct": round(float(main_pct_bp) / 100, 2)
+                        if main_pct_bp is not None
+                        else 0.0,  # bp→%
+                    }
+                last_err = "empty_or_rc!=0"
+            except Exception as exc:
+                last_err = str(exc)
+            _time.sleep(0.5)
     return {"error": last_err}
 
 
