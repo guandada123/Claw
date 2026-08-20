@@ -40,6 +40,8 @@ def run_bandit(paths: list[str]) -> tuple[int, str]:
         *paths,
         "-f",
         "txt",
+        "-c",
+        "pyproject.toml",  # 吃项目门禁配置(skips/exclude_dirs),避免把已收敛良性项(B310/B108/B306)重新报出
     ]
     try:
         proc = subprocess.run(
