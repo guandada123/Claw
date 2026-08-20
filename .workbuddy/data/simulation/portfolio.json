@@ -9,9 +9,9 @@
       }
     ],
     "created_at": "2026-07-05",
-    "updated_at": "2026-08-20 07:36:02"
+    "updated_at": "2026-08-21 07:20:10"
   },
-  "cash": 18914.3,
+  "cash": 22340.86,
   "positions": {
     "000333": {
       "name": "美的集团",
@@ -23,78 +23,75 @@
       "take_profit_level": 1,
       "entry_mode": "normal",
       "first_buy_date": "2026-07-09",
-      "updated": "腾讯gtimg·收盘2026-08-18 15:53",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
-      "mode": "normal",
+      "updated": "腾讯qt.gtimg.cn·盘中2026-08-20 13:10",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-20 13:10",
+      "mode": "sprint",
       "market_value": 8303.0,
       "floating_pnl": 189.5,
-      "pnl_pct": 3.01
-    },
-    "601899": {
-      "name": "紫金矿业",
-      "shares": 100,
-      "avg_cost": 27.565,
-      "total_cost": 2756.5,
-      "current_price": 35.15,
-      "highest_price": 35.8,
-      "take_profit_level": 3,
-      "entry_mode": "normal",
-      "first_buy_date": "2026-07-09",
-      "updated": "腾讯gtimg·收盘2026-08-18 15:53",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
-      "mode": "normal",
-      "market_value": 3253.0,
-      "floating_pnl": 496.5,
-      "pnl_pct": 21.75
+      "pnl_pct": 5.23,
+      "pnl": 424.5
     },
     "600036": {
       "name": "招商银行",
       "shares": 200,
       "avg_cost": 38.935,
       "total_cost": 7787.0,
-      "current_price": 39.15,
+      "current_price": 38.86,
       "highest_price": 40.55,
       "take_profit_level": 1,
       "first_buy_date": "2026-07-23",
-      "updated": "腾讯gtimg·收盘2026-08-18 15:53",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
-      "mode": "normal",
+      "updated": "腾讯qt.gtimg.cn·盘中2026-08-20 13:10",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-20 13:10",
+      "mode": "sprint",
       "market_value": 7718.0,
       "floating_pnl": -69.0,
-      "pnl_pct": -1.66
+      "pnl_pct": -0.19,
+      "pnl": -15.0
     },
     "601668": {
       "name": "中国建筑",
       "shares": 2000,
       "avg_cost": 4.5814,
       "total_cost": 9162.7,
-      "current_price": 4.41,
+      "current_price": 4.43,
       "highest_price": 4.65,
       "take_profit_level": 1,
       "first_buy_date": "2026-08-05",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
-      "updated": "腾讯gtimg·收盘2026-08-18 15:53",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-20 13:10",
+      "updated": "腾讯qt.gtimg.cn·盘中2026-08-20 13:10",
       "risk_note": "C1-20260805: 中金8月低配建筑与工程→跌破4.40减半(卖出2000股)，止损4.27不变；8月中报窗口业绩不及预期亦减半",
-      "mode": "normal",
+      "mode": "sprint",
       "market_value": 17600.0,
       "floating_pnl": -725.6,
-      "pnl_pct": -4.83
+      "pnl_pct": -3.3,
+      "pnl": -302.8
     },
     "600031": {
       "name": "三一重工",
       "shares": 300,
       "avg_cost": 19.4767,
       "total_cost": 5843.0,
-      "current_price": 18.93,
+      "current_price": 19.05,
       "highest_price": 19.58,
       "take_profit_level": 1,
       "first_buy_date": "2026-08-07",
       "market_value": 5625.0,
       "floating_pnl": -218.01,
-      "pnl_pct": -2.6,
-      "updated": "腾讯gtimg·收盘2026-08-18 15:53",
-      "price_source": "腾讯qt.gtimg.cn·收盘2026-08-14 15:47",
-      "mode": "normal"
+      "pnl_pct": -2.19,
+      "updated": "腾讯qt.gtimg.cn·盘中2026-08-20 13:10",
+      "price_source": "腾讯qt.gtimg.cn·盘中2026-08-20 13:10",
+      "mode": "sprint",
+      "pnl": -128.01
+    },
+    "601899": {
+      "name": "紫金矿业",
+      "shares": 100,
+      "avg_cost": 35.0,
+      "total_cost": 3500.0,
+      "current_price": 35.15,
+      "highest_price": 35.15,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-08-07"
     }
   },
   "transactions": [
@@ -217,6 +214,22 @@
       "reason": "risk_note C1-20260805: 跌破4.40减半线已破位(现价4.36)+辩论2票SELL, 减半卖2000股释放现金",
       "time": "2026-08-18 12:27:51",
       "date": "2026-08-18"
+    },
+    {
+      "id": "S1787200482472",
+      "type": "SELL",
+      "code": "601899",
+      "name": "紫金矿业",
+      "shares": 100,
+      "price": 34.35,
+      "commission": 5.0,
+      "stamp_tax": 3.44,
+      "net_proceeds": 3426.57,
+      "realized_pnl": 670.07,
+      "pnl_pct": 24.31,
+      "reason": "冲刺期止盈清仓: 模式切换sprint触发+5%档(100股不足1/3拆分→全清), 盈利+24.6%远超+15%清仓线",
+      "time": "2026-08-20 12:34:42",
+      "date": "2026-08-20"
     }
   ],
   "daily_snapshot": {
@@ -369,12 +382,12 @@
     }
   },
   "initial_capital": 50000.0,
-  "total_assets": 61413.3,
+  "total_assets": 61586.86,
   "summary": {
-    "total_assets": 53033.13,
-    "total_market_value": 42499.0,
-    "cash": 10534.13,
-    "floating_pnl": -326.61,
-    "updated": "腾讯gtimg·收盘2026-08-18 15:53"
+    "total_assets": 53225.86,
+    "total_market_value": 30885.0,
+    "cash": 22340.86,
+    "floating_pnl": -21.31,
+    "updated": "腾讯gtimg·收盘2026-08-20 15:52"
   }
 }

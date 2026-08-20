@@ -11,18 +11,18 @@
     "note": "止损8%，止盈不设"
   },
   "summary": {
-    "total_assets": 52442.95,
+    "total_assets": 52960.95,
     "cash_available": 22176.95,
     "cash_withdrawable": 22176.95,
-    "floating_pnl": 30266.0,
+    "floating_pnl": -3234.9,
     "daily_pnl": -249.0,
     "daily_pct": -0.47,
-    "position_pct": 57.7,
-    "total_market_value": 33106.0,
+    "position_pct": 58.13,
+    "total_market_value": 30784.0,
     "invested_cost_stocks": 34018.9,
-    "invested_return_pct_stocks": -9.54,
+    "invested_return_pct_stocks": -9.51,
     "return_basis": "国金APP截图OCR(2026-08-02 21:00): 总资产=可用+市值自洽; 收益率=浮动盈亏/已投成本; 日收益率=当日参考盈亏/总资产",
-    "updated": "腾讯gtimg·收盘2026-08-18 15:53"
+    "updated": "腾讯gtimg·收盘2026-08-20 15:52"
   },
   "holdings": [
     {
@@ -31,17 +31,17 @@
       "shares": 300,
       "shares_available": 300,
       "avg_cost": 84.203,
-      "current_price": 77.74,
+      "current_price": 79.48,
       "market_value": 23322.0,
       "floating_pnl": 365.1,
-      "pnl_pct": 0,
+      "pnl_pct": -5.61,
       "broker": "GJ",
       "updated": "腾讯gtimg·收盘2026-08-18 15:53",
       "price_source": "腾讯gtimg·收盘2026-08-18 15:53",
       "note": "成本84.203/2026-08-18 15:53收盘85.42浮亏1.45%",
       "bought_date": "2026-07-15",
       "bought_date_note": "最早可证持有日; 用于A规则T+N判定",
-      "pnl": 23322.0
+      "pnl": -1416.9
     },
     {
       "code": "002185",
@@ -49,17 +49,17 @@
       "shares": 400,
       "shares_available": 400,
       "avg_cost": 21.895,
-      "current_price": 17.36,
+      "current_price": 17.35,
       "market_value": 6944.0,
       "floating_pnl": -1278.0,
-      "pnl_pct": 0,
+      "pnl_pct": -20.76,
       "broker": "GJ",
       "updated": "腾讯gtimg·收盘2026-08-18 15:53",
       "price_source": "腾讯gtimg·收盘2026-08-18 15:53",
       "note": "成本21.895/2026-08-18 15:53收盘18.7浮亏-14.59%",
       "bought_date": "2026-07-15",
       "bought_date_note": "最早可证持有日; 用于A规则T+N判定",
-      "pnl": 6944.0
+      "pnl": -1818.0
     }
   ]
 }
