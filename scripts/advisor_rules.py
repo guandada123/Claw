@@ -91,6 +91,8 @@ except ImportError:
 try:
     from sector_strength_layer import (
         SECTORS as _SSL_SECTORS,
+    )
+    from sector_strength_layer import (
         get_sector_label as _ssl_get_sector_label,
     )
 except ImportError:
