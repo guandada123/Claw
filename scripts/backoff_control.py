@@ -19,6 +19,7 @@ CLI 退出码:
   check:   0 = 允许执行(skip=False)  1 = 应跳过(skip=True)
   fail/success: 0 = 写回成功
 """
+
 from __future__ import annotations
 
 import json
@@ -29,8 +30,8 @@ from datetime import datetime, timezone
 
 # —— 配置 ——
 DEFAULT_STATE = os.path.expanduser("~/.workbuddy/cross_project_state.json")
-LADDER_MIN = [15, 30, 60, 120]          # 递增退避阶梯 (分钟)
-BASE_INTERVAL = LADDER_MIN[0]           # 首次失败后基准间隔
+LADDER_MIN = [15, 30, 60, 120]  # 递增退避阶梯 (分钟)
+BASE_INTERVAL = LADDER_MIN[0]  # 首次失败后基准间隔
 MAX_INTERVAL = LADDER_MIN[-1]
 DEFAULT_MAX = MAX_INTERVAL
 
@@ -68,7 +69,7 @@ def _atomic_write(state_path: str, data: dict) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
             f.write("\n")
-        os.replace(tmp, state_path)          # 原子替换，避免半写
+        os.replace(tmp, state_path)  # 原子替换，避免半写
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
@@ -104,8 +105,12 @@ def check_backoff(identity: str, state_path: str = DEFAULT_STATE) -> dict:
     entry = _ensure_identity(ids, identity)
 
     if entry["consecutive_failures"] == 0 or entry["last_fail"] is None:
-        return {"identity": identity, "skip": False, "wait_min": 0,
-                "interval_min": entry["current_interval_min"]}
+        return {
+            "identity": identity,
+            "skip": False,
+            "wait_min": 0,
+            "interval_min": entry["current_interval_min"],
+        }
 
     last = datetime.fromisoformat(entry["last_fail"])
     if last.tzinfo is None:
@@ -113,11 +118,13 @@ def check_backoff(identity: str, state_path: str = DEFAULT_STATE) -> dict:
     elapsed = (datetime.now(timezone.utc) - last).total_seconds() / 60.0
     interval = entry["current_interval_min"]
     if elapsed >= interval:
-        return {"identity": identity, "skip": False, "wait_min": 0,
-                "interval_min": interval}
-    return {"identity": identity, "skip": True,
-            "wait_min": round(interval - elapsed, 1),
-            "interval_min": interval}
+        return {"identity": identity, "skip": False, "wait_min": 0, "interval_min": interval}
+    return {
+        "identity": identity,
+        "skip": True,
+        "wait_min": round(interval - elapsed, 1),
+        "interval_min": interval,
+    }
 
 
 def record_backoff_fail(identity: str, state_path: str = DEFAULT_STATE) -> dict:
@@ -151,8 +158,9 @@ def record_backoff_success(identity: str, state_path: str = DEFAULT_STATE) -> di
     return entry
 
 
-def register_identity(identity: str, max_interval: int = DEFAULT_MAX,
-                      state_path: str = DEFAULT_STATE) -> dict:
+def register_identity(
+    identity: str, max_interval: int = DEFAULT_MAX, state_path: str = DEFAULT_STATE
+) -> dict:
     """显式登记一个 identity (指定 max 上限)。已存在则仅补 max_interval。"""
     data = _ensure_state_shape(_load(state_path))
     ids = data["backoff_state"]["shared_identities"]
@@ -166,8 +174,10 @@ def register_identity(identity: str, max_interval: int = DEFAULT_MAX,
 def _cli() -> int:
     args = sys.argv[1:]
     if not args:
-        print("usage: backoff_control.py [check|fail|success] <identity> [--state PATH] | --selftest",
-              file=sys.stderr)
+        print(
+            "usage: backoff_control.py [check|fail|success] <identity> [--state PATH] | --selftest",
+            file=sys.stderr,
+        )
         return 2
     if args[0] == "--selftest":
         return _selftest()
@@ -222,6 +232,7 @@ def _cli() -> int:
 
 def _selftest() -> int:
     import shutil
+
     fd, tmp = tempfile.mkstemp(suffix=".json")  # 替代 mktemp(B306): 随机路径,消除可预测竞态
     os.close(fd)
     os.remove(tmp)  # 保留"未占用唯一路径"语义(selftest 专用临时文件)
@@ -241,8 +252,9 @@ def _selftest() -> int:
         # 4) 连续 fail 升级: 2次=30, 3次=60, 4次=120
         for n, exp in ((2, 30), (3, 60), (4, 120)):
             e = record_backoff_fail("test_a", tmp)
-            assert e["consecutive_failures"] == n and e["current_interval_min"] == exp, \
+            assert e["consecutive_failures"] == n and e["current_interval_min"] == exp, (
                 f"fail#{n} expect interval {exp}, got {e['current_interval_min']}"
+            )
 
         # 5) 封顶: 第5次仍 120
         e = record_backoff_fail("test_a", tmp)

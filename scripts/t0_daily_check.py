@@ -98,7 +98,9 @@ def _is_stop_loss_hit(holding: dict) -> bool:
     return pnl <= threshold
 
 
-def build_eval_row(strategy: T0Strategy, holding: dict, t_count: int = 0, gate_pass: bool = True) -> dict:
+def build_eval_row(
+    strategy: T0Strategy, holding: dict, t_count: int = 0, gate_pass: bool = True
+) -> dict:
     """对单只持仓跑 t0_strategy.evaluate，返回展平后的展示行。
     gate_pass=False 时（大盘单边大跌/暴击）→ 除止损票清仓提示外，统一停手。"""
     code = holding.get("code", "")
@@ -109,30 +111,46 @@ def build_eval_row(strategy: T0Strategy, holding: dict, t_count: int = 0, gate_p
         price = holding.get("current_price") or cost
         pnl = (price / cost - 1) * 100 if cost else 0
         return {
-            "code": code, "name": name,
+            "code": code,
+            "name": name,
             "direction": "不动(清仓优先)",
             "stop_loss_hit": True,
             "pnl_pct": pnl,
-            "t_shares": None, "t_value": None, "t_cost": None,
-            "vwap_note": "", "stop": "",
-            "s1": None, "p": None, "r1": None,
-            "entry_rule": "", "exit_rule": "",
+            "t_shares": None,
+            "t_value": None,
+            "t_cost": None,
+            "vwap_note": "",
+            "stop": "",
+            "s1": None,
+            "p": None,
+            "r1": None,
+            "entry_rule": "",
+            "exit_rule": "",
             "summary": f"已破-8%止损线({pnl:.1f}%)，执行清仓计划，不做T",
-            "blocked": True, "t0": True,
+            "blocked": True,
+            "t0": True,
         }
     # 大盘闸不通过 → 停手（正T反T都不做）
     if not gate_pass:
         return {
-            "code": code, "name": name,
+            "code": code,
+            "name": name,
             "direction": "不动(大盘停手)",
             "stop_loss_hit": False,
             "pnl_pct": None,
-            "t_shares": None, "t_value": None, "t_cost": None,
-            "vwap_note": "", "stop": "",
-            "s1": None, "p": None, "r1": None,
-            "entry_rule": "", "exit_rule": "",
+            "t_shares": None,
+            "t_value": None,
+            "t_cost": None,
+            "vwap_note": "",
+            "stop": "",
+            "s1": None,
+            "p": None,
+            "r1": None,
+            "entry_rule": "",
+            "exit_rule": "",
             "summary": "大盘单边大跌，当日暂停做T，保本优先",
-            "blocked": True, "t0": True,
+            "blocked": True,
+            "t0": True,
         }
     result = strategy.evaluate(holding, t_count_today=t_count)
     pivot = result.get("pivot") or {}
@@ -152,7 +170,9 @@ def build_eval_row(strategy: T0Strategy, holding: dict, t_count: int = 0, gate_p
         "t_cost": result.get("t_lot_cost"),
         "vwap_note": result.get("vwap_note", ""),
         "stop": stop,
-        "s1": pivot.get("S1"), "p": pivot.get("P"), "r1": pivot.get("R1"),
+        "s1": pivot.get("S1"),
+        "p": pivot.get("P"),
+        "r1": pivot.get("R1"),
         "buy_below": result.get("buy_below"),
         "entry_rule": plan.get("entry_rule", ""),
         "exit_rule": plan.get("exit_rule", ""),
@@ -211,14 +231,21 @@ def fmt_row(row: dict) -> str:
 
 
 # ── 推送 ────────────────────────────────────────────────────
-def push_card(title: str, sections: list[tuple[str, str]], footer: str, chat_id: str = DEFAULT_CHAT) -> bool:
+def push_card(
+    title: str, sections: list[tuple[str, str]], footer: str, chat_id: str = DEFAULT_CHAT
+) -> bool:
     """经 push_card.py 发交互卡片（含 429 退避 + markdown 兜底）。"""
     cmd = [
-        sys.executable, str(PUSH_CARD),
-        "--title", title,
-        "--level", "info",
-        "--footer", footer,
-        "--chat-id", chat_id,
+        sys.executable,
+        str(PUSH_CARD),
+        "--title",
+        title,
+        "--level",
+        "info",
+        "--footer",
+        footer,
+        "--chat-id",
+        chat_id,
     ]
     for sec_title, body in sections:
         cmd += ["--section", sec_title, body]
@@ -244,7 +271,8 @@ def run_morning(strategy: T0Strategy, push: bool) -> None:
     # 早盘自检正文
     sec_market = (
         f"{idx['name']} {idx['price']:.2f}（{idx['change_pct']:+.2f}%）\n{gate['note']}"
-        if idx else gate["note"]
+        if idx
+        else gate["note"]
     )
     secs = [("🌍 大盘环境", sec_market)]
     for row in rows:
@@ -274,7 +302,16 @@ def run_afternoon(strategy: T0Strategy, push: bool) -> None:
     gate = market_gate(idx)
     rows = [build_eval_row(strategy, h, t_count=1, gate_pass=gate["pass"]) for h in load_holdings()]
 
-    secs = [("🌍 大盘环境", (f"{idx['name']} {idx['price']:.2f}（{idx['change_pct']:+.2f}%）\n{gate['note']}" if idx else gate["note"]))]
+    secs = [
+        (
+            "🌍 大盘环境",
+            (
+                f"{idx['name']} {idx['price']:.2f}（{idx['change_pct']:+.2f}%）\n{gate['note']}"
+                if idx
+                else gate["note"]
+            ),
+        )
+    ]
     for row in rows:
         if row.get("stop_loss_hit"):
             secs.append((f"🛑 {row['name']} 清仓优先", fmt_row(row)))
@@ -300,9 +337,13 @@ def run_afternoon(strategy: T0Strategy, push: bool) -> None:
 # ── 入口 ────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(description="做T盯盘自检（早盘9:25 / 尾盘14:25）")
-    parser.add_argument("mode", choices=["morning", "afternoon"], help="morning=早盘自检, afternoon=尾盘决策")
+    parser.add_argument(
+        "mode", choices=["morning", "afternoon"], help="morning=早盘自检, afternoon=尾盘决策"
+    )
     parser.add_argument("--no-push", action="store_true", help="只打印不推送(调试)")
-    parser.add_argument("--portfolio", default=str(USER_PORTFOLIO), help="portfolio.json路径(默认Claw持仓)")
+    parser.add_argument(
+        "--portfolio", default=str(USER_PORTFOLIO), help="portfolio.json路径(默认Claw持仓)"
+    )
     args = parser.parse_args()
 
     # 交易日闸门

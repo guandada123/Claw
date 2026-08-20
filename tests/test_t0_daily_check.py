@@ -61,13 +61,13 @@ def test_market_gate_no_data_default_pass():
 @pytest.mark.parametrize(
     ("code", "price", "cost", "expected"),
     [
-        ("600584", 9.0, 10.0, True),   # 主板 -10% > -8% 破线
+        ("600584", 9.0, 10.0, True),  # 主板 -10% > -8% 破线
         ("600584", 9.6, 10.0, False),  # 主板 -4% 未破
-        ("600584", 9.2, 10.0, True),   # 主板 -8% 边界（等于即破）
-        ("300123", 8.4, 10.0, True),   # 创业板 -16% > -15% 破线
+        ("600584", 9.2, 10.0, True),  # 主板 -8% 边界（等于即破）
+        ("300123", 8.4, 10.0, True),  # 创业板 -16% > -15% 破线
         ("300123", 9.0, 10.0, False),  # 创业板 -10% 未破15%
-        ("301234", 8.5, 10.0, True),   # 301 也算创业板 -15% 线
-        ("000001", 8.4, 10.0, True),   # 深主板也走 -8%
+        ("301234", 8.5, 10.0, True),  # 301 也算创业板 -15% 线
+        ("000001", 8.4, 10.0, True),  # 深主板也走 -8%
     ],
 )
 def test_stop_loss_threshold(code, price, cost, expected):
@@ -132,12 +132,25 @@ def test_build_row_normal_eval():
 
 def _row(**kw):
     base = {
-        "code": "600584", "name": "长电科技", "direction": "不动",
-        "stop_loss_hit": False, "pnl_pct": None,
-        "t_shares": None, "t_value": None, "t_cost": None,
-        "vwap_note": "", "stop": "", "s1": None, "p": None, "r1": None,
-        "buy_below": None, "entry_rule": "", "exit_rule": "",
-        "summary": "", "blocked": False, "t0": True,
+        "code": "600584",
+        "name": "长电科技",
+        "direction": "不动",
+        "stop_loss_hit": False,
+        "pnl_pct": None,
+        "t_shares": None,
+        "t_value": None,
+        "t_cost": None,
+        "vwap_note": "",
+        "stop": "",
+        "s1": None,
+        "p": None,
+        "r1": None,
+        "buy_below": None,
+        "entry_rule": "",
+        "exit_rule": "",
+        "summary": "",
+        "blocked": False,
+        "t0": True,
     }
     base.update(kw)
     return base
@@ -152,7 +165,9 @@ def test_fmt_clear_position_template():
 def test_fmt_gate_blocked_template():
     """大盘停手行（真实数据流 build_eval_row 产出，summary 带保本文案）。"""
     out = t0.fmt_row(
-        _row(direction="不动(大盘停手)", blocked=True, summary="大盘单边大跌，当日暂停做T，保本优先")
+        _row(
+            direction="不动(大盘停手)", blocked=True, summary="大盘单边大跌，当日暂停做T，保本优先"
+        )
     )
     assert "停手" in out and "保本" in out
 
@@ -165,9 +180,7 @@ def test_fmt_gate_blocked_summary_fallback():
 
 def test_fmt_long_t_template():
     """正T：买(≤成本-2%) / 卖(R1高抛) / T仓 / 止损 四项齐全。"""
-    out = t0.fmt_row(
-        _row(direction="正T", buy_below=10.6, r1=11.2, t_shares=200)
-    )
+    out = t0.fmt_row(_row(direction="正T", buy_below=10.6, r1=11.2, t_shares=200))
     assert "✅ 买: ¥10.60" in out
     assert "✅ 卖: ¥11.20" in out
     assert "T仓: 200股" in out
@@ -176,9 +189,7 @@ def test_fmt_long_t_template():
 
 def test_fmt_short_t_template():
     """反T：卖(R1) / 买回(S1) / T仓=卖出量 / 认错收手。"""
-    out = t0.fmt_row(
-        _row(direction="反T", s1=10.5, r1=11.2, t_shares=200)
-    )
+    out = t0.fmt_row(_row(direction="反T", s1=10.5, r1=11.2, t_shares=200))
     assert "✅ 卖: ¥11.20" in out
     assert "✅ 买回: ¥10.50" in out
     assert "T仓: 200股" in out
