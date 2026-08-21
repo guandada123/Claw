@@ -91,6 +91,18 @@ def build_card(
     elements = []
 
     for idx, (sec_title, sec_body) in enumerate(sections):
+        # 08-21 防御：占位符检测下沉到 build_card 内层（此前仅 main CLI 路径拦截，
+        # import send() / 自动化直接调 send_to_feishu 会被绕过 → LLM 模板漂移
+        # title/body 字面量原样推送给用户。08-20 15:44「全市场选股扫描」卡片事故根因）
+        if _looks_like_placeholder(sec_body):
+            raise ValueError(
+                f"占位符拦截：第 {idx + 1} 个 section body 疑似占位符/空 → "
+                f"title='{sec_title}' body='{str(sec_body)[:30]}'"
+            )
+        if _looks_like_placeholder(sec_title) and sec_title.strip():
+            raise ValueError(
+                f"占位符拦截：第 {idx + 1} 个 section title 疑似占位符 → title='{sec_title}'"
+            )
         # 区块标题 + 内容
         block = f"**{sec_title}**\n\n{sec_body}" if sec_title else sec_body
         elements.append(

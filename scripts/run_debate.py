@@ -134,9 +134,13 @@ def debate_from_codes(codes_str: str, learn: bool = False):
     import re
     import subprocess
 
-    codes = [c.strip() for c in codes_str.split(",") if c.strip()]
+    # 08-21 修复：兼容 .SH/.SZ 后缀（扫描脚本产出 code="000025.SZ" 这种格式），
+    # 剥后缀取纯 6 位数字，否则腾讯行情按 "000025" 匹配后与 codes 不一致被过滤
+    # → 价格=0 → 数据链异常。
+    codes = [c.strip().split(".")[0] for c in codes_str.split(",") if c.strip()]
+    codes = [c for c in codes if len(c) == 6 and c.isdigit()]
     if not codes:
-        print("无股票代码")
+        print("无有效股票代码（须 6 位数字，可带 .SH/.SZ 后缀）")
         return
 
     # 自动拉取行情

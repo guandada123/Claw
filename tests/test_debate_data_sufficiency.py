@@ -231,6 +231,39 @@ class TestBuildUserPromptFundFlow:
         assert "【资金面】" not in p
 
 
+class TestDebateFromCodesSuffix:
+    """08-21 修复：扫描脚本产出 code 带 .SH/.SZ 后缀（如 "000025.SZ"），
+    辩论入口须自动剥后缀取纯 6 位数字，否则腾讯行情按纯数字匹配被过滤
+    → 价格=0 → 数据链异常 → LLM 模板漂移推送占位符"""
+
+    _GT_QUOTE = 'v_sz000025="1~特力A~000025~15.48~15.20~15.30~100000~50000~50000~15.48";\n'
+
+    def test_suffix_stripped(self):
+        fake = mock.Mock()
+        fake.stdout = self._GT_QUOTE.encode("gbk", errors="replace")
+        with (
+            mock.patch("subprocess.run", return_value=fake),
+            mock.patch.object(run_debate, "_enrich_stock_data", side_effect=lambda c, b: dict(b)),
+            mock.patch.object(run_debate, "batch_debate") as m_batch,
+        ):
+            run_debate.debate_from_codes("000025.SZ,603408.SH")
+        args = m_batch.call_args[0][0]
+        codes = [x["code"] for x in args]
+        assert "000025" in codes and "603408" in codes
+
+    def test_invalid_format_filtered(self):
+        fake = mock.Mock()
+        fake.stdout = ""
+        with (
+            mock.patch("subprocess.run", return_value=fake),
+            mock.patch.object(run_debate, "batch_debate") as m_batch,
+        ):
+            run_debate.debate_from_codes("abc,123,600584.SH")
+        args = m_batch.call_args[0][0] if m_batch.called else []
+        codes = [x["code"] for x in args]
+        assert codes == ["600584"]
+
+
 class TestSentimentEnrichment:
     """08-21 sentiment 补齐：公众号信号聚合 + 热度榜，消除 design_gap=['sentiment']"""
 
@@ -309,3 +342,43 @@ class TestSentimentEnrichment:
         assert data.get("sentiment", {}).get("wechat_signals", {}).get("net") == 1
         missing, gap = _assess_data_sufficiency(data)
         assert missing == [] and gap == []
+
+
+class TestPushCardPlaceholderDefense:
+    """08-21 防御：build_card 下沉占位符检测。LLM 模板漂移时即使绕过 CLI
+    直接调 send() 也会被拦，避免 08-20 15:44「title/body」字面卡片事故"""
+
+    import importlib.util as _ilu
+
+    _spec = _ilu.spec_from_file_location(
+        "push_card",
+        Path(__file__).parent.parent / ".workbuddy" / "scripts" / "push_card.py",
+    )
+    push_card = _ilu.module_from_spec(_spec)  # type: ignore
+    _spec.loader.exec_module(push_card)  # type: ignore
+
+    def _try_build(self, sections):
+        try:
+            self.push_card.build_card("📊 测试", "info", sections)
+        except ValueError as exc:
+            return "占位符" in str(exc)
+        return False
+
+    def test_bare_title_body_intercepted(self):
+        assert self._try_build([("title", "body")]) is True
+
+    def test_placeholder_braces_intercepted(self):
+        assert self._try_build([("今日", "{date}")]) is True
+
+    def test_empty_body_intercepted(self):
+        assert self._try_build([("今日", "")]) is True
+
+    def test_real_content_passes(self):
+        try:
+            self.push_card.build_card(
+                "📊 收盘晚报",
+                "info",
+                [("特力A", "现价 15.48 / COMBO 0.25 / 建议买入")],
+            )
+        except ValueError as exc:
+            raise AssertionError("real content must not be intercepted") from exc
