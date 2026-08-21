@@ -166,9 +166,17 @@ def build_user_prompt(code: str, name: str, data: dict) -> str:
 
     if senti:
         prompt_parts.extend(["", "【情绪面】"])
-        prompt_parts.append(
-            f"  新闻情绪={senti.get('news_sentiment', '?')} / 公众号信号={senti.get('wechat_signals', '?')} / "
-            f"讨论热度={senti.get('social_heat', '?')}"
-        )
+        parts = []
+        ws = senti.get("wechat_signals")
+        if ws:
+            parts.append(
+                f"公众号信号: 近7日 {ws.get('bullish', 0)}多/{ws.get('bearish', 0)}空(净{ws.get('net', 0):+d})"
+            )
+        sh = senti.get("social_heat")
+        if sh:
+            parts.append(f"讨论热度: 人气榜第{sh.get('rank')}名")
+        if not parts:
+            parts.append("情绪面数据源暂缺")
+        prompt_parts.append("  " + " / ".join(parts))
 
     return "\n".join(prompt_parts)

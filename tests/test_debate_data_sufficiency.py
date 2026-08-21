@@ -229,3 +229,83 @@ class TestBuildUserPromptFundFlow:
     def test_empty_flow_no_section(self):
         p = self._prompt({"price": 33.5, "change_pct": 1.2})
         assert "【资金面】" not in p
+
+
+class TestSentimentEnrichment:
+    """08-21 sentiment 补齐：公众号信号聚合 + 热度榜，消除 design_gap=['sentiment']"""
+
+    def test_classify_signal(self):
+        assert run_debate._classify_signal("bullish") == 1
+        assert run_debate._classify_signal("买入") == 1
+        assert run_debate._classify_signal("bearish") == -1
+        assert run_debate._classify_signal("止损🔴已触发·开盘清仓") == -1
+        assert run_debate._classify_signal("证伪·回避(半导体#13区间-14.12%)") == -1
+        assert run_debate._classify_signal("主线确认#1(RPS100)") == 1
+        assert run_debate._classify_signal("观察") == 0
+        assert run_debate._classify_signal("") == 0
+
+    def test_fetch_sentiment_aggregates_wechat(self):
+        """近7天聚合：2 多 1 空 → wechat_signals {bullish:2, bearish:1, net:1}"""
+        recs = [
+            {"stock_code": "600584", "signal": "bullish", "recorded_at": "2026-08-20 08:50"},
+            {"stock_code": "600584", "signal": "买入", "recorded_at": "2026-08-19 08:50"},
+            {"stock_code": "600584", "signal": "清仓(止损击穿)", "recorded_at": "2026-08-18 08:50"},
+            {
+                "stock_code": "600584",
+                "signal": "观察",
+                "recorded_at": "2026-08-10 08:50",
+            },  # 超7天不计
+            {
+                "stock_code": "999999",
+                "signal": "bullish",
+                "recorded_at": "2026-08-20 08:50",
+            },  # 非目标股
+        ]
+        sig_path = Path(__file__).parent.parent / ".workbuddy" / "data" / "article_signals.json"
+        with (
+            mock.patch.object(Path, "exists", return_value=True),
+            mock.patch.object(Path, "read_text", return_value=json.dumps(recs, ensure_ascii=False)),
+            mock.patch.object(run_debate, "_fetch_hot_rank", return_value=None),
+        ):
+            senti = run_debate._fetch_sentiment("600584")
+        assert senti["wechat_signals"] == {"bullish": 2, "bearish": 1, "net": 1}
+
+    def test_fetch_sentiment_hot_rank(self):
+        with (
+            mock.patch.object(Path, "exists", return_value=False),
+            mock.patch.object(run_debate, "_fetch_hot_rank", return_value=7),
+        ):
+            senti = run_debate._fetch_sentiment("600584")
+        assert senti.get("social_heat", {}).get("rank") == 7
+
+    def test_sentiment_clears_design_gap(self):
+        """sentiment 非空 → design_gap 消除（此前恒标 ['sentiment']）"""
+        from claw.debate.debate_engine import _assess_data_sufficiency
+
+        data = {
+            "technical": {"rsi": 50},
+            "fundamental": {"pe": 10},
+            "fund_flow": {"main_net_inflow": 100},
+            "sentiment": {"wechat_signals": {"bullish": 2, "bearish": 1, "net": 1}},
+        }
+        missing, gap = _assess_data_sufficiency(data)
+        assert missing == []
+        assert gap == []
+
+    def test_enrich_attaches_sentiment(self):
+        base = {"price": 33.5, "change_pct": 1.2, "sector": "半导体"}
+        with (
+            mock.patch.object(run_debate, "_fetch_money_flow", return_value={"error": "down"}),
+            mock.patch.object(run_debate, "_load_fundamental_cache", return_value={}),
+            mock.patch.object(run_debate, "_write_fundamental_cache", return_value=None),
+            mock.patch.object(run_debate, "_ema_series", side_effect=run_debate._ema_series),
+            mock.patch.object(
+                run_debate,
+                "_fetch_sentiment",
+                return_value={"wechat_signals": {"bullish": 1, "bearish": 0, "net": 1}},
+            ),
+        ):
+            data = run_debate._enrich_stock_data("600584", base)
+        assert data.get("sentiment", {}).get("wechat_signals", {}).get("net") == 1
+        missing, gap = _assess_data_sufficiency(data)
+        assert missing == [] and gap == []

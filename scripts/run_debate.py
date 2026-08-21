@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import logging
 import sys
@@ -345,7 +346,112 @@ def _enrich_stock_data(code: str, base: dict) -> dict:
     except Exception as exc:
         data["fund_flow"] = {"_source": "unavailable"}
         logger.debug("资金流补全异常(%s): %s", code, exc)
+
+    # ── 4) 情绪面：公众号信号(本地 article_signals.json) + 讨论热度(同花顺热榜) ──
+    # 08-21 补充：消除 design_gap=['sentiment']（此前无本地源不承诺补全）。
+    #   数据源均为零 Wind 配额：公众号信号=早报/晚报结构化沉淀；热度=同花顺人气榜。
+    #   新闻情绪暂无稳定免费源 → 不写入该子键（诚实标注盲区，不强凑）。
+    try:
+        senti = _fetch_sentiment(code)
+        if senti:
+            data["sentiment"] = senti
+        else:
+            logger.debug("情绪面数据为空(%s)", code)
+    except Exception as exc:
+        logger.debug("情绪面补全异常(%s): %s", code, exc)
     return data
+
+
+def _fetch_sentiment(code: str) -> dict:
+    """情绪面（零 Wind）：公众号信号聚合 + 同花顺人气榜热度。
+
+    - wechat_signals: article_signals.json 近 7 天按 code 聚合，信号文本归类
+      多空（bullish/买入/看多/建仓/主线/反弹 → +1；bearish/清仓/证伪/回避/
+      止损/放弃/击穿/跌破/减仓 → -1；其余中性）
+    - social_heat: 同花顺人气榜在榜排名（榜单 10 分钟缓存，命中即热度）
+    失败任一子项不影响其余；返回空 dict 表示无可用情绪数据。
+    """
+    senti = {}
+    # 1) 公众号信号（本地数据，零网络）
+    try:
+        sig_path = Path(__file__).parent.parent / ".workbuddy" / "data" / "article_signals.json"
+        recs = json.loads(sig_path.read_text(encoding="utf-8")) if sig_path.exists() else []
+        cutoff = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
+        bulls = bears = 0
+        for r in recs if isinstance(recs, list) else []:
+            if str(r.get("stock_code", "")) != code:
+                continue
+            if str(r.get("recorded_at", ""))[:10] < cutoff:
+                continue
+            v = _classify_signal(r.get("signal", ""))
+            if v > 0:
+                bulls += 1
+            elif v < 0:
+                bears += 1
+        if bulls or bears:
+            senti["wechat_signals"] = {"bullish": bulls, "bearish": bears, "net": bulls - bears}
+    except Exception as exc:
+        logger.debug("公众号情绪聚合失败(%s): %s", code, exc)
+    # 2) 讨论热度：同花顺人气榜（在榜返回排名）
+    try:
+        rank = _fetch_hot_rank(code)
+        if rank:
+            senti["social_heat"] = {"rank": rank, "source": "同花顺人气榜"}
+    except Exception as exc:
+        logger.debug("热度榜获取失败(%s): %s", code, exc)
+    return senti
+
+
+def _classify_signal(signal: str) -> int:
+    """公众号信号文本 → 多空归类（+1 多 / -1 空 / 0 中性）。"""
+    s = str(signal or "").lower()
+    if s in ("bullish", "买入", "看多", "增持"):
+        return 1
+    if s in ("bearish", "清仓", "减持"):
+        return -1
+    if any(
+        k in s
+        for k in ("清仓", "证伪", "回避", "止损", "放弃", "击穿", "跌破", "减仓", "最弱", "末位")
+    ):
+        return -1
+    if any(k in s for k in ("买入", "看多", "建仓", "反弹", "增持", "主线", "clean")):
+        return 1
+    return 0
+
+
+_HOT_RANK_CACHE: dict = {"at": 0.0, "rows": {}}  # 模块级 10 分钟缓存
+
+
+def _fetch_hot_rank(code: str) -> int | None:
+    """同花顺人气榜在榜排名（免费，10 分钟缓存；失败返回 None）。"""
+    import time as _time
+
+    now = _time.time()
+    if now - _HOT_RANK_CACHE["at"] > 600 or not _HOT_RANK_CACHE["rows"]:
+        try:
+            import subprocess as _subprocess
+
+            url = (
+                "https://dq.10jqka.com.cn/fuyao/hot_list_data/out/hot_list/v1/stock"
+                "?stock_type=a&type=hour&list_type=normal"
+            )
+            raw = _subprocess.run(
+                ["curl", "-s", url, "-H", "User-Agent: Mozilla/5.0"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            data = json.loads(raw.stdout or "{}")
+            rows = {}
+            for i, item in enumerate((data.get("data") or {}).get("stock_list") or [], start=1):
+                rows[str(item.get("code", ""))] = i
+            if rows:
+                _HOT_RANK_CACHE.update({"at": now, "rows": rows})
+                return rows.get(code)
+        except Exception as exc:
+            logger.debug("热度榜拉取失败: %s", exc)
+            return None
+    return _HOT_RANK_CACHE["rows"].get(code)
 
 
 def _fetch_money_flow(code: str) -> dict:
