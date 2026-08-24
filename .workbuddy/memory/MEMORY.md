@@ -25,6 +25,7 @@
 - 🔴🔴 创建/修改rrule强制自检gate(08-07二次踩坑固化)：凡automation_update创建/更新或直写db automations表且rrule含BYHOUR多值→必load automation-rrule-safety-check skill走Gate1-4(禁多BYHOUR拆多条/备份/创建后验证创建数+单BYHOUR+告知用户当天剩余时段能否排上/回溯查昨天同坑一并修)。信任红线，复发即严重失职
 - 已拆：助理实盘1784039316540=9 + 1785123941471/596/709/786(10/11/13/14)；信号溯源1780964240621=5 + 1785284629106(15:00)；原隐患1783310235388已删
 - Sidecar守护唯一执行方=com.workbuddy.memwatch(阈值RSS_RESTART_MB=10000MB，08-06由6000上调)；禁依赖看门狗兜底关键自动化
+- 🔴🔴 automation_update 的 id **必须带 `automation-` 前缀**(08-24实锤)：传裸数字ID不报错而是**静默新建影子记录**并把改动写进影子，真实记录毫发无损→PAUSE/改配置全成假成功(工具连返success仍ACTIVE在跑)。识破线索=①返回cwds与DB该记录不符(影子为临时目录`WorkBuddy/automation-<日期>`)②view传裸ID报not found但update却"成功"③按`name LIKE`查出同名双记录。铁律：**任何status/rrule变更后必readback** `SELECT status,updated_at FROM automations WHERE id='automation-<x>'` 才算成功；写操作与查automation_runs同一前缀规则
 
 ### 统一巡检中枢(08-06接管)
 - unified_ops_center.py(宿主QTS自动化1785982929477每小时)；复用专项脚本(automation_health/self_heal/qts_pmf_guard/disk/feishu_channel)不重写；Runbook自愈白名单=memwatch_threshold_bump+docker_restart_container；审计unified_self_heal_log.json

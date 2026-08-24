@@ -16,7 +16,7 @@
 
 **验证**：10/10 全量覆盖（RSI/MA20/MACD + PE/PB/ROE）；长电 600584 端到端 SELL conf=0.85（此前数据缺失降级 0.4）；中铝 601600 从「数据缺失」→ HOLD conf=0.62 含 PE10.73/PB1.95/ROE7.1 实质分析；454 tests passed。
 
-**★ 升级候选**：辩论数据链路不得依赖 Wind 配额（技术面本地/基本面多源兜底）；「降级」须区分 LLM 失败 vs 数据不足（data_insufficient 标记）。
+**✅已升级(2026-08-23)**：辩论数据链路不得依赖 Wind 配额（技术面本地/基本面多源兜底）；「降级」须区分 LLM 失败 vs 数据不足（data_insufficient 标记）。
 
 **关键坑**：`str(Path) / "file"` 字符串除法 TypeError 被 except 吞掉 → RSI 静默缺失；debug 时先单跑子进程再集成。
 
@@ -36,3 +36,15 @@
 - ✅ P3：关键失败路径由 `pass` 改 `logger.debug`（run_debate 全程）。
 - 测试：tests/ 471 + .workbuddy/tests/ 185 = **656 passed**（新增 17 例数据完整性回归）；ruff 0 待处理；bandit(CI 口径) 0 中危/0 高危。
 - 冒烟：长电 600584 data_insufficient=`[]`（此前恒标 fund_flow），design_gap=`['sentiment']`，prompt 资金面显式"数据源不可用"。
+
+**sentiment 补齐（08-21 08:00，提交 ce2d58a）**：
+- design_gap=['sentiment'] 修复：公众号信号(article_signals.json 460条按 code 聚合近7天, 信号文本归类多空) + 同花顺人气榜在榜排名(10分钟缓存)，均零 Wind。
+- 新闻情绪无稳定免费源 → 不写入子键（诚实标注不强凑）；无数据股票保留 design_gap 诚实标注（招行验证）。
+- 冒烟：长电/华天 design_gap=[] 消除；招行保留（无数据）。
+- 至此辩论数据四维全齐（技术/基本面/资金面/情绪面），data_insufficient=[] 且 design_gap 仅在真无数据时出现。
+
+**三层修推送占位符事故(08-21 08:08,提交 4835454)**: 08-20 15:44 全市场选股扫描卡片事故根因:
+1. 扫描脚本产出 code="000025.SZ" 带后缀, debate_from_codes 不识别 → 腾讯行情按"000025"匹配但与 codes 不一致过滤 → price=0
+2. 辩论拿 price=0 → 输出"数据严重缺失" → LLM 模板漂移生成 title/body 字面量 sections
+3. push_card 防护仅 main CLI 拦截, import send() 绕过 → 字面 sections 原样推送
+**✅已升级(2026-08-23)**：辩论入口必须接受后缀 code(任何数据源上游产出的 code 都可能带 .SH/.SZ); push_card 占位符检测必须下沉到 build_card 内层(防御下沉, 不依赖调用方走 CLI 主路径)

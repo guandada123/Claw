@@ -72,6 +72,7 @@ def plain_code_to_windcode(code: str) -> str:
 # 100 过于保守（按注释换算仅用半数），180 贴近 200 次简单查询的 90% 安全线。
 _DAILY_QUERY_LIMIT = 180
 _query_lock = threading.Lock()
+_limit_warned = False  # 进程内去重：日限警告仅打印一次，避免 signal_verify 逐股循环刷屏（08-24 修复 25 天刷屏）
 
 # ── 持久化计数器（跨进程累加，修复"日报永远0"测量bug）──
 # ⚠️ DO NOT REVERT: 原 _daily_query_count 是纯内存变量，进程退出即归零，
@@ -106,16 +107,20 @@ def _check_query_limit() -> bool:
     已知局限（审计 🟡4）：load→incr→save 非跨进程原子，并发时偏差 ≤ N_concurrent-1。
     threading.Lock 仅进程内有效。Claw 自动化串行执行，实际偏差可忽略。
     """
+    global _limit_warned
     with _query_lock:
         today = time.strftime("%Y%m%d")
         _daily_query_date, _daily_query_count = _load_count()
         if _daily_query_date != today:
             _daily_query_count = 0
             _daily_query_date = today
+            _limit_warned = False  # 跨天重置去重标志
         if _daily_query_count >= _DAILY_QUERY_LIMIT:
-            logger.warning(
-                f"Wind 每日查询上限已达 ({_DAILY_QUERY_LIMIT}次)，今日暂停"
-            )
+            if not _limit_warned:
+                logger.warning(
+                    f"Wind 每日查询上限已达 ({_DAILY_QUERY_LIMIT}次)，今日暂停"
+                )
+                _limit_warned = True
             return False
         _daily_query_count += 1
         _save_count(_daily_query_date, _daily_query_count)

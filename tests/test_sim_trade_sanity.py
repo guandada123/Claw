@@ -36,9 +36,12 @@ def _fake_sanity(ok: bool, reliable: float | None = None):
 
 
 def test_update_price_rejects_bad(monkeypatch):
-    """错误价 → 拒绝写入，保留旧价。"""
-    monkeypatch.setattr(st, "_sanity_check_price", _fake_sanity(False, 83.5))
-    # 000333 当前应有持仓（模拟盘），先用真实价写入
+    """错误价 → 拒绝写入，保留旧价（隔离环境，不依赖实时持仓）。"""
+    _fake_load_save(monkeypatch, {
+        "000333": {"name": "美的集团", "shares": 100, "avg_cost": 83.5,
+                   "total_cost": 8350.0, "current_price": 83.5,
+                   "highest_price": 83.5, "take_profit_level": 1},
+    })
     monkeypatch.setattr(st, "_sanity_check_price", _fake_sanity(True))
     st.cmd_update_price("000333", 83.5)
     # 再注入错误价
@@ -47,12 +50,16 @@ def test_update_price_rejects_bad(monkeypatch):
     assert res["ok"] is False
     assert res["sanity_failed"] is True
     # 旧价保留
-    pf = st.load_portfolio()
-    assert pf["positions"]["000333"]["current_price"] == 83.5
+    assert st.load_portfolio()["positions"]["000333"]["current_price"] == 83.5
 
 
 def test_update_price_accepts_good(monkeypatch):
-    """真实价 → 正常写入。"""
+    """真实价 → 正常写入（隔离环境）。"""
+    _fake_load_save(monkeypatch, {
+        "000333": {"name": "美的集团", "shares": 100, "avg_cost": 83.5,
+                   "total_cost": 8350.0, "current_price": 83.5,
+                   "highest_price": 83.5, "take_profit_level": 1},
+    })
     monkeypatch.setattr(st, "_sanity_check_price", _fake_sanity(True))
     res = st.cmd_update_price("000333", 83.5)
     assert res["ok"] is True
@@ -76,21 +83,21 @@ def test_sell_rejects_bad_price(monkeypatch):
 
 
 def test_batch_update_partial_fail(monkeypatch):
-    """批量更新混合：失败项跳过 + sanity_failed 列表。"""
+    """批量更新混合：失败项跳过 + sanity_failed 列表（隔离环境）。"""
     # 让 000333 失败、601899 成功
     def mixed(code, price):
         if code == "000333":
             return {"ok": False, "reliable_price": 83.5, "reason": "G1 测试"}
         return {"ok": True, "reliable_price": price, "reason": ""}
+    _fake_load_save(monkeypatch, {
+        "000333": {"name": "美的集团", "shares": 100, "avg_cost": 83.5,
+                   "total_cost": 8350.0, "current_price": 83.5,
+                   "highest_price": 83.5, "take_profit_level": 1},
+        "601899": {"name": "紫金矿业", "shares": 100, "avg_cost": 35.0,
+                   "total_cost": 3500.0, "current_price": 35.15,
+                   "highest_price": 35.15, "take_profit_level": 1},
+    })
     monkeypatch.setattr(st, "_sanity_check_price", mixed)
-    # 确保两标的都有持仓（模拟盘）
-    pf = st.load_portfolio()
-    if "601899" not in pf["positions"]:
-        pf["positions"]["601899"] = {"name": "紫金矿业", "shares": 100,
-                                      "avg_cost": 35.0, "total_cost": 3500.0,
-                                      "current_price": 35.15, "highest_price": 35.15,
-                                      "take_profit_level": 1, "first_buy_date": "2026-08-07"}
-        st.save_portfolio(pf)
     res = st.cmd_update_all_prices({"000333": 8.35, "601899": 35.15})
     assert "000333" not in res["updated"]
     assert "601899" in res["updated"]
@@ -174,6 +181,24 @@ def _patch_isolated(monkeypatch, positions, cash=1_000_000.0):
     monkeypatch.setattr(st, "save_portfolio", lambda pf: None)
     monkeypatch.setattr(st, "check_restricted", lambda code: "")
     monkeypatch.setattr(st, "_sanity_check_price", _fake_sanity_ok())
+    return fake
+
+
+def _fake_load_save(monkeypatch, positions, cash=1_000_000.0):
+    """隔离 load/save 到内存 fake，避免污染真实模拟盘持仓。
+
+    用于价格刷新类测试（cmd_update_price / cmd_update_all_prices）。
+    这些测试原依赖实时 portfolio.json 含 000333，000333 被清仓后回归；
+    隔离后不再随实时持仓变动而脆断，也不会改写真实组合。
+    """
+    fake = {
+        "cash": cash,
+        "initial_capital": 50_000.0,
+        "positions": positions,
+        "transactions": [],
+    }
+    monkeypatch.setattr(st, "load_portfolio", lambda: fake)
+    monkeypatch.setattr(st, "save_portfolio", lambda pf: None)
     return fake
 
 

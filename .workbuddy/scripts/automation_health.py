@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sqlite3
 import sys
 import urllib.request
@@ -118,6 +119,16 @@ def _parse_unix(ts) -> datetime | None:
         return None
 
 
+def _extract_byday(rrule: str) -> set:
+    """从 RRULE 中提取 BYDAY 工作日集合，如 'MO,TU,WE' -> {'MO','TU','WE'}"""
+    if not rrule:
+        return set()
+    m = re.search(r"BYDAY=([^;]+)", rrule)
+    if not m:
+        return set()
+    return {d.strip().upper() for d in m.group(1).split(",") if d.strip()}
+
+
 def check_health(auto: dict) -> dict:
     """检查单个自动化健康状态"""
     name = auto.get("name", "Unknown")
@@ -167,11 +178,26 @@ def check_health(auto: dict) -> dict:
         else:
             threshold = 48  # 默认48h
 
-        if hours_ago > threshold:
-            health = "🔴" if health == "🟢" else health
-            issues.append(f"{int(hours_ago)}h未运行")
-        elif hours_ago > threshold * 0.6:
-            health = "🟡" if health == "🟢" else health
+        # BYDAY 仅工作日(MO-FR)时，周末天然不调度，最长间隔含整个周末(~49h)
+        # 若不放大阈值会把周末间隔误判为 critical（如 FREQ=HOURLY;BYDAY=MO-FR）
+        byday = _extract_byday(rrule)
+        WEEKDAYS = {"MO", "TU", "WE", "TH", "FR"}
+        if byday and byday.issubset(WEEKDAYS):
+            threshold = max(threshold, 72)  # 放宽到 72h 覆盖周五→周一
+
+        # 若平台已算出未来的 next_run_at，说明调度正常（尊重 BYDAY/节假日），非静默失败
+        # 这是最权威的判定：跨周末/节假日间隔不误报；仅当 next_run_at 缺失/过期才走 gap 回退
+        next_run = _parse_unix(auto.get("next_run_at", 0))
+        if next_run and next_run > datetime.now():
+            stale = False  # 已正确排期，跳过静默失败判定
+        else:
+            stale = hours_ago > threshold or hours_ago > threshold * 0.6
+
+        if stale:
+            if hours_ago > threshold:
+                health = "🔴" if health == "🟢" else health
+            else:
+                health = "🟡" if health == "🟢" else health
             issues.append(f"{int(hours_ago)}h未运行")
 
     # 运行中

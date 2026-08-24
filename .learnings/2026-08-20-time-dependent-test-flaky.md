@@ -27,4 +27,4 @@
 - 新增测试若依赖"今天/本月/模式",一律 patch 时间或模式判定函数
 - CI 红灯排查 checklist 增加「时间相关 flaky」筛查项(先查 _is_sprint_period / date.today / 月份分支)
 
-★升级候选: 本项目 CI 红排查 SOP 应含"时间相关 flaky"先验检查
+✅已升级(2026-08-23): 本项目 CI 红排查 SOP 应含"时间相关 flaky"先验检查

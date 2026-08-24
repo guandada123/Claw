@@ -3,7 +3,7 @@
 Corrections, insights, and knowledge gaps captured during development.\n\n**Categories**: correction | insight | best_practice | knowledge_gap
 
 ---
-### 2026-08-11 辩论降级根因脑补误判（correction → ★升级候选）
+### 2026-08-11 辩论降级根因脑补误判（correction → ✅已升级(2026-08-16)）
 - **类型**: correction
 - **现象**: 09:10 投顾槽位辩论 valuation 专家 reasoning-only 失败降级 HOLD。我先脑补"路由到推理模型/代理挂了"，被用户两次追问才查日志。
 - **根因**(日志实锤): `com.workbuddy.proxy-deepseek.plist` 设 `THINK_BUDGET=high` → 代理对 `deepseek-v4-flash` 注入 `extra_body.thinking` → 返回主 content 空仅 reasoning_content 有值 → `debate_engine._call_llm` content 空即抛错。日志铁证：`🧠 Thinking mode injected: budget=high` + `track=points is_direct=false`（全走积分池）。
@@ -61,7 +61,7 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **处置**: ①重命名 `scripts/secrets.py → legacy_secrets.py`(git mv 不可用,文件未跟踪,直接 mv),`router.py` 的 `from secrets import ...` 同步改 `from legacy_secrets import ...`;②清 scripts/__pycache__/secrets*.pyc;③连带补 `requirements.txt`+`pyproject.toml` 的 `scipy>=1.10`(alpha_eval Spearman IC 依赖缺失,同批暴露);④420 tests passed 零回归 + ruff 全绿。
 - **防复犯**: 项目脚本目录内**禁止出现标准库同名模块**(secrets/random/sys/os/subprocess...),尤其是被 numpy/pandas 内部依赖的模块;新增脚本前 `python -c "import <name>; print(__file__)"` 自查。numpy 相关 ImportError 优先怀疑 sys.path 遮蔽而非 numpy 本体。
 - **去重**: 与 08-13 其它 numpy/环境类故障不同源(那是依赖缺失 scipy);本例是**命名遮蔽**,scipy 是暴露出的第二个问题。
-- **★升级候选**: 建议加 CI 检查——grep 脚本目录内是否存在与 stdlib 同名的 .py 文件。
+- **✅已升级(2026-08-16)**: 建议加 CI 检查——grep 脚本目录内是否存在与 stdlib 同名的 .py 文件。(并入🔴铁律"项目脚本目录禁与 stdlib 同名模块")
 
 ### 2026-08-14 做T报告 T仓股数未取整到100整手（用户指出"30/40股无法买卖"）(✅已升级(2026-08-16))
 - **类型**: correction
@@ -70,7 +70,7 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **处置**: ①新增 `LOT_SIZE=100` 常量；②`t_position_shares` 改为整手取整(理想股数÷100四舍五入×100，不足1手至少取100，且不超底仓向下取整)，新增 `t_lot_cost`(股数×价)保证卡片金额与股数一致；③小底仓下整手占比高于1/10时加 LOT info 提示(不拦截)；④`t0_daily_check.py` 卡片展示改用 `整手` 标注+实际成本；⑤补 5 个测试(test_t_position_shares_is_valid_lot/floor_to_one_lot/rounds_to_nearest_lot/base_below_one_lot_no_t/small_base_lot_exceeds_ratio_flagged)。修复后重跑：长电/华天均=100股(整手,~¥7782/~¥1788)，并已重推更正卡片到飞书群。44 tests passed 零回归。
 - **防复犯**: A股任何"股数"输出(T仓/买卖量/补仓量)都必须 `int(round(x/100))*100` 且 ≥100；持仓/选股/交易执行类脚本统一复用 LOT_SIZE 常量，禁止裸 `round(金额/价)`。
 - **去重**: 与 08-13 自动化失败/Marvis 故障不同源(那是调度层)，本例是**数量计算漏整手约束**的纯逻辑 bug。
-- **★升级候选**: 建议在 `sim_trade.py`/选股/任何涉及"股数"的脚本做一次整手约束审计(grep `round(.*/.*price)` 或 `// 100` 缺失处)，避免同类再生产。
+- **✅已升级(2026-08-16)**: 建议在 `sim_trade.py`/选股/任何涉及"股数"的脚本做一次整手约束审计(grep `round(.*/.*price)` 或 `// 100` 缺失处)，避免同类再生产。(并入🔴铁律"A股股数必须整手")
 
 ### 2026-08-14 整手约束审计闭环（sim_trade.py/选股脚本，上条★升级候选已执行）
 - **触发**: 上条★升级候选建议的整手约束审计已执行。
@@ -86,20 +86,46 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **遗留(非本次范围)**: `cmd_buy` 成功返回体不含 `ok` 键（仅返回 cash_remaining/total_asset，既有不一致），测试中改以"持仓副作用"验证成交；建议后续单列小重构统一返回体（可选）。
 - **闭环**: ★升级候选 → 已执行+修复完成；已升级(2026-08-16)为🔴铁律（"任何股数输出须 `int(round(x/100))*100` 且≥100，统一复用 LOT_SIZE，禁裸 round(金额/价)"）。
 
-### 2026-08-20 automation_runs "refusal" 集群实为 429 配额耗尽（correction + insight → ★升级候选）
+### 2026-08-20 automation_runs "refusal" 集群实为 429 配额耗尽（correction + insight → ✅已升级(2026-08-23)）
 - **类型**: correction（修正初判）/ insight（诊断模式）
 - **现象**: 08-19 20:09–21:28 出现 12 条 `Automation prompt stopped before completion: refusal` 集群，watchdog 归次要 SILENT。初判误写为"模型拒绝执行/内容策略异常"。
 - **根因**(DB 实锤): 实际是 **HTTP 429 配额/频率限制**（code -32003, "Quota exceeded: 429 您的使用量已超出频率限制，将在 2026-08-20 02:09:25 UTC+8 重置"）。6 个互不相干自动化同享同一 reset 时间戳 → 单一模型路由当日配额耗尽（系统性）。08-16/17/18 均 0 条、08-20 02:10 重置后 0 条 → 偶发用量 spike 非周期。关联待办：DeepSeek 直连余额近枯竭/路由切换待完成。
 - **处置**: 无需修复，配额每日 02:09 UTC+8 重置后自愈，08-20 巡检全绿印证。
 - **防复犯**: ①"refusal" 字眼≠内容安全拒绝，含 429；诊断须取完整 thread_title 看 code/message。②同享 reset 时间戳 + 多互不相干自动化同时失败 = 单路由配额耗尽（系统性）。③确认恢复看 reset 后是否还有新 429。④watchdog 归次要 SILENT 行为正确，但 digest "refusal" 文案易误导，建议对 429 单独标注。
 - **去重**: 与 08-11/08-13 THINK_BUDGET 注入（content 空）不同源；与 08-13 Marvis 重启（会话未拉起）不同源。
-- **★升级候选**: 若 429 复现频率上升，给 watchdog 加「429 配额集群」专项检测（窗口内 ≥3 条同 reset 时间戳 429 → 推飞书提示切模型/查路由）。
+- **✅已升级(2026-08-23)**: 若 429 复现频率上升，给 watchdog 加「429 配额集群」专项检测（窗口内 ≥3 条同 reset 时间戳 429 → 推飞书提示切模型/查路由）。(已升🔴铁律"自动化 refusal/失败集群须先按 code+reset 时间戳聚类定因")
 
-### 2026-08-17 北辰辩论降级复发：兜底式修复未关注入源头（correction → ★升级候选）
+### 2026-08-17 北辰辩论降级复发：兜底式修复未关注入源头（correction → ✅已升级(2026-08-16 铁律已含)）
 - **类型**: correction
 - **现象**: 8/15 `482a030` 已"修复"辩论降级（content 空回退 reasoning_content 兜底），但 8/17 用户反馈北辰"完全没有参考度"，实测 13 只持仓辩论 conf 全=0.4、专家 risk_flags=["LLM调用失败"]、降级 HOLD。
 - **根因**(实锤): 8/15 修复方向错——只加 content 空→reasoning_content 兜底，**未关闭代理 THINK_BUDGET=high 注入**。①stance 阶段用 reasoning 顶上；②但收敛阶段要**严格 JSON**，从 reasoning 自由文本提不出 → `_fallback_verdict` 简单多数降级；③更严重：生产环境专家仍 3 次重试全失败（`LLM调用失败` 降级 HOLD），兜底根本没兜住。**8/15 修复形同虚设**。
 - **处置**: ①`debate_engine._call_llm` 请求**双写** thinking opt-out（顶层 `thinking` + `extra_body.thinking`），实测后端透传生效，content 正常返回，收敛 JSON 可解析；②新增 `tests/test_debate_engine.py::TestCallLlmThinkingOptOut` 固化防 8/15 复发；③`run_debate.py` 顺带修 gtimg 行情解析（GBK 崩溃+字段错位）+ 新增 `_enrich_stock_data()` 补全 RSI/MA20/MACD/量比，消除"数据饥饿"第二根因；④`proxy-deepseek.py` 注释固化 opt-out 契约。验证：601668 conf 0.40→0.75、因子全50→V75/Q55/G45/M30、0 降级专家。commit `97f040b`。
 - **防复犯**: 🔴 **结构化 JSON 抽取类调用（deepseek-v4-flash）的修复必须"从源头关闭思考注入"，不能靠 content 空回退 reasoning 兜底**——reasoning 是思考链非 JSON，兜底对 JSON 任务无效，必降级。正确做法见 router.py / read_wx_articles.py / debate_engine.py：请求携带 `thinking=disabled`（顶层+extra_body 双写）。
 - **去重**: 与 08-11 / 08-13 同根因（THINK_BUDGET=high 注入）。但本例暴露**新缺口**：8/15 那次只做了"症状缓解"（加兜底）而非"根因消除"（关注入），且**假设 reasoning 能当 JSON 用**——逻辑假设错误。这是典型的"假修复"，须记入反模式。
-- **★升级候选**: 建议升级为🔴铁律：①凡结构化 JSON 抽取调用必须 per-request 关 thinking（双写），禁仅靠 content 空兜底；②修复"LLM 返回空/content 异常"类故障时，先查代理 THINK_BUDGET 注入日志（`Thinking mode injected`）而非加兜底；③CI 加契约测试：JSON 类调用方 payload 须含 thinking 关闭字段（已有 test_debate_engine 示例，建议推广到 router.call_llm / read_wx_articles）。
+- **✅已升级(2026-08-16 铁律已含, 本run补CI契约测试+假修复反模式)**: 建议升级为🔴铁律：①凡结构化 JSON 抽取调用必须 per-request 关 thinking（双写），禁仅靠 content 空兜底；②修复"LLM 返回空/content 异常"类故障时，先查代理 THINK_BUDGET 注入日志（`Thinking mode injected`）而非加兜底；③CI 加契约测试：JSON 类调用方 payload 须含 thinking 关闭字段（已有 test_debate_engine 示例，建议推广到 router.call_llm / read_wx_articles）。
+
+### 2026-08-24 自动化健康误报:工作日(HOURLY+BYDAY=MO-FR)自动化周末被误判 critical（insight → ★升级候选）
+- **类型**: insight（检测逻辑缺陷）
+- **现象**: 统一巡检中枢首轮运行 `自动化健康` 触发「退出码1」critical 飞书告警（📈【盘中】投顾策略执行 🔴 48h未运行）。实为误报。
+- **根因**: `automation_health.py::check_health()` 对 `FREQ=HOURLY` 用固定 48h 阈值，未识别 rrule 的 `BYDAY=MO,TU,WE,TH,FR` 工作日限制；周五23:29→周一00:28 的周末间隔(~49h)为自然间隔，调度器 `next_run_at`(未来)已证明排期正常，却被 gap 启发式误判 critical。此前多次巡检为绿是因缺口恰 <48h（周六日间），本次(周一00:22)刚越阈值。
+- **处置**: ①新增 `_extract_byday(rrule)` 解析 BYDAY；②BYDAY 仅工作日时阈值放宽至 72h；③`next_run_at` 在未来→直接跳过 stale 判定（权威证据，兼覆盖节假日）。单测确认真故障(next_run_at 过期+100h)仍报 🔴，未掩盖真实故障。重跑 `unified_ops_center.py` 15 项全绿。已补 success 飞书卡片纠正误报。
+- **防复犯**: 任何"Xh 未运行/stale/静默失败"检测须先查 `next_run_at` 是否未来 + rrule 的 BYDAY/频率；gap 阈值必须按 MONTHLY/WEEKLY/BYDAY/once 分级，禁用单一固定值；飞书已误推的 critical 须补发纠正卡片。
+- **★升级候选**: 巡检 stale 判定铁律 = "next_run_at 未来即健康,固定 gap 阈值须按 BYDAY/频率分级"（每周一必复发,建议周度自动化升🔴铁律）。
+
+### 2026-08-24 signal_verify Wind 日限刷屏 25 天（correction → ★升级候选）
+- **类型**: correction（日志刷屏 + 执行时长浪费）
+- **现象**: signal_verify（信号溯源 15:00 STEP1）连续 25 天在 Wind 日限 180 次耗尽后刷屏 40+ 行 `Wind 每日查询上限已达`，单次执行 4m56s。
+- **根因**(代码实锤): `wind_utils.py::_check_query_limit()` 日限达到时每次调用都 `logger.warning`，无进程内去重；`wind_available()` 只查 CLI+Key 不查日限 → signal_verify 逐股循环 fetch_realtime/fetch_history 每只触发 Wind 调用打印 warning。执行时长来自二次补拉 `sleep(3)+sleep(1)` 对失败 code 的重试。
+- **处置**: 加模块级 `_limit_warned` 标志，日限警告仅打印一次、跨天重置。零行为风险（仅日志）。验证：import OK、stats used=180/remaining=0 复现场景。
+- **防复犯**: 任何「日限/配额/熔断类」日志打印须进程内去重（once flag + 跨周期重置），禁止逐股/逐条循环裸 warning。
+- **★升级候选**: 配额类日志打印去重铁律；signal_verify 二次补拉对「Wind 日限导致的历史数据失败」跳过无意义重试（💭 P2 遗留，需先确认腾讯 qfq 源为何失败）。
+- **去重**: 与 08-21 debate-wind-quota-degradation 同涉 Wind 配额，但本例是**日志刷屏 + 执行时长**问题，非辩论数据链路去 Wind 化。
+
+### 2026-08-24 automation refusal 集群第二族:-32603 上游500（insight → ★升级候选）
+- **类型**: insight（故障分族）
+- **现象**: 08-24 16:22 统一巡检中枢 / 16:30 自动补跑 连续2条 refusal 失败（间隔8min），watchdog 归次要 SILENT（正确）。
+- **根因**(实锤): `code=-32603 / "500 internal server error"` = **上游模型服务端故障**，与 08-20 的 `-32003` 429配额族**不同源**；本地代理 :9999 同期健康（nc 通、stdout 无错、track=points 正常计费）；17:11 主动 curl 探测 HTTP=200/0.72s → 上游已自愈，窗口≈16:22-16:30。
+- **连带核查**: 失败的"自动补跑"本身是漏报检查员 → 人工代跑其 STEP1，收盘复盘/早报/盘中锁全在，今日无遗漏可补；但 `claw_lock_自动补跑_20260824` 已占，若真有缺失锁会掩盖补跑机会。
+- **防复犯**: refusal 必按 code 分三族(-32003配额/-32603上游500/内容拒绝)，禁字面归因；判上游 vs 本地先看代理日志+计费；确认恢复须主动 curl 探测而非等下轮；「补跑/校验类自动化自身失败」= 双重故障须人工代核其检查项 + 查 schedule 锁。
+- **★升级候选**: watchdog `classify()` 增加 refusal code 分族标注（digest 输出 429配额/上游500/内容拒绝），并对「补跑/校验类自动化自身失败」提级为"需人工代核"。
+- **去重**: 与 2026-08-20-automation-429-quota-cluster 同为 refusal 集群但不同 code 族；与 THINK_BUDGET thinking 注入（08-11/13/17）无关，本例未进入生成阶段。
