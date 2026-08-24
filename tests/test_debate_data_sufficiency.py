@@ -125,9 +125,18 @@ class TestFetchMoneyFlow:
 
     def test_enrich_attaches_fund_flow(self):
         """集成：_enrich_stock_data 成功补全资金面 → data['fund_flow'] 非空，
-        data_insufficient 不再恒标 fund_flow；键名对齐 prompt 消费键 main_net_inflow。"""
+        data_insufficient 不再恒标 fund_flow；键名对齐 prompt 消费键 main_net_inflow。
+        08-24 修复：注入 anysearch_helper MagicMock 消除 CI 无包环境的 fundamental 兜底依赖。"""
         base = {"price": 33.5, "change_pct": 1.2, "sector": "半导体"}
+        _mh = mock.MagicMock()
+        _mh.a_stock_quote.return_value = {
+            "pe_ttm": 20.0,
+            "pb": 3.0,
+            "total_mv": 20000000,
+        }
+        _mh.a_stock_indicator.return_value = {"roe": 10.0, "revenue_growth": 5.0}
         with (
+            mock.patch.dict(sys.modules, {"anysearch_helper": _mh}),
             mock.patch.object(
                 run_debate,
                 "_fetch_money_flow",
@@ -326,8 +335,21 @@ class TestSentimentEnrichment:
         assert gap == []
 
     def test_enrich_attaches_sentiment(self):
+        """08-24 修复 CI 红灯根因：该测试此前依赖外部 anysearch_helper/westock
+        兜底补全 fundamental，但 CI 环境未装该包且无网 → fundamental 恒空 →
+        _assess_data_sufficiency 报 missing=['fundamental'] → 断言失败。
+        修复：注入 anysearch_helper MagicMock 使 fundamental 补全确定性，
+        测试不再依赖外部网络/未声明依赖（本地有 westock 才 passed 属偶发）。"""
         base = {"price": 33.5, "change_pct": 1.2, "sector": "半导体"}
+        _mh = mock.MagicMock()
+        _mh.a_stock_quote.return_value = {
+            "pe_ttm": 20.0,
+            "pb": 3.0,
+            "total_mv": 20000000,
+        }
+        _mh.a_stock_indicator.return_value = {"roe": 10.0, "revenue_growth": 5.0}
         with (
+            mock.patch.dict(sys.modules, {"anysearch_helper": _mh}),
             mock.patch.object(run_debate, "_fetch_money_flow", return_value={"error": "down"}),
             mock.patch.object(run_debate, "_load_fundamental_cache", return_value={}),
             mock.patch.object(run_debate, "_write_fundamental_cache", return_value=None),
@@ -340,6 +362,7 @@ class TestSentimentEnrichment:
         ):
             data = run_debate._enrich_stock_data("600584", base)
         assert data.get("sentiment", {}).get("wechat_signals", {}).get("net") == 1
+        assert data.get("fundamental", {}).get("pe") == 20.0
         missing, gap = _assess_data_sufficiency(data)
         assert missing == [] and gap == []
 
