@@ -10,6 +10,13 @@ export PYTHON=/Users/guan/.workbuddy/binaries/python/envs/default/bin/python
 export SCRIPTS=/Users/guan/WorkBuddy/Claw/.workbuddy/scripts
 export CLAW=/Users/guan/WorkBuddy/Claw
 
+# --- claw 包可见性（08-31 修复）---
+# claw 以 editable 方式装在 default venv（envs/default 的 $PYTHON 可 import）。
+# 但部分自动化用裸 python3（= managed python，无 claw）跑 `python3 -m claw.monitoring.*`，
+# 会 ModuleNotFoundError。此处把 $CLAW/src 加入 PYTHONPATH，使裸 python3 也能 import claw，
+# 与 calc_rsi.py 等脚本自管 sys.path 的约定一致。仅暴露 claw / output 两个顶层包，无副作用。
+export PYTHONPATH="$CLAW/src:$PYTHONPATH"
+
 # --- 数据路径 ---
 export USER_DATA=$CLAW/.workbuddy/data/user/portfolio.json
 export SIM_DATA=$CLAW/.workbuddy/data/simulation/portfolio.json
