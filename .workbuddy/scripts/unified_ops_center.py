@@ -64,6 +64,14 @@ SELF_HEAL_LOG = SCRIPT_DIR / "unified_self_heal_log.json"
 ALERT_DEDUP_STATE = SCRIPT_DIR / ".ops_alerted.json"  # 告警去重状态（check_name@reason -> 时间戳）
 ALERT_DEDUP_TTL_H = 24  # 同一告警 24h 内只推一次
 
+# 2026-08-30：纯人工处置类告警降频（key 子串匹配 -> 小时）
+# 背景：部分告警根因只能人工处理（如扫码重登），中枢无自愈路径，按 24h 推送会
+# 每日重复、长期占位并淹没真实可处置告警。此类降为 72h，仍持续提醒但不再日推。
+# 注意：仅登记确无自愈路径的项；自愈类/工程类告警仍严格走 24h，不得加入。
+ALERT_DEDUP_TTL_OVERRIDE_H = {
+    "微信公众号通道@wechat-download-api 登录过期": 72,  # 纯人工扫码，中枢不可自愈
+}
+
 MEMWATCH_PLIST = Path.home() / "Library" / "LaunchAgents" / "com.workbuddy.memwatch.plist"
 MEMWATCH_SCRIPT = Path.home() / ".local" / "bin" / "watch_workbuddy_mem.sh"
 MEMWATCH_LOG = Path.home() / "Library" / "Logs" / "workbuddy_memwatch.log"
@@ -82,20 +90,30 @@ def _load_alerted() -> dict:
         return {}
 
 
+def _ttl_hours_for(key: str) -> int:
+    """按告警 key 取去重 TTL：纯人工处置类走 override，其余走默认 24h。"""
+    for pattern, hours in ALERT_DEDUP_TTL_OVERRIDE_H.items():
+        if pattern in key:
+            return hours
+    return ALERT_DEDUP_TTL_H
+
+
 def _save_alerted(d: dict) -> None:
-    # 清理过期条目
+    # 清理过期条目（按各自 key 的 TTL，override 类条目保留更久）
     now = datetime.datetime.now().timestamp()
-    ttl = ALERT_DEDUP_TTL_H * 3600
-    d = {k: v for k, v in d.items() if now - v < ttl}
+    d = {k: v for k, v in d.items() if now - v < _ttl_hours_for(k) * 3600}
     ALERT_DEDUP_STATE.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
 
 
 def is_alert_duplicated(check_name: str, reason_key: str) -> bool:
-    """同一 (check_name, reason_key) 24h 内已推送过 → True（跳过飞书推送，但审计日志照记）"""
+    """同一 (check_name, reason_key) TTL 内已推送过 → True（跳过飞书推送，但审计日志照记）
+
+    TTL 默认 24h；命中 ALERT_DEDUP_TTL_OVERRIDE_H 的纯人工处置类告警按其配置（现 72h）。
+    """
     d = _load_alerted()
     key = f"{check_name}@{reason_key}"
     now = datetime.datetime.now().timestamp()
-    if key in d and now - d[key] < ALERT_DEDUP_TTL_H * 3600:
+    if key in d and now - d[key] < _ttl_hours_for(key) * 3600:
         return True
     d[key] = now
     _save_alerted(d)
@@ -831,6 +849,42 @@ def check_data_freshness() -> dict:
     }
 
 
+def _container_last_fetch_ts(container: str, since: str = "1200h"):
+    """取容器日志中最后一次真实抓取([Fetch])的时点（tz-aware UTC），失败返回 None。
+
+    用途：区分「登录过期导致停摆」与「先停摆、后过期」。
+    实证(2026-08-30 复核)：wechat-download-api 最后抓取 07-20 14:19 UTC，而登录
+    08-23 07:54 才过期 —— 抓取比过期早停 33 天（原注释写 23 天有误，已按日志实算更正），
+    说明登录态并非停摆根因，此时提示"扫码重登"会误导，
+    正确处置是摘除该巡检项或排查上游调用方。
+    取证限制(2026-08-30 实测)：容器 08-20 重启过，docker logs 现存窗口止于 07-25，
+    故 08-07 确诊的 200013 风控证据已不在窗口内（本次 grep 命中 0）。因此 F3 的
+    "抓取早停"判定成立，但 F7 风控态在现窗口内无法取证，勿据 200013=0 反推风控已解除。
+    窗口用 --since(默认 50 天) 而非 --tail，因为 --tail 5000 仅能回溯约 2 天，
+    抓不到早已停摆的抓取时点。
+    注意：docker logs 把容器 stdout/stderr 分别投到本进程的 stdout/stderr，
+    而本容器的业务日志([Fetch] 等)全部走 stderr —— 只读 r.stdout 会永远扫不到
+    （2026-08-30 实测：stderr 2101 行含 358 条 [Fetch]，stdout 25807 行含 0 条）。"""
+    try:
+        r = run_cmd(
+            ["docker", "logs", "--timestamps", "--since", since, container], timeout=30
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    last = None
+    for line in (r.stdout + "\n" + (r.stderr or "")).splitlines():
+        if "[Fetch]" not in line:
+            continue
+        ts = line.split(" ", 1)[0]
+        try:
+            t = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if last is None or t > last:
+            last = t
+    return last
+
+
 def check_wechat_channel() -> dict:
     """微信公众号数据链路检查（2026-08-07 新增，盲点#3）。
     背景：云RSS(wechatrss) 7/30 因微信关闭文章列表接口停摆(平台重构中)；本地
@@ -849,12 +903,15 @@ def check_wechat_channel() -> dict:
 
     alerts, notes = [], []
     freq_cnt = -1
+    expired = False
+    exp_ms = None
     try:
         with _ur.urlopen("http://localhost:5001/api/admin/status", timeout=6) as r:
             st = _json.loads(r.read().decode("utf-8"))
         expired = bool(st.get("isExpired", False))
-        if expired:
-            alerts.append("wechat-download-api 登录过期(isExpired=true)，需扫码重登")
+        exp_ms = st.get("expireTime")
+        # 不在此处立即 append 告警：需先与"最后抓取时点"比对，判定登录态是否真是停摆根因
+        # （见下方 F3 细化）。若抓取远早于过期即停摆，提示"扫码重登"会误导处置。
     except Exception as e:  # noqa: BLE001
         alerts.append(f"本地微信通道不可达(localhost:5001): {e}")
         return {"ok": False, "alerts": alerts, "note": None}
@@ -867,7 +924,10 @@ def check_wechat_channel() -> dict:
             ["docker", "logs", "--timestamps", "wechat-download-api", "--tail", "5000"], timeout=30
         )
         _now = datetime.datetime.now(datetime.timezone.utc)
-        for line in r.stdout.splitlines():
+        # 2026-08-30 修复：只扫 r.stdout 会让该检测形同虚设——容器业务日志(含 ret 码)
+        # 全部走 stderr，docker logs 按流分离投递。必须合并两流，否则 F7 风控态
+        # 永远命中不了（建成至今 freq 恒为 0，实为漏检而非"无风控"）。
+        for line in (r.stdout + "\n" + (r.stderr or "")).splitlines():
             if "200013" not in line:
                 continue
             freq_total += 1
@@ -889,6 +949,30 @@ def check_wechat_channel() -> dict:
         notes.append("docker 不可用，freq control 信号未检测")
     elif freq_cnt == 0:
         notes.append(f"本地微信通道近6h无新风控(200013: 近6h={freq_cnt}/全窗口={freq_total})")
+    # F3 细化（2026-08-30）：判定「登录过期」是否真是停摆根因
+    # 若最后抓取远早于登录过期 → 通道是"先停摆、后过期"，扫码重登无法恢复，
+    # 正确处置是摘除该巡检项或排查上游调用方。否则维持原 F3 remediation。
+    # 告警文案保持静态（不含动态日期），避免每次运行都产生新去重 key 造成重复推送。
+    if expired:
+        exp_dt = (
+            datetime.datetime.fromtimestamp(exp_ms / 1000, datetime.timezone.utc)
+            if isinstance(exp_ms, (int, float))
+            else None
+        )
+        last_fetch = _container_last_fetch_ts("wechat-download-api")
+        if last_fetch and exp_dt and (exp_dt - last_fetch).days >= 1:
+            alerts.append(
+                "wechat-download-api 登录过期(isExpired=true)，但通道早于过期即停摆，"
+                "重登大概率无法恢复，建议摘除该巡检项或确认上游调用方"
+            )
+            notes.append(
+                f"微信通道实况: 最后抓取 {last_fetch:%Y-%m-%d %H:%M} UTC/"
+                f"登录过期 {exp_dt:%Y-%m-%d %H:%M} UTC，"
+                f"抓取早于过期 {(exp_dt - last_fetch).days} 天停摆；"
+                f"风控(200013): 近6h={freq_cnt}/全窗口={freq_total}"
+            )
+        else:
+            alerts.append("wechat-download-api 登录过期(isExpired=true)，需扫码重登")
     # 订阅侧补充可见性
     try:
         with _ur.urlopen("http://localhost:5001/api/rss/subscriptions", timeout=6) as r:
