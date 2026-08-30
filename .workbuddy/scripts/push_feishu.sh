@@ -12,6 +12,7 @@
 
 TITLE="$1"
 CONTENT="$2"
+DEDUPE_KEY="$3"
 CHAT_ID="${FEISHU_CHAT_ID:-}"
 LEVEL="${PUSH_LEVEL:-info}"
 
@@ -34,6 +35,9 @@ PYTHON="${PYTHON:-/Users/guan/.workbuddy/binaries/python/envs/default/bin/python
 ARGS=("$PYTHON" "$SCRIPT_DIR/push_card.py" --title "$TITLE" --level "$LEVEL" --section "" "$BODY")
 if [ -n "$CHAT_ID" ]; then
     ARGS+=(--chat-id "$CHAT_ID")
+fi
+if [ -n "$DEDUPE_KEY" ]; then
+    ARGS+=(--dedupe-key "$DEDUPE_KEY")
 fi
 
 # 透传 push_card.py 真实退出码（0=送达/兜底成功，非0=失败），供调用方验证回读

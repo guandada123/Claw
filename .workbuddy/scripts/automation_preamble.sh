@@ -195,7 +195,10 @@ PYEOF
 # 旧用法: push_feishu "event" "message" "dedup-key" [cooldown] — 自动兼容
 push_feishu() {
     export FEISHU_CHAT_ID="$FEISHU_CHAT"
-    if [ $# -ge 2 ]; then
+    if [ $# -ge 3 ]; then
+        # 第3参数为去重键：位置转发给 push_feishu.sh（其 $3=DEDUPE_KEY），修复去重失效根因
+        bash $SCRIPTS/push_feishu.sh "$1" "$2" "$3"
+    elif [ $# -ge 2 ]; then
         bash $SCRIPTS/push_feishu.sh "$1" "$2"
     else
         bash $SCRIPTS/push_feishu.sh "WorkBuddy通知" "$1"
