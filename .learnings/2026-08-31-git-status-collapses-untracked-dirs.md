@@ -65,6 +65,34 @@ key = "/".join(parts[:2]) if len(parts) > 2 else p
 想忽略就要先确认"隐形"可接受。本轮只加了注释说明两套路径，
 **一行规则都没动**。
 
+### 同日跨仓复现：QTS 的 `output/`（单数）vs `outputs/`（复数）
+
+修完 Claw 立刻拿同一探针扫了全部 8 个仓库：
+
+| 仓库 | 折叠 → 展开 | 隐藏 |
+|---|---|---|
+| Claw | 7 → 44 | **37** |
+| QuantTradingSystem | 1 → 3 | **2** |
+| StockInsight / marvis_bridge / eak / pmf / wechat×2 | 持平 | 0 |
+
+QTS 命中同类：`outputs/` 3 个文件全裸奔，而 `.gitignore:67` 写的是
+`output/*.md`（**单数**）—— 规则管不到复数目录，与上面 A/B 两套路径完全同构。
+
+但深挖一层后**结论反转**，说明「先定性再动手」的必要性：
+- 全仓 grep `outputs/` **零命中** → 没有脚本往里写，不是"约定漂移"
+- 所有脚本写的是 `output/`（单数）或 Docker 内 `/app/output/`
+- `output/` 本身管得很好：4 个生成报告被忽略 + 2 个参考文档 tracked
+- `outputs/` 里 3 个文件是**历次 Agent 会话写到猜的路径里的产物**，且
+  `ops_weekly_2026-08-30.md` 早已推送飞书（价值已交付）
+
+→ **不是规则漏洞，是孤儿残留（10.8KB，低风险）**。
+→ 且按 Claw 工作区约定「非 Claw 仓不主导 commit 节奏」，**不擅自处理**，交用户选：
+补 `outputs/` 进 gitignore（对齐单数目录意图）或直接清掉。
+
+**教训：同构表象 ≠ 同构根因。** 跨仓扫出命中后必须再查「谁在写这个路径」——
+有写入方 = 真漂移（要修规则）；无写入方 = 孤儿残留（要清理或忽略）。
+只看路径形态就下结论会开错药方。
+
 ## 连带陷阱 3：验证 gitignore 改动别用全量 check-ignore
 
 `find . -type f | xargs git check-ignore -v` 在本仓要跑 **4.5 分钟**（26467 行），
