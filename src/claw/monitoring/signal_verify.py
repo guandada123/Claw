@@ -165,7 +165,7 @@ def fetch_realtime(code: str) -> dict:
     url = f"http://qt.gtimg.cn/q={gtimg_prefix(code)}{code}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=8) as r:  # nosec B310: qt.gtimg.cn
+        with urllib.request.urlopen(req, timeout=6) as r:  # nosec B310: qt.gtimg.cn
             raw = r.read().decode("gbk")
         body = raw.split('"', 1)[1].rstrip('";')
         f = body.split("~")
@@ -190,7 +190,7 @@ def _tx_qfq_history(code: str, start: str, end: str) -> tuple[dict | None, float
         req = urllib.request.Request(
             url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"}
         )
-        raw = urllib.request.urlopen(req, timeout=10).read().decode("utf-8")
+        raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8")
         node = json.loads(raw).get("data", {}).get(f"{gtimg_prefix(code)}{code}", {})
         days = node.get("qfqday") or node.get("day") or []
         if not days:
@@ -214,8 +214,41 @@ def _tx_qfq_history(code: str, start: str, end: str) -> tuple[dict | None, float
         return (None, None)
 
 
+def _sina_daily_history(code: str, start: str, end: str) -> tuple[dict | None, float | None]:
+    """新浪日线兜底(08-31新增)：quotes.sina.cn JSONP 轻量直连，零依赖。
+    🔴 背景: tx qfq 端点(web.ifzq.gtimg.cn)今日返回501 + Wind日限180次用尽 → 历史全缺、verified=0。
+    新浪为可达源(实测200/0.19s)。注意: 返回为未复权原始价，-35%嫌疑收益过滤兜底防虚低。
+    位置: tx→Wind→Sina→akshare，不改变既有优先级。"""
+    sym = gtimg_prefix(code) + code
+    url = (
+        "https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_x/CN_MarketDataService.getKLineData"
+        f"?symbol={sym}&scale=240&ma=no&datalen=600"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")
+        payload = raw.split("(", 1)[1].rsplit(")", 1)[0]
+        rows = json.loads(payload)
+        m: dict = {}
+        for r in rows:
+            dt = str(r.get("day", ""))[:10]
+            if dt:
+                try:
+                    m[dt] = float(r["close"])
+                except (TypeError, ValueError):
+                    continue
+        if not m:
+            return (None, None)
+        filtered = {k: v for k, v in m.items() if start[:8] <= k.replace("-", "")[:8] <= end[:8]}
+        if not filtered:
+            return (None, None)
+        return (filtered, float(list(filtered.values())[-1]))
+    except Exception:
+        return (None, None)
+
+
 def fetch_history(code: str, start: str, end: str, retries: int = 5):
-    """历史日线收盘价。🔴 腾讯qfq优先 → Wind降级 → akshare兜底（08-04 对齐腾讯优先铁律）。"""
+    """历史日线收盘价。🔴 腾讯qfq优先 → Wind降级 → 新浪直连 → akshare兜底（08-04 对齐腾讯优先铁律）。"""
     # 1) 腾讯前复权 K线（优先：符合铁律+根治 Wind 未复权导致的 -35% 虚低收益）
     m_tx, last_tx = _tx_qfq_history(code, start, end)
     if m_tx:
@@ -244,6 +277,10 @@ def fetch_history(code: str, start: str, end: str, retries: int = 5):
                         return (filtered, last_close)
         except Exception as _:  # noqa: S110 — 降级到 akshare
             pass
+    # 2.5) 新浪日线直连（08-31：tx端点501/Wind日限时保证历史可用；未复权，-35%过滤兜底）
+    m_sina, last_sina = _sina_daily_history(code, start, end)
+    if m_sina:
+        return (m_sina, last_sina)
     # 3) akshare 新浪日线 qfq（兜底）
     if ak is None:
         return (None, None)
@@ -252,7 +289,7 @@ def fetch_history(code: str, start: str, end: str, retries: int = 5):
     # 永久阻塞 → 整个 verify_signals 卡死在报告写入前（os._exit 修不到此处）。
     # 用 daemon 线程 + join(timeout) 兜底：超时即放弃该 code 的历史(走 None 降级)，
     # 保证主循环继续推进、报告能落盘；单 code 最多阻塞 AKSHARE_TIMEOUT 秒。
-    AKSHARE_TIMEOUT = float(os.environ.get("SIGNAL_AKSHARE_TIMEOUT", "15"))
+    AKSHARE_TIMEOUT = float(os.environ.get("SIGNAL_AKSHARE_TIMEOUT", "8"))
     return _akshare_daily_with_timeout(sym, start, end, timeout=AKSHARE_TIMEOUT)
 
 
@@ -323,11 +360,26 @@ def verify_signals() -> dict:
         time.sleep(0.35)
 
     # 二次补拉：首次失败的 code 长间隔重试（规避新浪限流）
+    # 🔴 守卫(08-31)：若首轮失败率>70%判定为系统性故障（数据源全挂/日限用尽/网络断），
+    # 逐code 3s+1s 重试纯属空耗（206code×4s≈14min 会撞15min看门狗），直接跳过重试。
     failed = [c for c in codes if hist_cache.get(c, (None, None))[0] is None]
-    for code in failed:
-        time.sleep(3.0)
-        _fetch_one(code, end)
-        time.sleep(1.0)
+    if codes and len(failed) / len(codes) > 0.7:
+        print(f"[verify] 首轮历史拉取失败率 {len(failed)}/{len(codes)}>70% → 判定系统性故障，跳过二次补拉")
+    else:
+        for code in failed:
+            time.sleep(3.0)
+            _fetch_one(code, end)
+            time.sleep(1.0)
+
+    # 🔴 实时行情并行预取(08-31 修复15:00挂死)：460信号仅206唯一代码，若串行拉取且
+    # 收盘时段行情接口瞬时限流(单次8s超时)，最坏 460×8s≈62min 撞15min看门狗被强杀。
+    # 改为按代码去重 + 8线程并行 → 最坏 ~(206×8s/8)≈3.4min，报告可稳定落盘。
+    from concurrent.futures import ThreadPoolExecutor
+
+    _rt_cache: dict = {}
+    with ThreadPoolExecutor(max_workers=8) as _ex:
+        for _c, _r in zip(codes, _ex.map(fetch_realtime, codes)):
+            _rt_cache[_c] = _r
 
     for s in signals:
         code = s["stock_code"]
@@ -341,7 +393,7 @@ def verify_signals() -> dict:
             s["verify_note"] = "非A股代码，跳过行情验证"
             s["verify_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             continue
-        rt = fetch_realtime(code)
+        rt = _rt_cache.get(code) or fetch_realtime(code)
         s["realtime_chg_pct"] = rt["chg_pct"]
         s["realtime_price"] = rt["price"]
         notes = []
