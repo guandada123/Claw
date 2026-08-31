@@ -78,6 +78,37 @@ def _strip_surrogates(s):
     return "".join(ch for ch in s if not (0xD800 <= ord(ch) <= 0xDFFF))
 
 
+def _normalize_table(table: dict) -> dict:
+    """表格归一化（2026-09-01 修复）。
+
+    JSON 模式的 table 是原样透传的（只有 CLI 模式才做 split("|")），而文档约定
+    rows=[[...]]。调用方若按 CLI 习惯传 "a|b|c" 字符串，`for row in rows` 会把
+    **每个字符**当成一列 → 表格渲染成一地碎字（实证：run#47 飞书卡
+    om_x100b666a6eca64a8b4bf2980fd16c57 的待办表全烂，每个字占一列）。
+    此处统一接受两种写法，并在列数不符时告警+自动补齐，避免静默产出垃圾表格。
+    """
+    if not table:
+        return table
+    headers = table.get("headers") or []
+    rows = table.get("rows") or []
+
+    if isinstance(headers, str):
+        headers = [h.strip() for h in headers.split("|")]
+
+    norm_rows = []
+    for r in rows:
+        cells = [c.strip() for c in r.split("|")] if isinstance(r, str) else [str(c) for c in r]
+        if headers and len(cells) != len(headers):
+            print(
+                f"  ⚠️ 表格列数不符: {len(cells)} 列 vs 表头 {len(headers)} 列"
+                f" → 已自动补齐/截断: {cells}"
+            )
+            cells = (cells + [""] * len(headers))[: len(headers)]
+        norm_rows.append(cells)
+
+    return {"headers": headers, "rows": norm_rows}
+
+
 def build_card(
     title: str,
     level: str,
@@ -88,6 +119,7 @@ def build_card(
 ) -> dict:
     """构造飞书 interactive card JSON"""
     template = LEVEL_TEMPLATE.get(level, "blue")
+    table = _normalize_table(table)
     elements = []
 
     for idx, (sec_title, sec_body) in enumerate(sections):
@@ -285,6 +317,7 @@ def send_card(
 
     # 兜底：markdown（保留格式）
     md_text = f"**{title}**\n\n" + "\n\n".join(f"**{t}**\n{b}" for t, b in sections)
+    table = _normalize_table(table)
     if table and table.get("headers"):
         md_text += "\n\n" + "| " + " | ".join(table["headers"]) + " |\n"
         md_text += "|" + "|".join(["------"] * len(table["headers"])) + "|\n"
