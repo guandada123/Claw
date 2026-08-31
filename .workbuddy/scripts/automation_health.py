@@ -134,9 +134,29 @@ def check_health(auto: dict) -> dict:
     name = auto.get("name", "Unknown")
     status = auto.get("status", "UNKNOWN")
     runs = auto.get("recent_runs", [])
-    last_run_ts = auto.get("last_run_at", 0)
     last_error = auto.get("last_error", "")
     running = auto.get("running", False)
+
+    # 最近运行时间取「平台回写的 last_run_at」与「automation_runs 表最新派发记录」的较大值。
+    # 实测 2026-08-31：59 个 ACTIVE 自动化中 52 个的 last_run_at 滞后（滞后量恰为各自调度
+    # 周期的整数倍），且这些自动化最近一次运行的状态均为 ACCEPTED —— 平台只在 run 走到
+    # PENDING_REVIEW 等终态时才回写 last_run_at，托管自动执行（ACCEPTED）不回写，于是该字段
+    # 集体冻结在若干周期前。automation_runs 每次派发都会落记录，是权威运行时间，故以它为准。
+    # 若只用 last_run_at，静默失败判定的 gap 基线整体偏大，会把正常运行的任务误报为 🔴。
+    def _to_ms(v) -> int:
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    platform_last_ts = _to_ms(auto.get("last_run_at"))
+    newest_run_ts = _to_ms(runs[0].get("created_at")) if runs else 0
+    field_lag_h = (
+        (newest_run_ts - platform_last_ts) / 3600000
+        if newest_run_ts and platform_last_ts
+        else 0.0
+    )
+    last_run_ts = max(platform_last_ts, newest_run_ts)
 
     health = "🟢"
     issues = []
@@ -158,6 +178,10 @@ def check_health(auto: dict) -> dict:
         elif last_status == "timeout":
             health = "🟡"
             issues.append("超时")
+
+    # last_run_at 字段滞后仅作诊断标注，不改变健康色（真实运行时间已用 runs 表校正）
+    if field_lag_h > 1:
+        issues.append(f"last_run_at字段滞后{field_lag_h:.0f}h")
 
     # 静默失败检测（根据调度频率调整阈值）
     last_run = _parse_unix(last_run_ts)
