@@ -1,4 +1,4 @@
-### 2026-08-24 automation refusal 集群第二族：-32603 上游 500（insight → ★升级候选）
+### 2026-08-24 automation refusal 集群第二族：-32603 上游 500（insight → ✅已升级(2026-08-30)）
 
 - **类型**: insight（故障分族 / 诊断纪律补全）
 - **现象**: 08-24 16:22 统一巡检中枢、16:30【自动补跑】漏报直接补推 连续 2 条
@@ -30,6 +30,6 @@
      并检查其 schedule 锁是否已被占用。
 - **去重**: 与 `2026-08-20-automation-429-quota-cluster.md` 同为 refusal 集群但**不同 code 族**（-32603 vs -32003）；
   与 08-11/08-13/08-17 `THINK_BUDGET=high` thinking 注入（content 空）无关——本例上游直接 500，未进入生成阶段。
-- **★升级候选**: 给 `automation_failure_watchdog.py::classify()` 增加 refusal **code 分族标注**
+- ✅已升级(2026-08-30): 给 `automation_failure_watchdog.py::classify()` 增加 refusal **code 分族标注**
   （digest 文案输出 `429配额` / `上游500` / `内容拒绝`，而非笼统 "refusal: {"code"`），
   并对「补跑/校验类自动化自身失败」单独提级为"需人工代核"提示（当前静默易漏连带影响）。

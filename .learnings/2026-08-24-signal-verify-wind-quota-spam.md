@@ -14,6 +14,6 @@
 
 **验证**：`ast.parse` 语法 OK；`from claw.feeds.wind_utils import _check_query_limit` import OK；`get_query_stats()` → `{used:180, remaining:0}` 确认日限已满触发场景。
 
-**★升级候选**：任何「日限/配额/熔断类」日志打印必须进程内去重（once flag + 跨周期重置），禁止在逐股/逐条循环内裸 `logger.warning`——否则会刷屏 + 掩盖真实异常行，且每次执行多耗数分钟 CPU。
+**✅已升级(2026-08-30)**：任何「日限/配额/熔断类」日志打印必须进程内去重（once flag + 跨周期重置），禁止在逐股/逐条循环内裸 `logger.warning`——否则会刷屏 + 掩盖真实异常行，且每次执行多耗数分钟 CPU。
 
 **遗留待办（💭 P2，未在本轮处理）**：signal_verify 二次补拉对「Wind 日限导致的历史数据失败」仍做 `sleep(3)+sleep(1)` 无意义重试（日限当天不会恢复），可加「日限达时跳过二次补拉」短路。需先确认腾讯 qfq 源为何失败（疑似代理不可达，非本脚本职责）。

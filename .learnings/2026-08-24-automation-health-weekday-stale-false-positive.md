@@ -2,7 +2,7 @@
 
 日期: 2026-08-24
 影响: 统一巡检中枢 `自动化健康` 项首轮运行触发「退出码1」critical 飞书告警(误报)
-★升级候选: 是(每周一必然复发的检测逻辑缺陷,应升为巡检 stale 判定铁律)
+✅已升级(2026-08-30): 是(每周一必然复发的检测逻辑缺陷,应升为巡检 stale 判定铁律)
 
 ## 现象
 `unified_ops_center.py` 的 `check_automation_health()` 复用 `automation_health.py --json`,
