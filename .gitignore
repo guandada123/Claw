@@ -103,7 +103,7 @@ scripts/.prompt_cache_config.json
 .workbuddy/scripts/.ops_alerted.json
 .workbuddy/scripts/.watchdog_alerted.json
 .workbuddy/scripts/.runbook_fuse.json
-.workbuddy/scripts/_refresh_close_*.py
+.workbuddy/scripts/*refresh_close_*.py
 .workbuddy/scripts/bt_kdj_scan_result.json
 
 # 临时
