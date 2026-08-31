@@ -382,16 +382,32 @@ def check_automation_health() -> dict:
         r = run_cmd(
             [sys.executable, str(SCRIPT_DIR / "automation_health.py"), "--json"], timeout=120
         )
-        if r.returncode != 0:
-            return {
-                "ok": False,
-                "alerts": [f"automation_health 退出码 {r.returncode}: {r.stderr[:200]}"],
-            }
-        # 解析 JSON（脚本可能混输出，取最后一段 JSON）
+        # 解析 JSON（脚本可能混输出，取首个 '{' 起至末尾）。
+        # 注意：原实现用 rfind("{")，取到的是**最后一个内层花括号**，对任何嵌套 JSON
+        # 必然 JSONDecodeError（2026-08-31 实测：纯 JSON 输出也失败）。后果是 rc==0
+        # 分支永远走 raw 回退 → data.get("alerts") 从未被读到，脚本级告警被静默吞掉。
         out = r.stdout.strip()
         try:
-            data = json.loads(out[out.rfind("{") :])
+            data = json.loads(out[out.find("{") :])
         except Exception:
+            data = None
+
+        if r.returncode != 0:
+            # 明细在 stdout（JSON 的 by_category），不在 stderr —— 2026-08-31 实测：
+            # 只取 stderr 时飞书卡片正文是「退出码 1: 」空壳，无法定位，等于白推一次。
+            crit = []
+            if isinstance(data, dict):
+                for items in (data.get("by_category") or {}).values():
+                    for it in items or []:
+                        if it.get("health") == "🔴":
+                            crit.append(
+                                f"{it.get('name', '?')}"
+                                f"（{'/'.join(it.get('issues') or []) or '无明细'}）"
+                            )
+            n_crit = data.get("critical_count", "?") if isinstance(data, dict) else "?"
+            detail = "；".join(crit) if crit else (r.stderr[:200] or "stdout 无 JSON")
+            return {"ok": False, "alerts": [f"自动化健康 {n_crit} 项🔴: {detail}"]}
+        if data is None:
             return {"ok": True, "alerts": [], "raw": out[-300:]}
         alerts = data.get("alerts") or data.get("failures") or []
         if isinstance(alerts, list) and alerts:
