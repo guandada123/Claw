@@ -129,17 +129,38 @@ def sec4_code():
 
 
 def sec5_git():
+    """git 漂移。
+
+    2026-08-31 补「观察盲区」段：此前只列 .workbuddy/scripts/ 的文件名、
+    全仓只报计数，导致仓库根的 .gitignore 修复（run#32 落地但未入库）连续
+    3 轮没被发现。教训：计数持平会掩盖组成变化，且自己修的东西常落在
+    自己不看的目录。故改为逐项列出全仓文件名 + 高亮根级配置文件。
+    """
     print("== 5) git 漂移 ==")
     repo = Path("/Users/guan/WorkBuddy/Claw")
-    for label, args in ((".workbuddy/scripts/", ["--", ".workbuddy/scripts/"]),
-                        ("全仓", [])):
-        r = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"] + args,
-                           capture_output=True, text=True)
-        lines = [l for l in r.stdout.splitlines() if l.strip()]
-        print(f"  {label} 未提交 = {len(lines)} 项")
-        if label != "全仓":
-            for l in lines[:10]:
-                print("   ", l)
+    r = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"],
+                       capture_output=True, text=True)
+    all_lines = [l for l in r.stdout.splitlines() if l.strip()]
+    in_scripts = [l for l in all_lines if ".workbuddy/scripts/" in l]
+    outside = [l for l in all_lines if ".workbuddy/scripts/" not in l]
+
+    print(f"  .workbuddy/scripts/ 未提交 = {len(in_scripts)} 项")
+    for l in in_scripts[:10]:
+        print("   ", l)
+
+    # 盲区：scripts 目录之外——修复动作常落到仓库根配置/CI/tests，此前完全不观察
+    print(f"  [盲区] scripts 之外未提交 = {len(outside)} 项")
+    ROOT_CFG = (".gitignore", "pyproject.toml", "ruff.toml", "Makefile",
+                "requirements", ".github/")
+    flagged = [l for l in outside if any(p in l for p in ROOT_CFG)]
+    for l in outside[:25]:
+        mark = "  ⚠️ 根级配置/基建" if any(p in l for p in ROOT_CFG) else ""
+        print("   ", l + mark)
+    if len(outside) > 25:
+        print(f"    ... 另有 {len(outside) - 25} 项未列出")
+    if flagged:
+        print(f"  ⚠️ 根级配置类未提交 {len(flagged)} 项 —— 修复动作若改到此处极易漏入库，需人工确认")
+    print(f"  全仓合计 = {len(all_lines)} 项")
 
 
 if __name__ == "__main__":
