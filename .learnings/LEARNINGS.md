@@ -104,28 +104,37 @@ Corrections, insights, and knowledge gaps captured during development.\n\n**Cate
 - **去重**: 与 08-11 / 08-13 同根因（THINK_BUDGET=high 注入）。但本例暴露**新缺口**：8/15 那次只做了"症状缓解"（加兜底）而非"根因消除"（关注入），且**假设 reasoning 能当 JSON 用**——逻辑假设错误。这是典型的"假修复"，须记入反模式。
 - **✅已升级(2026-08-16 铁律已含, 本run补CI契约测试+假修复反模式)**: 建议升级为🔴铁律：①凡结构化 JSON 抽取调用必须 per-request 关 thinking（双写），禁仅靠 content 空兜底；②修复"LLM 返回空/content 异常"类故障时，先查代理 THINK_BUDGET 注入日志（`Thinking mode injected`）而非加兜底；③CI 加契约测试：JSON 类调用方 payload 须含 thinking 关闭字段（已有 test_debate_engine 示例，建议推广到 router.call_llm / read_wx_articles）。
 
-### 2026-08-24 自动化健康误报:工作日(HOURLY+BYDAY=MO-FR)自动化周末被误判 critical（insight → ★升级候选）
+### 2026-08-24 自动化健康误报:工作日(HOURLY+BYDAY=MO-FR)自动化周末被误判 critical（insight → ✅已升级(2026-08-30)）
 - **类型**: insight（检测逻辑缺陷）
 - **现象**: 统一巡检中枢首轮运行 `自动化健康` 触发「退出码1」critical 飞书告警（📈【盘中】投顾策略执行 🔴 48h未运行）。实为误报。
 - **根因**: `automation_health.py::check_health()` 对 `FREQ=HOURLY` 用固定 48h 阈值，未识别 rrule 的 `BYDAY=MO,TU,WE,TH,FR` 工作日限制；周五23:29→周一00:28 的周末间隔(~49h)为自然间隔，调度器 `next_run_at`(未来)已证明排期正常，却被 gap 启发式误判 critical。此前多次巡检为绿是因缺口恰 <48h（周六日间），本次(周一00:22)刚越阈值。
 - **处置**: ①新增 `_extract_byday(rrule)` 解析 BYDAY；②BYDAY 仅工作日时阈值放宽至 72h；③`next_run_at` 在未来→直接跳过 stale 判定（权威证据，兼覆盖节假日）。单测确认真故障(next_run_at 过期+100h)仍报 🔴，未掩盖真实故障。重跑 `unified_ops_center.py` 15 项全绿。已补 success 飞书卡片纠正误报。
 - **防复犯**: 任何"Xh 未运行/stale/静默失败"检测须先查 `next_run_at` 是否未来 + rrule 的 BYDAY/频率；gap 阈值必须按 MONTHLY/WEEKLY/BYDAY/once 分级，禁用单一固定值；飞书已误推的 critical 须补发纠正卡片。
-- **★升级候选**: 巡检 stale 判定铁律 = "next_run_at 未来即健康,固定 gap 阈值须按 BYDAY/频率分级"（每周一必复发,建议周度自动化升🔴铁律）。
+- ✅已升级(2026-08-30): 巡检 stale 判定铁律 = "next_run_at 未来即健康,固定 gap 阈值须按 BYDAY/频率分级"（每周一必复发,建议周度自动化升🔴铁律）。
 
-### 2026-08-24 signal_verify Wind 日限刷屏 25 天（correction → ★升级候选）
+### 2026-08-24 signal_verify Wind 日限刷屏 25 天（correction → ✅已升级(2026-08-30)）
 - **类型**: correction（日志刷屏 + 执行时长浪费）
 - **现象**: signal_verify（信号溯源 15:00 STEP1）连续 25 天在 Wind 日限 180 次耗尽后刷屏 40+ 行 `Wind 每日查询上限已达`，单次执行 4m56s。
 - **根因**(代码实锤): `wind_utils.py::_check_query_limit()` 日限达到时每次调用都 `logger.warning`，无进程内去重；`wind_available()` 只查 CLI+Key 不查日限 → signal_verify 逐股循环 fetch_realtime/fetch_history 每只触发 Wind 调用打印 warning。执行时长来自二次补拉 `sleep(3)+sleep(1)` 对失败 code 的重试。
 - **处置**: 加模块级 `_limit_warned` 标志，日限警告仅打印一次、跨天重置。零行为风险（仅日志）。验证：import OK、stats used=180/remaining=0 复现场景。
 - **防复犯**: 任何「日限/配额/熔断类」日志打印须进程内去重（once flag + 跨周期重置），禁止逐股/逐条循环裸 warning。
-- **★升级候选**: 配额类日志打印去重铁律；signal_verify 二次补拉对「Wind 日限导致的历史数据失败」跳过无意义重试（💭 P2 遗留，需先确认腾讯 qfq 源为何失败）。
+- ✅已升级(2026-08-30): 配额类日志打印去重铁律；signal_verify 二次补拉对「Wind 日限导致的历史数据失败」跳过无意义重试（💭 P2 遗留，需先确认腾讯 qfq 源为何失败）。
 - **去重**: 与 08-21 debate-wind-quota-degradation 同涉 Wind 配额，但本例是**日志刷屏 + 执行时长**问题，非辩论数据链路去 Wind 化。
 
-### 2026-08-24 automation refusal 集群第二族:-32603 上游500（insight → ★升级候选）
+### 2026-08-24 automation refusal 集群第二族:-32603 上游500（insight → ✅已升级(2026-08-30)）
 - **类型**: insight（故障分族）
 - **现象**: 08-24 16:22 统一巡检中枢 / 16:30 自动补跑 连续2条 refusal 失败（间隔8min），watchdog 归次要 SILENT（正确）。
 - **根因**(实锤): `code=-32603 / "500 internal server error"` = **上游模型服务端故障**，与 08-20 的 `-32003` 429配额族**不同源**；本地代理 :9999 同期健康（nc 通、stdout 无错、track=points 正常计费）；17:11 主动 curl 探测 HTTP=200/0.72s → 上游已自愈，窗口≈16:22-16:30。
 - **连带核查**: 失败的"自动补跑"本身是漏报检查员 → 人工代跑其 STEP1，收盘复盘/早报/盘中锁全在，今日无遗漏可补；但 `claw_lock_自动补跑_20260824` 已占，若真有缺失锁会掩盖补跑机会。
 - **防复犯**: refusal 必按 code 分三族(-32003配额/-32603上游500/内容拒绝)，禁字面归因；判上游 vs 本地先看代理日志+计费；确认恢复须主动 curl 探测而非等下轮；「补跑/校验类自动化自身失败」= 双重故障须人工代核其检查项 + 查 schedule 锁。
-- **★升级候选**: watchdog `classify()` 增加 refusal code 分族标注（digest 输出 429配额/上游500/内容拒绝），并对「补跑/校验类自动化自身失败」提级为"需人工代核"。
+- ✅已升级(2026-08-30): watchdog `classify()` 增加 refusal code 分族标注（digest 输出 429配额/上游500/内容拒绝），并对「补跑/校验类自动化自身失败」提级为"需人工代核"。
 - **去重**: 与 2026-08-20-automation-429-quota-cluster 同为 refusal 集群但不同 code 族；与 THINK_BUDGET thinking 注入（08-11/13/17）无关，本例未进入生成阶段。
+
+### 2026-08-31 signal_verify 15:00挂死根治：串行网络×超时撞看门狗 + 多源兜底（correction → 已升级铁律候选）
+- **类型**: correction（挂死 + 报告不落盘）
+- **现象**: 15:00 信号溯源 STEP1 signal_verify 被 15min 看门狗强杀（恰 15m0s），报告未落盘；当日 05:12 同脚本正常（435/460）。仅一行 `Wind 每日查询上限已达` 输出。
+- **根因**(代码实锤): ①460信号仅206唯一代码但 fetch_realtime 按信号串行无去重，收盘限流时单次8s超时×460≈62min≫15min ②tx qfq 端点当日501 + Wind日限180用尽 + 裸python3无akshare → 全206码历史失败，二次补拉 sleep(3)+sleep(1)×206≈14min 纯空耗 ③多源可用性随时段变化（05:12 Wind配额在→成功）。
+- **处置**(commit b6627bf): 实时价按代码去重+8线程并行预取 / 超时收紧(gtimg 8→6s, tx 10→8s, akshare 15→8s) / 二次补拉失败率>70%守卫跳过 / 新增新浪日线直连兜底(quotes.sina.cn JSONP 实测200/0.19s)。
+- **验证**: 修复后完整运行 3m57s（原15min强杀），434/460 verified(94.3%)，win_rate 32.5%。另装 psycopg2-binary+requests 入 managed 3.13.12，QTS族/run_debate 恢复。
+- **防复犯**(已升级候选): ①串行N×timeout 是最隐蔽挂死源——先按业务键去重再并行 ②重试前按失败率分模式(>70%系统性跳过) ③行情多源按可达性动态兜底，降级源用数据质量护栏兜住。
+- **去重**: 与 08-24 signal_verify-wind-quota-spam 同域不同题（日志刷屏 vs 挂死吞吐），互补；08-24 遗留 P2「二次补拉对 Wind 日限无意义重试」已在本篇关闭。
