@@ -83,11 +83,59 @@ _run_log: list[dict] = []
 
 
 # ── 告警去重（避免同一问题每小时重复轰炸飞书）──
+# 2026-08-31：去重键归一化。
+# 根因：dedup key 原为 f"{check_name}@{reason_key}"，而 reason_key 是**完整告警文案**。
+#   历次巡检为提升可诊断性而改写文案（run#36 微信 F3 细化、run#37 告警明细改取 stdout），
+#   文案一变即生成全新 key，TTL 窗口被重置 → 同一根因被当作"新问题"重新推送。
+#   实证：微信登录过期同一问题在 08-29 15:23 与 08-30 18:07 各推一次（相隔仅 27h），
+#   而该项 TTL 显式配置为 72h —— 降频设计被"改文案"架空，且 key 只增不减（2→4）。
+# 修法：去重键只取文案的**稳定主体**（首个中文逗号/全角括号之前），剥离易变诊断补充语；
+#   合并同一稳定键时保留**最新**时间戳。合并只会增强抑制（留最新=距上次推送更近），
+#   不会造成漏报；TTL override 按前缀匹配，归一化后仍命中。
+_DEDUP_KEY_MAXLEN = 60  # 与迁移前调用点 rsn[:60] 的实际效果一致，避免既有键一次性失效重推
+_DEDUP_SPLIT_SEPS = ("，", "（")  # 只切中文标点，避免破坏 "登录过期(isExpired=true)" 等 ASCII 括注
+
+
+def _dedup_key(check_name: str, reason_key: str) -> str:
+    """把 (检查项, 告警文案) 归一化为稳定的去重键。
+
+    仅用于去重，不用于展示——展示侧仍用原始文案，保证诊断信息不丢。
+    """
+    s = (reason_key or "").strip()
+    for sep in _DEDUP_SPLIT_SEPS:
+        i = s.find(sep)
+        if i > 0:
+            s = s[:i]
+    s = s.rstrip(":： ").strip()
+    return f"{check_name}@{s[:_DEDUP_KEY_MAXLEN]}"
+
+
 def _load_alerted() -> dict:
+    """读取去重状态；顺带把历史"原始文案键"迁移为稳定键（同组合并，保留最新时间戳）。
+
+    迁移写入是幂等的：键已归一化后 merged==raw，不再写盘。
+    """
     try:
-        return json.loads(ALERT_DEDUP_STATE.read_text(encoding="utf-8"))
+        raw = json.loads(ALERT_DEDUP_STATE.read_text(encoding="utf-8"))
     except Exception:
         return {}
+    if not isinstance(raw, dict):
+        return {}
+    merged: dict[str, float] = {}
+    for k, v in raw.items():
+        try:
+            ts = float(v)
+        except (TypeError, ValueError):
+            continue
+        if "@" in k:
+            name, _, reason = k.partition("@")
+            nk = _dedup_key(name, reason)
+        else:
+            nk = k
+        merged[nk] = max(merged.get(nk, 0.0), ts)
+    if len(merged) != len(raw) or any(float(v) != merged.get(k) for k, v in raw.items()):
+        ALERT_DEDUP_STATE.write_text(json.dumps(merged, ensure_ascii=False), encoding="utf-8")
+    return merged
 
 
 def _ttl_hours_for(key: str) -> int:
@@ -106,12 +154,12 @@ def _save_alerted(d: dict) -> None:
 
 
 def is_alert_duplicated(check_name: str, reason_key: str) -> bool:
-    """同一 (check_name, reason_key) TTL 内已推送过 → True（跳过飞书推送，但审计日志照记）
+    """同一 (check_name, reason_key 归一化后) TTL 内已推送过 → True（跳过飞书推送，但审计日志照记）
 
     TTL 默认 24h；命中 ALERT_DEDUP_TTL_OVERRIDE_H 的纯人工处置类告警按其配置（现 72h）。
     """
     d = _load_alerted()
-    key = f"{check_name}@{reason_key}"
+    key = _dedup_key(check_name, reason_key)
     now = datetime.datetime.now().timestamp()
     if key in d and now - d[key] < _ttl_hours_for(key) * 3600:
         return True
@@ -1980,7 +2028,9 @@ def main() -> int:
             cname, _, rsn = a[1:].partition("] ")
         else:
             cname, rsn = "unknown", a
-        if is_alert_duplicated(cname, rsn[:60]):
+        # 截断权收归 _dedup_key（原先在此处 rsn[:60] 先截再拼键，与归一化逻辑割裂：
+        # 若首个分隔符出现在 60 字符之后，截断点会抢先生效，归一化形同虚设）
+        if is_alert_duplicated(cname, rsn):
             print(f"  [dedup] 跳过重复推送: {cname} / {rsn[:40]}")
             continue
         dedup_alerts.append(a)
