@@ -77,9 +77,12 @@ def load_pool():
 
 def fetch_history(codes):
     """从本地 QTS Postgres 读每只标的最近 75 日历史日线。"""
-    import psycopg2
-
     bars = defaultdict(list)
+    try:
+        import psycopg2
+    except Exception as e:  # noqa: BLE001
+        print(f"[WARN] psycopg2 不可用({e})，将仅用 gtimg 当日快照(数据不足标的跳过)")
+        return bars
     try:
         conn = psycopg2.connect(**DB_CFG, connect_timeout=8)
     except Exception as e:  # noqa: BLE001
