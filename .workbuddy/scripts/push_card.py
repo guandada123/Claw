@@ -390,10 +390,23 @@ def main():
 
     if args.json_stdin:
         data = json.loads(sys.stdin.read())
+        # sections 兼容 [{"title":..,"body":..}] 与 [["title","body"]] 两种写法。
+        # 若直接把 dict 传给 build_card，`for t, b in section` 会把 dict 解包成**键名**
+        # → t='title' / b='body'，再被占位符守卫拦下，报出莫名其妙的
+        # 「第 1 个 section body 疑似占位符」（2026-08-31 实犯，排查成本很高）。
+        raw_sections = data.get("sections", [])
+        sections_in = []
+        for s in raw_sections:
+            if isinstance(s, dict):
+                sections_in.append((s.get("title", ""), s.get("body", "")))
+            elif isinstance(s, (list, tuple)) and len(s) == 2:
+                sections_in.append((s[0], s[1]))
+            else:
+                raise ValueError(f"section 格式不支持: {s!r}")
         ok = send_card(
             title=data["title"],
             level=data.get("level", "info"),
-            sections=data.get("sections", []),
+            sections=sections_in,
             table=data.get("table"),
             buttons=data.get("buttons", []),
             footer=data.get("footer"),
