@@ -286,3 +286,78 @@ def test_check_take_profit_lot_floor_to_full(monkeypatch):
     res = st.check_take_profit(pf, "XTP")
     assert res["should_sell"] is True
     assert res["shares_to_sell"] == 100
+
+
+# ══════════════════════════════════════════════════════════════
+#  run#49 回归（2026-09-01）：save_portfolio 派生字段口径
+#  背景：save_portfolio 曾用 positions[*].market_value（存储字段）求和算
+#  total_assets，而 cmd_sell / cmd_update_all_prices 只改 shares / current_price、
+#  从不回写 market_value → 落盘 total_assets 比 perf 口径虚高 ¥4163。
+#  该 bug 隐身多轮的根源是「验证路径(perf 现算) ≠ 落盘路径(save_portfolio)」，
+#  故此处直接断言两条路径必须一致。
+# ══════════════════════════════════════════════════════════════
+
+def test_save_portfolio_total_assets_matches_calc_total_asset(monkeypatch):
+    """落盘 total_assets 必须与 calc_total_asset(perf 口径) 完全一致。
+
+    构造 bug 现场：market_value 为减仓前的陈旧值（601668 2000→1000 股后未重算）。
+    """
+    captured = {}
+    monkeypatch.setattr(st, "atomic_write_json", lambda path, data: captured.update(data))
+
+    pf = {
+        "cash": 35_223.95,
+        "initial_capital": 50_000.0,
+        "config": {},
+        "positions": {
+            "601668": {"name": "中国建筑", "shares": 1000, "avg_cost": 4.5813,
+                       "total_cost": 4581.3, "current_price": 4.33,
+                       "market_value": 8920.00},   # 陈旧：2000 股时的估值
+            "600036": {"name": "招商银行", "shares": 200, "avg_cost": 38.935,
+                       "total_cost": 7787.0, "current_price": 40.12,
+                       "market_value": 7870.00},   # 陈旧
+        },
+        "transactions": [],
+    }
+    st.save_portfolio(pf)
+
+    expected = st.calc_total_asset(pf)
+    assert pf["total_assets"] == expected, (
+        f"落盘 total_assets={pf['total_assets']} 与 perf 口径 {expected} 不一致"
+    )
+    # 恒等式：总资产 = 现金 + 持仓市值
+    assert abs(pf["total_assets"] - (pf["cash"] + pf["total_market_value"])) < 0.01
+    # 每个持仓的 market_value 必须按现价现算回写
+    for code, pos in pf["positions"].items():
+        want = round(pos["shares"] * pos["current_price"], 2)
+        assert pos["market_value"] == want, f"{code} market_value 未回写: {pos['market_value']} != {want}"
+    # 确实写盘了
+    assert captured.get("total_assets") == expected
+
+
+def test_sell_then_save_keeps_total_assets_consistent(monkeypatch):
+    """卖出减仓后，落盘 total_assets 不得沿用减仓前市值（端到端防回归）。"""
+    monkeypatch.setattr(st, "atomic_write_json", lambda path, data: None)
+    monkeypatch.setattr(st, "_sanity_check_price", _fake_sanity_ok())
+
+    pf = {
+        "cash": 10_000.0,
+        "initial_capital": 50_000.0,
+        "config": {},
+        "positions": {
+            "601668": {"name": "中国建筑", "shares": 2000, "avg_cost": 4.5813,
+                       "total_cost": 9162.6, "current_price": 4.46,
+                       "highest_price": 4.65, "take_profit_level": 1,
+                       "first_buy_date": "2026-08-05"},
+        },
+        "transactions": [],
+        "daily_snapshot": {},
+    }
+    monkeypatch.setattr(st, "load_portfolio", lambda: pf)
+
+    res = st.cmd_sell("601668", 1000, 4.46, reason="regression-test")
+    assert res["ok"] is True, res
+    assert pf["positions"]["601668"]["shares"] == 1000
+    # 减仓后市值必须减半，不得停在 2000 股估值
+    assert pf["positions"]["601668"]["market_value"] == round(1000 * 4.46, 2)
+    assert pf["total_assets"] == round(pf["cash"] + 1000 * 4.46, 2)

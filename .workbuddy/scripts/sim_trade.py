@@ -199,7 +199,22 @@ def save_portfolio(pf: dict):
     # （引擎计算用 get_effective_capital 读 config，此处仅补展示层，与之一致）
     pf["config"]["updated_at"] = now()
     pf["initial_capital"] = get_effective_capital(pf)
-    mkt = sum(float(v.get("market_value", 0)) for v in pf.get("positions", {}).values())
+    # 2026-09-01 run#49 修复：原实现用 positions[*].market_value（**存储字段**）求和，
+    # 但 cmd_sell / cmd_update_all_prices 都只改 shares / current_price，从不回写
+    # market_value → 该字段永久停在首次建仓时的值，卖出减仓后尤甚（实测 601668
+    # 2000→1000 股，market_value 仍为 2000 股估值，虚高 ¥4590），导致落盘
+    # total_assets 比 perf 口径虚高 ¥4163。改为与 calc_total_asset() 同一口径：
+    # shares × current_price 现算，并顺带回写 market_value 保持文件自洽。
+    mkt = 0.0
+    for _pos in pf.get("positions", {}).values():
+        _mv = round(
+            float(_pos.get("shares", 0))
+            * float(_pos.get("current_price", _pos.get("avg_cost", 0))),
+            2,
+        )
+        _pos["market_value"] = _mv
+        mkt += _mv
+    pf["total_market_value"] = round(mkt, 2)
     pf["total_assets"] = round(mkt + float(pf.get("cash", 0)), 2)
     with PortfolioLock():
         PORTFOLIO_FILE.parent.mkdir(parents=True, exist_ok=True)

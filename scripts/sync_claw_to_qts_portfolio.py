@@ -14,6 +14,7 @@
 兼容扁平 positions 结构（2026-08-26）。若 QTS 以 Docker 运行，源码改动需重建镜像生效；
 但本数据同步写入 shared 挂载目录，立即对容器内可见。
 """
+
 import json
 import shutil
 import sys
@@ -42,9 +43,15 @@ def main() -> int:
 
     pos = src_data.get("positions", {})
     cfg = src_data.get("config", {})
+    # 2026-09-01 run#49：原日志打 config.initial_capital（30000 基准值），与 perf/收益口径
+    # 用的「有效本金 = 基准 + capital_additions」(50000) 不一致，排查时极易误判为
+    # 「本金未同步」。此处同时打印两者，基准值标注 base 避免歧义。
+    _base = cfg.get("initial_capital")
+    _adds = sum(float(a.get("amount", 0)) for a in cfg.get("capital_additions", []))
+    _eff = round(float(_base or 0) + _adds, 2)
     log(
         f"源: {len(pos)} 只持仓, "
-        f"initial_capital={cfg.get('initial_capital')}, "
+        f"initial_capital(base={_base}, effective={_eff}), "
         f"total_assets={src_data.get('total_assets')}"
     )
 
