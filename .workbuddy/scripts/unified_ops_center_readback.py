@@ -138,9 +138,23 @@ def sec5_git():
     """
     print("== 5) git 漂移 ==")
     repo = Path("/Users/guan/WorkBuddy/Claw")
-    r = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"],
-                       capture_output=True, text=True)
-    all_lines = [l for l in r.stdout.splitlines() if l.strip()]
+
+    def _gs(*extra):
+        out = subprocess.run(["git", "-C", str(repo), "status", "--porcelain", *extra],
+                             capture_output=True, text=True).stdout
+        return [l for l in out.splitlines() if l.strip()]
+
+    # run#39：git status 默认【折叠未跟踪目录】——一个 "?? 目录名" 藏住里面
+    # 所有文件。实测本仓折叠后报 7 项、展开实际 44 个文件，其中 38 个全部
+    # 位于 .workbuddy/memory/automations/（38 个自动化的记忆载体，零 tracked）。
+    # 列项一律改用展开模式，并显式报出被目录名隐藏的数量。
+    collapsed = _gs()
+    all_lines = _gs("--untracked-files=all")
+    n_col_untr = sum(1 for l in collapsed if l.startswith("??"))
+    n_all_untr = sum(1 for l in all_lines if l.startswith("??"))
+    if n_all_untr > n_col_untr:
+        print(f"  ⚠️ [折叠低估] 默认 git status 折叠未跟踪目录：报 {n_col_untr} 项 / "
+              f"实际 {n_all_untr} 个文件 —— {n_all_untr - n_col_untr} 个被目录名隐藏")
     in_scripts = [l for l in all_lines if ".workbuddy/scripts/" in l]
     outside = [l for l in all_lines if ".workbuddy/scripts/" not in l]
 
@@ -153,11 +167,33 @@ def sec5_git():
     ROOT_CFG = (".gitignore", "pyproject.toml", "ruff.toml", "Makefile",
                 "requirements", ".github/")
     flagged = [l for l in outside if any(p in l for p in ROOT_CFG)]
-    for l in outside[:25]:
-        mark = "  ⚠️ 根级配置/基建" if any(p in l for p in ROOT_CFG) else ""
-        print("   ", l + mark)
-    if len(outside) > 25:
-        print(f"    ... 另有 {len(outside) - 25} 项未列出")
+
+    # run#39：展开模式下项数可能很大（本仓 44），逐条打印既刷屏又淹没重点。
+    # 按顶层目录聚合（depth=2）：单文件原样打印，多文件合并成「[N 项] 目录/」。
+    # 聚合粒度取 2 段而非 3 段——若取 3 段，
+    # `.workbuddy/memory/automations/automation-<id>/memory.md` 会每个 id 各成一组
+    # （每组 1 项）而全部退化为逐条打印，聚合彻底失效（本轮验证实犯）。
+    # 大组（>=10 项）再展开一层子目录 top3，避免聚合后子结构完全不可见。
+    def _group(lines, depth):
+        g: dict[str, list[str]] = {}
+        for l in lines:
+            parts = l[3:].strip().split("/")
+            key = "/".join(parts[:depth]) if len(parts) > depth else l[3:].strip()
+            g.setdefault(key, []).append(l)
+        return sorted(g.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+
+    for key, items in _group(outside, 2):
+        mark = "  ⚠️ 根级配置/基建" if any(any(p in x for p in ROOT_CFG) for x in items) else ""
+        if len(items) == 1:
+            print("   ", items[0] + mark)
+        else:
+            print(f"     [{len(items)} 项] {key}/{mark}")
+            if len(items) >= 10:
+                for k2, it2 in _group(items, 3)[:3]:
+                    print(f"        └─ {len(it2)} 项  {k2}/")
+                rest = len(_group(items, 3)) - 3
+                if rest > 0:
+                    print(f"        └─ ...另有 {rest} 个子目录")
     if flagged:
         print(f"  ⚠️ 根级配置类未提交 {len(flagged)} 项 —— 修复动作若改到此处极易漏入库，需人工确认")
     print(f"  全仓合计 = {len(all_lines)} 项")

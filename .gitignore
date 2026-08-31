@@ -82,6 +82,15 @@ logs/*.log
 .workbuddy/data/simulation/*.migrated*
 .workbuddy/data/simulation/experiments/
 .workbuddy/data/user/*.bak-*
+# ⚠️ 存在两套 automations 记忆目录，本行只覆盖 A（2026-08-31 run#39 实锤）：
+#   A) .workbuddy/automations/*/memory.md          ← 历史路径；磁盘 77 个，
+#      其中 22 个已 tracked（gitignore 对已跟踪文件无效，本行管不到它们）
+#   B) .workbuddy/memory/automations/*/memory.md   ← 平台当前实际写入路径；
+#      磁盘 38 个，0 个 tracked，且无任何规则命中 → 在 git status 中可见
+# 刻意不给 B 加忽略规则：加了会从「可见的未跟踪」变成「完全隐形」，
+# 盲区只会更深。是否让 B 入库（56.7KB）属设计决策，勿由巡检自动化擅自定。
+# 另注：git status 默认折叠未跟踪目录，B 的 38 个文件只显示为 1 行
+# 「?? .workbuddy/memory/automations/」，须用 --untracked-files=all 才能看清。
 .workbuddy/automations/*/memory.md
 .workbuddy/archive/
 archive/
