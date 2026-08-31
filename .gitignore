@@ -46,7 +46,6 @@ logs/*.log
 # （绝对路径，clone 后断链，非项目资产，不提交）。templates/ 为项目实体模板，保留。
 .workbuddy/skills/*
 !.workbuddy/skills/templates/
-!.workbuddy/data/sector_cache.json
 !.workbuddy/data/user/portfolio.json
 # Runtime-only data files under .workbuddy/data/ (explicitly ignored)
 .workbuddy/data/.backup*/
@@ -118,10 +117,7 @@ lark-auth-qr*.png
 .workbuddy/memory/git_status_log_*.md
 .workbuddy/memory/2026-*-*.md
 .workbuddy/automations/*/dedup_*.json
-.workbuddy/automations/*/.backups/
 .workbuddy/scripts/unified_self_heal_log.json
-.workbuddy/scripts/.ops_alerted.json
-.workbuddy/scripts/.watchdog_alerted.json
 # 运行时自动生成的自动化目录（非源码，仅运行态）
 .workbuddy/automations/automation-1785123941471/
 .benchmarks/
