@@ -71,9 +71,24 @@ def _load_portfolio() -> list[dict]:
 PORTFOLIO = _load_portfolio()
 
 # westock CLI（本地 npx 优先，失败时用系统默认）
-NPX = "/Users/guan/.workbuddy/binaries/node/versions/22.22.2/bin/npx"
 CLI = "westock-data-clawhub@1.0.4"
 CWD = "/Volumes/ZHITAI/WorkBuddy/Claw"
+
+
+def _resolve_npx() -> str:
+    """优先用 PATH 中的 npx（managed node），避免硬编码版本号漂移导致路径失效。
+
+    旧版硬编码 /Users/guan/.workbuddy/binaries/node/versions/22.22.2/bin/npx，
+    而实际目录为 22.22.2-2，每次调用都 FileNotFoundError。改为动态解析。
+    """
+    on_path = shutil.which("npx")
+    if on_path:
+        return on_path
+    fallback = "/Users/guan/.workbuddy/binaries/node/versions/22.22.2/bin/npx"
+    return fallback
+
+
+NPX = _resolve_npx()
 
 # 飞书推送配置
 FEISHU_CHAT = "oc_9ee5303497f5e0e71666b610d6bdc346"
@@ -105,6 +120,10 @@ def parse_markdown_table(md: str) -> list[dict]:
         return []
     lines = [l.strip() for l in md.split("\n") if l.strip()]
     if len(lines) < 3:
+        return []
+    # 必须是真正的 Markdown 表格：表头行须含 '|'，否则（如 westock 错误提示「未找到数据」）
+    # 会被误解析为首行当表头、后续行当数据行，产出虚假空行。
+    if "|" not in lines[0]:
         return []
 
     # 表头
@@ -186,6 +205,8 @@ def build_report(stocks: list[dict]) -> str:
         for e in exdivs:
             ex_date = e.get("exDivDate", "")
             plan = e.get("dividendPlan", "")
+            if not ex_date and not plan:
+                continue
             sources_seen.add("westock")
             lines.append(f"  💰 除权除息: {ex_date}  [源:westock] {plan}")
 
