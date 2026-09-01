@@ -64,13 +64,16 @@ import sys
 import time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-LARK_CLI = (
-    os.path.expanduser("~/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli")
-    if os.path.isfile(
-        os.path.expanduser("~/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli")
-    )
-    else "lark-cli"
+# lark-cli 真实安装位置（2026-08-31 实证）：
+#   ~/.workbuddy/binaries/node/cli-connector-packages/bin/lark-cli
+# 旧兜底写的是 .../node/versions/22.22.2/bin/lark-cli —— 该路径**不存在**，
+# 于是永远落到裸 "lark-cli"，全靠 PATH 里恰好有它才没炸。
+# 一旦 PATH 不含（非交互 shell / launchd 环境）→ command not found → 卡片静默丢失。
+_LARK_CLI_CANDIDATES = (
+    os.path.expanduser("~/.workbuddy/binaries/node/cli-connector-packages/bin/lark-cli"),
+    os.path.expanduser("~/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli"),
 )
+LARK_CLI = next((p for p in _LARK_CLI_CANDIDATES if os.path.isfile(p)), "lark-cli")
 DEFAULT_CHAT = "oc_9ee5303497f5e0e71666b610d6bdc346"
 
 LEVEL_TEMPLATE = {
