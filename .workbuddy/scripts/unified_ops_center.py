@@ -904,7 +904,11 @@ def check_data_freshness() -> dict:
     数据管线(Quant数据管线/QTS日线回填/WIND桥/信号富化)失败会导致选股/策略用陈旧K线，
     但中枢完全失明（实证：qts_daily_backfill.py 注释'08-04 16:30失败致daily_quote缺整日'）。
     设计：监测 data/ 下活跃产物白名单的 mtime 是否为当日（非交易日允许放宽到最近1交易日）。
-    仅 note 可见性，不推送、不修复（数据管线自动化负责重跑）。"""
+
+    2026-09-01 run#55 修复：本检查被加入的**唯一目的**就是抓「数据产物陈旧/缺失」，
+    但原实现算出了 stale 却仍 return ok=True —— 抓到也不报，等于没装，且 note 无出口无人读
+    （实证：自 08-06 加入起 AST 审计确认无任何 ok=False 出口，恒假绿）。
+    修复：stale 非空 → ok=False 进告警链。不自动修复（数据管线自动化负责重跑），仅告警。"""
     # 活跃产物白名单（今日实测15:00-15:06更新的业务产物，废弃产物已排除）
     WHITELIST = [
         "qts_daily_signals.json",
@@ -928,10 +932,11 @@ def check_data_freshness() -> dict:
             age_h = (now - mt).total_seconds() / 3600
             stale.append(f"{fn}({age_h:.0f}h前)")
     if stale:
+        msg = f"数据产物陈旧/缺失 {len(stale)}/{len(WHITELIST)}: {'; '.join(stale)}"
         return {
-            "ok": True,
-            "alerts": [],
-            "note": f"数据产物新鲜度: {checked}/{len(WHITELIST)}达标 | 陈旧/缺失: {'; '.join(stale)}",
+            "ok": False,
+            "alerts": [msg + " —— 数据管线可能停摆，选股/策略将使用陈旧K线（不自动修复，需管线重跑）"],
+            "note": msg,
         }
     return {
         "ok": True,
@@ -1078,26 +1083,44 @@ def check_wechat_channel() -> dict:
 def check_cost_anomaly() -> dict:
     """API 成本异常检查（2026-08-06 新增，盲点#2）。
     成本监控自动化(1782002819199, 6h)在跑 anomaly-only 推送，但中枢零覆盖成本维度。
-    复用 cost_tracker.py 读累计费用，仅 note 可见性（不抢推送，异常由成本监控自动化负责）。"""
+    复用 cost_tracker.py 读累计费用，仅 note 可见性（不抢推送，异常由成本监控自动化负责）。
+
+    2026-09-01 run#55 修复（该检查自 08-06 加入起 26 天恒为假绿，三层失效叠加）：
+      ① 路径错：脚本实际在 Claw/scripts/cost_tracker.py，此前写成 SCRIPT_DIR（=.workbuddy/scripts）→ 文件不存在
+      ② 子命令错：用 summary，但 CLI 只支持 daily|monthly|top，无效参数 → 空输出
+      ③ 失败被吞：run_cmd 失败走 fallback 仍 return ok=True + note「无数字输出()」，永不告警
+    修复：路径改 CLAW_ROOT/scripts + 子命令改 monthly（含预算/月底预估），并识别「超预算」标记。
+    遗留：data/cost_tracker.db 为 0 字节空库（无表），daily/monthly 数据另有来源，本次未改动。"""
     try:
+        tracker = CLAW_ROOT / "scripts" / "cost_tracker.py"
         r = run_cmd(
-            [sys.executable, str(SCRIPT_DIR / "cost_tracker.py"), "summary"],
+            [sys.executable, str(tracker), "monthly"],
             timeout=60,
             env={**os.environ, "PYTHONPATH": str(CLAW_ROOT)},
         )
         out = r.stdout.strip()
         # 尝试提取费用数字（兼容多种输出格式）
-        m = re.search(r"(?:总费用|total|累计|花费)[^\d]*?([\d.]+)\s*(元|¥|CNY)?", out)
+        m = re.search(r"(?:总费用|total|累计|总花费)[^\d]*?([\d.]+)\s*(元|¥|CNY)?", out)
         if m:
             cost = float(m.group(1))
-            note = f"API成本(累计): ¥{cost:.2f}"
+            note = f"API成本(本月): ¥{cost:.2f}"
             # 软阈值提示（非阻断）：>¥500 标记关注
             if cost > 500:
                 note += " ⚠️超¥500关注"
-            return {"ok": True, "alerts": [], "note": note}
-        return {"ok": True, "alerts": [], "note": f"API成本: 无数字输出({out[:60]})"}
+            # monthly 输出含「⚠️ 超预算!」时显式带出，避免预算告警被 note 埋掉
+            if "超预算" in out:
+                est = re.search(r"预估月底[^\d]*([\d.]+)", out)
+                note += f" | ⚠️月底预估超预算{f'(¥{est.group(1)})' if est else ''}"
+            return {"ok": True, "alerts": [], "note": note, "kind": "note"}
+        # 取数失败：带出 returncode，避免再次静默成「无数字输出()」
+        return {
+            "ok": True,
+            "alerts": [],
+            "note": f"API成本: 取数失败(rc={r.returncode}, out={out[:60]!r})",
+            "kind": "note",
+        }
     except Exception as e:  # noqa: BLE001
-        return {"ok": True, "alerts": [], "note": f"API成本检查异常: {e}"}
+        return {"ok": True, "alerts": [], "note": f"API成本检查异常: {e}", "kind": "note"}
 
 
 def check_dependabot_backlog() -> dict:
@@ -2139,6 +2162,78 @@ def check_qts_api_auth() -> dict:
     return {"ok": not alerts, "alerts": alerts, "note": "; ".join(notes) or None}
 
 
+# 定时任务「跑成功但没落库」的特征串。
+# 2026-09-01 run#59 盲区：market_snapshot 的 DB 写入连续 17 天 100% 失败
+# （08-15 ~ 08-31，771 条日志），但 APScheduler 仍记 "executed successfully"、
+# /health 全绿、本中枢原有 16 项检查无一命中 —— 只有日志里的 warning 能证明它坏了。
+# 凡「作业自认成功、实际产出为零」的失效，都必须靠日志特征串兜住。
+_JOB_WRITE_FAIL_MARKERS = (
+    "DB写入失败",  # market_snapshot / 其它作业统一的非致命 DB 异常
+    "should be explicitly declared as text",  # SQLAlchemy 2.x 裸 SQL 未包 text()
+    "DB写入超时",
+)
+
+
+def check_qts_job_write_health() -> dict:
+    """QTS 定时任务「写入健康」检查（2026-09-01 run#59 新增，补盲点#5）。
+
+    背景：APScheduler 只保证「函数没抛异常」，不保证「数据真的落库」。
+    market_snapshot 曾连续 17 天把裸 SQL 直接传给 SQLAlchemy 2.x 而被拒，
+    但它把 DB 异常吞进 ``except`` 打一条 warning 就返回 —— 作业层面
+    "executed successfully"、/health 200、16 项检查全绿，只有日志能证明它坏了。
+
+    因此本检查直接从容器日志捞「写入失败」特征串，**不看作业退出状态**。
+
+    ── 窗口与阈值取舍 ──
+    6h 滚动窗口 + 阈值 3：单次 transient 失败（如 DB 重启）只产生 1~2 条，不误报；
+    而持续 17 天那种每 30 分钟 4 条的量级必然命中。
+
+    注意：本检查的信号是「失败是否存在」而非「失败有多少条」，
+    故**不像 check_qts_api_auth 那样需要增量锚点** —— 计数变化不代表故障变化，
+    count 上升不意味着恶化、count 下降也不意味着好转（可能只是作业被跳过）。
+    若将来要按增量口径改造，务必重读 run#54 的「去重键 × 滚动窗口 = 失明」教训。
+    """
+    from collections import Counter
+
+    alerts: list[str] = []
+    notes: list[str] = []
+    try:
+        r = run_cmd(
+            ["docker", "logs", "--timestamps", "quant-strategy", "--since", "6h"],
+            timeout=60,
+        )
+        text = (r.stdout or "") + "\n" + (r.stderr or "")
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "alerts": [f"QTS 写入健康检查异常(docker logs 失败): {e}"]}
+
+    if not text.strip():
+        return {"ok": True, "alerts": [], "note": "quant-strategy 近 6h 无日志输出"}
+
+    write_fail: Counter = Counter()
+    samples: list[str] = []
+    for line in text.splitlines():
+        for mk in _JOB_WRITE_FAIL_MARKERS:
+            if mk in line:
+                write_fail[mk] += 1
+                if len(samples) < 2:
+                    # 只留时间戳+事件片段，避免整行塞满告警卡片
+                    ev = line.split('"event": "')[-1][:70] if '"event": "' in line else mk
+                    samples.append(line[:19] + "Z " + ev)
+                break
+
+    n_write_fail = sum(write_fail.values())
+    if n_write_fail >= 3:
+        top = "、".join(f"{k}×{v}" for k, v in write_fail.most_common(3))
+        msg = f"QTS 定时任务落库失败 {n_write_fail} 次/6h（{top}）——作业仍报成功，属静默失效"
+        if samples:
+            msg += "；样例: " + " | ".join(samples)
+        alerts.append(msg)
+    elif n_write_fail:
+        notes.append(f"QTS 落库失败 {n_write_fail} 次/6h（<3，按 transient 处理，暂不告警）")
+
+    return {"ok": not alerts, "alerts": alerts, "note": "; ".join(notes) or None}
+
+
 # ════════════════════════════════════════════════════════════════════
 # 中枢主流程
 # ════════════════════════════════════════════════════════════════════
@@ -2186,6 +2281,7 @@ def main() -> int:
         "memwatch完整性": check_memwatch_integrity(),
         "共享文件完整性": check_shared_files_integrity(),
         "QTS API鉴权": check_qts_api_auth(),
+        "QTS写入健康": check_qts_job_write_health(),
     }
 
     all_alerts: list[str] = []
