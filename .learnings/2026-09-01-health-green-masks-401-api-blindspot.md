@@ -104,3 +104,43 @@
 # 2) 起点与哪次自动化运行/哪次代码变更对齐？—— 对齐 = 疑似自伤
 # 3) 有没有"运行了但没产生该异常"的反例轮次？—— 有反例 = 不是脚本固定行为
 ```
+
+---
+
+# 🔄 2026-09-01 11:20 二次修正（真因终局，接 run#53）
+
+> 上文第二节「真因：我（agent）自拼 curl 探活」**仍然不对**。
+> 「401 落在巡检中枢自己的运行窗口内」这个观察是对的（确实自污染），
+> 但**层判错了**：不是 agent 手工动作，是**脚本固定行为**。
+
+## 真正的机制
+
+`check_code_quality()` 里 `pytest tests/ -q` 用了**相对路径且未锁 cwd**。
+本自动化的调度 cwd 是 **QTS 仓**，于是「Claw 工程质量检查」实际在跑 **QTS 的 tests/**：
+
+```
+tests/test_e2e.py                     → /api/v1/stocks/index/realtime、/api/v1/signals/、
+                                        /api/v1/backtest/results、/api/v1/stocks/realtime/600519、
+                                        /api/v1/stocks/pool、/api/v1/account/summary ...
+tests/contracts/test_strategy_api.py  → /api/v1/stocks/realtime/600519.SH、
+                                        /api/v1/stocks/realtime/999999.XZ、POST /api/v1/backtest/run
+```
+
+全部对 `http://localhost:8000` 直连且**不带 `X-API-Key`** → 每次巡检固定 **14 条 401**。
+
+## 决定性对照实验
+
+| 运行方式 | cwd | pytest 实际跑的 | 401 |
+|---|---|---|---|
+| `import module; main()` | Claw | Claw 485 项 | **0** |
+| `python unified_ops_center.py` | QTS 仓 | QTS tests/ | **14** |
+
+唯一差异 = cwd。修复（锁 `cwd=CLAW_ROOT` + 绝对路径）后，以 QTS 为 cwd 重跑 → **新增 401 = 0**。
+
+## 为什么「agent 自拼 curl」这个解释能骗过我
+
+它满足了我当时掌握的全部证据（窗口吻合、有反例轮次、起点在 09:13），
+而**脚本固定行为**同样满足这些证据，且能更好地解释「每批恰好 14 条、接口顺序完全一致」
+这种机械规整性 —— 人工探活不可能这么整齐。**能对上证据 ≠ 唯一解释。**
+
+→ 完整复盘见 `2026-09-01-cwd-inherited-pytest-pollutes-monitored-api.md`。

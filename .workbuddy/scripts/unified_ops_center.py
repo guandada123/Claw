@@ -107,6 +107,11 @@ def _dedup_key(check_name: str, reason_key: str) -> str:
         if i > 0:
             s = s[:i]
     s = s.rstrip(":： ").strip()
+    # 数字归一（2026-09-01 run#53）：告警文案里嵌入的**易变计数**会击穿去重。
+    # 实证：QTS API 鉴权告警文案含「鉴权失败 N 次/24h」，N 每次运行都变(202→216→230)，
+    # 于是同一根因每小时生成新键 → 飞书被同一问题连推 3 次。计数是**诊断补充**不是身份，
+    # 身份应是「哪个检查项的什么问题」，故把数字串折叠为 # 后再截断。
+    s = re.sub(r"\d+", "#", s)
     return f"{check_name}@{s[:_DEDUP_KEY_MAXLEN]}"
 
 
@@ -399,9 +404,19 @@ def _reset_runbook_fuse(action: str) -> None:
 
 
 def run_cmd(
-    cmd: list[str], timeout: int = 90, capture: bool = True, env: dict | None = None
+    cmd: list[str],
+    timeout: int = 90,
+    capture: bool = True,
+    env: dict | None = None,
+    cwd: str | None = None,
 ) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=capture, text=True, timeout=timeout, env=env)
+    # ⚠️ cwd 默认继承调用方进程。巡检类脚本必须由**调用方显式锁定 cwd**，
+    # 否则同一份代码在不同工作目录下语义不同（见 check_code_quality 的 pytest 教训，
+    # 2026-09-01 run#53：中枢以 QTS 仓为 cwd 被调度 → `pytest tests/` 跑成了 QTS 的
+    # e2e 测试 → 每小时对生产 QTS API 打 14 次未鉴权请求，自己制造 401 告警）。
+    return subprocess.run(
+        cmd, capture_output=capture, text=True, timeout=timeout, env=env, cwd=cwd
+    )
 
 
 def _raise_cmd_error(r: subprocess.CompletedProcess) -> None:
@@ -713,11 +728,18 @@ def check_code_quality() -> dict:
         notes.append(f"双导入门禁异常: {e}")
 
     # 4) 单元测试套件
+    # ⚠️ 2026-09-01 run#53 根因修复：必须显式锁定 cwd=CLAW_ROOT 且用绝对路径。
+    # 原写法用相对路径 "tests/" 且继承调用方 cwd —— 本自动化以 QTS 仓为工作目录被调度，
+    # 于是「Claw 工程质量检查」实际在跑 **QTS 的 tests/**，其中 test_e2e.py /
+    # tests/contracts/* 直接对生产 127.0.0.1:8000 发未鉴权请求（无 X-API-Key），
+    # 每次巡检固定 14 条 401，被本中枢新增的 check_qts_api_auth 当成生产故障反复告警
+    # （观测者效应：巡检自己污染被巡检对象）。锁定 cwd 后该副作用归零。
     try:
         r = run_cmd(
-            [sys.executable, "-m", "pytest", "tests/", "-q"],
+            [sys.executable, "-m", "pytest", str(CLAW_ROOT / "tests"), "-q"],
             timeout=300,
             env={**os.environ, "PYTHONPATH": str(CLAW_ROOT)},
+            cwd=str(CLAW_ROOT),
         )
         m = re.search(r"(\d+)\s+passed", r.stdout)
         passed = int(m.group(1)) if m else "?"
