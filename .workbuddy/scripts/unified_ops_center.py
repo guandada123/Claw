@@ -2011,20 +2011,41 @@ def _utc_iso(ts: float) -> str:
     return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime("%m-%d %H:%MZ")
 
 
-def _load_qts_auth_anchor() -> float:
-    """读取 401 增量锚点（已见过的最新一条 401/403 的 UTC epoch）；无则 0.0。"""
+# 累计窗口的静默衰减时长：距最近一条 401 超过这么久就清零 pending。
+# 目的：避免一次人工调试留下的 7 条 pending 在两周后被一次偶发 3 条凑够 10 条误报。
+QTS_AUTH_PENDING_STALE_SECONDS = 24 * 3600
+
+
+def _load_qts_auth_state() -> dict:
+    """读取 401 增量锚点状态：{last_seen_ts, pending, pending_since}。
+
+    ── 为什么 pending 必须存在（2026-09-02 run#63，勿退化回纯锚点）──
+    旧实现在每轮结束时**无条件**把 last_seen_ts 推到本轮最新一条 401 的时间戳，
+    无论本轮有没有告警。于是「每轮新增 < 阈值(10)」的低频滴漏会被逐轮吸收、
+    永不累积：一个每小时失败 5 次的调用方 = 120 次/天鉴权失败，哨兵永远沉默。
+    这是 run#54「滚动窗口 × 去重键 = 失明 24h」的**同型复发** —— 判据里只要
+    存在「每轮重置」的项，低频但持续的故障就 100% 测不出来。
+    故改为跨轮累计，pending 只在两种情况下清零：①告警已发出 ②静默超过 STALE。
+    """
     try:
-        return float(json.loads(QTS_AUTH_ANCHOR.read_text(encoding="utf-8")).get("last_seen_ts") or 0.0)
+        raw = json.loads(QTS_AUTH_ANCHOR.read_text(encoding="utf-8"))
+        return {
+            "last_seen_ts": float(raw.get("last_seen_ts") or 0.0),
+            "pending": int(raw.get("pending") or 0),
+            "pending_since": float(raw.get("pending_since") or 0.0),
+        }
     except Exception:  # noqa: BLE001
-        return 0.0
+        return {"last_seen_ts": 0.0, "pending": 0, "pending_since": 0.0}
 
 
-def _save_qts_auth_anchor(ts: float) -> None:
+def _save_qts_auth_state(state: dict) -> None:
     try:
         QTS_AUTH_ANCHOR.write_text(
             json.dumps(
                 {
-                    "last_seen_ts": ts,
+                    "last_seen_ts": float(state.get("last_seen_ts") or 0.0),
+                    "pending": int(state.get("pending") or 0),
+                    "pending_since": float(state.get("pending_since") or 0.0),
                     "updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
                 },
                 ensure_ascii=False,
@@ -2057,6 +2078,13 @@ def check_qts_api_auth() -> dict:
     即：哨兵刚完成一次有效告警，就立刻失明整整 24h，且期间任何恶化都看不见。
     改为「锚点增量」后：存量自动转绿、新回归立即变红、无时间窗口缝隙。
     锚点只在首次运行时以当前存量初始化（避免机制切换当天推一张无信息量的卡片）。
+
+    ── run#63 补漏：增量锚点必须配「跨轮累计」，否则低频滴漏永久失明 ──
+    增量锚点只解决了「存量不误报」，但旧实现每轮结束无条件把锚点推到最新一条，
+    于是每轮新增 < 阈值(10) 的**持续**故障会被逐轮吸收、永不累积 ——
+    每小时失败 5 次 = 120 次/天鉴权失败，哨兵 0 告警（与 run#54 同型：判据里
+    有「每轮重置」项就测不出低频持续故障）。现改为 pending 跨轮累加，
+    只在「已告警」或「静默 > 24h」时清零。
     """
     from collections import Counter
 
@@ -2105,14 +2133,16 @@ def check_qts_api_auth() -> dict:
     n401 = code_counter.get("401", 0) + code_counter.get("403", 0)
     n5xx = sum(v for k, v in code_counter.items() if k.startswith("5"))
 
-    anchor = _load_qts_auth_anchor()
+    st = _load_qts_auth_state()
+    anchor = st["last_seen_ts"]
     max_ts = max((t for t in ts_401 if t > 0), default=0.0)
+    now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
     if anchor <= 0.0:
         # 首次运行：没有基线。把当前 24h 窗口内的存量一次性记为基线、不告警 ——
         # 否则机制切换当天会把几百条历史存量当成"新增"推一张无信息量的卡片。
         if max_ts > 0:
-            _save_qts_auth_anchor(max_ts)
+            _save_qts_auth_state({"last_seen_ts": max_ts, "pending": 0, "pending_since": 0.0})
         if n401:
             notes.append(
                 f"QTS API 鉴权检查首次运行，已建立增量基线锚点(截至 {_utc_iso(max_ts)})；"
@@ -2122,13 +2152,31 @@ def check_qts_api_auth() -> dict:
         # 新增判定：时间戳严格晚于锚点。解析失败(0.0)保守计入新增——无法证明它是
         # 存量时宁可多报也不漏报（漏报正是本机制要修掉的失效模式）。
         n_new = sum(1 for t in ts_401 if t == 0.0 or t > anchor)
+
+        # ── 跨轮累计（run#63）──
+        # 每轮新增单独看可能都低于阈值，但持续滴漏的总量才是故障量级。
+        # 故 pending 跨轮累加，只在「已告警」或「静默超过 STALE」时清零。
+        ref_ts = max_ts if max_ts > 0 else anchor
+        if (now_ts - ref_ts) > QTS_AUTH_PENDING_STALE_SECONDS:
+            pending = 0
+            pending_since = 0.0
+        else:
+            pending = st["pending"]
+            pending_since = st["pending_since"]
+        if pending == 0 and n_new:
+            # 新一轮累计的起点 = 上一轮锚点（不是本轮 max_ts，否则扫描窗口会漏掉早先的条目）
+            pending_since = anchor
+        pending += n_new
+
         # 阈值沿用 10：健康基线应为 0，偶尔 1~2 次可能是人工调试；
         # 观测到的真实系统性漏配量级是每轮 14 条（一次性批量），10 足以稳定命中。
-        if n_new >= 10:
+        # 区别只在于：现在是**累计到 10** 才告警，不再是「单轮就得满 10」。
+        if pending >= 10:
+            scan_from = pending_since if pending_since > 0 else anchor
             for line, t in zip(
                 [ln for ln in text.splitlines() if " 401 " in ln or " 403 " in ln], ts_401
             ):
-                if t == 0.0 or t > anchor:
+                if t == 0.0 or t > scan_from:
                     try:
                         seg = line.split('"')
                         mp = seg[1].split()
@@ -2139,21 +2187,31 @@ def check_qts_api_auth() -> dict:
             top_src = ", ".join(f"{k}({v})" for k, v in new_src_counter.most_common(3)) or "?"
             top_path = ", ".join(f"{k}({v})" for k, v in new_path_counter.most_common(3)) or "?"
             alerts.append(
-                f"QTS API 鉴权失败：新增 {n_new} 次（自 {_utc_iso(anchor)} 起；24h 窗口共 {n401} 次）"
+                f"QTS API 鉴权失败：累计新增 {pending} 次（自 {_utc_iso(scan_from)} 起，"
+                f"跨轮累计；本轮新增 {n_new} 次，24h 窗口共 {n401} 次）"
                 f" | 来源: {top_src}"
                 f" | Top接口: {top_path}"
                 f" | health 全绿但业务接口被拒，回测/信号/账户数据不会落库"
             )
-        elif n_new:
+            # 已告警 → 清零，避免同一批事件在下一轮被重复计入
+            pending = 0
+            pending_since = 0.0
+        elif pending:
             notes.append(
-                f"QTS API 新增 401/403 {n_new} 条（低于阈值 10，疑似人工调试，仅记录不推送）"
+                f"QTS API 401/403 累计 {pending}/10 条（本轮新增 {n_new} 条，"
+                f"自 {_utc_iso(pending_since)} 起跨轮累计，未达阈值不推送）"
             )
         elif n401:
             notes.append(
                 f"QTS API 401/403 存量 {n401} 条，自基线锚点 {_utc_iso(anchor)} 以来无新增（已止血）"
             )
-        if max_ts > 0:
-            _save_qts_auth_anchor(max_ts)
+        _save_qts_auth_state(
+            {
+                "last_seen_ts": max_ts if max_ts > 0 else anchor,
+                "pending": pending,
+                "pending_since": pending_since,
+            }
+        )
 
     # 5xx 保持 24h 滚动口径：服务端错误无"历史存量污染"问题（历史上恒为 0），
     # 且 5xx 往往是突发脉冲，滚动窗口比增量锚点更能反映持续劣化。
@@ -2288,6 +2346,14 @@ def main() -> int:
     for name, res in checks.items():
         status = "✅" if res["ok"] else "⚠️"
         print(f"  {status} {name}: {len(res['alerts'])} 项异常")
+        # note 出口（2026-09-02 run#63）：此前 note 只进字典、从不输出，
+        # 于是「低于阈值不推送」「双导入门禁 PASS」「成本监控」这类**只有 note 没有 alert**
+        # 的检查，17 项里长期有 6~8 项信息量全部沉底。巡检日志是唯一能看见它们的地方，
+        # 不打印等于没算。这里只打印、不进 all_alerts（不因此触发推送），
+        # 避免把"记录一下"变成"每小时推一张卡片"。
+        note = res.get("note")
+        if note:
+            print(f"       note: {note}")
         if not res["ok"]:
             for a in res["alerts"]:
                 all_alerts.append(f"[{name}] {a}")
