@@ -34,6 +34,22 @@ push_card.py — 飞书 interactive 卡片推送中台
   # 也支持从 stdin 读 JSON（结构化调用）：
   echo '{"title":"...","level":"alert","sections":[...],"table":{...},"buttons":[...]}' | python3 push_card.py --json-stdin
 
+  ⚠️ --json-stdin 的 JSON schema（2026-09-01 实犯，务必照抄）：
+      {
+        "title": "卡片标题",                       // 必填
+        "level": "alert|warning|info|success",     // 可选，默认 info
+        "sections": [                              // 每块的键名是 **body**，不是 content
+          {"title": "小标题", "body": "markdown 正文"}
+        ],
+        "table": {"headers": ["列1","列2"], "rows": [["a","b"]]},  // 可选
+        "buttons": [{"text": "按钮", "url": "https://..."}],       // 可选
+        "footer": "页脚"                                            // 可选
+      }
+    写成 "content" 会被解析成 body='' → 占位符守卫报出莫名其妙的
+    「第 1 个 section body 疑似占位符/空」（排查成本很高）。
+    另：--title 是 argparse required，即使用 --json-stdin 也**必须**传
+    （可传任意占位值，JSON 内的 title 会覆盖）。
+
   ⚠️ lark-cli 发卡片正确方式（1.0.68 无 --card flag）：
       lark-cli im +messages-send --as bot --chat-id X \
         --content '<card_json>' --msg-type interactive
