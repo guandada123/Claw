@@ -51,6 +51,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -1080,17 +1081,50 @@ def check_wechat_channel() -> dict:
     return {"ok": not alerts, "alerts": alerts, "note": "; ".join(notes) if notes else None}
 
 
+# 成本告警的受托自动化：中枢刻意只做 note（不抢推送），把超预算告警委托给它。
+# 若它被暂停/删除，委托链断裂 → 超预算告警零出口。故每次判定前必须先校验受托方存活。
+COST_ALERT_DELEGATE_ID = "automation-1782002819199"
+
+
+def _automation_status(automation_id: str) -> str | None:
+    """读取自动化当前状态（ACTIVE / PAUSED / DELETED / None=查不到）。
+
+    只读打开 workbuddy.db，任何异常都返回 None（查不到 = 保守判定为「委托不可信」）。
+    """
+    db = Path.home() / ".workbuddy" / "workbuddy.db"
+    if not db.exists():
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        try:
+            row = conn.execute(
+                "SELECT status FROM automations WHERE id = ? AND deleted_at IS NULL",
+                (automation_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+        return row[0] if row else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def check_cost_anomaly() -> dict:
     """API 成本异常检查（2026-08-06 新增，盲点#2）。
     成本监控自动化(1782002819199, 6h)在跑 anomaly-only 推送，但中枢零覆盖成本维度。
-    复用 cost_tracker.py 读累计费用，仅 note 可见性（不抢推送，异常由成本监控自动化负责）。
+    复用 cost_tracker.py 读累计费用，默认只做 note 可见性（不抢推送，异常由成本监控自动化负责）。
 
     2026-09-01 run#55 修复（该检查自 08-06 加入起 26 天恒为假绿，三层失效叠加）：
       ① 路径错：脚本实际在 Claw/scripts/cost_tracker.py，此前写成 SCRIPT_DIR（=.workbuddy/scripts）→ 文件不存在
       ② 子命令错：用 summary，但 CLI 只支持 daily|monthly|top，无效参数 → 空输出
       ③ 失败被吞：run_cmd 失败走 fallback 仍 return ok=True + note「无数字输出()」，永不告警
     修复：路径改 CLAW_ROOT/scripts + 子命令改 monthly（含预算/月底预估），并识别「超预算」标记。
-    遗留：data/cost_tracker.db 为 0 字节空库（无表），daily/monthly 数据另有来源，本次未改动。"""
+
+    2026-09-02 run#65 修复（委托断链 → 超预算告警零出口）：
+      上述「不抢推送」的前提是受托自动化活着。实测该自动化自 2026-08-29 起 PAUSED
+      （最后运行 08-19），另一条成本通道（1784255402639 成本看板日报）同样 PAUSED，
+      而 cost_tracker.py 自身无推送能力 → 8 月实花 ¥778.23 / 预算 ¥400（超 95%）全程无人告警。
+      修复：判定超预算时先查受托方状态，非 ACTIVE 则升级为真实告警（委托失效即自己兜底）。
+      遗留：data/cost_tracker.db 为 0 字节空库（无表），daily/monthly 数据另有来源，本次未改动。"""
     try:
         tracker = CLAW_ROOT / "scripts" / "cost_tracker.py"
         r = run_cmd(
@@ -1103,14 +1137,34 @@ def check_cost_anomaly() -> dict:
         m = re.search(r"(?:总费用|total|累计|总花费)[^\d]*?([\d.]+)\s*(元|¥|CNY)?", out)
         if m:
             cost = float(m.group(1))
-            note = f"API成本(本月): ¥{cost:.2f}"
-            # 软阈值提示（非阻断）：>¥500 标记关注
-            if cost > 500:
-                note += " ⚠️超¥500关注"
+            # 预算从输出反推（总额 = 已花 + 剩余），避免硬编码 ¥400 与 cost_tracker 漂移
+            rem = re.search(r"剩余预算[^\d]*([\d.]+)", out)
+            budget = cost + float(rem.group(1)) if rem else 400.0
+            note = f"API成本(本月): ¥{cost:.2f}/¥{budget:.0f}"
+            # 软阈值：已用 ≥ 预算 80% 即标记关注（原写死 ¥500，高于 ¥400 预算，超支也看不见）
+            if budget > 0 and cost >= budget * 0.8:
+                note += f" ⚠️已用{cost / budget * 100:.0f}%预算"
             # monthly 输出含「⚠️ 超预算!」时显式带出，避免预算告警被 note 埋掉
-            if "超预算" in out:
-                est = re.search(r"预估月底[^\d]*([\d.]+)", out)
+            over_budget = "超预算" in out
+            est = re.search(r"预估月底[^\d]*([\d.]+)", out)
+            if over_budget:
                 note += f" | ⚠️月底预估超预算{f'(¥{est.group(1)})' if est else ''}"
+
+            # 委托存活校验：受托自动化不活着 → 中枢必须自己兜底告警
+            if over_budget or (budget > 0 and cost > budget):
+                delegate = _automation_status(COST_ALERT_DELEGATE_ID)
+                if delegate != "ACTIVE":
+                    est_txt = f"¥{est.group(1)}" if est else "未知"
+                    return {
+                        "ok": False,
+                        "alerts": [
+                            f"本月累计 ¥{cost:.2f} / 预算 ¥{budget:.0f}，月底预估 {est_txt}；"
+                            f"告警委托断链——成本监控自动化 {COST_ALERT_DELEGATE_ID} 当前状态 "
+                            f"{delegate or '查不到（已删除或库不可读）'}，中枢原只做 note 可见性、"
+                            f"把超预算告警委托给它，该告警当前零出口。建议恢复该自动化或改由中枢告警"
+                        ],
+                        "note": note,
+                    }
             return {"ok": True, "alerts": [], "note": note, "kind": "note"}
         # 取数失败：带出 returncode，避免再次静默成「无数字输出()」
         return {
