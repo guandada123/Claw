@@ -1933,6 +1933,78 @@ def _generate_weekly_report() -> int:
     return 0
 
 
+def check_qts_api_auth() -> dict:
+    """QTS 策略服务 API **调用侧**鉴权/错误码检查（2026-09-01 新增，补盲点#4）。
+
+    背景：backtest_reports 表长期仅 1 行（滞留在 07-16），08-31 已修 SQLAlchemy
+    裸 SQL 未包装 text()（16 处）。但 09-01 核查发现修复后仍零落库 —— 真因是
+    quant-strategy 近 24h 有 **200 次 401 Unauthorized**，全部来自宿主机
+    (172.18.0.1)，涉及 POST /api/v1/backtest/run(42 次，每批 3 连发)、
+    /api/v1/signals/、/api/v1/account/summary 等 10 类接口 —— 回测压根没被
+    服务端接受，SQL 层修好了也不会有落库。
+    实测：带 X-API-Key → 200，不带 → 401。qts_client.py 自身是带 key 的，故 401
+    来自**不走 qts_client 的动态 curl/requests 调用**（自动化 agent 运行时自拼，
+    文件里 grep 不到，是"看不见的调用方"）。
+    此检查专门覆盖「服务活着(health 200)但业务接口被拒」这一盲区：24h 内
+    /health 被探活 2800+ 次全绿，却没人发现 200 次业务调用在 401。
+    """
+    from collections import Counter
+
+    alerts: list[str] = []
+    notes: list[str] = []
+    try:
+        r = run_cmd(
+            ["docker", "logs", "--timestamps", "quant-strategy", "--since", "24h"],
+            timeout=60,
+        )
+        text = (r.stdout or "") + "\n" + (r.stderr or "")
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "alerts": [f"QTS API 鉴权检查异常(docker logs 失败): {e}"]}
+
+    src_counter: Counter = Counter()
+    path_counter: Counter = Counter()
+    code_counter: Counter = Counter()
+    for line in text.splitlines():
+        if 'HTTP/1.1"' not in line:
+            continue
+        # 形如: INFO: 172.18.0.1:46216 - "POST /api/v1/backtest/run HTTP/1.1" 401 Unauthorized
+        try:
+            seg = line.split('"')
+            req = seg[1] if len(seg) > 1 else ""
+            tail = seg[2].strip() if len(seg) > 2 else ""
+            code = tail.split()[0] if tail else ""
+            src = line.split("INFO:")[1].strip().split(":")[0] if "INFO:" in line else "?"
+            mp = req.split()
+            path = mp[1] if len(mp) > 1 else req
+        except Exception:  # noqa: BLE001
+            continue
+        if not code.isdigit():
+            continue
+        code_counter[code] += 1
+        if code in ("401", "403"):
+            src_counter[src] += 1
+            path_counter[path] += 1
+
+    n401 = code_counter.get("401", 0) + code_counter.get("403", 0)
+    n5xx = sum(v for k, v in code_counter.items() if k.startswith("5"))
+    # 阈值：健康基线应为 0。401 属"调用方配置错误"（未带 X-API-Key），偶尔 1~2 次
+    # 可能是人工调试；>=10 次/24h 判为系统性漏配（观测到的真实量级是 200/24h）。
+    if n401 >= 10:
+        top_src = ", ".join(f"{k}({v})" for k, v in src_counter.most_common(3))
+        top_path = ", ".join(f"{k}({v})" for k, v in path_counter.most_common(3))
+        alerts.append(
+            f"QTS API 鉴权失败 {n401} 次/24h（health 全绿但业务接口被拒，属检查盲区）"
+            f" | 来源: {top_src}"
+            f" | Top接口: {top_path}"
+            f" | 多为宿主机调用未带 X-API-Key，回测/信号/账户数据不会落库"
+        )
+    if n5xx >= 10:
+        alerts.append(f"QTS API 服务端 5xx {n5xx} 次/24h（{dict(code_counter)}）")
+    if not alerts and n401:
+        notes.append(f"QTS API 401 仅 {n401} 次/24h（低于阈值 10，疑似人工调试）")
+    return {"ok": not alerts, "alerts": alerts, "note": "; ".join(notes) or None}
+
+
 # ════════════════════════════════════════════════════════════════════
 # 中枢主流程
 # ════════════════════════════════════════════════════════════════════
@@ -1979,6 +2051,7 @@ def main() -> int:
         "Dependabot": check_dependabot_backlog(),
         "memwatch完整性": check_memwatch_integrity(),
         "共享文件完整性": check_shared_files_integrity(),
+        "QTS API鉴权": check_qts_api_auth(),
     }
 
     all_alerts: list[str] = []
