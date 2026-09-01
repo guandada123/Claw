@@ -63,6 +63,11 @@ CHAT_ID = "oc_9ee5303497f5e0e71666b610d6bdc346"
 SELF_HEAL_LOG = SCRIPT_DIR / "unified_self_heal_log.json"
 ALERT_DEDUP_STATE = SCRIPT_DIR / ".ops_alerted.json"  # 告警去重状态（check_name@reason -> 时间戳）
 ALERT_DEDUP_TTL_H = 24  # 同一告警 24h 内只推一次
+# 2026-09-01 run#54：QTS API 鉴权检查的**增量锚点**（见 check_qts_api_auth 文档）。
+# 存"已见过的最后一条 401/403 日志的 UTC 时间戳"，用于把 24h 滚动窗口的存量
+# 计数与"自上次检查以来的新增"分开——否则修好存量后仍会瞎红 24h，且新回归被
+# 去重键吞掉（详见该函数 docstring 的「为什么必须增量」）。
+QTS_AUTH_ANCHOR = SCRIPT_DIR / ".qts_api_auth_401_anchor.json"
 
 # 2026-08-30：纯人工处置类告警降频（key 子串匹配 -> 小时）
 # 背景：部分告警根因只能人工处理（如扫码重登），中枢无自愈路径，按 24h 推送会
@@ -1955,20 +1960,80 @@ def _generate_weekly_report() -> int:
     return 0
 
 
+def _parse_docker_ts(line: str) -> float:
+    """解析 `docker logs --timestamps` 行首的 UTC 时间戳 -> epoch 秒；失败返回 0.0。
+
+    形如 `2026-08-31T06:44:58.213464901Z`：纳秒 9 位而 datetime 只吃 6 位，
+    且位数不固定（末位 0 会被省略），直接 fromisoformat 会 ValueError、
+    直接字符串比较会因位数不同而字典序失真。故统一截断/补齐到 6 位再解析。
+    """
+    head = line.split(" ", 1)[0]
+    if not head.endswith("Z") or "T" not in head:
+        return 0.0
+    if "." not in head:
+        # 无小数秒（docker 会省略 .000000）：直接解析，别被下面的分支吞成 0.0
+        # —— 0.0 在增量判定里被保守算作"新增"，解析失败率升高会直接推高误报。
+        iso = head[:-1]
+    else:
+        date_part, _, frac = head.partition(".")  # frac 形如 "213464901Z"
+        iso = f"{date_part}.{frac.rstrip('Z')[:6].ljust(6, '0')}"
+    try:
+        dt = datetime.datetime.fromisoformat(iso)
+    except ValueError:
+        return 0.0
+    return dt.replace(tzinfo=datetime.timezone.utc).timestamp()
+
+
+def _utc_iso(ts: float) -> str:
+    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime("%m-%d %H:%MZ")
+
+
+def _load_qts_auth_anchor() -> float:
+    """读取 401 增量锚点（已见过的最新一条 401/403 的 UTC epoch）；无则 0.0。"""
+    try:
+        return float(json.loads(QTS_AUTH_ANCHOR.read_text(encoding="utf-8")).get("last_seen_ts") or 0.0)
+    except Exception:  # noqa: BLE001
+        return 0.0
+
+
+def _save_qts_auth_anchor(ts: float) -> None:
+    try:
+        QTS_AUTH_ANCHOR.write_text(
+            json.dumps(
+                {
+                    "last_seen_ts": ts,
+                    "updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def check_qts_api_auth() -> dict:
     """QTS 策略服务 API **调用侧**鉴权/错误码检查（2026-09-01 新增，补盲点#4）。
 
-    背景：backtest_reports 表长期仅 1 行（滞留在 07-16），08-31 已修 SQLAlchemy
-    裸 SQL 未包装 text()（16 处）。但 09-01 核查发现修复后仍零落库 —— 真因是
-    quant-strategy 近 24h 有 **200 次 401 Unauthorized**，全部来自宿主机
-    (172.18.0.1)，涉及 POST /api/v1/backtest/run(42 次，每批 3 连发)、
-    /api/v1/signals/、/api/v1/account/summary 等 10 类接口 —— 回测压根没被
-    服务端接受，SQL 层修好了也不会有落库。
-    实测：带 X-API-Key → 200，不带 → 401。qts_client.py 自身是带 key 的，故 401
-    来自**不走 qts_client 的动态 curl/requests 调用**（自动化 agent 运行时自拼，
-    文件里 grep 不到，是"看不见的调用方"）。
-    此检查专门覆盖「服务活着(health 200)但业务接口被拒」这一盲区：24h 内
-    /health 被探活 2800+ 次全绿，却没人发现 200 次业务调用在 401。
+    覆盖「服务活着(health 200)但业务接口被拒」这一盲区：24h 内 /health 被探活
+    2800+ 次全绿，却没人发现 200 次业务调用在 401。
+
+    ── 归因沿革（三版，最终版为准，勿回退）──
+    ① run#51a：以为「生产调用链漏配 key」——错，qts_client.py 确实带 X-API-Key。
+    ② run#51b：以为「agent 自拼 curl 探活」——也错。
+    ③ run#53（定案）：是**本中枢 check_code_quality() 的 `pytest tests/ -q` 用相对
+       路径且未锁 cwd**。本自动化 cwds 是 QTS 仓，于是跑的是 **QTS 的 tests/**，
+       其中 test_e2e.py / tests/contracts/* 直连生产 8000 且不带鉴权 → 每次巡检
+       固定 14 条 401（数量恒定、接口顺序一致=脚本指纹）。已用绝对路径 + cwd=CLAW_ROOT 修复。
+
+    ── 为什么必须按「增量」告警（run#54 升级，勿改回 24h 滚动计数）──
+    24h 滚动窗口 + 去重键数字归一（run#53 为修推送风暴所加）叠加后有个致命副作用：
+      修好根因后，24h 窗口里残留的历史 401 仍会让检查变红，但去重键不变 → 静默；
+      若此时出现**新回归**（202→300），计数变大而去重键仍然不变 → **一样静默**。
+    即：哨兵刚完成一次有效告警，就立刻失明整整 24h，且期间任何恶化都看不见。
+    改为「锚点增量」后：存量自动转绿、新回归立即变红、无时间窗口缝隙。
+    锚点只在首次运行时以当前存量初始化（避免机制切换当天推一张无信息量的卡片）。
     """
     from collections import Counter
 
@@ -1986,6 +2051,12 @@ def check_qts_api_auth() -> dict:
     src_counter: Counter = Counter()
     path_counter: Counter = Counter()
     code_counter: Counter = Counter()
+    # 新增 401/403 的**来源与接口**单独计数——告警诊断要看的是"这一轮新增的是谁"，
+    # 若混用 24h 全窗口计数，会把历史存量的 Top 接口当成当前故障源，指向错误排查方向
+    # （run#54 教训：窗口内的统计口径必须与告警判据的口径一致）。
+    new_src_counter: Counter = Counter()
+    new_path_counter: Counter = Counter()
+    ts_401: list[float] = []
     for line in text.splitlines():
         if 'HTTP/1.1"' not in line:
             continue
@@ -2006,24 +2077,65 @@ def check_qts_api_auth() -> dict:
         if code in ("401", "403"):
             src_counter[src] += 1
             path_counter[path] += 1
+            ts_401.append(_parse_docker_ts(line))
 
     n401 = code_counter.get("401", 0) + code_counter.get("403", 0)
     n5xx = sum(v for k, v in code_counter.items() if k.startswith("5"))
-    # 阈值：健康基线应为 0。401 属"调用方配置错误"（未带 X-API-Key），偶尔 1~2 次
-    # 可能是人工调试；>=10 次/24h 判为系统性漏配（观测到的真实量级是 200/24h）。
-    if n401 >= 10:
-        top_src = ", ".join(f"{k}({v})" for k, v in src_counter.most_common(3))
-        top_path = ", ".join(f"{k}({v})" for k, v in path_counter.most_common(3))
-        alerts.append(
-            f"QTS API 鉴权失败 {n401} 次/24h（health 全绿但业务接口被拒，属检查盲区）"
-            f" | 来源: {top_src}"
-            f" | Top接口: {top_path}"
-            f" | 多为宿主机调用未带 X-API-Key，回测/信号/账户数据不会落库"
-        )
+
+    anchor = _load_qts_auth_anchor()
+    max_ts = max((t for t in ts_401 if t > 0), default=0.0)
+
+    if anchor <= 0.0:
+        # 首次运行：没有基线。把当前 24h 窗口内的存量一次性记为基线、不告警 ——
+        # 否则机制切换当天会把几百条历史存量当成"新增"推一张无信息量的卡片。
+        if max_ts > 0:
+            _save_qts_auth_anchor(max_ts)
+        if n401:
+            notes.append(
+                f"QTS API 鉴权检查首次运行，已建立增量基线锚点(截至 {_utc_iso(max_ts)})；"
+                f"当前 24h 窗口 {n401} 条 401/403 记为存量，自下一轮起只报新增"
+            )
+    else:
+        # 新增判定：时间戳严格晚于锚点。解析失败(0.0)保守计入新增——无法证明它是
+        # 存量时宁可多报也不漏报（漏报正是本机制要修掉的失效模式）。
+        n_new = sum(1 for t in ts_401 if t == 0.0 or t > anchor)
+        # 阈值沿用 10：健康基线应为 0，偶尔 1~2 次可能是人工调试；
+        # 观测到的真实系统性漏配量级是每轮 14 条（一次性批量），10 足以稳定命中。
+        if n_new >= 10:
+            for line, t in zip(
+                [ln for ln in text.splitlines() if " 401 " in ln or " 403 " in ln], ts_401
+            ):
+                if t == 0.0 or t > anchor:
+                    try:
+                        seg = line.split('"')
+                        mp = seg[1].split()
+                        new_path_counter[mp[1] if len(mp) > 1 else seg[1]] += 1
+                        new_src_counter[line.split("INFO:")[1].strip().split(":")[0]] += 1
+                    except Exception:  # noqa: BLE001
+                        continue
+            top_src = ", ".join(f"{k}({v})" for k, v in new_src_counter.most_common(3)) or "?"
+            top_path = ", ".join(f"{k}({v})" for k, v in new_path_counter.most_common(3)) or "?"
+            alerts.append(
+                f"QTS API 鉴权失败：新增 {n_new} 次（自 {_utc_iso(anchor)} 起；24h 窗口共 {n401} 次）"
+                f" | 来源: {top_src}"
+                f" | Top接口: {top_path}"
+                f" | health 全绿但业务接口被拒，回测/信号/账户数据不会落库"
+            )
+        elif n_new:
+            notes.append(
+                f"QTS API 新增 401/403 {n_new} 条（低于阈值 10，疑似人工调试，仅记录不推送）"
+            )
+        elif n401:
+            notes.append(
+                f"QTS API 401/403 存量 {n401} 条，自基线锚点 {_utc_iso(anchor)} 以来无新增（已止血）"
+            )
+        if max_ts > 0:
+            _save_qts_auth_anchor(max_ts)
+
+    # 5xx 保持 24h 滚动口径：服务端错误无"历史存量污染"问题（历史上恒为 0），
+    # 且 5xx 往往是突发脉冲，滚动窗口比增量锚点更能反映持续劣化。
     if n5xx >= 10:
         alerts.append(f"QTS API 服务端 5xx {n5xx} 次/24h（{dict(code_counter)}）")
-    if not alerts and n401:
-        notes.append(f"QTS API 401 仅 {n401} 次/24h（低于阈值 10，疑似人工调试）")
     return {"ok": not alerts, "alerts": alerts, "note": "; ".join(notes) or None}
 
 
