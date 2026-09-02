@@ -2477,6 +2477,15 @@ INTERRUPT_RADIUS_ALERT = 3  # 同刻批量中断的爆炸半径
 INTERRUPT_PENDING_ALERT = 4  # 半径2 事件跨轮累计阈值
 INTERRUPT_PENDING_STALE_SECONDS = 24 * 3600
 
+# ── 调度器日志口径（run#67 新增）──
+# 前三项子检查全部读 workbuddy.db 的 status 字段，而 run#67 实测证明**该字段不是真相**：
+# 调度器对 5 条 DB 状态仍为 QUEUED 的运行都已打过 `run start`（与 "concurrency limit"
+# 同毫秒），即调度侧认为已启动、只是会话层从未分到一个 turn。因此「DB 有没有积压」
+# 与「调度器超发了多少」是两个独立事实，必须另开日志口径，否则超发永远不可见。
+SCHED_LOG = Path.home() / ".workbuddy" / "logs" / "automation.log"
+SCHED_INFLIGHT_FACTOR = 2  # 当前在飞 ≥ 声明并发 × 该倍数 → 告警（声明 3 → 阈值 6）
+SCHED_TIMEOUT_LOOKBACK_H = 36  # 硬超时回看窗口（小时）
+
 
 def _load_queue_state() -> dict:
     """读取批量中断的增量锚点：{last_seen_ts, pending, pending_since}。
@@ -2493,9 +2502,15 @@ def _load_queue_state() -> dict:
             "last_seen_ts": float(raw.get("last_seen_ts") or 0.0),
             "pending": int(raw.get("pending") or 0),
             "pending_since": float(raw.get("pending_since") or 0.0),
+            "timeout_seen_ts": float(raw.get("timeout_seen_ts") or 0.0),
         }
     except Exception:  # noqa: BLE001
-        return {"last_seen_ts": 0.0, "pending": 0, "pending_since": 0.0}
+        return {
+            "last_seen_ts": 0.0,
+            "pending": 0,
+            "pending_since": 0.0,
+            "timeout_seen_ts": 0.0,
+        }
 
 
 def _save_queue_state(state: dict) -> None:
@@ -2506,6 +2521,7 @@ def _save_queue_state(state: dict) -> None:
                     "last_seen_ts": float(state.get("last_seen_ts") or 0.0),
                     "pending": int(state.get("pending") or 0),
                     "pending_since": float(state.get("pending_since") or 0.0),
+                    "timeout_seen_ts": float(state.get("timeout_seen_ts") or 0.0),
                     "updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
                 },
                 ensure_ascii=False,
@@ -2538,6 +2554,92 @@ def _query_automation_runs(since_ms: int) -> list[dict] | None:
             conn.close()
     except Exception:  # noqa: BLE001
         return None
+
+
+def _automation_names(ids: list[str]) -> dict[str, str]:
+    """批量把 automation_id 译成名称。查不到就退回 id 本身（只影响告警可读性）。"""
+    db = Path.home() / ".workbuddy" / "workbuddy.db"
+    if not ids or not db.exists():
+        return {}
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        try:
+            ph = ",".join("?" * len(ids))
+            rows = conn.execute(
+                f"SELECT id, name FROM automations WHERE id IN ({ph})",  # noqa: S608
+                ids,  # 占位符仅由 len(ids) 生成，值全部走参数绑定，无注入面
+            ).fetchall()
+            return {r[0]: (r[1] or r[0]) for r in rows}
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _scheduler_log_signals() -> dict | None:
+    """从调度器日志解析「真实在飞并发」与「90min 硬超时」。不可读返回 None（不误报）。
+
+    ── 为什么必须读日志而不能读 DB（run#67 实测）──
+    `LocalAutomationScheduler` 启动时打印 `concurrency=3`，每次到点若已满则打印
+    `enqueue due automation X: concurrency limit active=N, concurrency=3`。但实测
+    **37/37 条这样的行都在同一毫秒紧跟一条 `run start`** —— 声明的并发上限根本没有
+    被强制执行，调度器照常启动。于是真实在飞数逐日攀升（08-29 峰值 1 → 08-30 4
+    → 08-31 4 → 09-01 8 → 09-02 **13**），全部挤在一个 `codebuddy --serve` 进程与
+    同一模型配额上，单条运行被饿死，最终撞上 90min 硬超时被 `[CANCELLED]` 掉、产物全丢。
+    DB 侧对此完全无感：被饿死的运行 status 停在 QUEUED/IN_PROGRESS，看起来只是"在排队"。
+
+    口径说明：in-flight = 配对 `run start` / `run finished` 的扫描线计数；未配对到
+    finished 的即视为仍在飞（这正是要抓的对象，故**不做**丢弃处理）。
+    """
+    if not SCHED_LOG.exists():
+        return None
+    rx_start = re.compile(r"run start: id=(\S+?), name=(.*?), nextRunAt=\d+, startedAt=(\d+)")
+    rx_fin = re.compile(r"run finished: id=(\S+?), name=.*?, success=\w+, finishedAt=(\d+)")
+    rx_conc = re.compile(r"\[LocalAutomationScheduler\] started .*?concurrency=(\d+)")
+    rx_to = re.compile(r"^(\S+) \[WARN\].*?run failed for (\S+?): \[CANCELLED\] Run timed out")
+    declared = None
+    events: list[tuple[int, int, str]] = []
+    timeouts: list[tuple[float, str]] = []
+    try:
+        with SCHED_LOG.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                m = rx_conc.search(line)
+                if m:
+                    declared = int(m.group(1))
+                    continue
+                m = rx_start.search(line)
+                if m:
+                    events.append((int(m.group(3)), 1, m.group(1)))
+                    continue
+                m = rx_fin.search(line)
+                if m:
+                    events.append((int(m.group(2)), -1, m.group(1)))
+                    continue
+                m = rx_to.match(line)
+                if m:
+                    try:
+                        ts = datetime.datetime.fromisoformat(
+                            m.group(1).replace("Z", "+00:00")
+                        ).timestamp()
+                    except ValueError:
+                        continue
+                    timeouts.append((ts, m.group(2)))
+    except OSError:
+        return None
+    if declared is None or not events:
+        return None
+
+    events.sort()
+    cur = peak = 0
+    for _ts, delta, _i in events:
+        cur += delta
+        peak = max(peak, cur)
+    return {
+        "declared": declared,
+        "current": cur,  # 扫描线走完 = 此刻仍在飞
+        "peak": peak,
+        "timeouts": timeouts,
+    }
 
 
 def check_automation_queue_backlog() -> dict:
@@ -2646,6 +2748,44 @@ def check_automation_queue_backlog() -> dict:
             state["pending_since"] = 0.0
 
     state["last_seen_ts"] = max_ts
+
+    # ── ④ 调度器超发 + 90min 硬超时（run#67 新增，日志口径，独立于上面三项的 DB 口径）──
+    sig = _scheduler_log_signals()
+    if sig is None:
+        notes.append("调度器日志: 不可读，跳过（不误报）")
+    else:
+        declared, cur_fly, peak = sig["declared"], sig["current"], sig["peak"]
+        limit = declared * SCHED_INFLIGHT_FACTOR
+        if cur_fly >= limit:
+            alerts.append(
+                f"调度器超发：当前在飞 {cur_fly} 条 ≥ 声明并发 {declared}×{SCHED_INFLIGHT_FACTOR}"
+                f"（日志峰值 {peak}）——`concurrency={declared}` 未被强制执行，"
+                "运行相互饿死后会撞 90min 硬超时、产物全丢"
+            )
+        else:
+            notes.append(f"调度器在飞 {cur_fly} 条 / 声明并发 {declared}（历史峰值 {peak}）")
+
+        # 硬超时：只报锚点之后的新增。阈值=1（单条即代表一次 90min 空转 + 产物丢失），
+        # 故告警后推进锚点不会造成 run#63 那种「未达阈值被逐轮吸收」的失明。
+        anchor_to = state["timeout_seen_ts"]
+        cutoff = datetime.datetime.now().timestamp() - SCHED_TIMEOUT_LOOKBACK_H * 3600
+        fresh = [(t, i) for t, i in sig["timeouts"] if t > anchor_to and t >= cutoff]
+        if fresh:
+            names = _automation_names([i for _t, i in fresh])
+            detail = "、".join(
+                f"{datetime.datetime.fromtimestamp(t):%m-%d %H:%M}"
+                f"{names.get(i, i)[:18]}"
+                for t, i in sorted(fresh)[:4]
+            )
+            alerts.append(
+                f"自动化硬超时 {len(fresh)} 条被 [CANCELLED]（90min 上限）：{detail}"
+                "——整轮产物丢失，时敏任务窗口已错过"
+            )
+            state["timeout_seen_ts"] = max(t for t, _ in fresh)
+        else:
+            total = len([1 for t, _ in sig["timeouts"] if t >= cutoff])
+            notes.append(f"硬超时: 近{SCHED_TIMEOUT_LOOKBACK_H}h 存量 {total} 条，自锚点无新增")
+
     _save_queue_state(state)
     return {"ok": not alerts, "alerts": alerts, "note": "; ".join(notes) or None}
 
