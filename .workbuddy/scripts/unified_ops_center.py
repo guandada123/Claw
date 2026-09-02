@@ -78,6 +78,16 @@ ALERT_DEDUP_TTL_OVERRIDE_H = {
     "微信公众号通道@wechat-download-api 登录过期": 72,  # 纯人工扫码，中枢不可自愈
 }
 
+# 2026-09-02：审计日志同类条目节流窗口（小时）。见 append_heal_log 说明。
+# 只作用于 action=="detect" 的发现类留痕；自愈/修复动作不受影响。
+AUDIT_THROTTLE_H = 6
+
+# 微信通道的上游消费方（2026-09-02 登记）：
+# 通道已死时该自动化会每日调度却无产出（白跑）。巡检须**实时查其状态**再给处置建议，
+# 而非把「建议暂停止损」写死在文案里 —— 硬编码会在暂停后立刻变成与事实相反的建议
+# （同 2026-09-02-alert-text-must-follow-implementation.md 的教训）。
+WECHAT_RSS_SYNC_ID = "automation-1785335108360"
+
 MEMWATCH_PLIST = Path.home() / "Library" / "LaunchAgents" / "com.workbuddy.memwatch.plist"
 MEMWATCH_SCRIPT = Path.home() / ".local" / "bin" / "watch_workbuddy_mem.sh"
 MEMWATCH_LOG = Path.home() / "Library" / "Logs" / "workbuddy_memwatch.log"
@@ -199,6 +209,43 @@ def append_heal_log(rec: dict) -> None:
         )
     except Exception:
         data = []
+
+    # ── 审计节流（2026-09-02 新增）──
+    # 背景：200 条环形上限被单一高频项灌满。实证（2026-08-26~09-02，共 200 条）：
+    #   187 条（93.5%）是「微信公众号通道 登录过期」这**同一条**死通道告警 ——
+    #   中枢每小时跑一次就 append 一条，7 天历史被挤出窗口，真实可处置的告警
+    #   （QTS API 鉴权 401 / 成本委托断链 / CI 容器异常）只剩 13 条且被淹没，
+    #   直接导致「日志里全是微信、看不到别的」的排查失效。
+    #   注意：飞书侧有 72h 去重、并未轰炸用户，被灌满的只是**审计留痕**，属纯损耗。
+    # 修法：同类 detect 记录在节流窗口内不新增条目，只把已存在条目的 ts 更新为
+    #   最近出现时刻并累加 hits —— 保留「最后一次见到 + 出现过几次」，
+    #   不丢可见性，也不再挤占窗口。
+    # 边界：仅作用于 action=="detect"。自愈/修复/失败类动作是处置留痕，一律不节流。
+    # 判据用 (target, reason 前 80 字) 而非全等：reason 内含计数等易变诊断语时
+    #   仍能归并（与告警去重键同思路），但比去重键更宽松，避免过度合并不同结论。
+    if rec.get("action") == "detect":
+        now = datetime.datetime.now()
+        tk = (rec.get("target", ""), (rec.get("reason") or "")[:80])
+        for i in range(len(data) - 1, -1, -1):
+            old = data[i]
+            if old.get("action") != "detect":
+                continue
+            if (old.get("target", ""), (old.get("reason") or "")[:80]) != tk:
+                continue
+            try:
+                age_h = (now - datetime.datetime.fromisoformat(old["ts"])).total_seconds() / 3600
+            except Exception:  # noqa: BLE001
+                age_h = AUDIT_THROTTLE_H * 2  # 时间戳不可解析：保守当超窗，落新条目
+            if age_h < AUDIT_THROTTLE_H:
+                data[i]["ts"] = now.isoformat(timespec="seconds")
+                data[i]["hits"] = int(data[i].get("hits", 1)) + 1
+                SELF_HEAL_LOG.write_text(
+                    json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+                return
+            break  # 命中同类但已超窗 → 不再往前找，落新条目
+
+    rec.setdefault("hits", 1)
     data.append(rec)
     # 仅保留最近 200 条
     data = data[-200:]
@@ -1058,9 +1105,38 @@ def check_wechat_channel() -> dict:
         )
         last_fetch = _container_last_fetch_ts("wechat-download-api")
         if last_fetch and exp_dt and (exp_dt - last_fetch).days >= 1:
+            # 2026-09-02 补「上游影响面」：此前只说「确认上游调用方」，没给出上游实况，
+            # 处置者仍需自己查。实测上游「【公众号】RSS文章同步落盘(每日)」仍在每日调度，
+            # 但落盘目录停在 2026-08-13 —— 通道已死而上游白跑，属可止损项。
+            # 用**日期**而非精确时刻，保证文案静态、不冲击告警去重键。
+            upstream = ""
+            try:
+                art_dir = CLAW_ROOT / "output" / "wx_articles"
+                if art_dir.is_dir():
+                    newest = max(
+                        (p.stat().st_mtime for p in art_dir.iterdir() if p.is_file()),
+                        default=None,
+                    )
+                    if newest:
+                        d = datetime.datetime.fromtimestamp(newest)
+                        # 实时查上游状态，按实况给建议：
+                        # 上游还活着 → 提示白跑、建议止损；上游已停 → 说明现状。
+                        up_st = _automation_status(WECHAT_RSS_SYNC_ID)
+                        if up_st == "ACTIVE":
+                            upstream = (
+                                f"；上游RSS同步自动化仍在每日调度但产出停在{d:%Y-%m-%d}，"
+                                f"建议暂停止损或先修通道"
+                            )
+                        else:
+                            upstream = (
+                                f"；上游RSS同步自动化已停止调度({up_st or '查不到'})，"
+                                f"落盘停在{d:%Y-%m-%d}，通道恢复前无消费方"
+                            )
+            except Exception:  # noqa: BLE001
+                upstream = ""
             alerts.append(
                 "wechat-download-api 登录过期(isExpired=true)，但通道早于过期即停摆，"
-                "重登大概率无法恢复，建议摘除该巡检项或确认上游调用方"
+                "重登大概率无法恢复，建议摘除该巡检项或确认上游调用方" + upstream
             )
             notes.append(
                 f"微信通道实况: 最后抓取 {last_fetch:%Y-%m-%d %H:%M} UTC/"
@@ -1151,20 +1227,35 @@ def check_cost_anomaly() -> dict:
                 note += f" | ⚠️月底预估超预算{f'(¥{est.group(1)})' if est else ''}"
 
             # 委托存活校验：受托自动化不活着 → 中枢必须自己兜底告警
+            # 2026-09-02 文案修正（run#65 的遗留矛盾）：
+            #   run#65 已把「委托断链且超预算」升级为真实告警，即**中枢已在兜底推送**；
+            #   但文案仍写「该告警当前零出口。建议恢复该自动化或改由中枢告警」——
+            #   与实现相反，会把处置引向「去恢复自动化」这条无效路径（真正缺失的
+            #   出口已由中枢补上），属告警文案滞后于实现。
+            #   改为如实表述：委托链断 → 本条即中枢兜底，给出可执行处置动作。
+            delegate = _automation_status(COST_ALERT_DELEGATE_ID)
             if over_budget or (budget > 0 and cost > budget):
-                delegate = _automation_status(COST_ALERT_DELEGATE_ID)
                 if delegate != "ACTIVE":
                     est_txt = f"¥{est.group(1)}" if est else "未知"
+                    over_amt = float(est.group(1)) - budget if est else 0.0
                     return {
                         "ok": False,
                         "alerts": [
-                            f"本月累计 ¥{cost:.2f} / 预算 ¥{budget:.0f}，月底预估 {est_txt}；"
-                            f"告警委托断链——成本监控自动化 {COST_ALERT_DELEGATE_ID} 当前状态 "
-                            f"{delegate or '查不到（已删除或库不可读）'}，中枢原只做 note 可见性、"
-                            f"把超预算告警委托给它，该告警当前零出口。建议恢复该自动化或改由中枢告警"
+                            f"本月累计 ¥{cost:.2f} / 预算 ¥{budget:.0f}，月底预估 {est_txt}"
+                            f"（超 ¥{over_amt:.0f}）；"
+                            f"成本监控自动化 {COST_ALERT_DELEGATE_ID} 状态 "
+                            f"{delegate or '查不到（已删除或库不可读）'}、委托链已断，"
+                            f"本条由中枢兜底推送（8月超支¥778.23全程无人告警即因该断链）。"
+                            f"处置：执行 budget_guard 降级策略"
                         ],
                         "note": note,
                     }
+            elif delegate != "ACTIVE":
+                # 未超预算也留痕：避免「下次超预算时才第一次发现委托是断的」
+                note += (
+                    f" | ⚠️成本告警委托断链({COST_ALERT_DELEGATE_ID}="
+                    f"{delegate or '查不到'})，超预算时由中枢兜底"
+                )
             return {"ok": True, "alerts": [], "note": note, "kind": "note"}
         # 取数失败：带出 returncode，避免再次静默成「无数字输出()」
         return {
@@ -2347,6 +2438,213 @@ def check_qts_job_write_health() -> dict:
 
 
 # ════════════════════════════════════════════════════════════════════
+# 第 18 项：自动化队列积压 / 批量中断（2026-09-02 run#66 新增，补盲点#5）
+# ════════════════════════════════════════════════════════════════════
+# ── 为什么需要这一项（实证，勿删）──
+# 2026-09-02 09:43:42.073 一刻，3 条自动化被同时中断（resultState=partial_delivered，
+# 产物未落盘）：🐟鱼盆主生成(跑了53min)、🐟鱼盆数据提取(47min)、📊盘中助理实盘监控(32min)；
+# 同时另有 3 条自 09:27/09:34/09:38 起 status=QUEUED 从未开跑，其中「📋【做T】早盘自检(9:25)」
+# 已彻底错过它的 9:25 业务窗口。当天是交易日，开盘后一个多小时**操盘类自动化零产出**。
+#
+# 而中枢当时 17 项检查全部 ✅ —— 唯一间接察觉到的是 check_automation_health() 的
+# 「最近运行被中断」，但那是**滞后且极易被掩盖**的判据：只要该自动化之后有任何一次
+# 成功运行，"最近一次"就被覆盖，异常凭空消失。这正是 09-01 发生过 4 次批量中断
+# （09:36 半径3 / 18:35 半径2 / 22:39 / 22:40），而 run#57~#65 九轮巡检**全部报 ✅** 的原因。
+#
+# 本检查改为直接读平台 `automation_runs.status`（QUEUED / IN_PROGRESS / ACCEPTED），
+# 是**瞬时状态量**而非"最近一次运行"，不会被后续成功覆盖。
+#
+# ── 阈值定级依据 ──
+# ① QUEUED：实测正常态下 runs_json[0].startedAt == created_at（入库即开跑，零排队），
+#    因此 status 长期停在 QUEUED 本身就是异常，不需要很宽松的阈值。
+# ② 爆炸半径 ≥3 才告警：半径 1 绝大多数是**中枢自身长跑被下一档调度取代**（09-01
+#    09:57 / 13:50 / 22:40、09-02 08:17 均为此），属常态，纳入会变成每轮噪音。
+#    半径 2 不单独告警，但跨轮累计（见下），避免"细水长流"永远测不出（run#63 教训）。
+# ③ IN_PROGRESS 超时**排除中枢自己** —— 中枢单轮实测 p90=26min、max=74min，
+#    自己必然是最长的那条；不排除就是纯自伤告警（观测者效应）。
+QUEUE_ANCHOR = SCRIPT_DIR / ".automation_queue_backlog_anchor.json"
+SELF_AUTOMATION_ID = "automation-1785982929477"  # 中枢自身，IN_PROGRESS 超时判定时排除
+QUEUE_DEPTH_ALERT = 3  # 同时 QUEUED 条数
+QUEUE_WAIT_ALERT_MIN = 20  # 单条排队时长（分钟）
+INPROGRESS_STUCK_MIN = 120  # 非中枢的 IN_PROGRESS 滞留上限（分钟）
+INTERRUPT_RADIUS_ALERT = 3  # 同刻批量中断的爆炸半径
+INTERRUPT_PENDING_ALERT = 4  # 半径2 事件跨轮累计阈值
+INTERRUPT_PENDING_STALE_SECONDS = 24 * 3600
+
+
+def _load_queue_state() -> dict:
+    """读取批量中断的增量锚点：{last_seen_ts, pending, pending_since}。
+
+    ── 锚点两变量必须分开（run#63 教训，勿合并）──
+    `last_seen_ts` 负责**状态推进**（哪些中断事件已经看过），`pending` 负责
+    **计数累计**（够不够阈值）。run#63 的 401 检查曾把两者合成一个：每轮无条件
+    推进锚点 → 未达阈值的新增被逐轮吸收 → 低频持续故障永久失明。这里从设计上就
+    拆开：锚点每轮推进，pending 只在「已告警」或「静默超 STALE」时清零。
+    """
+    try:
+        raw = json.loads(QUEUE_ANCHOR.read_text(encoding="utf-8"))
+        return {
+            "last_seen_ts": float(raw.get("last_seen_ts") or 0.0),
+            "pending": int(raw.get("pending") or 0),
+            "pending_since": float(raw.get("pending_since") or 0.0),
+        }
+    except Exception:  # noqa: BLE001
+        return {"last_seen_ts": 0.0, "pending": 0, "pending_since": 0.0}
+
+
+def _save_queue_state(state: dict) -> None:
+    try:
+        QUEUE_ANCHOR.write_text(
+            json.dumps(
+                {
+                    "last_seen_ts": float(state.get("last_seen_ts") or 0.0),
+                    "pending": int(state.get("pending") or 0),
+                    "pending_since": float(state.get("pending_since") or 0.0),
+                    "updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _query_automation_runs(since_ms: int) -> list[dict] | None:
+    """只读取 automation_runs（含自动化名）。查不到/异常返回 None（= 无法判定，不误报）。"""
+    db = Path.home() / ".workbuddy" / "workbuddy.db"
+    if not db.exists():
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        try:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT r.automation_id, r.status, r.result_success, r.created_at, "
+                "r.updated_at, r.metadata_json, a.name "
+                "FROM automation_runs r LEFT JOIN automations a ON a.id = r.automation_id "
+                "WHERE r.created_at >= ? ORDER BY r.created_at",
+                (since_ms,),
+            ).fetchall()
+            return [dict(x) for x in rows]
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def check_automation_queue_backlog() -> dict:
+    """自动化队列积压 / 批量中断检查。返回 {ok, alerts, note}。"""
+    now_ms = int(datetime.datetime.now().timestamp() * 1000)
+    rows = _query_automation_runs(now_ms - 36 * 3600 * 1000)
+    if rows is None:
+        return {"ok": True, "alerts": [], "note": "队列积压: workbuddy.db 不可读，跳过（不误报）"}
+
+    alerts: list[str] = []
+    notes: list[str] = []
+
+    def label(r: dict) -> str:
+        return (r.get("name") or r.get("automation_id") or "?")[:22]
+
+    # ── ① 排队积压：status 停在 QUEUED ──
+    queued = [r for r in rows if (r.get("status") or "") == "QUEUED"]
+    if queued:
+        waits = sorted(((now_ms - r["created_at"]) / 60000, r) for r in queued)
+        worst_min, worst_row = waits[-1]
+        detail = "、".join(f"{label(r)}({m:.0f}min)" for m, r in reversed(waits[:4]))
+        if len(queued) >= QUEUE_DEPTH_ALERT or worst_min >= QUEUE_WAIT_ALERT_MIN:
+            alerts.append(
+                f"自动化队列积压 {len(queued)} 条未开跑（最久 {label(worst_row)} 已等 "
+                f"{worst_min:.0f}min）：{detail}——到点未执行，时敏任务窗口已错过"
+            )
+        else:
+            notes.append(f"队列: {len(queued)} 条 QUEUED（最久 {worst_min:.0f}min，未达阈值）")
+    else:
+        notes.append("队列: 无 QUEUED 积压")
+
+    # ── ② IN_PROGRESS 滞留（排除中枢自己，否则纯自伤）──
+    stuck = [
+        r
+        for r in rows
+        if (r.get("status") or "") == "IN_PROGRESS"
+        and r["automation_id"] != SELF_AUTOMATION_ID
+        and (now_ms - r["created_at"]) / 60000 >= INPROGRESS_STUCK_MIN
+    ]
+    if stuck:
+        detail = "、".join(f"{label(r)}({(now_ms - r['created_at']) / 60000:.0f}min)" for r in stuck)
+        alerts.append(f"自动化 IN_PROGRESS 滞留 {len(stuck)} 条(≥{INPROGRESS_STUCK_MIN}min)：{detail}")
+
+    # ── ③ 批量中断（同刻聚类求爆炸半径），只统计锚点之后的新增 ──
+    state = _load_queue_state()
+    anchor = state["last_seen_ts"]
+    clusters: dict[int, list[dict]] = {}
+    # 聚类 key 用整秒（同刻批量中断的毫秒会有几十 ms 抖动），但锚点必须用**未截断**的
+    # 真实时间戳推进：否则 int(1788313422.073)=1788313422.0 存回锚点后，下一轮
+    # 1788313422.073 > 1788313422.0 仍成立 → 同一事件每轮重复告警（永久红）。
+    raw_max_ts = anchor
+    for r in rows:
+        try:
+            md = json.loads(r.get("metadata_json") or "{}")
+        except Exception:  # noqa: BLE001
+            md = {}
+        if not md.get("interrupted"):
+            continue
+        ts = float(r["updated_at"]) / 1000.0
+        if ts <= anchor:
+            continue  # 存量，已看过
+        raw_max_ts = max(raw_max_ts, ts)
+        clusters.setdefault(int(ts), []).append(r)
+
+    max_ts = raw_max_ts
+    big, small = [], 0
+    for ts, items in sorted(clusters.items()):
+        if len(items) >= INTERRUPT_RADIUS_ALERT:
+            big.append((ts, items))
+        elif len(items) >= 2:
+            small += 1
+
+    if big:
+        parts = []
+        for ts, items in big:
+            when = datetime.datetime.fromtimestamp(ts).strftime("%m-%d %H:%M:%S")
+            parts.append(f"{when} 半径{len(items)}（{'、'.join(label(r) for r in items)}）")
+        alerts.append(
+            "自动化批量中断 " + "；".join(parts) + "——同刻多条被中断，产物未落盘（爆炸半径事件）"
+        )
+        state["pending"] = 0
+        state["pending_since"] = 0.0
+    elif small:
+        if not state["pending_since"]:
+            state["pending_since"] = datetime.datetime.now().timestamp()
+        state["pending"] += small
+        if state["pending"] >= INTERRUPT_PENDING_ALERT:
+            alerts.append(
+                f"自动化批量中断累计 {state['pending']} 次(半径2，跨轮累计≥"
+                f"{INTERRUPT_PENDING_ALERT})——低频持续中断，非突发"
+            )
+            state["pending"] = 0
+            state["pending_since"] = 0.0
+        else:
+            notes.append(f"批量中断累计 {state['pending']}/{INTERRUPT_PENDING_ALERT}（半径2）")
+    else:
+        notes.append("批量中断: 自锚点以来无新增")
+        # 静默超 STALE 才清零 pending（避免一次人工调试的残留在数周后凑够阈值误报）
+        if (
+            state["pending"]
+            and state["pending_since"]
+            and datetime.datetime.now().timestamp() - state["pending_since"]
+            > INTERRUPT_PENDING_STALE_SECONDS
+        ):
+            state["pending"] = 0
+            state["pending_since"] = 0.0
+
+    state["last_seen_ts"] = max_ts
+    _save_queue_state(state)
+    return {"ok": not alerts, "alerts": alerts, "note": "; ".join(notes) or None}
+
+
+# ════════════════════════════════════════════════════════════════════
 # 中枢主流程
 # ════════════════════════════════════════════════════════════════════
 def main() -> int:
@@ -2394,6 +2692,7 @@ def main() -> int:
         "共享文件完整性": check_shared_files_integrity(),
         "QTS API鉴权": check_qts_api_auth(),
         "QTS写入健康": check_qts_job_write_health(),
+        "自动化队列积压": check_automation_queue_backlog(),
     }
 
     all_alerts: list[str] = []
