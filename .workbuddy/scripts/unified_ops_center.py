@@ -467,9 +467,7 @@ def run_cmd(
     # 否则同一份代码在不同工作目录下语义不同（见 check_code_quality 的 pytest 教训，
     # 2026-09-01 run#53：中枢以 QTS 仓为 cwd 被调度 → `pytest tests/` 跑成了 QTS 的
     # e2e 测试 → 每小时对生产 QTS API 打 14 次未鉴权请求，自己制造 401 告警）。
-    return subprocess.run(
-        cmd, capture_output=capture, text=True, timeout=timeout, env=env, cwd=cwd
-    )
+    return subprocess.run(cmd, capture_output=capture, text=True, timeout=timeout, env=env, cwd=cwd)
 
 
 def _raise_cmd_error(r: subprocess.CompletedProcess) -> None:
@@ -983,7 +981,9 @@ def check_data_freshness() -> dict:
         msg = f"数据产物陈旧/缺失 {len(stale)}/{len(WHITELIST)}: {'; '.join(stale)}"
         return {
             "ok": False,
-            "alerts": [msg + " —— 数据管线可能停摆，选股/策略将使用陈旧K线（不自动修复，需管线重跑）"],
+            "alerts": [
+                msg + " —— 数据管线可能停摆，选股/策略将使用陈旧K线（不自动修复，需管线重跑）"
+            ],
             "note": msg,
         }
     return {
@@ -1010,9 +1010,7 @@ def _container_last_fetch_ts(container: str, since: str = "1200h"):
     而本容器的业务日志([Fetch] 等)全部走 stderr —— 只读 r.stdout 会永远扫不到
     （2026-08-30 实测：stderr 2101 行含 358 条 [Fetch]，stdout 25807 行含 0 条）。"""
     try:
-        r = run_cmd(
-            ["docker", "logs", "--timestamps", "--since", since, container], timeout=30
-        )
+        r = run_cmd(["docker", "logs", "--timestamps", "--since", since, container], timeout=30)
     except Exception:  # noqa: BLE001
         return None
     last = None
@@ -2590,6 +2588,14 @@ def _scheduler_log_signals() -> dict | None:
 
     口径说明：in-flight = 配对 `run start` / `run finished` 的扫描线计数；未配对到
     finished 的即视为仍在飞（这正是要抓的对象，故**不做**丢弃处理）。
+
+    ── run#70 修正：「90min 上限」是名义值，实测占位 2~5.4 小时 ──
+    把 `run start` 与 `[CANCELLED] Run timed out` 按 id 配对，09-02 全天 26 条超时的
+    start→cancel 实测跨度 **121.5 ~ 323.7min（p50 238min）**，没有一条接近 90min，且
+    随当日拥堵单调放大（09:12 起 121min → 16:30 起 324min → 夜间回落 168/174min）。
+    说明 90min 计的是「实际执行/无进展」时长，**排队等待不计入**。这条修正很重要：
+    一条被饿死的运行不是"浪费 90min"，而是**占着并发槽位 2~5 小时**，本身就是拥堵的
+    放大器（正反馈），故告警必须报实测占位时长而不是名义值。
     """
     if not SCHED_LOG.exists():
         return None
@@ -2599,7 +2605,9 @@ def _scheduler_log_signals() -> dict | None:
     rx_to = re.compile(r"^(\S+) \[WARN\].*?run failed for (\S+?): \[CANCELLED\] Run timed out")
     declared = None
     events: list[tuple[int, int, str]] = []
-    timeouts: list[tuple[float, str]] = []
+    # (超时时刻, automation_id, 该次运行 start→cancel 实测占位分钟数 | None)
+    timeouts: list[tuple[float, str, float | None]] = []
+    last_start_ms: dict[str, int] = {}
     try:
         with SCHED_LOG.open(encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -2610,6 +2618,7 @@ def _scheduler_log_signals() -> dict | None:
                 m = rx_start.search(line)
                 if m:
                     events.append((int(m.group(3)), 1, m.group(1)))
+                    last_start_ms[m.group(1)] = int(m.group(3))
                     continue
                 m = rx_fin.search(line)
                 if m:
@@ -2623,7 +2632,10 @@ def _scheduler_log_signals() -> dict | None:
                         ).timestamp()
                     except ValueError:
                         continue
-                    timeouts.append((ts, m.group(2)))
+                    started = last_start_ms.get(m.group(2))
+                    held = (ts * 1000 - started) / 60000 if started else None
+                    # 只接受正值：日志被轮转/截断时可能配到更晚的 start，负值一律丢弃
+                    timeouts.append((ts, m.group(2), held if held and held > 0 else None))
     except OSError:
         return None
     if declared is None or not events:
@@ -2640,6 +2652,24 @@ def _scheduler_log_signals() -> dict | None:
         "peak": peak,
         "timeouts": timeouts,
     }
+
+
+def _held_clause(items: list[tuple[float, str, float | None]]) -> str:
+    """把超时事件的实测占位时长汇总成一句人读的补充说明；无数据返回空串（不编造）。
+
+    run#70：原文案写死「90min 上限」与实测严重不符（实测 p50 238min），会让人低估
+    单条饿死运行对拥堵的贡献。这里只报**实测值**，名义 90min 仅作对照。
+    """
+    # 负值只可能来自日志轮转/截断后配错 start，这里再兜一层（解析层已滤过一次）
+    held = sorted(h for _t, _i, h in items if h and h > 0)
+    if not held:
+        return ""
+    mid = len(held) // 2
+    p50 = held[mid] if len(held) % 2 else (held[mid - 1] + held[mid]) / 2
+    return (
+        f"（实测占位 p50 {p50:.0f}min/最长 {held[-1]:.0f}min，远超名义 90min"
+        "——排队等待不计入超时计时，饿死的运行会长时间占着并发槽位、反过来放大拥堵）"
+    )
 
 
 def check_automation_queue_backlog() -> dict:
@@ -2680,8 +2710,12 @@ def check_automation_queue_backlog() -> dict:
         and (now_ms - r["created_at"]) / 60000 >= INPROGRESS_STUCK_MIN
     ]
     if stuck:
-        detail = "、".join(f"{label(r)}({(now_ms - r['created_at']) / 60000:.0f}min)" for r in stuck)
-        alerts.append(f"自动化 IN_PROGRESS 滞留 {len(stuck)} 条(≥{INPROGRESS_STUCK_MIN}min)：{detail}")
+        detail = "、".join(
+            f"{label(r)}({(now_ms - r['created_at']) / 60000:.0f}min)" for r in stuck
+        )
+        alerts.append(
+            f"自动化 IN_PROGRESS 滞留 {len(stuck)} 条(≥{INPROGRESS_STUCK_MIN}min)：{detail}"
+        )
 
     # ── ③ 批量中断（同刻聚类求爆炸半径），只统计锚点之后的新增 ──
     state = _load_queue_state()
@@ -2760,31 +2794,33 @@ def check_automation_queue_backlog() -> dict:
             alerts.append(
                 f"调度器超发：当前在飞 {cur_fly} 条 ≥ 声明并发 {declared}×{SCHED_INFLIGHT_FACTOR}"
                 f"（日志峰值 {peak}）——`concurrency={declared}` 未被强制执行，"
-                "运行相互饿死后会撞 90min 硬超时、产物全丢"
+                "运行相互饿死后会撞硬超时被 [CANCELLED]、产物全丢"
             )
         else:
             notes.append(f"调度器在飞 {cur_fly} 条 / 声明并发 {declared}（历史峰值 {peak}）")
 
-        # 硬超时：只报锚点之后的新增。阈值=1（单条即代表一次 90min 空转 + 产物丢失），
+        # 硬超时：只报锚点之后的新增。阈值=1（单条即代表一次空转 + 产物丢失），
         # 故告警后推进锚点不会造成 run#63 那种「未达阈值被逐轮吸收」的失明。
         anchor_to = state["timeout_seen_ts"]
         cutoff = datetime.datetime.now().timestamp() - SCHED_TIMEOUT_LOOKBACK_H * 3600
-        fresh = [(t, i) for t, i in sig["timeouts"] if t > anchor_to and t >= cutoff]
+        fresh = [(t, i, h) for t, i, h in sig["timeouts"] if t > anchor_to and t >= cutoff]
         if fresh:
-            names = _automation_names([i for _t, i in fresh])
+            names = _automation_names([i for _t, i, _h in fresh])
             detail = "、".join(
-                f"{datetime.datetime.fromtimestamp(t):%m-%d %H:%M}"
-                f"{names.get(i, i)[:18]}"
-                for t, i in sorted(fresh)[:4]
+                f"{datetime.datetime.fromtimestamp(t):%m-%d %H:%M}{names.get(i, i)[:18]}"
+                for t, i, _h in sorted(fresh)[:4]
             )
             alerts.append(
-                f"自动化硬超时 {len(fresh)} 条被 [CANCELLED]（90min 上限）：{detail}"
-                "——整轮产物丢失，时敏任务窗口已错过"
+                f"自动化硬超时 {len(fresh)} 条被 [CANCELLED]：{detail}"
+                f"{_held_clause(fresh)}——整轮产物丢失，时敏任务窗口已错过"
             )
-            state["timeout_seen_ts"] = max(t for t, _ in fresh)
+            state["timeout_seen_ts"] = max(t for t, _i, _h in fresh)
         else:
-            total = len([1 for t, _ in sig["timeouts"] if t >= cutoff])
-            notes.append(f"硬超时: 近{SCHED_TIMEOUT_LOOKBACK_H}h 存量 {total} 条，自锚点无新增")
+            stock = [(t, i, h) for t, i, h in sig["timeouts"] if t >= cutoff]
+            notes.append(
+                f"硬超时: 近{SCHED_TIMEOUT_LOOKBACK_H}h 存量 {len(stock)} 条"
+                f"{_held_clause(stock)}，自锚点无新增"
+            )
 
     _save_queue_state(state)
     return {"ok": not alerts, "alerts": alerts, "note": "; ".join(notes) or None}
