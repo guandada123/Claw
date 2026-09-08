@@ -993,10 +993,27 @@ def check_data_freshness() -> dict:
     }
 
 
-def _container_last_fetch_ts(container: str, since: str = "1200h"):
+WECHAT_FETCH_ANCHOR = SCRIPT_DIR / ".wechat_last_fetch_anchor.json"
+
+
+def _container_last_fetch_ts(container: str, since: str = "2400h"):
     """取容器日志中最后一次真实抓取([Fetch])的时点（tz-aware UTC），失败返回 None。
 
     用途：区分「登录过期导致停摆」与「先停摆、后过期」。
+
+    🔴 时间漂移型静默退化（2026-09-08 run#115 实证并修复）：
+    本函数原用固定 `--since 1200h`(50天) 回溯窗口。wechat-download-api 最后一条
+    [Fetch] 在 2026-07-20 14:19Z，而 09-08 15:16Z 的窗口起点已推到 07-20 15:16Z ——
+    **证据比窗口老 57 分钟**，于是 `--since 1200h` 命中 0 条、`--since 1300h` 命中 358 条。
+    后果三连：① 本函数返回 None ② 上层 F3 判据 `(exp_dt-last_fetch).days>=1` 落空，
+    退到 else 分支输出"需扫码重登"——**正是本函数 docstring 明确判定为误导的处置建议**
+    ③ 告警文案变化 → 去重 key 翻转 → 一条 50 天前的存量问题被当新故障重推。
+    且该退化**永不自愈**（日志窗口只会越滚越远），run#114(12:11Z) 还是对的、
+    run#115(15:15Z) 就错了，纯粹被墙钟推过临界点。
+    修复：窗口放宽到 2400h(100天) + **落盘锚点持久化**（一旦观测到就永久记住，
+    取 max(日志观测, 锚点缓存)，单调只前进）。这样证据滚出日志窗口后判定依然成立；
+    若通道日后恢复抓取，新 [Fetch] 时点更大会推进锚点，F3 自然回到 else 分支
+    （此时"扫码重登"才是正确建议），组合行为已推演闭合。
     实证(2026-08-30 复核)：wechat-download-api 最后抓取 07-20 14:19 UTC，而登录
     08-23 07:54 才过期 —— 抓取比过期早停 33 天（原注释写 23 天有误，已按日志实算更正），
     说明登录态并非停摆根因，此时提示"扫码重登"会误导，
@@ -1009,22 +1026,44 @@ def _container_last_fetch_ts(container: str, since: str = "1200h"):
     注意：docker logs 把容器 stdout/stderr 分别投到本进程的 stdout/stderr，
     而本容器的业务日志([Fetch] 等)全部走 stderr —— 只读 r.stdout 会永远扫不到
     （2026-08-30 实测：stderr 2101 行含 358 条 [Fetch]，stdout 25807 行含 0 条）。"""
+    last = None
     try:
         r = run_cmd(["docker", "logs", "--timestamps", "--since", since, container], timeout=30)
     except Exception:  # noqa: BLE001
-        return None
-    last = None
-    for line in (r.stdout + "\n" + (r.stderr or "")).splitlines():
-        if "[Fetch]" not in line:
-            continue
-        ts = line.split(" ", 1)[0]
+        r = None
+    if r is not None:
+        for line in (r.stdout + "\n" + (r.stderr or "")).splitlines():
+            if "[Fetch]" not in line:
+                continue
+            ts = line.split(" ", 1)[0]
+            try:
+                t = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if last is None or t > last:
+                last = t
+    # ── 锚点持久化：日志窗口会滚过证据，锚点不会 ──
+    cached = None
+    try:
+        raw = json.loads(WECHAT_FETCH_ANCHOR.read_text(encoding="utf-8"))
+        val = (raw or {}).get(container)
+        if val:
+            cached = datetime.datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+    except Exception:  # noqa: BLE001
+        cached = None
+    best = last if (cached is None or (last and last > cached)) else cached
+    if best is not None and (cached is None or best > cached):
         try:
-            t = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        except ValueError:
-            continue
-        if last is None or t > last:
-            last = t
-    return last
+            raw = {}
+            if WECHAT_FETCH_ANCHOR.exists():
+                raw = json.loads(WECHAT_FETCH_ANCHOR.read_text(encoding="utf-8")) or {}
+            raw[container] = best.isoformat()
+            WECHAT_FETCH_ANCHOR.write_text(
+                json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    return best
 
 
 def check_wechat_channel() -> dict:
@@ -2688,7 +2727,7 @@ def check_automation_queue_backlog() -> dict:
     # ── ① 排队积压：status 停在 QUEUED ──
     queued = [r for r in rows if (r.get("status") or "") == "QUEUED"]
     if queued:
-        waits = sorted(((now_ms - r["created_at"]) / 60000, r) for r in queued)
+        waits = sorted((((now_ms - r["created_at"]) / 60000, r) for r in queued), key=lambda x: x[0])
         worst_min, worst_row = waits[-1]
         detail = "、".join(f"{label(r)}({m:.0f}min)" for m, r in reversed(waits[:4]))
         if len(queued) >= QUEUE_DEPTH_ALERT or worst_min >= QUEUE_WAIT_ALERT_MIN:
