@@ -2930,6 +2930,15 @@ def main() -> int:
             print(f"       note: {note}")
         if not res["ok"]:
             for a in res["alerts"]:
+                # alert 正文出口（2026-09-09 run#118）：此前 alert 只进 all_alerts + self_heal_log，
+                # **从不打印到 stdout**，巡检日志里只剩上面那句 `{len(alerts)} 项异常`。
+                # 而多项检查把 N 个子问题聚合进**一条** alert 字符串（如
+                # check_automation_health 返回单条 "自动化健康 10 项🔴: ..."），
+                # 于是 stdout 恒显示「1 项异常」而真实红数是 10 —— run#117 据此误判
+                # 「10🔴→1 项，调度饿死存量基本清退」，实际当时仍有 9🔴（写进了记忆）。
+                # 计数与内含数量不同量级，是典型的误导性观测口径。
+                # 同 run#63「note 只进字典从不输出」先例：只打印、不改判据、不改推送行为。
+                print(f"       alert: {a if len(a) <= 220 else a[:220] + '…'}")
                 all_alerts.append(f"[{name}] {a}")
                 log_action("detect", name, a, "alert")
 
