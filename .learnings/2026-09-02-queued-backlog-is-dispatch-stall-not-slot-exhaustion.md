@@ -1,4 +1,4 @@
-# QUEUED 积压 = 派发卡死，不是「并发槽位耗尽」★升级候选
+# QUEUED 积压 = 派发卡死，不是「并发槽位耗尽」✅已升级(2026-09-06)
 
 > ⚠️ **本文两条子结论已被 run#67 推翻，阅读前先看
 > `2026-09-02-db-status-lies-scheduler-concurrency-unenforced.md`：**
