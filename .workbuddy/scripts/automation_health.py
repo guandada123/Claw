@@ -49,9 +49,12 @@ def get_automations() -> list:
 
     for auto in automations:
         # 最近运行记录
+        # 2026-09-02：补取 result_success / metadata_json。
+        # 判「运行被中断」必须靠 metadata 里的 interrupted / resultState ——
+        # 平台把被中断的 run 仍记为 status=ACCEPTED，只看 status 永远抓不到。
         cur.execute(
             """
-            SELECT thread_id, status, created_at
+            SELECT thread_id, status, created_at, result_success, metadata_json
             FROM automation_runs
             WHERE automation_id = ?
             ORDER BY created_at DESC LIMIT 5
@@ -170,6 +173,7 @@ def check_health(auto: dict) -> dict:
         issues.append(f"状态异常: {status}")
 
     # 运行记录检查
+    last_run_interrupted = False
     if runs:
         last_status = runs[0].get("status", "")
         if last_status == "failed":
@@ -179,9 +183,42 @@ def check_health(auto: dict) -> dict:
             health = "🟡"
             issues.append("超时")
 
-    # last_run_at 字段滞后仅作诊断标注，不改变健康色（真实运行时间已用 runs 表校正）
-    if field_lag_h > 1:
-        issues.append(f"last_run_at字段滞后{field_lag_h:.0f}h")
+        # ── 运行被中断检测（2026-09-02 新增，原为漏检盲区）──
+        # 背景：平台把「跑到一半被宿主中断」的 run 记为 status=ACCEPTED 而非 failed，
+        #   于是上面的 last_status 分支抓不到，只能落到下方模糊的「历史错误」，
+        #   与早已修复的历史残留同级，真故障被噪音淹没。
+        # 实证（2026-09-01/02）：5 个自动化最近一次 run 的 metadata 为
+        #   interrupted=True / resultState=partial_delivered / resultEvidence=none，
+        #   且共享同一 conversationId、finishedAt 时间戳完全相同 —— 宿主级批量中断，
+        #   任务白跑、产物未落盘。这是**真故障**，须按 🔴 显式报出。
+        # 判据取 metadata 而非 status：status 是平台终态口径，对此类中断不敏感。
+        md = runs[0].get("metadata_json") or ""
+        interrupted = False
+        result_state = ""
+        try:
+            m = json.loads(md) if isinstance(md, (str, bytes)) else (md or {})
+            if isinstance(m, dict):
+                interrupted = str(m.get("interrupted", "")).lower() == "true"
+                result_state = str(m.get("resultState", "") or "")
+        except Exception:  # noqa: BLE001
+            pass
+        if interrupted or result_state == "partial_delivered":
+            last_run_interrupted = True
+            health = "🔴"
+            issues.append(
+                f"最近运行被中断({result_state or 'interrupted'}，产物未落盘)"
+            )
+        elif runs[0].get("result_success") in (0, "0", False):
+            # 非中断但平台标记未成功
+            health = "🔴" if health == "🟢" else health
+            issues.append("最近运行未成功(result_success=0)")
+
+    # last_run_at 字段滞后：真实运行时间已用 runs 表校正，该字段不参与健康判定。
+    # 2026-09-02 初版曾「仅当滞后 > 7 天才提示」，但实测 last_run_at 在平台侧对所有
+    #   ACCEPTED 托管运行集体冻结（~24 天前），552–576h 滞后成为常态而非异常，
+    #   导致 60+ 个**正常运行**的自动化被塞入「滞后552h」噪音，与真故障同级展示、掩盖信号。
+    # 2026-09-21 修复：该滞后属平台字段同步特性（非任务故障），彻底移出 issues；
+    #   健康判定完全交给 runs 表校正后的真实运行时间，field_lag_h 仅留 JSON 供排查。
 
     # 静默失败检测（根据调度频率调整阈值）
     last_run = _parse_unix(last_run_ts)
@@ -230,9 +267,14 @@ def check_health(auto: dict) -> dict:
         issues.append("运行中")
 
     # 错误信息
+    # 2026-09-02：若最近一次运行已判定为「中断」，runtime.last_error 与之同源
+    # （内容就是该次中断信息），不再重复计一条「历史错误」，避免同一根因双计刷屏。
     if last_error:
-        health = "🟡" if health == "🟢" else health
-        issues.append(f"历史错误: {last_error[:40]}")
+        if last_run_interrupted and "interrupt" in last_error.lower():
+            pass  # 同源，已由「最近运行被中断」覆盖
+        else:
+            health = "🟡" if health == "🟢" else health
+            issues.append(f"历史错误: {last_error[:40]}")
 
     # 计算24h运行次数
     run_24h = 0
@@ -249,6 +291,9 @@ def check_health(auto: dict) -> dict:
         "issues": issues,
         "run_count_24h": run_24h,
         "running": running,
+        # 诊断字段（2026-09-02）：滞后量移出告警文案但仍留痕，供排查字段同步问题
+        "field_lag_h": round(field_lag_h, 1),
+        "last_run_interrupted": last_run_interrupted,
     }
 
 
