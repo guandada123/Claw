@@ -91,7 +91,19 @@ logs/*.log
 # 盲区只会更深。是否让 B 入库（56.7KB）属设计决策，勿由巡检自动化擅自定。
 # 另注：git status 默认折叠未跟踪目录，B 的 38 个文件只显示为 1 行
 # 「?? .workbuddy/memory/automations/」，须用 --untracked-files=all 才能看清。
+# ── 2026-09-21 用户授权裁定（agent 代决）──
+# 最终策略：A、B 均为「单机构本地运行态、非源码」，不纳入版本控制。
+#   · 自动化定义真相源 registry.json 已 tracked，运行记忆缺失不影响可重建性；
+#   · B 当前 0 tracked、46 文件/756K 纯生成态 → 整目录忽略；
+#   · A 含 29 个历史 tracked 文件(msg_content.json / dedup_*.json / .backups)，
+#     保留其 tracked 状态，仅忽略新增运行噪声(signal_trace_*.md / .archive/)，
+#     并沿用既有 */memory.md 忽略约定。
+# 理由：避免每次自动化运行产生 git churn 与跨机克隆冲突；显式忽略 + 本文档说明
+#   不构成「盲区」（文件仍在磁盘，巡检读取运行时状态而非 git）。禁止巡检自动化擅自改动本策略。
 .workbuddy/automations/*/memory.md
+.workbuddy/memory/automations/
+.workbuddy/automations/*/signal_trace_*.md
+.workbuddy/automations/*/.archive/
 .workbuddy/archive/
 archive/
 .workbuddy/experiments/
