@@ -1,0 +1,392 @@
+{
+  "config": {
+    "initial_capital": 30000.0,
+    "capital_additions": [
+      {
+        "amount": 20000.0,
+        "date": "2026-07-14",
+        "note": "模拟盘资金放宽授权"
+      }
+    ],
+    "created_at": "2026-07-05",
+    "updated_at": "2026-08-24 13:24:06"
+  },
+  "cash": 30853.33,
+  "positions": {
+    "600036": {
+      "name": "招商银行",
+      "shares": 200,
+      "avg_cost": 38.935,
+      "total_cost": 7787.0,
+      "current_price": 39.59,
+      "highest_price": 40.55,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-07-23",
+      "updated": "腾讯gtimg·收盘2026-08-21 15:51",
+      "price_source": "腾讯gtimg·收盘2026-08-21 15:51",
+      "mode": "sprint",
+      "market_value": 7780.0,
+      "floating_pnl": -7.0,
+      "pnl_pct": -0.09,
+      "pnl": -7.0
+    },
+    "601668": {
+      "name": "中国建筑",
+      "shares": 2000,
+      "avg_cost": 4.5814,
+      "total_cost": 9162.7,
+      "current_price": 4.42,
+      "highest_price": 4.65,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-08-05",
+      "price_source": "腾讯gtimg·收盘2026-08-21 15:51",
+      "updated": "腾讯gtimg·收盘2026-08-21 15:51",
+      "risk_note": "C1-20260805: 中金8月低配建筑与工程→跌破4.40减半(卖出2000股)，止损4.27不变；8月中报窗口业绩不及预期亦减半",
+      "mode": "sprint",
+      "market_value": 8780.0,
+      "floating_pnl": -382.8,
+      "pnl_pct": -4.18,
+      "pnl": -382.8
+    },
+    "600031": {
+      "name": "三一重工",
+      "shares": 300,
+      "avg_cost": 19.4767,
+      "total_cost": 5843.0,
+      "current_price": 18.86,
+      "highest_price": 19.58,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-08-07",
+      "market_value": 5640.0,
+      "floating_pnl": -203.01,
+      "pnl_pct": -3.47,
+      "updated": "腾讯gtimg·收盘2026-08-21 15:51",
+      "price_source": "腾讯gtimg·收盘2026-08-21 15:51",
+      "mode": "sprint",
+      "pnl": -203.01
+    },
+    "601899": {
+      "name": "紫金矿业",
+      "shares": 100,
+      "avg_cost": 35.0,
+      "total_cost": 3500.0,
+      "current_price": 35.15,
+      "highest_price": 35.3,
+      "take_profit_level": 1,
+      "first_buy_date": "2026-08-07",
+      "mode": "sprint"
+    }
+  },
+  "transactions": [
+    {
+      "id": "B0003",
+      "type": "BUY",
+      "code": "000333",
+      "name": "美的集团",
+      "shares": 100,
+      "price": 78.67,
+      "commission": 5.0,
+      "total": 7872.0,
+      "time": "2026-07-09 01:45:25",
+      "date": "2026-07-09"
+    },
+    {
+      "id": "B0004",
+      "type": "BUY",
+      "code": "600900",
+      "name": "长江电力",
+      "shares": 200,
+      "price": 27.56,
+      "commission": 5.0,
+      "total": 5517.0,
+      "time": "2026-07-09 01:45:25",
+      "date": "2026-07-09"
+    },
+    {
+      "id": "B0005",
+      "type": "BUY",
+      "code": "601899",
+      "name": "紫金矿业",
+      "shares": 200,
+      "price": 27.54,
+      "commission": 5.0,
+      "total": 5513.0,
+      "time": "2026-07-09 01:45:25",
+      "date": "2026-07-09"
+    },
+    {
+      "id": "B1753347897000",
+      "type": "BUY",
+      "code": "600036",
+      "name": "招商银行",
+      "shares": 200,
+      "price": 38.91,
+      "commission": 5.0,
+      "total": 7787.0,
+      "time": "2026-07-23 14:04:57",
+      "date": "2026-07-23"
+    },
+    {
+      "id": "S1753971107000",
+      "type": "SELL",
+      "code": "600900",
+      "name": "长江电力",
+      "shares": 200,
+      "price": 28.8,
+      "commission": 5.0,
+      "stamp_tax": 5.76,
+      "net_proceeds": 5749.24,
+      "realized_pnl": 232.24,
+      "pnl_pct": 4.21,
+      "reason": "现金不足主动调仓释放:满仓85%锁死选股执行,减防御性最弱仓(长电+4.4%非主线)腾现金参与科技反弹",
+      "time": "2026-07-31 12:51:47",
+      "date": "2026-07-31"
+    },
+    {
+      "id": "S1785899480578",
+      "type": "SELL",
+      "code": "601899",
+      "name": "紫金矿业",
+      "shares": 100,
+      "price": 33.68,
+      "commission": 5.0,
+      "stamp_tax": 3.37,
+      "net_proceeds": 3359.63,
+      "realized_pnl": 603.13,
+      "pnl_pct": 21.88,
+      "reason": "触发+15%分级止盈卖出1/3(正常期双模·当前盈利+21.9%)",
+      "time": "2026-08-05 11:11:20",
+      "date": "2026-08-05"
+    },
+    {
+      "id": "B1785904040079",
+      "type": "BUY",
+      "code": "601668",
+      "name": "早盘选中7.8分+午间回踩买区触发：基建央企破净PB0.4价值修复，与现持(家电/黄金/银行)零行业重叠",
+      "shares": 4000,
+      "price": 4.58,
+      "commission": 5.5,
+      "total": 18325.5,
+      "time": "2026-08-05 12:27:20",
+      "date": "2026-08-05"
+    },
+    {
+      "id": "B1786076851161",
+      "type": "BUY",
+      "code": "600031",
+      "name": "午间确认早盘选中(7.05分)回踩买区触发：工程机械龙头工业制造空白填补+逆市回调非追高+四大师段✅欧⚠️利✅格⚠️0票❌通过",
+      "shares": 300,
+      "price": 19.46,
+      "commission": 5.0,
+      "total": 5843.0,
+      "time": "2026-08-07 12:27:31",
+      "date": "2026-08-07"
+    },
+    {
+      "id": "S1787027271318",
+      "type": "SELL",
+      "code": "601668",
+      "name": "中国建筑",
+      "shares": 2000,
+      "price": 4.36,
+      "commission": 5.0,
+      "stamp_tax": 8.72,
+      "net_proceeds": 8706.28,
+      "realized_pnl": -456.52,
+      "pnl_pct": -4.98,
+      "reason": "risk_note C1-20260805: 跌破4.40减半线已破位(现价4.36)+辩论2票SELL, 减半卖2000股释放现金",
+      "time": "2026-08-18 12:27:51",
+      "date": "2026-08-18"
+    },
+    {
+      "id": "S1787200482472",
+      "type": "SELL",
+      "code": "601899",
+      "name": "紫金矿业",
+      "shares": 100,
+      "price": 34.35,
+      "commission": 5.0,
+      "stamp_tax": 3.44,
+      "net_proceeds": 3426.57,
+      "realized_pnl": 670.07,
+      "pnl_pct": 24.31,
+      "reason": "冲刺期止盈清仓: 模式切换sprint触发+5%档(100股不足1/3拆分→全清), 盈利+24.6%远超+15%清仓线",
+      "time": "2026-08-20 12:34:42",
+      "date": "2026-08-20"
+    },
+    {
+      "id": "S1787545986681",
+      "type": "SELL",
+      "code": "000333",
+      "name": "美的集团",
+      "shares": 100,
+      "price": 85.26,
+      "commission": 5.0,
+      "stamp_tax": 8.53,
+      "net_proceeds": 8512.47,
+      "realized_pnl": 398.97,
+      "pnl_pct": 4.92,
+      "reason": "冲刺期+5%档止盈清仓: 实时价85.26≥止盈线85.19(成本81.135×1.05), 100股不足1/3拆分→全清, 盈利+5.08%锁定",
+      "time": "2026-08-24 12:33:06",
+      "date": "2026-08-24"
+    }
+  ],
+  "daily_snapshot": {
+    "2026-07-06": {
+      "total_asset": 31975.0,
+      "cash": 31975.0,
+      "pnl": 1975.0,
+      "pnl_pct": 6.58,
+      "positions": {},
+      "time": "2026-07-06 07:26:46"
+    },
+    "2026-07-09": {
+      "total_asset": 32084.0,
+      "cash": 13073.0,
+      "pnl": 2084.0,
+      "pnl_pct": 6.95,
+      "positions": {
+        "000333": {
+          "shares": 100,
+          "price": 79.33,
+          "value": 7933.0
+        },
+        "600900": {
+          "shares": 200,
+          "price": 27.77,
+          "value": 5554.0
+        },
+        "601899": {
+          "shares": 200,
+          "price": 27.62,
+          "value": 5524.0
+        }
+      },
+      "time": "2026-07-09 15:30:00"
+    },
+    "2026-07-10": {
+      "total_asset": 32122.0,
+      "cash": 13073.0,
+      "pnl": 2122.0,
+      "pnl_pct": 7.07,
+      "positions": {
+        "000333": {
+          "shares": 100,
+          "price": 78.99,
+          "value": 7899.0
+        },
+        "600900": {
+          "shares": 200,
+          "price": 28.03,
+          "value": 5606.0
+        },
+        "601899": {
+          "shares": 200,
+          "price": 27.72,
+          "value": 5544.0
+        }
+      },
+      "time": "2026-07-10 15:30:00"
+    },
+    "2026-07-14": {
+      "total_asset": 52713.0,
+      "cash": 33073.0,
+      "pnl": 2713.0,
+      "pnl_pct": 5.43,
+      "positions": {
+        "000333": {
+          "shares": 100,
+          "price": 81.18,
+          "value": 8118.0
+        },
+        "600900": {
+          "shares": 200,
+          "price": 28.55,
+          "value": 5710.0
+        },
+        "601899": {
+          "shares": 200,
+          "price": 29.06,
+          "value": 5812.0
+        }
+      },
+      "time": "2026-07-14 15:30:00",
+      "note": "08-05修正: 补记07-14加仓¥20,000注入(cash+total), pnl_pct分母改effective_capital=¥50,000"
+    },
+    "2026-08-02": {
+      "total_asset": 54309.24,
+      "cash": 31035.24,
+      "pnl": 4309.24,
+      "pnl_pct": 8.62,
+      "positions": {
+        "000333": {
+          "name": "美的集团",
+          "shares": 100,
+          "price": 87.6,
+          "market_value": 8760.0
+        },
+        "601899": {
+          "name": "紫金矿业",
+          "shares": 200,
+          "price": 32.95,
+          "market_value": 6590.0
+        },
+        "600036": {
+          "name": "招商银行",
+          "shares": 200,
+          "price": 39.62,
+          "market_value": 7924.0
+        }
+      },
+      "time": "2026-08-02 23:05:19"
+    },
+    "2026-08-13": {
+      "total_asset": 53136.02,
+      "cash": 10208.02,
+      "pnl": 3136.02,
+      "pnl_pct": 6.27,
+      "positions": {
+        "000333": {
+          "name": "美的集团",
+          "shares": 100,
+          "price": 84.16,
+          "market_value": 8416.0
+        },
+        "601899": {
+          "name": "紫金矿业",
+          "shares": 100,
+          "price": 32.83,
+          "market_value": 3283.0
+        },
+        "600036": {
+          "name": "招商银行",
+          "shares": 200,
+          "price": 38.65,
+          "market_value": 7730.0
+        },
+        "601668": {
+          "name": "中国建筑",
+          "shares": 4000,
+          "price": 4.47,
+          "market_value": 17880.0
+        },
+        "600031": {
+          "name": "三一重工",
+          "shares": 300,
+          "price": 18.73,
+          "market_value": 5619.0
+        }
+      },
+      "time": "2026-08-13 11:08:01"
+    }
+  },
+  "initial_capital": 50000.0,
+  "total_assets": 53053.33,
+  "summary": {
+    "total_assets": 52970.86,
+    "total_market_value": 30630.0,
+    "cash": 22340.86,
+    "floating_pnl": -276.2,
+    "updated": "腾讯gtimg·收盘2026-08-21 15:51"
+  }
+}
