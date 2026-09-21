@@ -158,3 +158,11 @@ $DB
 
 # 死副本：经验库权威位置为根 .learnings/，.workbuddy/.learnings 不再跟踪
 .workbuddy/.learnings/
+
+# ── 2026-09-21 审计补充：本地临时产物 / 运行态 (防误提交) ──
+# （注：.workbuddy/memory/automations/ 与 .workbuddy/automations/ 依仓库既有约定保持可见，不加忽略）
+STALL_LOG.md
+_archive/
+quant_trading.db
+.workbuddy/tmp_backup/
+.workbuddy/scripts/*_anchor.json
