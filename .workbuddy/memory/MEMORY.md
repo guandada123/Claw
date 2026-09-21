@@ -32,7 +32,7 @@
 - 被接管已PAUSED：综合健康1781780654327/跨项目1785918166172/多项目1785928720152；保留独立：watchdog失败扫表1785506975961、飞书自检1784084428353；飞书告知结构化卡，全绿SILENT
 
 ## 三系统边界（数据隔离）
-- 📈投顾→.workbuddy/data/simulation/portfolio.json(全权只给结果)｜📊助理→.workbuddy/data/user/portfolio.json(国金)｜🇺🇸美股；持仓同步(07-15)：用户发持仓截图→先diff再分析
+- 📈投顾→.workbuddy/.workbuddy/data/simulation/portfolio.json(全权只给结果)｜📊助理→.workbuddy/.workbuddy/data/user/portfolio.json(国金)｜🇺🇸美股；持仓同步(07-15)：用户发持仓截图→先diff再分析
 - 报告模板(07-13锁)：早/晚/周报走push_*_report.py自建docx+卡片+「📄完整报告」；禁prompt内联/直推stdout；A股红涨绿跌禁反转
 
 ## 模拟炒股+选股
@@ -67,9 +67,15 @@
 - proxy看门狗(07-26)：com.workbuddy.proxy-watchdog(StartInterval=30)；launchd后台agent须managed python3直跑.py｜自动化运维排障(08-04)：①查automation_runs表必须用带 automation- 前缀ID；②status恒PENDING_REVIEW属默认记录态非失败；③验真运行看last_run_at/created_at；④新建定时自动化须走 automation API(勿直插DB绕过调度注册)，建后须验证next_run_at+实测触发；盘中监控明确归Claw托管(既有可用)勿迁QTS；git用git -C <abs>
 - 备份清理核实(08-04)：output/.backups/daily/ 15个tar.gz是14天滚动正常(156M预期)；禁自动prune
 - Claw CI全绿(08-04)：ci.yml已删；ruff锁0.15.17；🔐DeepSeek key轮换完成(活跃sk-faaf…2796)
+- 🔴 **实盘同步管线已死(09-04定性)**：`user/portfolio.json` 冻结于 **2026-08-28 15:57**（股数/成本/可用资金全是 08-28 值，只有价格靠 qt 实时重算）。
+  根因：同步源 `/Users/guan/WorkBuddy/2026-07-30-08-18-28/ths_account_sync/sync.py` **整个目录已不存在**，全盘 `find` 无 `*account_sync*`/`ths_*sync*` 残留；
+  而 `📋 盘后账户汇总报告`(1785421201464) 的 prompt 里写了「目录不存在则跳过同步步骤，不报错不尝试重建」→ **每天 15:07 照跑且 success=true，实际只做“读快照+推送”，从不写回**。
+  自动化列表中已无任何「实盘持仓/委托/成交同步」条目（旧记忆里“每30分钟同步”已失效）。
+  → 危害：若 08-28 之后有买卖，摘要显示的持仓（长电300/华天400）可能是**幻觉持仓**。须重建 QMT/同花顺同步，或改手工维护并在摘要加“数据冻结于08-28”警示。
 
 ## QTS日线数据架构（07-23）
 - 本地回填主源 qts_daily_backfill.py(腾讯K线32线程→upsert 127.0.0.1:15432 daily_quote，自动化1784811393302@16:30)；容器daily_data_refresh仅增量；daily_quote加updated_at列
 
 ## 📐 记忆维护规则（固化）
 - 密度=结论+依据+例外，日志首行记原始指令；查询分类：recall→L1-L3｜compress→蒸馏(>30天→.backups/)｜audit→memory-consistency-audit｜learn→self-improving-agent/SCHEMA
+- 🔴 **10个缺失脚本已重建(2026-09-21)**：is_trading_day/cost_tracker/calc_rsi/workspace_scan/skill_hygiene 为忠实实现；advisor_rules/run_debate/discover_gzh/merge_signal/subscription_brief 为 SAFE-MODE 重建(头部标注 reconstruction, 不编造确定性买卖/成本/多空共识)。discover_gzh 依赖外部「红狐API」仍不可用→空结果；advisor_rules/run_debate 仅保守默认。原脚本逻辑与外部API凭证未恢复, 调用方勿当权威使用, 必要时补回原实现或凭证。
