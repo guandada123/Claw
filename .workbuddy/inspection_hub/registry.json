@@ -1,0 +1,96 @@
+{
+  "hub": "unified-inspection-hub",
+  "version": "1.0.0",
+  "created_at": "2026-09-21",
+  "updated_at": "2026-09-21",
+  "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
+  "forbidden_zones": [
+    "automations/",
+    "scripts/*.db",
+    ".git",
+    ".venv",
+    "symlink_targets",
+    "memory_layers(.workbuddy/memory/**)"
+  ],
+  "authorization_tiers": {
+    "auto_apply": [
+      "references/*.md",
+      "README.md",
+      "CHANGELOG.md",
+      ".workbuddy/inspection_hub/registry.json"
+    ],
+    "propose_review": [
+      "SKILL.md (主流程)",
+      "scripts/*.py",
+      "scripts/*.sh",
+      "automation prompt"
+    ]
+  },
+  "runbook_whitelist": [
+    "registry_update",
+    "changelog_write",
+    "skill_doc_apply (references/README/CHANGELOG)",
+    "dry_run_scan",
+    "liveness_check",
+    "skill_hygiene_audit"
+  ],
+  "automations": [
+    {
+      "name": "🛡️ 统一发现-每日扫描",
+      "id": "2a404a97-c262-4cad-8a43-3c5a69febfbb",
+      "rrule": "FREQ=DAILY;BYHOUR=7;BYMINUTE=30",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-22T07:30 (daily)",
+      "note": "A内部健康快照 + B外部同类研究 + 比对 → registry.discovery_candidates"
+    },
+    {
+      "name": "🧬 技能演进-周度",
+      "id": "0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4",
+      "rrule": "FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-26T10:00 (Sat)",
+      "note": "读 registry pending 候选；文档类应用 / 核心类提案待审"
+    },
+    {
+      "name": "🧹 技能卫生审计-月度",
+      "id": "a0b1b435-225f-43eb-8e9b-a7bb82fde97a",
+      "rrule": "FREQ=MONTHLY;BYMONTHDAY=1;BYHOUR=9;BYMINUTE=0",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-10-01T09:00",
+      "note": "复用 skill-hygiene（缺失则降级只读盘点）：重复/坏链/未用/prompt-injection"
+    },
+    {
+      "name": "🐴 空间+技能巡检-季度",
+      "rrule": "FREQ=YEARLY;BYMONTH=1,4,7,10;BYMONTHDAY=1;BYHOUR=9;BYMINUTE=0",
+      "status": "ACTIVE",
+      "note": "已建 id=52db25b4-b948-464b-ad62-44b77b875d2a（majiu 季度巡检）"
+    },
+    {
+      "name": "💓 中枢存活看门狗",
+      "id": "337116da-e9b3-46f6-8993-a00b35ad7e86",
+      "rrule": "FREQ=HOURLY;INTERVAL=2",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-21T14:00 (每2h)",
+      "note": "读 registry.last_run >180min → 飞书告警（独立调度, cwds=QTS 符合禁托管新规）"
+    },
+    {
+      "name": "🩺 统一巡检·报错自诊与修复",
+      "id": "f8443038-26e3-4f69-9f60-ab838dc83df3",
+      "rrule": "FREQ=DAILY;BYHOUR=20;BYMINUTE=0",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-21T20:00 (daily)",
+      "note": "读 automation_health.json 做报错 triage：系统性假阳性(🟢态, 含 field_lag)幂等自修，真实下探(🔴/🟡)推 propose_review 卡；PAUSED/瞬时中断不盲改"
+    }
+  ],
+  "evolution_watch_skills": [
+    "majiu-management",
+    "wb-finance-skill"
+  ],
+  "discovery_candidates": [],
+  "known_failure_modes": []
+}
