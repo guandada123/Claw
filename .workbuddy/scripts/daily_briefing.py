@@ -97,6 +97,10 @@ def build_items(raw_holdings, key_map, default_thr=-8.0):
         pnl = (q["price"] - avg) / avg * 100 if avg else 0.0
         thr = -15.0 if code.startswith(("300", "301")) else default_thr
         flag = f"🔴 破止损(≤{thr:.0f}%)" if pnl <= thr else ""
+        # 市值必须按实时价重算：archive 里的 market_value 是存档价算的，
+        # 与同一行展示的现价自相矛盾（2026-09-03 修复）。
+        shares = h.get("shares", 0) or 0
+        mv = q["price"] * shares if shares else (h.get("market_value", 0) or 0)
         items.append(
             {
                 "code": code,
@@ -104,7 +108,7 @@ def build_items(raw_holdings, key_map, default_thr=-8.0):
                 "price": q["price"],
                 "pct": q["pct"],
                 "pnl": round(pnl, 2),
-                "mv": h.get("market_value", 0) or 0,
+                "mv": mv,
                 "flag": flag,
             }
         )
@@ -146,10 +150,12 @@ def main() -> None:
     body = [f"📅 **盘前持仓 / 盘面摘要 · {today} {weekday}**", ""]
     body += section("📊 实盘（国金）", real_items)
     body += section("📈 模拟盘（投顾）", sim_items)
+    data_ts = datetime.datetime.now().strftime("%H:%M")
     body += [
         "",
         "---",
-        "⏰ 盘前 08:50 自动推送 ｜ 实时价来源 腾讯 qt.gtimg.cn（非交易时段为最近收盘，不伪造时间戳）",
+        f"⏰ 计划 08:50 推送 ｜ 取价时刻 {data_ts} ｜ 实时价来源 腾讯 qt.gtimg.cn"
+        "（非交易时段为最近收盘，不伪造时间戳）",
     ]
 
     text = "\n".join(body)

@@ -17,7 +17,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# 文件位于 .workbuddy/scripts/，项目根 = 上溯三级 (.workbuddy/scripts -> .workbuddy -> Claw)
+# 修复：原 .parent.parent 误指 .workbuddy，导致 claw.feeds.wind_utils 永远 import 失败、
+# 日报恒报"无法获取查询统计"。需指到 Claw 根，使其 src/ 在 sys.path 上。
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # ── 查询统计（来自 wind_utils 和 wind_quote） ──
 

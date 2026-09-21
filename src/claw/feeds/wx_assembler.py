@@ -934,6 +934,10 @@ def build_evening_report():
     # 八、🧪 量化策略验证（QTS 11策略全市场回测，2026-08-13 打通: 服务直连读PG）
     lines.append("\n八、🧪 量化策略验证（QTS 11策略全市场回测）")
     brief = None
+    # brief_path 必须在 try 之前定义: 服务直连返回空 dict 时会跳过降级分支,
+    # 若只在分支内定义则末尾 elif 引用会 NameError 炸掉整个晚报组装 (2026-09-01 修)
+    brief_path = "/tmp/qts_daily_brief.json"  # noqa: S108 降级文件桥接
+    brief_src = "服务直连 PG"
     try:  # 优先服务直连: QTS 落库 PG → Claw 只读 (qts_client)
         from qts_client import get_daily_brief
 
@@ -947,7 +951,7 @@ def build_evening_report():
     except Exception:  # noqa: BLE001 - 服务直连失败降级旧文件桥接
         brief = None
     if brief is None:  # 降级: /tmp 文件桥接(旧链路, 待 15:00 自动化落库后移除)
-        brief_path = "/tmp/qts_daily_brief.json"  # noqa: S108 降级文件桥接
+        brief_src = "文件桥接 /tmp"
         if os.path.exists(brief_path):
             try:
                 with open(brief_path, encoding="utf-8") as f:
@@ -964,7 +968,7 @@ def build_evening_report():
         avg_sharpe = sm.get("avg_sharpe", 0)
         wf_passed = sm.get("wf_passed", 0)
         wf_candidates = sm.get("wf_candidates", 0)
-        lines.append("  数据来源: QTS 回测日评（服务直连 PG，15:00 预生成）")
+        lines.append(f"  数据来源: QTS 回测日评（{brief_src}，收盘后 14:55 批次预生成）")
         lines.append(
             f"  回测概况：{total} 次回测 | 均 Sharpe {avg_sharpe:+.2f} | "
             f"WF 验证候选 {wf_candidates} 个 / 通过 {wf_passed} 个"
@@ -984,13 +988,39 @@ def build_evening_report():
                     f"  | {i} | {strat} | {code} | {sharpe:.2f} | "
                     f"{ret:+.1f}% | {wf_stab:.1f}% | {wf_label} |"
                 )
-        # 本周趋势解读（基于 WF 通过情况）
-        if wf_passed == 0 and wf_candidates > 0:
-            trend = "无策略通过 WF 验证 → 市场环境异常，回测信号暂停追入（过拟合特征明显）"
-        elif wf_passed > 0:
-            trend = f"{wf_passed} 个策略通过 WF 验证，量价策略在当前市场相对有效"
-        else:
+        # 本周趋势解读（2026-09-01 修: 原逻辑仅看 wf_passed>0 即断言"相对有效",
+        # 通过率 16.7% + Top5 样本外全劣化时仍输出正面结论 → 误导。
+        # 现改为 通过率 + 样本外过拟合方向 + 低样本 三重门）
+        wf_rate = (wf_passed / wf_candidates * 100) if wf_candidates else 0.0
+        _ratios = [
+            t.get("wf_overfit_ratio")
+            for t in top5[:5]
+            if isinstance(t.get("wf_overfit_ratio"), (int, float))
+        ]
+        all_overfit = bool(_ratios) and all(r < 0 for r in _ratios)
+        low_sample = bool(brief.get("flags", {}).get("low_sample"))
+        if wf_candidates == 0:
             trend = "今日无 WF 候选（回测池未产出达标标的）"
+        elif wf_passed == 0:
+            trend = "无策略通过 WF 验证 → 市场环境异常，回测信号暂停追入（过拟合特征明显）"
+        elif wf_rate < 30 or all_overfit or low_sample:
+            _why = []
+            if wf_rate < 30:
+                _why.append(f"通过率仅 {wf_rate:.0f}%")
+            if all_overfit:
+                _why.append("Top5 样本外收益全部劣于样本内")
+            if low_sample:
+                _why.append("低样本（单标的成交笔数不足，高夏普系单笔统计假象）")
+            trend = (
+                f"{wf_passed}/{wf_candidates} 个策略通过 WF 验证，但"
+                + "、".join(_why)
+                + " → 仅可作策略族统计倾向参考，**不构成推荐或买入信号**"
+            )
+        else:
+            trend = (
+                f"{wf_passed}/{wf_candidates} 个策略通过 WF 验证"
+                f"（通过率 {wf_rate:.0f}%），量价策略在当前市场相对有效"
+            )
         lines.append(f"  **本周趋势解读**：{trend}")
     elif not os.path.exists(brief_path):
         lines.append("  （QTS 日评 15:00 批次未生成 /tmp/qts_daily_brief.json，不填入旧数据）")

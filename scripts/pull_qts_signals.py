@@ -29,17 +29,43 @@ def _connect() -> dict:
 
     原实现: docker cp + docker exec 注入容器内 Python 脚本读 backtest_reports。
     现实现: qts_client.get_daily_report() 服务直连(只读PG 15432)，零容器依赖。
+
+    2026-09-04 契约修复（数据新鲜度根因）:
+    top_strategies 主源改为 `covered` 结构化列（QTS report_scheduler 已落，
+    始终 JSON）；detail_content 是 Markdown，不再依赖它提供 top_strategies。
+    wf_validated 自 09-02 起已随 Markdown 化丢失 → 缺失时如实标记
+    wf_stability=None（下游质量闸门 quarantine：未经过 WF 验证），绝不静默造假。
+    若极偶然 detail 回灌为含 wf_validated 的 JSON，则优先采用（保留历史护栏）。
     """
     from qts_client import get_daily_report
 
     report = get_daily_report()
     if report is None:
         return {"error": "no_report_in_db", "hint": "回测日报尚未生成，等15:35或手动触发"}
-    detail = report.get("detail") or {}
-    wf = detail.get("wf_validated", {})
-    top = (detail.get("top_strategies") or [])[:15]
+    detail = report.get("detail")
+    rd = report.get("report_date")
+
+    # ── top_strategies 主源：covered 结构化列 ──
+    top = report.get("top_strategies") or []
+
+    # ── wf_validated 来源：仅当 detail 恰好是含 wf_validated 的 JSON（历史偶然）──
+    wf = {}
+    if isinstance(detail, dict) and "wf_validated" in detail:
+        wf = detail.get("wf_validated", {})
+        # detail 内若也带更全的 top_strategies，优先用 detail 的
+        if detail.get("top_strategies"):
+            top = detail["top_strategies"]
+
+    if not top:
+        return {
+            "error": "report_missing_top_strategies",
+            "report_date": rd,
+            "hint": ("日报 covered 列无 top_strategies（QTS 未产出策略列表），"
+                     "拒绝产出信号；需确认 QTS report_scheduler 正常写 covered。"),
+        }
+
     output_signals = []
-    for s in top:
+    for s in top[:15]:
         ts_code = s.get("ts_code", "")
         wf_data = wf.get(ts_code, {})
         stability = wf_data.get("stability")
@@ -152,7 +178,14 @@ if __name__ == "__main__":
     result = pull(min_stability=args.min_stability, top_n=args.top)
 
     if "error" in result:
+        # hint 必须一起打出：自动化日志里只有错误码等于没有诊断信息（2026-09-03）
         print(f"❌ {result['error']}", file=sys.stderr)
+        if result.get("hint"):
+            print(f"   原因: {result['hint']}", file=sys.stderr)
+        if result.get("report_date"):
+            print(f"   日报日期: {result['report_date']}", file=sys.stderr)
+        print("   ⚠️ 未覆盖 data/qts_daily_signals.json —— 保留陈旧文件以便"
+              "「数据新鲜度」巡检项继续告警，避免用空产物掩盖上游故障。", file=sys.stderr)
         sys.exit(1)
 
     print(f"✅ QTS 信号拉取完成: {result['total_signals']} 总数, "

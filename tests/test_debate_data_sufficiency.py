@@ -287,7 +287,18 @@ class TestSentimentEnrichment:
         assert run_debate._classify_signal("") == 0
 
     def test_fetch_sentiment_aggregates_wechat(self):
-        """近7天聚合：2 多 1 空 → wechat_signals {bullish:2, bearish:1, net:1}"""
+        """近7天聚合：2 多 1 空 → wechat_signals {bullish:2, bearish:1, net:1}
+
+        日期冻结：7天窗口依赖 datetime.date.today()，数据日期硬编码，
+        不冻结会在若干天后把 08-18 的 bearish 记录挤出窗口导致误失败。
+        """
+        import datetime as _dt
+
+        class _FrozenDate(_dt.date):
+            @classmethod
+            def today(cls):
+                return cls(2026, 8, 25)  # cutoff=08-18，含全部3条在窗记录
+
         recs = [
             {"stock_code": "600584", "signal": "bullish", "recorded_at": "2026-08-20 08:50"},
             {"stock_code": "600584", "signal": "买入", "recorded_at": "2026-08-19 08:50"},
@@ -305,10 +316,13 @@ class TestSentimentEnrichment:
         ]
         sig_path = Path(__file__).parent.parent / ".workbuddy" / "data" / "article_signals.json"
         with (
+            mock.patch.object(run_debate, "datetime") as m_dt,
             mock.patch.object(Path, "exists", return_value=True),
             mock.patch.object(Path, "read_text", return_value=json.dumps(recs, ensure_ascii=False)),
             mock.patch.object(run_debate, "_fetch_hot_rank", return_value=None),
         ):
+            m_dt.date = _FrozenDate
+            m_dt.timedelta = _dt.timedelta  # 保留真实 timedelta
             senti = run_debate._fetch_sentiment("600584")
         assert senti["wechat_signals"] == {"bullish": 2, "bearish": 1, "net": 1}
 

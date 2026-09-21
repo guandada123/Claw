@@ -334,6 +334,8 @@ def test_check_entry_attaches_t0_suggestion(advisor):
         patch.object(advisor, "_get_live_price", return_value=None),
         patch.object(advisor, "_find_holding", return_value=holding),
         patch.object(advisor, "check_sector_block", return_value=None),
+        # 隔离市场情绪(实时 Wind)：避免实时"弱市+弱板块"非确定性触发 S 拦截
+        patch.object(advisor, "_get_sentiment", return_value=None),
         patch.object(
             advisor,
             "check_t0",

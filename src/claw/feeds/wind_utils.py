@@ -70,7 +70,12 @@ def plain_code_to_windcode(code: str) -> str:
 # 每日查询上限（保护积分，1000 免费积分/天 ≈ 200 次简单查询 或 20 次分析查询）
 # 2026-08-12 由 100 调至 180：用户确认 AIFin Market 真实配额为 1000 积分/天，
 # 100 过于保守（按注释换算仅用半数），180 贴近 200 次简单查询的 90% 安全线。
-_DAILY_QUERY_LIMIT = 180
+# 2026-09-01 解 Wind 日限（用户要求）：
+#   1) 上限由 180 抬至 200，对齐真实配额天花板（200 次简单查询≈1000 积分，无超额风险）。
+#   2) 新增「同日内查询缓存」——相同 (server,tool,params) 直接返回缓存，不打网络、不计数，
+#      真正释放有效吞吐（根治 signal_verify 逐股重复查 Wind 的浪费），而非单纯抬高数字。
+#   3) 支持环境变量 CLAW_WIND_DAILY_LIMIT 覆盖（用户升级 Wind 套餐后可调高）。
+_DAILY_QUERY_LIMIT = int(os.environ.get("CLAW_WIND_DAILY_LIMIT", "200"))
 _query_lock = threading.Lock()
 _limit_warned = False  # 进程内去重：日限警告仅打印一次，避免 signal_verify 逐股循环刷屏（08-24 修复 25 天刷屏）
 
@@ -78,6 +83,12 @@ _limit_warned = False  # 进程内去重：日限警告仅打印一次，避免 
 # ⚠️ DO NOT REVERT: 原 _daily_query_count 是纯内存变量，进程退出即归零，
 # 导致 wind_quota_report.py 每次新进程读到0、日报失真。改为落盘 JSON 跨进程共享。
 _WIND_COUNT_FILE = os.path.expanduser("~/.workbuddy/wind_query_count.json")
+
+# ── 同日内查询缓存（2026-09-01 解日限核心）──
+# 键 = 日期|server|tool|params_json；同进程内相同查询直接命中，绕过网络与计数器。
+# 这是「解日限」的真正杠杆：把浪费在重复查询上的额度释放给真正的新查询。
+_wind_cache: dict[str, Any] = {}
+_wind_cache_date = ""
 
 
 def _load_count() -> tuple[str, int]:
@@ -154,14 +165,29 @@ def call_wind_cli(
     - 文档/新闻   {items}
     - EDB 宏数据 {code, data: [{meta, date, value}]}
     - analytics   {data: [{columns, rows}]} 嵌套
+
+    2026-09-01 起：相同查询走同日内缓存，不打网络、不计入日限计数器。
     """
+    today = time.strftime("%Y%m%d")
+    params_json = json.dumps(params, ensure_ascii=False)
+
+    # ── 同日内缓存命中：直接返回，不计网络不计计数器（解日限核心）──
+    # 注：_wind_cache 仅做原地 .clear() 变更（不重新绑定），无需 global 声明；
+    #     仅 _wind_cache_date 会被重新赋值，故只需声明它（避免 PLW0602）。
+    global _wind_cache_date
+    if _wind_cache_date != today:
+        _wind_cache.clear()
+        _wind_cache_date = today
+    cache_key = f"{today}|{server_type}|{tool_name}|{params_json}"
+    if cache_key in _wind_cache:
+        return _wind_cache[cache_key]
+
     if not _check_query_limit():
         return None
     if not os.path.exists(WIND_CLI_PATH):
         logger.debug("Wind CLI 不可用: 未安装 wind-mcp-skill")
         return None
 
-    params_json = json.dumps(params, ensure_ascii=False)
     try:
         result = subprocess.run(
             ["node", WIND_CLI_PATH, "call", server_type, tool_name, params_json],
@@ -214,7 +240,9 @@ def call_wind_cli(
                         "日期": dt[:10],
                         "值": val,
                     })
-            return {"columns": [], "rows": flat_rows}
+            ret = {"columns": [], "rows": flat_rows}
+            _wind_cache[cache_key] = ret
+            return ret
 
         # analytics_data 嵌套 data.data
         if "data" in inner and isinstance(inner["data"], list):
@@ -222,10 +250,14 @@ def call_wind_cli(
 
         # 文档/新闻: {items: [...]}
         if "items" in inner:
-            return {"columns": [], "rows": inner["items"]}
+            ret = {"columns": [], "rows": inner["items"]}
+            _wind_cache[cache_key] = ret
+            return ret
 
         # 标准表格: {columns, rows}
-        return {"columns": [c["name"] for c in inner.get("columns", [])], "rows": inner.get("rows", [])}
+        ret = {"columns": [c["name"] for c in inner.get("columns", [])], "rows": inner.get("rows", [])}
+        _wind_cache[cache_key] = ret
+        return ret
 
     except json.JSONDecodeError as e:
         logger.warning(f"Wind CLI JSON 解析失败: {e}", exc_info=True)

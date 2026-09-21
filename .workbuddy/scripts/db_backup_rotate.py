@@ -4,8 +4,9 @@ db_backup_rotate.py — workbuddy.db 备份滚动清理（低优先级运维优�
 
 设计：
   自动化治理过程中会对 ~/.workbuddy/workbuddy.db 做软停/合并前备份
-  （命名 workbuddy.db.bak-<reason>-<YYYYMMDDHHMMSS>）。本脚本按"保留 N 天"滚动清理过期备份，
-  防止备份无限堆积撑爆磁盘。
+  （命名 workbuddy.db.bak-<reason>-<YYYYMMDDHHMMSS> 或 workbuddy.db.bak.<YYYYMMDD_HHMMSS>，
+    两种命名均支持；2026-08-30 起兼容点号命名，此前只认连字符导致静默漏扫）。
+  本脚本按"保留 N 天"滚动清理过期备份，防止备份无限堆积撑爆磁盘。
 
   安全铁律：
   ① 只删匹配 workbuddy.db.bak-* 前缀的文件，绝不碰主库 workbuddy.db
@@ -34,24 +35,36 @@ HOME = Path(os.path.expanduser("~"))
 DB_DIR = HOME / ".workbuddy"
 DB_PATH = DB_DIR / "workbuddy.db"
 BACKUP_PREFIX = "workbuddy.db.bak-"
+# 2026-08-30 修复：实际备份文件命名为 workbuddy.db.bak.<YYYYMMDD_HHMMSS>（点号），
+# 而原实现只 glob 「连字符」前缀 → 长期静默 0 匹配（明明有 4 个过期备份却报"无需清理"）。
+# 两种命名都支持，且严格排除主库 / -wal / -shm，避免误伤。
+BACKUP_PATTERNS = ("workbuddy.db.bak-*", "workbuddy.db.bak.*")
+NON_BACKUP_SUFFIXES = ("-wal", "-shm", "-journal")
 KEEP_DAYS_DEFAULT = 7
 
 
 def _list_backups() -> list[Path]:
     if not DB_DIR.exists():
         return []
-    return sorted(
-        [p for p in DB_DIR.glob(f"{BACKUP_PREFIX}*") if p.is_file()],
-        key=lambda p: p.stat().st_mtime,
-    )
+    found: dict[Path, None] = {}
+    for pat in BACKUP_PATTERNS:
+        for p in DB_DIR.glob(pat):
+            if not p.is_file():
+                continue
+            if p.name.endswith(NON_BACKUP_SUFFIXES):
+                continue
+            found[p] = None
+    return sorted(found, key=lambda p: p.stat().st_mtime)
 
 
 def _to_trash(path: Path) -> tuple[bool, str]:
     """macOS 移入废纸篓（trash 语义），失败则回退 os.remove。"""
     try:
         # 优先用系统 Finder 移废纸篓（可恢复）
+        # 超时 30s→90s（2026-08-30）：首个 osascript 调用常需冷启动 Finder，
+        # 30s 不够 → 超时后回退 os.remove，绕过废纸篓（不可逆）。放宽后 trash 语义才真正生效。
         script = f'tell application "Finder" to delete POSIX file "{path}"'
-        subprocess.run(["osascript", "-e", script], check=True, capture_output=True, timeout=30)
+        subprocess.run(["osascript", "-e", script], check=True, capture_output=True, timeout=90)
         return True, "trash"
     except Exception as e:  # noqa: BLE001
         try:

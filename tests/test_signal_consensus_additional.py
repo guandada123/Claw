@@ -6,7 +6,7 @@
 """
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -32,7 +32,7 @@ def test_compute_consensus_empty_outputs_summary(tmp_path, monkeypatch):
     # 空的 QTS 信号
     monkeypatch.setattr(sc, "_QTS_SIGNALS", tmp_path / "qts_daily_signals.json")
     (tmp_path / "qts_daily_signals.json").write_text(
-        json.dumps({"report_date": "2026-07-16", "generated_at": datetime.now(_TZ).isoformat(), "signals": []}),
+        json.dumps({"report_date": date.today().isoformat(), "generated_at": datetime.now(_TZ).isoformat(), "signals": []}),
         encoding="utf-8",
     )
 
@@ -57,7 +57,7 @@ def test_compute_consensus_wf_passed_boosts_weight(tmp_path, monkeypatch):
     monkeypatch.setattr(sc, "_QTS_SIGNALS", tmp_path / "qts_daily_signals.json")
     (tmp_path / "qts_daily_signals.json").write_text(
         json.dumps({
-            "report_date": "2026-07-16",
+            "report_date": date.today().isoformat(),
             "generated_at": datetime.now(_TZ).isoformat(),
             "signals": [{
                 "ts_code": "600000.SH",

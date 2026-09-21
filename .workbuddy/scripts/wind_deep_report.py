@@ -44,36 +44,68 @@ def clean_label(k: str) -> str:
     return k
 
 
-def wind_call(server: str, tool: str, params: dict, timeout: int = 25) -> list | None:
-    """调用 Wind CLI，返回 rows 映射为 dict 的列表；失败返回 None。"""
-    try:
-        p = subprocess.run(
-            ["node", str(CLI), "call", server, tool, json.dumps(params, ensure_ascii=False)],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        if p.returncode != 0:
-            return None
-        d = json.loads(p.stdout)
-        content = d.get("content")
-        if not content:
-            return None
-        payload = json.loads(content[0]["text"])
-        blocks = payload.get("data", {}).get("data", [])
-        if not blocks:
-            return None
-        block = blocks[0]
-        cols = [c["name"] for c in block.get("columns", [])]
-        rows = block.get("rows", [])
-        return [dict(zip(cols, r)) for r in rows]
-    except Exception:  # noqa: BLE001
-        return None
+def wind_call(
+    server: str,
+    tool: str,
+    params: dict,
+    timeout: int = 25,
+    expect_substr: str | None = None,
+    min_hits: int = 0,
+    min_cols: int = 0,
+    tries: int = 2,
+) -> tuple[list, dict] | tuple[None, dict]:
+    """调用 Wind CLI，返回 (rows 映射为 dict 的列表, {列名: 单位})；失败返回 (None, {})。
+
+    必须返回单位：Wind 同一字段会按量级返回不同单位（实测 最新总市值 招商银行=万亿元(1.0064)、
+    三一重工=亿元(1734.48)），丢弃 unit 会让招行市值看起来比小盘股还小，属严重误读。
+
+    retries=1（tries=2）：实测 Wind 个股接口存在低概率瞬时空返回（三一重工技术面曾单次失败、
+    连续重试 3/3 成功且耗时 <4s，非超时），单重试一次即可兜住。
+
+    expect_substr/min_hits：字段完整性校验（2026-09-06 新增）。
+    实测 Wind 会返回「合法但残缺」的结果 —— 三一重工技术面 3 次调用中 2 次只给
+    （近5日涨跌幅、涨跌幅）2 列，缺 近1日/20日/60日/年初至今，returncode=0 且无报错，
+    原有「非空即成功」的判据完全拦不住。传入后仅当命中列数 >= min_hits 才接受，
+    否则继续重试（调用方可把 tries 调大）。
+    """
+    for _ in range(tries):
+        try:
+            p = subprocess.run(
+                ["node", str(CLI), "call", server, tool, json.dumps(params, ensure_ascii=False)],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            if p.returncode != 0:
+                continue
+            d = json.loads(p.stdout)
+            content = d.get("content")
+            if not content:
+                continue
+            payload = json.loads(content[0]["text"])
+            blocks = payload.get("data", {}).get("data", [])
+            if not blocks:
+                continue
+            block = blocks[0]
+            cols = [c["name"] for c in block.get("columns", [])]
+            units = {c["name"]: c.get("unit", "") for c in block.get("columns", [])}
+            rows = block.get("rows", [])
+            if not rows:
+                continue
+            if expect_substr and sum(1 for c in cols if expect_substr in c) < min_hits:
+                continue  # 合法但残缺，重试
+            if min_cols and sum(1 for c in cols if c not in META_COLS) < min_cols:
+                continue  # 指标列数不足（风险接口同样会掉列），重试
+            return [dict(zip(cols, r)) for r in rows], units
+        except Exception:  # noqa: BLE001
+            continue
+    return None, {}
 
 
 def wind_call_timeseries(server: str, tool: str, params: dict, timeout: int = 30) -> list | None:
-    """economic_data 返回时间序列 {meta.name, date[], value[]}，与 stock_data 的
-    columns/rows 形状不同，需单独解析。返回 [(name, date, value), ...]（取每个序列最新非空点）。"""
+    """economic_data 返回结构是 {"metrics":[{meta,date[],value[]},...]}，
+    与 stock_data 的 data.data[].columns/rows 完全不同，需单独解析。
+    返回 [(name, date, value, source), ...]（取每个序列最新非空点）。"""
     try:
         p = subprocess.run(
             ["node", str(CLI), "call", server, tool, json.dumps(params, ensure_ascii=False)],
@@ -88,10 +120,12 @@ def wind_call_timeseries(server: str, tool: str, params: dict, timeout: int = 30
         if not content:
             return None
         payload = json.loads(content[0]["text"])
-        blocks = payload.get("data", {}).get("data", [])
+        blocks = payload.get("metrics", [])
         out = []
         for blk in blocks:
-            name = blk.get("meta", {}).get("name", "")
+            meta = blk.get("meta", {})
+            name = meta.get("name", "")
+            source = meta.get("source", "")
             dates = blk.get("date", [])
             values = blk.get("value", [])
             latest = None
@@ -99,7 +133,7 @@ def wind_call_timeseries(server: str, tool: str, params: dict, timeout: int = 30
                 if val is not None and val != "":
                     latest = (dt, val)
             if latest:
-                out.append((name, latest[0], latest[1]))
+                out.append((name, latest[0], latest[1], source))
         return out
     except Exception:  # noqa: BLE001
         return None
@@ -128,7 +162,7 @@ def render_stock(code: str, name: str, bucket: str) -> list:
     q = f"{name}{code}"
     lines = [f"#### {name}({code}) · {bucket}"]
     # 财报 + 估值（一问覆盖）
-    fin = wind_call(
+    fin, u_fin = wind_call(
         "stock_data",
         "get_stock_fundamentals",
         {
@@ -139,7 +173,7 @@ def render_stock(code: str, name: str, bucket: str) -> list:
     if fin:
         row = fin[0]
         kv = [
-            f"{clean_label(k)}={v}"
+            f"{clean_label(k)}={v}{u_fin.get(k, '')}"
             for k, v in row.items()
             if k not in META_COLS and v is not None and v != "None"
         ]
@@ -147,27 +181,38 @@ def render_stock(code: str, name: str, bucket: str) -> list:
     else:
         lines.append("- 财报/估值: （获取失败）")
     # 技术 多周期涨跌
-    tech = wind_call(
+    tech, u_tech = wind_call(
         "stock_data",
         "get_stock_technicals",
         {"question": f"{q}近1日、5日、20日、60日、年初至今的涨跌幅"},
+        # 要求至少命中 4 个「涨跌幅」列（近1/5/20/60日 + 年初至今 共 5 个），
+        # 否则判为 Wind 侧残缺返回并重试（see wind_call docstring）。
+        expect_substr="涨跌幅",
+        min_hits=4,
+        tries=4,
     )
     if tech:
         row = tech[0]
-        kv = [f"{clean_label(k)}={v}%" for k, v in row.items() if "涨跌幅" in k]
+        kv = [
+            f"{clean_label(k)}={v}{u_tech.get(k, '%')}"
+            for k, v in row.items()
+            if "涨跌幅" in k
+        ]
         lines.append("- 技术: " + " ｜ ".join(kv))
     else:
         lines.append("- 技术: （获取失败）")
     # 风险
-    risk = wind_call(
+    risk, u_risk = wind_call(
         "stock_data",
         "get_risk_metrics",
         {"question": f"{q}的Beta、Sharpe比率、年化波动率、最大回撤"},
+        min_cols=4,  # Beta/Sharpe/波动率/回撤 四项，掉列则重试
+        tries=3,
     )
     if risk:
         row = risk[0]
         kv = [
-            f"{clean_label(k)}={v}"
+            f"{clean_label(k)}={v}{u_risk.get(k, '')}"
             for k, v in row.items()
             if k not in META_COLS and v is not None and v != "None"
         ]
@@ -177,20 +222,30 @@ def render_stock(code: str, name: str, bucket: str) -> list:
     return lines
 
 
-# 宏观四项指标：include 命中即候选，exclude 命中即剔除（过滤一致预测/年度/累计等噪声序列）
+# 宏观四项指标：include 命中即候选，exclude 命中即剔除（过滤一致预测/年度/累计等噪声序列）。
+# src_exclude 按 meta.source 过滤来源 —— 仅按 name 过滤挡不住 IMF/WorldBank 口径：
+# 实测「中国CPI同比」会命中 3 条同名序列（IMF 1.0 / IMF 1.13 / WorldBank 0.06），
+# 而国家统计局口径实为 0.5（2026-07），漏过滤会推送错误数据。
+SRC_EXCLUDE = ["国际货币基金组织", "世界银行", "IMF", "WorldBank", "预测", "一致预测"]
+
 MACRO_TARGETS = [
     ("PMI", ["制造业PMI"], ["一致预测", "综合", "大型", "中型", "小型"]),
-    ("GDP", ["不变价:当季同比"], ["累计", "全年", "IMF", "WorldBank", "预测", "环比"]),
+    ("GDP", ["不变价:当季同比"], ["累计", "全年", "预测", "环比"]),
     ("LPR", ["贷款市场报价利率(LPR):1年"], ["5年", "5年期"]),
-    ("CPI", ["CPI:同比"], ["IMF", "WorldBank", "预测", "环比"]),
+    ("CPI", ["CPI:当月同比", "CPI:同比"], ["累计", "预测", "环比"]),
 ]
 
 
 def _pick_indicator(series: list, inc: list, exc: list) -> tuple | None:
-    """在 time-series 列表中按 include/exclude 过滤，并取日期最新者（同日期取首个）。"""
+    """在 time-series 列表中按 include/exclude 过滤（含来源过滤），并取日期最新者。
+
+    同日期多条时优先国家统计局/官方口径（按 source 长度无关，按是否被排除 + 日期排序）。
+    """
     cands = []
-    for name, dt, val in series:
+    for name, dt, val, source in series:
         if any(k in name for k in inc) and not any(k in name for k in exc):
+            if any(k in source for k in SRC_EXCLUDE):
+                continue
             cands.append((name, dt, val))
     if not cands:
         return None
@@ -203,10 +258,9 @@ def render_macro() -> list:
     lines = ["### 🌐 宏观快照（Wind EDB）"]
     series = wind_call_timeseries(
         "economic_data",
-        "natural_language_get_edb_data",
+        "query_economic_indicator_data",
         {
-            "executionMode": "searchFetch",
-            "question": "中国GDP同比、CPI同比、制造业PMI、LPR一年期",
+            "question": "中国GDP不变价当季同比、CPI当月同比、制造业PMI、贷款市场报价利率LPR一年期",
             "observation": "6",
         },
     )

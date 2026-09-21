@@ -67,15 +67,11 @@ def test_g3_ma20_deviation_blocks(patch_net):
     assert any(f.startswith("G3") for f in r["fail_reasons"])
 
 
-def test_missing_snapshot_passes_with_warn(patch_net):
+def test_missing_snapshot_passes_with_warn(patch_net, monkeypatch):
     """实时价缺失（降级标记）→ 放行但标注，不误杀。"""
-    monkeypatch_missing = FAKE_SNAPSHOT.copy()
-    monkeypatch_missing["price"] = None
-
-    # 用 monkeypatch 覆盖 fixture 内的 snapshot
-    import price_sanity as _ps
-    _ps._gtimg_snapshot = lambda c: {"price": None}
-    r = _ps.check("600584", 77.75)
+    # 用 monkeypatch 覆盖 snapshot，避免污染后续用例（原写法直接赋值模块全局）
+    monkeypatch.setattr(ps, "_gtimg_snapshot", lambda c: {"price": None})
+    r = ps.check("600584", 77.75)
     # 无实时价 → 仅 G1 缺失警告，ok 应为 True（不误杀）
     assert r["ok"] is True
     assert r["action"] == "PASS_WITH_WARN"
@@ -129,6 +125,8 @@ def test_advisor_rules_integration_pass_on_real_price(monkeypatch):
     # 隔离规则I(行业集中度): 该测试聚焦价格sanity，真实持仓(半导体100%)会误触发block
     monkeypatch.setattr(ar.AdvisorRules, "check_sector_block",
                         lambda self, *a, **k: None)
+    # 隔离市场情绪(实时 Wind)：避免实时"弱市+弱板块"非确定性触发 S 拦截，聚焦价格 sanity
+    monkeypatch.setattr(ar.AdvisorRules, "_get_sentiment", lambda self, *a, **k: None)
 
     res = ar.AdvisorRules().check_entry("600584", price=77.75)
     assert res["blocked"] is False
