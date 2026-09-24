@@ -24,12 +24,20 @@
 - 🔴🔴 单RRULE禁多BYHOUR(只触发首个匹配小时，余槽静默丢无日志)→多时段拆多条单BYHOUR
 - 🔴🔴 创建/修改rrule强制自检gate(08-07二次踩坑固化)：凡automation_update创建/更新或直写db automations表且rrule含BYHOUR多值→必load automation-rrule-safety-check skill走Gate1-4(禁多BYHOUR拆多条/备份/创建后验证创建数+单BYHOUR+告知用户当天剩余时段能否排上/回溯查昨天同坑一并修)。信任红线，复发即严重失职
 - 已拆：助理实盘1784039316540=9 + 1785123941471/596/709/786(10/11/13/14)；信号溯源1780964240621=5 + 1785284629106(15:00)；原隐患1783310235388已删
+- 🔴🔴 锁「活/死」两查法(09-24固化)：`check_schedule <name>` **只在有 `done_schedule` 写锁时才生效**；只 check 不 done = **死守卫**（恒放行）。判据①`grep -n "done_schedule\|schedule_utils.py done" <prompt>` ②`ls /tmp/claw_lock_<name>_*`。踩坑实录：知识库挖掘被误判为"日锁生效、6h 的 4 槽只跑首个"，实为 4 槽全跑。另：`--interval-hours N` 的锁写在**完成时刻**、槽=`[小时//N]`，故 N 须保证相邻触发点不同槽且前次不越界写进后次槽（三槽 00:50/03:20/05:50 用 **N=1**；N=2 会被 03:20 越界锁死 05:50）
+- 知识库精读=三槽 `00:50 automation-1782137216020` / `03:20 11a78567-823d-4d13-970b-42ed417e9b5f` / `05:50 0d18c526-eab5-4402-b949-b9439eb682e1`（DAILY 单BYHOUR，`--max 15`×3=≤45 篇/天，全在 Hy4 免费窗口）；**三条共用同一份正文，改正文须三处同步**；宿主 cwds=`/Users/guan/WorkBuddy/automation-2026-09-21-13-02-04`
+- 🔴 `automation_update` 的 cwds：create 时**不认传入值**（自动塞临时目录），update 时可改；但 update **拒绝 cwds=`/Users/guan/WorkBuddy/Claw`**（报 cannot host automations）→ Claw 内自动化只能改 prompt/rrule，需换宿主时用 automation-2026-09-21-13-02-04
 - Sidecar守护唯一执行方=com.workbuddy.memwatch(阈值RSS_RESTART_MB=10000MB，08-06由6000上调)；禁依赖看门狗兜底关键自动化
 - 🔴🔴 automation_update 的 id **必须带 `automation-` 前缀**(08-24实锤)：传裸数字ID不报错而是**静默新建影子记录**并把改动写进影子，真实记录毫发无损→PAUSE/改配置全成假成功(工具连返success仍ACTIVE在跑)。识破线索=①返回cwds与DB该记录不符(影子为临时目录`WorkBuddy/automation-<日期>`)②view传裸ID报not found但update却"成功"③按`name LIKE`查出同名双记录。铁律：**任何status/rrule变更后必readback** `SELECT status,updated_at FROM automations WHERE id='automation-<x>'` 才算成功；写操作与查automation_runs同一前缀规则
 
 ### 统一巡检中枢(08-06接管)
 - unified_ops_center.py(宿主QTS自动化1785982929477每小时)；复用专项脚本(automation_health/self_heal/qts_pmf_guard/disk/feishu_channel)不重写；Runbook自愈白名单=memwatch_threshold_bump+docker_restart_container；审计unified_self_heal_log.json
 - 被接管已PAUSED：综合健康1781780654327/跨项目1785918166172/多项目1785928720152；保留独立：watchdog失败扫表1785506975961、飞书自检1784084428353；飞书告知结构化卡，全绿SILENT
+- 🔴 **真值纪律(09-24固化)**：scheduler DB(`~/.workbuddy/workbuddy.db`)=**唯一真值**，`.workbuddy/inspection_hub/registry.json`=**只读镜像**。发现漂移一律 **DB→校正镜像**，绝不反向改 DB。skill 定义=`.workbuddy/skills/unified-inspection-hub/SKILL.md`（v1.1）
+- 对账器 **`hub_reconcile.py`**：observe(DB 只读URI)→diff(vs registry)→act(**只写镜像**)。漂移 **D1**镜像漂移(`--fix`自愈)/**D2**声明悬空/**D3**未纳管/**D4**心跳超时；心跳阈值=`周期+max(3h,周期×25%)`；退出码 **0干净/10仅D1/20须人**；开关 `--json`/`--brief`/`--fix`
+- 纳管范围由 **`registry.automation_scope`**(include/exclude 名称规则) 声明，**不手写全量**（库里71条约50条是业务/投研类=噪音）。范围内未登记→报 D3；新增治理类自动化会自动被抓出
+- 🔴 **外部死信层(09-24)**：AI 看门狗守中枢有**双死盲区**(中枢死→看门狗同死)→ 给**无LLM的 launchd 看门狗** `~/.local/bin/wb_health_check.sh`(30min) 加第5检查段调 `hub_reconcile.py`，rc≥20→飞书(6h冷却,锚`~/.local/etc/wb_health/…/hub_alert_ts`)。**绝不让 AI 报告自己的死**
+- 落地通道 `doc_apply`：`mode=calibrate`(至2026-10-08，只读对拍，**一行文档都不写**)→`live`；**不设自动切换**(`auto_switch=false`，③"会不会更糟"是人的价值判断)；对账器 `doc_apply_parity.py` + 账本 `calibration/parity.json`
 
 ## 三系统边界（数据隔离）
 - 📈投顾→.workbuddy/.workbuddy/data/simulation/portfolio.json(全权只给结果)｜📊助理→.workbuddy/.workbuddy/data/user/portfolio.json(国金)｜🇺🇸美股；持仓同步(07-15)：用户发持仓截图→先diff再分析
@@ -79,3 +87,5 @@
 ## 📐 记忆维护规则（固化）
 - 密度=结论+依据+例外，日志首行记原始指令；查询分类：recall→L1-L3｜compress→蒸馏(>30天→.backups/)｜audit→memory-consistency-audit｜learn→self-improving-agent/SCHEMA
 - 🔴 **10个缺失脚本已重建(2026-09-21)**：is_trading_day/cost_tracker/calc_rsi/workspace_scan/skill_hygiene 为忠实实现；advisor_rules/run_debate/discover_gzh/merge_signal/subscription_brief 为 SAFE-MODE 重建(头部标注 reconstruction, 不编造确定性买卖/成本/多空共识)。discover_gzh 依赖外部「红狐API」仍不可用→空结果；advisor_rules/run_debate 仅保守默认。原脚本逻辑与外部API凭证未恢复, 调用方勿当权威使用, 必要时补回原实现或凭证。
+- 🔴 **运行态目录版本控制策略(09-21 用户授权 agent 代决)**：`.workbuddy/memory/automations/`(B,0 tracked/46文件756K纯生成态)整目录 gitignore；`.workbuddy/automations/`(A)保留29个历史 tracked 文件(msg_content.json/dedup_*.json/.backups)，仅忽略新增噪声(signal_trace_*.md/.archive/)+沿用既有 `*/memory.md` 忽略；自动化定义真相源 `registry.json` 已 tracked，运行记忆不入库。理由：避免每次运行产生 git churn 与跨机克隆冲突；显式忽略+文档说明不构成盲区(文件仍在磁盘,巡检读运行时态而非 git)。禁止巡检自动化擅自改动此策略。
+- 🔴 **领域分工与共同盲区台账见 `domain_expertise_map.md`(09-21 建)**：金融=用户领衔(专家)、CS/模型/AI=agent 领衔+译术语；用户具「技术读写能力」(读得懂论证、能就技术议题拍板)，故 CS 域是术语翻译非降智科普。共同盲区(外部API凭证/券商终端对接/细分合规)与外部依赖台账见该文件。协作校准总纲见跨项目 `~/.workbuddy/MEMORY.md` 的「沟通姿态校准 / 领域分区」条。

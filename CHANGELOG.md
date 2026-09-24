@@ -1,5 +1,40 @@
 # Changelog
 
+## [2026-09-24 晚·审计+全网优化] 补上「中枢自己静默死掉」盲区 + 声明覆盖率 11→25
+
+### 审计发现（4 项，2 项真问题）
+- A1 registry ↔ 调度器 DB 漂移 = **0** ✅ ／ A2 registry 引用脚本缺失 = **0** ✅
+- A3 1 处疑似 dangling id **证伪**：`9bb11e84-…` 是候选 url 里 `bittide.aicompass.dev/article/<uuid>` 的文章号，属子串误报
+- A4 **真问题：registry 只声明 11 条，中枢治理类活跃实有 ~25 条** → 清单落后于现实（对应外部原则 "a reconciler only covers what you remembered to declare"）
+
+### 新增（3 件能力）
+- `.workbuddy/scripts/hub_reconcile.py` — 声明式**对账器**：observe（DB 只读 URI）→ diff（vs registry）→ act（只写镜像）。漂移分类 **D1 镜像漂移 / D2 声明悬空 / D3 未纳管 / D4 心跳超时**；心跳阈值 `周期 + max(3h, 周期×25%)`；退出码 **0 干净 / 10 仅 D1 可自愈 / 20 须人**；开关 `--json` / `--brief` / `--fix`
+- registry 新增 `automation_scope`（include/exclude **名称规则** + 理由 + `why_not_all`）→ **用规则声明范围，而非手写列全 71 条**；据此**补登记 14 条**（声明 11 → **25**）
+- **原生 launchd 看门狗加第 5 检查段**：`wb_health_check.sh`（**无 LLM**，30min/次）调 `hub_reconcile.py`，rc≥20 → 飞书告警（**6h 冷却** `$STATE_DIR/hub_alert_ts`）+ 卡片新增区块 → 这是**平台无关的外部死信层**：原设计里"AI 看门狗守中枢"存在双死盲区（中枢死 → 看门狗同死）
+- `.workbuddy/skills/unified-inspection-hub/SKILL.md` **v1.0 → v1.1**（见「文档」）
+
+### 变更
+- 「🩺 统一巡检·报错自诊与修复」升 **v2**：新增 Step 5 声明式对账（D1 → `--fix`；D2/D3/D4 → `--brief` + propose_review 卡），并注明原生看门狗是平台无关第二层
+- registry `_state_sync_notes` 增记本轮收敛；`automations[]` note 标注补登记来源
+
+### 全网依据（真实来源，已落进 skill 文档）
+- "Never rely on the AI to report its own death" / 非 AI 原始看门狗 / Safety Net 模式 — https://67ailab.com/posts/day-10-architecture-sre-agents
+- 四不可协商护栏（白名单 / 爆炸半径 / 高风险人工闸门 / **默认可回滚**）+ 分级成熟路径 — https://devtocash.com/blog/ai-agents-sre-autonomous-incident-response-2026
+- 置信阈值 + 写操作须人批 plan — https://devops.gheware.com/blog/posts/agentic-ai-incident-response-sre-2026.html
+- observe→diff→remediate + **持久漂移才值得自动处置** — https://www.acejournal.org/2025/07/03/gitops-drift-detection-and-reconciliation-loops.html
+- 漂移失败模式 F1–F7（含**静默漂移**）— https://devopsschool.jp?p=1840/
+- diff 须**语义化**（剥离服务端字段）— https://oneuptime.com/blog/post/2026-02-26-configuration-drift-detection-gitops/view
+
+### 文档
+- `unified-inspection-hub/SKILL.md` **v1.0 → v1.1**：修正腐烂内容 —— 统一发现 07:30→**00:20**；演进 10:00→**SA 23:22**；卫生 09:00→**23:44**、季度 09:00→**季首日 23:49**；中央注册表 6 键→**全键表**（补 `doc_apply`/`schedule_policy`/`pending_actions`/`automation_scope`/`known_failure_modes`/`_state_sync_notes`）；架构 7 层→**8 层**（+外部死信层）；新增「排程铁律」4 条（含**两查法判锁死活**）、「声明式对账剧本」、「外部依据（真实 URL）」；反模式 8→**11** 条（+死守卫 / 假静默 / 自作主张升级自主度）；审计检查点 5→**8** 条。备份 `SKILL.md.v1.0.bak-20260924`
+- `output/discovery-loop-upgrade-2026-09-24.md` 增补 §十五（自审四项 + 落地 5 条外部模式 + 新增 3 件能力 + **刻意不做 5 条** + 文档同步对照表 + 自测证据）
+
+### 自测
+- `hub_reconcile.py --json` → `declared=25 / clean=true / rc=0`
+- D1 实测：造漂移 → `rc=10` → `--fix` → 镜像按 DB 校正 + 留痕 ✅
+- D4 实测：`VACUUM INTO` 副本 runs 回拨 40h → `rc=20`，`--brief` 名称/时间/阈值正确 ✅
+- `bash -n wb_health_check.sh` OK；`--dry-run` 日志 `== 中枢对账正常(rc=0) ==` ✅
+
 ## [2026-09-24 晚·判断] 校准期「对拍」可验证化：机器算得清的让机器算，人只点头
 
 ### 判断（明确不做）

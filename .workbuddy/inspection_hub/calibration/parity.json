@@ -1,0 +1,37 @@
+{
+  "runs": {
+    "20260924:calibrate": {
+      "date": "2026-09-24",
+      "ts": "2026-09-24T16:57:59+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260924.md",
+      "selected": [
+        {
+          "id": "disc-20260924-01",
+          "skill": "majiu-management",
+          "target": "references/workspace-governance-patterns.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/mars2003/workspace-governance/blob/main/SKILL.md"
+        },
+        {
+          "id": "disc-20260924-02",
+          "skill": "a-stock-data",
+          "target": "references/quant-skills-ecosystem.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/lzwme/finance-quant-skills"
+        },
+        {
+          "id": "disc-20260924-03",
+          "skill": "majiu-management",
+          "target": "references/skill-version-lock-eval.md",
+          "value": "medium-high",
+          "risk": "low",
+          "url": "https://www.alphalab.site/agent-skill-lifecycle + https://graphwiz.ai/content/ai/agent-skill-management"
+        }
+      ]
+    }
+  },
+  "updated_at": "2026-09-24T16:57:59+08:00"
+}

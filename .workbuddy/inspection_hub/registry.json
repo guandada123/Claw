@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.0.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T16:58:24",
+  "updated_at": "2026-09-24T17:11:30",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -72,6 +72,33 @@
       "note": "LLM 逐篇精读公众号增量文章（槽位1/3 · 00:50）。三槽共用同一份正文，改正文须三处同步"
     },
     {
+      "name": "🔍【治理】双副本/软链审计(重构后自动)",
+      "id": "automation-1783671485008",
+      "rrule": "FREQ=DAILY;BYHOUR=23;BYMINUTE=12",
+      "status": "ACTIVE",
+      "last_run": "2026-09-23T23:12",
+      "next_run": "2026-09-24T23:12",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "🩺 统一巡检·报错自诊与修复",
+      "id": "f8443038-26e3-4f69-9f60-ab838dc83df3",
+      "rrule": "FREQ=DAILY;BYHOUR=23;BYMINUTE=2",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-24T23:02",
+      "note": "读 automation_health.json 做报错 triage：系统性假阳性(🟢态, 含 field_lag)幂等自修，真实下探(🔴/🟡)推 propose_review 卡；PAUSED/瞬时中断不盲改"
+    },
+    {
+      "name": "📋 日报结构校验（异常推送）",
+      "id": "automation-1785506976058",
+      "rrule": "FREQ=DAILY;BYHOUR=23;BYMINUTE=7",
+      "status": "ACTIVE",
+      "last_run": "2026-09-23T23:07",
+      "next_run": "2026-09-24T23:07",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
       "name": "📚【知识库】全网挖掘+文章精读 · 槽位2",
       "id": "11a78567-823d-4d13-970b-42ed417e9b5f",
       "rrule": "FREQ=DAILY;BYHOUR=3;BYMINUTE=20",
@@ -79,6 +106,24 @@
       "last_run": null,
       "next_run": "2026-09-25T03:20",
       "note": "LLM 逐篇精读公众号增量文章（槽位2-3/3）。三槽 × --max 15 = ≤45 篇/天，全在 Hy4 夜间免费窗口；"
+    },
+    {
+      "name": "🧹【系统维护】记忆+上下文维护",
+      "id": "automation-1780769419635",
+      "rrule": "FREQ=DAILY;BYHOUR=3;BYMINUTE=30",
+      "status": "ACTIVE",
+      "last_run": "2026-09-24T03:30",
+      "next_run": "2026-09-25T03:30",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "🌙 积分零成本调度审计",
+      "id": "372a8c5e-4ead-47d1-b4f2-f2583b58d3a7",
+      "rrule": "FREQ=DAILY;BYHOUR=3;BYMINUTE=50",
+      "status": "ACTIVE",
+      "last_run": "2026-09-24T03:50",
+      "next_run": "2026-09-25T03:50",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
       "name": "📚【知识库】全网挖掘+文章精读 · 槽位3",
@@ -90,13 +135,40 @@
       "note": "LLM 逐篇精读公众号增量文章（槽位2-3/3）。三槽 × --max 15 = ≤45 篇/天，全在 Hy4 夜间免费窗口；"
     },
     {
-      "name": "🧬 技能演进-周度",
-      "id": "0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4",
-      "rrule": "FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22",
+      "name": "💓 中枢存活看门狗",
+      "id": "337116da-e9b3-46f6-8993-a00b35ad7e86",
+      "rrule": "FREQ=HOURLY;INTERVAL=2",
       "status": "ACTIVE",
       "last_run": null,
-      "next_run": "2026-09-26T23:22 (Sat)",
-      "note": "读 registry pending 候选；文档类应用 / 核心类提案待审"
+      "next_run": "2026-09-21T14:00 (每2h)",
+      "note": "读 registry.last_run >180min → 飞书告警（独立调度, cwds=QTS 符合禁托管新规）"
+    },
+    {
+      "name": "🛡️ 自动化失败扫表 watchdog（每小时）",
+      "id": "automation-1785506975961",
+      "rrule": "FREQ=HOURLY;INTERVAL=3;BYDAY=MO,TU,WE,TH,FR,SA,SU",
+      "status": "ACTIVE",
+      "last_run": "2026-09-24T15:18",
+      "next_run": "2026-09-24T18:20",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "🛡️ 统一巡检中枢（接管所有健康巡检）",
+      "id": "automation-1785982929477",
+      "rrule": "FREQ=HOURLY;INTERVAL=3;BYDAY=MO,TU,WE,TH,FR,SA,SU",
+      "status": "ACTIVE",
+      "last_run": "2026-09-24T16:23",
+      "next_run": "2026-09-24T19:28",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "🛡️ 巡检中枢存活看门狗（每6h）",
+      "id": "automation-1786000625371",
+      "rrule": "FREQ=HOURLY;INTERVAL=6;BYDAY=MO,TU,WE,TH,FR,SA,SU",
+      "status": "ACTIVE",
+      "last_run": "2026-09-24T15:08",
+      "next_run": "2026-09-24T21:10",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
       "name": "🧹 技能卫生审计-月度",
@@ -108,30 +180,84 @@
       "note": "复用 skill-hygiene（缺失则降级只读盘点）：重复/坏链/未用/prompt-injection"
     },
     {
+      "name": "🩺【项目管理】风险巡检+写入JSON",
+      "id": "automation-1782035436209",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=23;BYMINUTE=22",
+      "status": "ACTIVE",
+      "last_run": "2026-09-23T23:22",
+      "next_run": "2026-09-24T23:22",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "📊【系统维护】工程质量报告",
+      "id": "automation-1782002834355",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=23;BYMINUTE=27",
+      "status": "ACTIVE",
+      "last_run": "2026-09-23T23:27",
+      "next_run": "2026-09-24T23:27",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "📊【系统维护】Quant 数据管线",
+      "id": "automation-1781663740184",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=35",
+      "status": "ACTIVE",
+      "last_run": "2026-09-24T09:44",
+      "next_run": "2026-09-25T09:35",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "🧬 技能演进-周度",
+      "id": "0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4",
+      "rrule": "FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-26T23:22 (Sat)",
+      "note": "读 registry pending 候选；文档类应用 / 核心类提案待审"
+    },
+    {
+      "name": "💽 磁盘空间巡检（周日）",
+      "id": "automation-1786001867730",
+      "rrule": "FREQ=WEEKLY;BYDAY=SU;BYHOUR=23;BYMINUTE=42",
+      "status": "ACTIVE",
+      "last_run": "2026-09-20T20:30",
+      "next_run": "2026-09-27T23:42",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "📊 巡检中枢自愈周报（周日）",
+      "id": "automation-1786000798763",
+      "rrule": "FREQ=WEEKLY;BYDAY=SU;BYHOUR=23;BYMINUTE=47",
+      "status": "ACTIVE",
+      "last_run": "2026-09-20T21:00",
+      "next_run": "2026-09-27T23:47",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "🔧【运维巡检】多仓库周报",
+      "id": "automation-1785825576843",
+      "rrule": "FREQ=WEEKLY;BYDAY=SU;BYHOUR=23;BYMINUTE=52",
+      "status": "ACTIVE",
+      "last_run": "2026-09-20T21:00",
+      "next_run": "2026-09-27T23:52",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
+      "name": "🔄 跨项目经验升级(全自动)",
+      "id": "automation-1786439069962",
+      "rrule": "FREQ=WEEKLY;BYDAY=SU;BYHOUR=23;BYMINUTE=57",
+      "status": "ACTIVE",
+      "last_run": "2026-09-20T22:00",
+      "next_run": "2026-09-27T23:57",
+      "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
+    },
+    {
       "name": "马厩管理法-季度空间巡检",
       "rrule": "FREQ=YEARLY;BYMONTH=1,4,7,10;BYMONTHDAY=1;BYHOUR=23;BYMINUTE=49",
       "status": "ACTIVE",
       "note": "季度空间+技能巡检（majiu）。镜像按 DB 真值校正（原镜像误记为 🐴 空间+技能巡检-季度 / 09:00）",
       "id": "52db25b4-b948-464b-ad62-44b77b875d2a",
       "next_run": "2026-10-01T23:49"
-    },
-    {
-      "name": "💓 中枢存活看门狗",
-      "id": "337116da-e9b3-46f6-8993-a00b35ad7e86",
-      "rrule": "FREQ=HOURLY;INTERVAL=2",
-      "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-09-21T14:00 (每2h)",
-      "note": "读 registry.last_run >180min → 飞书告警（独立调度, cwds=QTS 符合禁托管新规）"
-    },
-    {
-      "name": "🩺 统一巡检·报错自诊与修复",
-      "id": "f8443038-26e3-4f69-9f60-ab838dc83df3",
-      "rrule": "FREQ=DAILY;BYHOUR=23;BYMINUTE=2",
-      "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-09-24T23:02",
-      "note": "读 automation_health.json 做报错 triage：系统性假阳性(🟢态, 含 field_lag)幂等自修，真实下探(🔴/🟡)推 propose_review 卡；PAUSED/瞬时中断不盲改"
     }
   ],
   "evolution_watch_skills": [
@@ -360,7 +486,8 @@
   "_state_sync_notes": [
     "2026-09-24 巡检发现 registry 记录的 rrule 与 scheduler DB 实际漂移：🧬 技能演进 registry=Sat 10:00 vs DB=FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22；🧹 技能卫生 registry=1日09:00 vs DB=BYHOUR=23;BYMINUTE=44。此处不改既有自动化调度（真值=DB），仅登记待确认意图。",
     "2026-09-24 已闭环：registry 镜像的 rrule/next_run 按 scheduler DB 真值校正（技能演进→SA 23:22；技能卫生→1日 23:44），并新增「📥 每日·文档类落地（校准期）」。同步纪律：**DB=唯一真值，registry=只读镜像**；凡发现漂移 → 以 DB 校正镜像，绝不反向改 DB（除非人明确要求改调度）。",
-    "2026-09-24 校准期可验证化：新增 doc_apply_parity.py（判据①②机器判定，越界退出码1）+ parity.json 账本（apply_doc_candidates.py 每次运行写一条）。明确 auto_switch=False：切换仍需人点头，理由写入 doc_apply.auto_switch_reason。"
+    "2026-09-24 校准期可验证化：新增 doc_apply_parity.py（判据①②机器判定，越界退出码1）+ parity.json 账本（apply_doc_candidates.py 每次运行写一条）。明确 auto_switch=False：切换仍需人点头，理由写入 doc_apply.auto_switch_reason。",
+    "2026-09-24 审计+全网优化轮：①枢纽 skill 文档 `unified-inspection-hub/SKILL.md` 由 v1.0→v1.1 （原文已腐烂：统一发现 07:30 / 演进 10:00 / 卫生 09:00 / 季度 09:00 / 中央注册表只列 6 键 / 架构 7 层）——**skill 文档与会腐烂的声明，和 registry 一样需要对账**；下一步扩展 `hub_reconcile.py` 出 **D5 文档漂移**（比对 skill 文档里的时段字符串/键名/自动化 id 与真值）。②本轮新增 hub_reconcile.py（D1–D4，退出码 0/10/20）+ doc_apply_parity.py + 原生看门狗第 5 检查段（无 LLM，30min，负责『中枢自己死掉』的外部死信检测）。③刻意不做：不自动 calibrate→live、不清 D2 软删、不降频监控类、不全量搬 71 条、不自动补登记 D3。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -437,5 +564,44 @@
       ],
       "status": "scheduled"
     }
-  ]
+  ],
+  "automation_scope": {
+    "定义": "本 registry 只纳管『中枢治理类』自动化（系统维护/治理审计/发现-演进/健康巡检）；业务与投研类（投顾、盘中、选股、知识库信号溯源等）不入册。",
+    "include_name_patterns": [
+      "【系统维护】",
+      "【治理】",
+      "【运维巡检】",
+      "【项目管理】",
+      "统一发现",
+      "文档类落地",
+      "技能演进",
+      "技能卫生",
+      "马厩管理法",
+      "看门狗",
+      "watchdog",
+      "巡检",
+      "知识库】全网挖掘",
+      "积分零成本",
+      "日报结构校验",
+      "双副本",
+      "跨项目经验升级"
+    ],
+    "exclude_name_patterns": [
+      "信号溯源",
+      "盘中",
+      "投顾",
+      "炒股助理",
+      "鱼盆",
+      "做T",
+      "选股",
+      "龙虎榜",
+      "美股监控",
+      "持仓",
+      "盘后账户",
+      "收盘",
+      "微信早报"
+    ],
+    "checked_by": "hub_reconcile.py（D3 未纳管）→ 每次运行报告'范围内但未登记'的活跃自动化，防手写清单落后于现实",
+    "why_not_all": "库里 71 条活跃自动化约 50 条是业务/投研类；全搬进 registry 只会让清单变噪音。故用**规则**声明范围（可机器校验），而非追求全量列出。"
+  }
 }
