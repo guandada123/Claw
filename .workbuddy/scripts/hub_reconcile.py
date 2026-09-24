@@ -137,10 +137,6 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
        （静默跳过 = 死守卫，锚点看着在、其实什么都没查 —— 与「只 check 不 done」同族）。
     """
     contract = reg.get("doc_contract") or {}
-    raw_docs = docs_override or contract.get("docs") or []
-    if not raw_docs:
-        return []
-
     defaults = {
         "key_table_header": contract.get("key_table_header", "## 中央注册表"),
         "must_mention_keys": contract.get("must_mention_keys", []),
@@ -149,12 +145,19 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
         "table_keys_expected_exclude": contract.get("table_keys_expected_exclude", []),
     }
     # 归一化：字符串项继承顶层默认；对象项缺省字段同样继承
-    docs = []
-    for d in raw_docs:
-        if isinstance(d, str):
-            docs.append({"path": d, **defaults})
-        else:
-            docs.append({**defaults, **d})
+    def norm(d):
+        return {"path": d, **defaults} if isinstance(d, str) else {**defaults, **d}
+
+    contract_docs = [norm(d) for d in (contract.get("docs") or [])]
+    if docs_override:
+        # ⚠️ 修正(2026-09-24 二次审计)：覆盖必须**沿用主文档(第一份)的完整契约设置**，
+        #    否则锚点/键名清单全丢 → 这条取证通道"看着在跑、其实什么都没查"（死守卫第四例）。
+        base = dict(contract_docs[0]) if contract_docs else dict(defaults)
+        docs = [{**base, "path": p} for p in docs_override]
+    else:
+        docs = contract_docs
+    if not docs:
+        return []
 
     reg_keys = set(reg.keys())
     findings: list[dict] = []
@@ -167,6 +170,20 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
             continue
         text = p.read_text(encoding="utf-8", errors="replace")
         lines = text.splitlines()
+
+        # K5 版本对（可选，逐文档开关）：文档 frontmatter version 必须 = registry.version
+        if spec.get("version_check"):
+            m = re.search(r"^version:\s*([0-9][\w.\-]*)", text, re.M)
+            doc_v = m.group(1) if m else None
+            reg_v = str(reg.get("version", ""))
+            if doc_v is None:
+                findings.append({"kind": "version_missing", "doc": raw,
+                                 "detail": "开启了 version_check 但文档 frontmatter 没有 `version:`"})
+            elif doc_v != reg_v:
+                findings.append({"kind": "version_mismatch", "doc": raw,
+                                 "doc_version": doc_v, "registry_version": reg_v,
+                                 "detail": (f"文档 version={doc_v} 与 registry.version={reg_v} 不一致"
+                                            f"（两份声明要一起动，否则其中一份在说谎）")})
 
         # K1 时段漂移：label 所在行必须出现真值时刻（真值现算，不写死在契约里）
         for a in spec.get("time_anchors", []) or []:
@@ -347,6 +364,8 @@ def main() -> int:
         row = live.get(i)
         if row is None:
             continue
+        if row["status"] != "ACTIVE":
+            continue          # ⚠️ 修正(二次审计)：PAUSED 的自动化"不跑"是预期行为，不该报心跳超时
         c = cadence_hours(row["rrule"])
         if c is None or c > HEARTBEAT_MAX_CADENCE_H:
             continue

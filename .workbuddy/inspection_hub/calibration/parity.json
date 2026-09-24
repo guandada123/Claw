@@ -2,7 +2,7 @@
   "runs": {
     "20260924:calibrate": {
       "date": "2026-09-24",
-      "ts": "2026-09-24T16:57:59+08:00",
+      "ts": "2026-09-24T17:39:59+08:00",
       "mode": "calibrate",
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260924.md",
       "selected": [
@@ -33,5 +33,8 @@
       ]
     }
   },
-  "updated_at": "2026-09-24T16:57:59+08:00"
+  "updated_at": "2026-09-24T17:41:27+08:00",
+  "_notes": [
+    "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
+  ]
 }

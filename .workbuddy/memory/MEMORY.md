@@ -36,7 +36,11 @@
 - 🔴 **真值纪律(09-24固化)**：scheduler DB(`~/.workbuddy/workbuddy.db`)=**唯一真值**，`.workbuddy/inspection_hub/registry.json`=**只读镜像**。发现漂移一律 **DB→校正镜像**，绝不反向改 DB。skill 定义=`.workbuddy/skills/unified-inspection-hub/SKILL.md`（v1.1）
 - 对账器 **`hub_reconcile.py`**：observe(DB 只读URI)→diff(vs registry)→act(**只写镜像**)。漂移 **D1**镜像漂移(`--fix`自愈)/**D2**声明悬空/**D3**未纳管/**D4**心跳超时/**D5**文档漂移；心跳阈值=`周期+max(3h,周期×25%)`；退出码 **0干净/10仅D1/20须人**；开关 `--json`/`--brief`/`--fix`/`--doc`/`--no-doc`
 - **D5 文档漂移(v1.1.1)**：`registry.doc_contract` 声明「本部 SKILL.md 里哪些时段/键名/id 必须与真值一致」。**真值现算**（`rrule_times()` 从 DB 的 BYHOUR/BYMINUTE 推 HH:MM），**绝不写死在契约里**（写死=第三份会腐烂且自证的副本）。判据 K1 时段不一致/K1' **`anchor_dangling`**（锚点源非活跃→原为静默跳过=死守卫，已改报）/K2 契约键未提及/K3 注册表表格双向校验/K4 引用不存在 id（跳过含 `http` 行，防 bittide 文章号子串误报）。**文档腐烂 ≡ 镜像漂移，同一类病（都是声明的副本）**。多文档：`docs[]` 字符串继承默认/对象逐项覆盖；扩容只收"被中枢治理且文档写死真值"者（不收叙事报告）
-- 🔴 **通用铁律(09-24 三度踩坑固化)**：**凡"检查需要有输入"的机制，必须自检"输入还在不在"** —— 同族三例：①锁只 check 不 done（锁文件永不产生）②契约锚点指向已删自动化（静默 continue）③看门狗读空目录。三者形态都"看着在跑"，实际恒放行
+- 🔴 **通用铁律(09-24 三度踩坑固化)**：**凡"检查需要有输入"的机制，必须自检"输入还在不在"** —— 同族三例：①锁只 check 不 done（锁文件永不产生）②契约锚点指向已删自动化（静默 continue）③看门狗读空目录。三者形态都"看着在跑"，实际恒放行。**第四例(二次审计)：`--doc` 覆盖只继承顶层默认 → 取证通道静默失效**
+- 🔴 **观测不得污染生产(09-24 二次审计)**：只读/试跑用的参数（`--mode`、`--doc`）**绝不许回写生产状态**，也**不许写进权威产物/证据链**（曾：`--mode live` 试跑把 registry.mode 永久翻成 live + 往 parity.json 写伪造 live 记录 + 覆盖当日校准报告）。试跑一律写 `_probe`/临时区
+- 🔴 **审计必须复核上一次的修复(09-24 二次审计)**：第二轮审计找到的缺陷**全是第一轮"修完之后新引入"的** → 用"能证伪它的实验"再测一遍上一轮的改动，否则**修复本身成为新的腐烂源**
+- 🔴 **compile 通过 ≠ 能跑**：Edit 时 old_string 含某行而 new_string 漏带 → 整行被删，`py_compile` 不报（NameError 是运行时的）→ **改完脚本必须真执行一次**
+- 🔴 **回滚点必须是真 commit**：声明的 `rollback_point` 要用 `git cat-file -t <sha>` 验到，否则"一键回滚"是谎话
 - **D6 待办逾期(v1.2)**：`pending_actions[].due < 今天` 且 status ∉ {done,completed,cancelled,closed,skipped} → 报逾期天数/owner/`default_if_no_action`。**"过期本身不是故障，没人知道它过期了才是"**
 - **PA-001 = 守卫式自动切换（用户 09-24 全授权）**：`doc_apply.auto_switch=true` + `switch_guard`（前置=满14天∧0越界（parity 机器判定）；每候选自审=宿主存在/**纯增量**/来源已登记；**前 3 批 live 必推卡**；落地后复跑 parity+对账，越界/提交失败→自动 `git revert`+mode 退回 calibrate）。定性 **supervised**（非 auto）→ 人从"切换前点头"改为"切换后抽查"
 - 🔴 **改名纪律**：自动化名/prompt 里**不写死状态字样**（如"（校准期）"）—— 状态只在 `registry.doc_apply.mode`。改名须同步 registry `night_slots` 键 + `free_window_decisions` + 文档；`_state_sync_notes` 里的历史记录**不改**（改了就是伪造历史）

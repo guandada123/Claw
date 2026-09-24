@@ -1,8 +1,8 @@
 {
   "hub": "unified-inspection-hub",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T17:33:42",
+  "updated_at": "2026-09-24T17:40:11",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -508,7 +508,8 @@
     "2026-09-24 校准期可验证化：新增 doc_apply_parity.py（判据①②机器判定，越界退出码1）+ parity.json 账本（apply_doc_candidates.py 每次运行写一条）。明确 auto_switch=False：切换仍需人点头，理由写入 doc_apply.auto_switch_reason。",
     "2026-09-24 审计+全网优化轮：①枢纽 skill 文档 `unified-inspection-hub/SKILL.md` 由 v1.0→v1.1 （原文已腐烂：统一发现 07:30 / 演进 10:00 / 卫生 09:00 / 季度 09:00 / 中央注册表只列 6 键 / 架构 7 层）——**skill 文档与会腐烂的声明，和 registry 一样需要对账**；下一步扩展 `hub_reconcile.py` 出 **D5 文档漂移**（比对 skill 文档里的时段字符串/键名/自动化 id 与真值）。②本轮新增 hub_reconcile.py（D1–D4，退出码 0/10/20）+ doc_apply_parity.py + 原生看门狗第 5 检查段（无 LLM，30min，负责『中枢自己死掉』的外部死信检测）。③刻意不做：不自动 calibrate→live、不清 D2 软删、不降频监控类、不全量搬 71 条、不自动补登记 D3。",
     "2026-09-24 D5 文档漂移上线：新增 `doc_contract`（docs / must_mention_keys / time_anchors / table_keys_expected / checked_by / why）。真值**现算**（从 DB rrule 推 HH:MM），不写死在契约里 → 文档改错和调度改错两个方向都能被抓。四类判据：K1 时段不一致 / K2 契约键未提及 / K3 注册表表格双向校验（列出不存在的键 or 漏列 registry 的键）/ K4 引用不存在的自动化 id（跳过含 http 的行，避免 bittide 文章号那类子串误报）。自测：正常 rc=0、D5=0；故障注入 4/4 命中且 rc=20。文档契约同时成为本部 SKILL.md 的自检 —— v1.1.0 已满足契约。",
-    "2026-09-24 全授权轮：①D5 扩容为多文档契约（+majiu 季度巡检规程）→ **立刻抓到真实腐烂**：quarterly-inspection.md 写『1/4/7/10 月 1 日 09:00』且 RRULE 模板 BYHOUR=9，真值 23:49 → 已按 auto_apply 档修正。②D5 修掉自身死守卫：锚点 source_id 指向非活跃自动化时原为 `continue` 静默跳过（=什么都没查），改为报 `anchor_dangling`。③新增 D6 待办逾期（pending_actions[].due 过期未完结）。④PA-001 由 human 改 auto：doc_apply.auto_switch=true + switch_guard（纯增量自审/前3批推卡/落地后复检/越界回滚），自主度按 shadow→notify-only→supervised→auto 逐级晋升，这批=supervised。"
+    "2026-09-24 全授权轮：①D5 扩容为多文档契约（+majiu 季度巡检规程）→ **立刻抓到真实腐烂**：quarterly-inspection.md 写『1/4/7/10 月 1 日 09:00』且 RRULE 模板 BYHOUR=9，真值 23:49 → 已按 auto_apply 档修正。②D5 修掉自身死守卫：锚点 source_id 指向非活跃自动化时原为 `continue` 静默跳过（=什么都没查），改为报 `anchor_dangling`。③新增 D6 待办逾期（pending_actions[].due 过期未完结）。④PA-001 由 human 改 auto：doc_apply.auto_switch=true + switch_guard（纯增量自审/前3批推卡/落地后复检/越界回滚），自主度按 shadow→notify-only→supervised→auto 逐级晋升，这批=supervised。",
+    "2026-09-24 二次审计：①修 `--doc` 覆盖回归（多文档迁移后覆盖只继承顶层默认→锚点/键名全丢→取证通道静默失效，死守卫第四例）②修 `apply_doc_candidates.py --mode` 可翻转生产 mode 的缺陷（现改为显式 --mode 时完全不回写）③修 D4 对 PAUSED 自动化误报心跳 ④新增 K5 版本对（文档 frontmatter version ↔ registry.version）并把 registry.version 1.0.0 → 1.2.0 ⑤把文档里悬空的 `autonomy_methods` 落成真键 ⑥新增 PA-003（三槽 model/expert 差异，工具改不动，须人在 UI 决定）"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -584,6 +585,43 @@
         "disc-20260923-03"
       ],
       "status": "scheduled"
+    },
+    {
+      "id": "PA-003",
+      "due": "2026-10-08",
+      "owner": "human",
+      "title": "知识库三槽配置一致性（model / expert 差异）",
+      "status": "scheduled",
+      "criteria": "三槽跑同一个任务，配置应一致或差异有明确理由",
+      "findings": {
+        "槽位1": {
+          "id": "automation-1782137216020",
+          "model_id": "hy3",
+          "model_is_thinking": 1,
+          "expert_id": "EquityResearchExpert",
+          "permission_mode": "fullAccess",
+          "push_to_wechat": 1
+        },
+        "槽位2": {
+          "id": "11a78567-823d-4d13-970b-42ed417e9b5f",
+          "model_id": "deepseek-v4.1-flash",
+          "model_is_thinking": 0,
+          "expert_id": null,
+          "permission_mode": null,
+          "push_to_wechat": 0
+        },
+        "槽位3": {
+          "id": "0d18c526-eab5-4402-b949-b9439eb682e1",
+          "model_id": "deepseek-v4.1-flash",
+          "model_is_thinking": 0,
+          "expert_id": null,
+          "permission_mode": null,
+          "push_to_wechat": 0
+        }
+      },
+      "judgement": "① permission_mode=NULL 属正常（既有中枢自动化「统一发现/文档类落地/技能演进」同为 NULL，且已稳定运行）→ 非缺陷。② 真正值得决定的是 **model 与 expert**：三槽跑同一份正文的精读，槽1 用 hy3+thinking+EquityResearchExpert，槽2/3 用 deepseek-v4.1-flash 且无 expert → 同一任务产出质量可能不一致。③ 这些字段 `automation_update` 工具改不了 → 只能在 UI 改，或显式接受差异。",
+      "default_if_no_action": "保持现状（差异继续存在，但已在案）",
+      "how": "在自动化管理 UI 把槽2/3 的 模型 / 专家 对齐槽1（或明确记录「有意用快模型分摊成本」）"
     }
   ],
   "automation_scope": {
@@ -670,7 +708,8 @@
             "label": "马厩管理法",
             "source_id": "52db25b4-b948-464b-ad62-44b77b875d2a"
           }
-        ]
+        ],
+        "version_check": true
       },
       {
         "path": "~/.workbuddy/skills/majiu-management/references/quarterly-inspection.md",
@@ -688,5 +727,33 @@
     "scope_note": "只锚定文档**明确承诺过的时刻**（章节标题/清单行）；夜间时段全表住在 schedule_policy.night_slots，文档不复制 = 不制造第二份会腐烂的副本。",
     "docs_note": "多文档契约：字符串项继承顶层默认；对象项可逐项覆盖。扩容纪律=**只收「被中枢治理且文档里写死了真值」的文档**，不收叙事型报告（如 output/*.md 里把 07:30 当历史记录写的地方会假阳性）。",
     "anchor_rule": "锚点的 source_id 必须指向**活跃**自动化：指向已删/不存在者 → 报 `anchor_dangling`，**绝不静默跳过**（静默跳过=死守卫，锚点看着在、其实什么都没查）。"
+  },
+  "autonomy_methods": {
+    "定义": "自主度阶梯：每类 failure_type/动作类型，记录它当前处于哪一级，以及**升级凭什么证据**。本项目纪律：只积累证据，**绝不自动晋升**。",
+    "ladder": [
+      "shadow（只观察/只出报告）",
+      "notify-only（建议 + 人点按钮）",
+      "supervised（在守栏内自己动手，人看卡抽查）",
+      "auto（无人在环）"
+    ],
+    "current": {
+      "doc_apply 文档落地": {
+        "level": "supervised",
+        "since": "2026-09-24",
+        "why": "switch_guard：纯增量自审 + 前 3 批必推卡 + 落地后复检越界自动回滚",
+        "promote_evidence_needed": "连续 N 批 0 回滚、0 跳过、0 越界，且人抽查无反例"
+      },
+      "镜像漂移 D1 收敛": {
+        "level": "auto",
+        "since": "2026-09-24",
+        "why": "只写镜像（DB→registry），可逆且不动 DB；--fix 幂等"
+      },
+      "心跳/声明/文档/待办告警（D2–D6）": {
+        "level": "notify-only",
+        "since": "2026-09-24",
+        "why": "只报不修；处置建议留给人"
+      }
+    },
+    "checked_by": "无自动晋升机制（有意为之）—— 本键是人工决策的依据台账"
   }
 }

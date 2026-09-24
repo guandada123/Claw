@@ -116,9 +116,9 @@ def select(reg: dict, cfg: dict, skills_dir: Path) -> tuple[list[dict], list[dic
     return sel, dropped
 
 
-def write_calibration_report(sel: list[dict], dropped: list[dict], mode: str) -> Path:
+def write_calibration_report(sel: list[dict], dropped: list[dict], mode: str, suffix: str = "") -> Path:
     CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
-    p = CALIBRATION_DIR / f"apply_dryrun_{today8()}.md"
+    p = CALIBRATION_DIR / f"apply_dryrun_{today8()}{suffix}.md"
     lines = [
         f"# 文档类候选落地 · 校准报告 {datetime.datetime.now():%Y-%m-%d %H:%M}",
         "",
@@ -208,27 +208,41 @@ def main() -> int:
     mode = cfg.get("mode", "calibrate")
 
     sel, dropped = select(reg, cfg, Path(args.skills_dir))
-    report = write_calibration_report(sel, dropped, mode)
-    write_parity_ledger(sel, mode, report)
 
-    # 账本回写（registry 允许自动写：属 auto_apply 层）
-    da = reg.setdefault("doc_apply", {})
-    key = "last_calibration" if mode == "calibrate" else "last_live"
-    da[key] = {
-        "ts": now_iso(),
-        "mode": mode,
-        "selected": [c.get("id") for c in sel],
-        "report": str(report.relative_to(CLAW)),
-    }
-    da["mode"] = mode
-    da[f"{mode}_runs"] = int(da.get(f"{mode}_runs", 0)) + 1
-    if not da.get("calibrate_start"):
-        da["calibrate_start"] = datetime.datetime.now().strftime("%Y-%m-%d")
-    save_registry(Path(args.registry), reg)
+    # ⚠️ 修正(2026-09-24 二次审计)：`--mode` 是**本次运行的观察口径**，绝不允许改写生产状态。
+    #    原实现两处越界：
+    #      ① 无条件 `da["mode"] = mode` → 一次 `--mode live` 试跑就把 registry 的 mode 永久翻成 live，
+    #         等于**提前打开"会自动写 skill 文档"的开关且不留痕**；
+    #      ② 账本/报告也照写 → 试跑会在**权威证据链**（parity.json）里留下一条伪造的 live 运行记录，
+    #         还会覆盖当日的校准报告。观测行为污染证据 = 让 10-08 的切换依据失真。
+    #    修正：显式 --mode 时 → 报告写 `_probe` 后缀、**不写权威账本、不回写 registry**。
+    #    真值纪律：mode 只能由 registry 自己持有；切换只走「📥 每日·文档类落地」1c（有守卫）或人工显式改。
+    override = args.mode is not None
+    report = write_calibration_report(sel, dropped, mode, "_probe" if override else "")
+    if override:
+        print(f"[apply_doc] 注意：--mode {mode} 仅本次运行生效 → 报告写 {report.name}（probe 后缀），"
+              f"**不写权威账本、不回写 registry**（registry 现有 mode={reg.get('doc_apply', {}).get('mode')}）；"
+              f"切 mode 请走 1c 自动化或人工显式改 registry", file=sys.stderr)
+    else:
+        write_parity_ledger(sel, mode, report)
+        da = reg.setdefault("doc_apply", {})
+        key = "last_calibration" if mode == "calibrate" else "last_live"
+        da[key] = {
+            "ts": now_iso(),
+            "mode": mode,
+            "selected": [c.get("id") for c in sel],
+            "report": str(report.relative_to(CLAW)),
+        }
+        da["mode"] = mode
+        da[f"{mode}_runs"] = int(da.get(f"{mode}_runs", 0)) + 1
+        if not da.get("calibrate_start"):
+            da["calibrate_start"] = datetime.datetime.now().strftime("%Y-%m-%d")
+        save_registry(Path(args.registry), reg)
 
     out = {
         "ok": True,
         "mode": mode,
+        "mode_source": "cli-override(不回写)" if override else "registry",
         "selected": [
             {"id": c.get("id"), "skill": c.get("skill"), "target": doc_target(c),
              "value": c.get("value"), "risk": c.get("risk")}
