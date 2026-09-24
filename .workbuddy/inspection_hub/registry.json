@@ -1,8 +1,8 @@
 {
   "hub": "unified-inspection-hub",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T17:40:11",
+  "updated_at": "2026-09-24T18:00:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -419,6 +419,15 @@
       "severity": "low",
       "since": "2026-09-23",
       "desc": "skill_hygiene 重复1178/未用703 多为误报(双位置存储+venv/test), 真实安全信号(注入0/坏链0)干净, 需加过滤器"
+    },
+    {
+      "id": "prompt-not-under-doc-contract",
+      "what": "自动化 prompt 里的声明（文档清单 / 判据条数 / 时段 / 状态字样）**不在 D5 文档契约覆盖范围内**，会静默腐烂",
+      "evidence": "2026-09-24 三次审计实测：🩺 报错自诊 prompt 的 D5 说明仍写「当前为 unified-inspection-hub 的 SKILL.md」，而 D5 清单在二次审计已扩容为两份文档；同一 prompt 还写「两条机器判据」，而守卫已改为三条。→ D5 只覆盖 doc_contract.docs 登记的文件，改 prompt 不触发任何检查",
+      "since": "2026-09-24",
+      "severity": "low",
+      "mitigation": "本轮手工同步两份 prompt（land v1.3 / diag v2.3）；后续可把 prompt 作为「虚拟文档」纳入契约（读 DB prompt 列做 K1/K2）",
+      "does_not_affect": "D1–D7 的机器判据本身（它们读 registry 与 DB，不读 prompt）"
     }
   ],
   "doc_apply": {
@@ -484,10 +493,11 @@
     "auto_switch_reason": "2026-09-24 用户「全部授权给你」→ 改为**有守卫的自动切换**（不是无条件自动）。原判据③『会不会更糟』是人的价值判断，无法机器化；但可以用**等价的过程约束**替代，而把『人点头』从切换前置改成切换后抽查：①判据①②由 doc_apply_parity.py 机器判定；②切换后不改行为边界（仍只写 references/*.md|README.md|CHANGELOG.md 白名单，top≤3，1 commit + 1 CHANGELOG + 1 回滚点）；③前 3 批 live **必须推卡**（=notify-on-apply，不是静默落地）；④落地后立刻复跑 parity，越界或提交失败 → 自动回滚到 rollback_point 并把 mode 退回 calibrate。→ 自主度按『shadow → notify-only → supervised → auto』逐级晋升，这批属 **supervised**。",
     "switch_guard": {
       "preconditions": [
-        "days_elapsed >= days_needed",
-        "violations == []"
+        "parity.ok == true",
+        "parity.days_elapsed >= parity.days_needed",
+        "parity.violations == []"
       ],
-      "precondition_verifier": "python3 .workbuddy/scripts/doc_apply_parity.py --json",
+      "precondition_verifier": "python3 $CLAW/.workbuddy/scripts/doc_apply_parity.py --json",
       "self_audit_per_candidate": [
         "目标文件已存在，或为宿主 skill 下的新 references/*.md（宿主目录必须存在）",
         "改动**纯增量**：不删除、不覆盖既有正文（只追加/新增小节）",
@@ -499,7 +509,13 @@
       "never": [
         "核心类（SKILL.md 主流程/脚本/自动化 prompt）",
         "禁区（automations/、scripts/*.db、.git、.venv、symlink 目标、memory 层）"
-      ]
+      ],
+      "preconditions_note": "三条**缺一不可**，且第一条是兜底：校验器读不到 registry/账本时输出 `ok:false` 且**键整体缺失**，此时 `days_elapsed`/`violations` 求值为 undefined —— 若不先要 `ok==true`，「错误」会被当成「没有越界」而**放行生产切换**（三次审计 S1）。verifier 一律写 `$CLAW/...` 绝对锚点，不得用 cwd 相对路径（D7 会报）。",
+      "verifier_exit_codes": {
+        "0": "通过且 0 越界（仍需 ok==true）",
+        "1": "有越界 → 不得切换",
+        "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
+      }
     }
   },
   "_state_sync_notes": [
@@ -568,11 +584,15 @@
       "owner": "auto",
       "title": "校准期 → 生效期：doc_apply.mode 置 live（已授权的守卫式自动切换）",
       "criteria": "满 14 天 + 对拍 0 越界（机器判定）→ 自动置 live；每候选另过 self_audit（纯增量/宿主存在/来源已登记）；前 3 批推卡；落地后复检，越界即回滚",
-      "default_if_no_action": "保持 calibrate（只读对拍，发现成果不落地）",
       "status": "scheduled",
       "verifier": "python3 .workbuddy/scripts/doc_apply_parity.py   # ready_for_live_by_machine_criteria",
       "auto_check": "「📥 每日·文档类落地」v1.2：每日跑 parity → 达标即切 live 并按 switch_guard 执行",
-      "human_step": "无需动作（已授权给自动化）。首批 live 会推卡 → 届时抽查，若判断失误直接回滚即可"
+      "human_step": "无需动作（已授权给自动化）。首批 live 会推卡 → 届时抽查，若判断失误直接回滚即可",
+      "if_no_action": "auto_switch_to_live",
+      "if_no_action_note": "到期若判据未达标（时长未满 / 有越界 / parity 不可信）→ 保持 calibrate；三条前置全过则按 switch_guard 自动切 live，前 3 批推卡、越界即回滚。**真值在 doc_apply.auto_switch 与 switch_guard**，本条只作机器交叉核对（原先是自由文本『保持 calibrate』，与 auto_switch=true 直接矛盾 —— 三次审计 S4）",
+      "_history": [
+        "2026-09-24 三次审计：`default_if_no_action`(自由文本 保持 calibrate（只读对拍，发现成果不落地）…) → `if_no_action` 枚举"
+      ]
     },
     {
       "id": "PA-002",
@@ -584,7 +604,9 @@
         "disc-20260923-01",
         "disc-20260923-03"
       ],
-      "status": "scheduled"
+      "status": "scheduled",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "当周未审完 → 顺延至下次周度审（候选不丢，仍在 discovery_candidates 里）"
     },
     {
       "id": "PA-003",
@@ -620,8 +642,12 @@
         }
       },
       "judgement": "① permission_mode=NULL 属正常（既有中枢自动化「统一发现/文档类落地/技能演进」同为 NULL，且已稳定运行）→ 非缺陷。② 真正值得决定的是 **model 与 expert**：三槽跑同一份正文的精读，槽1 用 hy3+thinking+EquityResearchExpert，槽2/3 用 deepseek-v4.1-flash 且无 expert → 同一任务产出质量可能不一致。③ 这些字段 `automation_update` 工具改不了 → 只能在 UI 改，或显式接受差异。",
-      "default_if_no_action": "保持现状（差异继续存在，但已在案）",
-      "how": "在自动化管理 UI 把槽2/3 的 模型 / 专家 对齐槽1（或明确记录「有意用快模型分摊成本」）"
+      "how": "在自动化管理 UI 把槽2/3 的 模型 / 专家 对齐槽1（或明确记录「有意用快模型分摊成本」）",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "保持现状（差异继续存在，但已在案）",
+      "_history": [
+        "2026-09-24 三次审计：`default_if_no_action`(自由文本 保持现状（差异继续存在，但已在案）…) → `if_no_action` 枚举"
+      ]
     }
   ],
   "automation_scope": {

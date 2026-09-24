@@ -14,6 +14,9 @@ Mode B（2026-09-24 定案）：每日发现 → 当日落地文档类 → 周�
   - calibrate 模式零副作用（只写 calibration/ 目录与 registry.doc_apply.*）
   - 不触碰禁区：automations/、scripts/*.db、.git、.venv、symlink 目标、memory 层
   - fail-safe：registry 缺失/损坏、单个候选异常 → 不崩溃，降级并注明
+    （降级≠静默：读不出 registry 时**退出码 2**，调用方必须当"今天没跑成"处理）
+
+退出码：0=正常跑完（含"过闸 0 条"这种正常的 SILENT）；2=输入不可读/不可信（不等于无候选）
 """
 from __future__ import annotations
 
@@ -117,8 +120,11 @@ def select(reg: dict, cfg: dict, skills_dir: Path) -> tuple[list[dict], list[dic
 
 
 def write_calibration_report(sel: list[dict], dropped: list[dict], mode: str, suffix: str = "") -> Path:
-    CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
-    p = CALIBRATION_DIR / f"apply_dryrun_{today8()}{suffix}.md"
+    # 探测（--mode 覆盖）报告写进 probe/ 子目录：calibration/ 是**证据目录**，
+    # 观测行为不该在证据目录里留同名文件（三次审计 S6，与二次审计"试跑污染账本"同族）。
+    d = CALIBRATION_DIR / "probe" if suffix else CALIBRATION_DIR
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / f"apply_dryrun_{today8()}{suffix}.md"
     lines = [
         f"# 文档类候选落地 · 校准报告 {datetime.datetime.now():%Y-%m-%d %H:%M}",
         "",
@@ -195,9 +201,17 @@ def main() -> int:
 
     reg = load_registry(Path(args.registry))
     if "_error" in reg:
-        out = {"ok": False, "error": reg["_error"]}
-        print(json.dumps(out, ensure_ascii=False))
-        return 0
+        # ⚠️ 三次审计 S5：原实现 return 0 —— 落地自动化只看退出码，会把"读不出 registry"
+        #    当成"跑完了、没事"，于是**当天静默不落地且没人知道**。
+        #    现在退出码 2（1 留给"有候选但被闸门全滤掉"这类正常业务结果）。
+        out = {"ok": False, "error": reg["_error"], "mode": None, "selected": [],
+               "silent": None,
+               "note": "退出码 2 = 输入不可读/不可信，**不等于「无候选」**；不得据此静默"}
+        if args.json:
+            print(json.dumps(out, ensure_ascii=False))
+        else:
+            print(f"[apply_doc] 致命：{reg['_error']}", file=sys.stderr)
+        return 2
 
     cfg = dict(DEFAULT_CFG)
     cfg.update(reg.get("doc_apply", {}) or {})

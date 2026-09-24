@@ -15,8 +15,13 @@
   D4 心跳超时  declared 且节奏 ≤48h 的项，距最近一次运行超阈值 → 需人审（该跑没跑 / 平台停摆）
   D5 文档漂移  skill 文档里的**时段/键名/自动化 id** 与真值不一致 → 需人审（文档是"会腐烂的声明"）
   D6 待办逾期  registry.pending_actions[] 里 due 已过但未完结      → 需人审（"没人知道它过期了"才是问题）
+  D7 契约盲区  **声明本身**空了/指向不存在的东西 → 该维度"看着在查、其实什么都没查" → 需人审
+              （三次审计新增：这是"死守卫"家族在**检查器自己**身上的那一例。
+                D1–D6 检查的是"世界有没有漂移"；D7 检查的是"我这份声明还能不能查出漂移"。
+                例：scope 被清空 → D3 恒 0 且报 clean；doc_contract.docs 为空 → D5 恒 0；
+                    守卫的校验器路径不存在/依赖 cwd → 自动切换的前置条件根本求不了值。）
 
-退出码：0=全净；10=仅 D1（可 --fix 自愈）；20=存在 D2/D3/D4/D5/D6（需人介入）
+退出码：0=全净；10=仅 D1（可 --fix 自愈）；20=存在 D2/D3/D4/D5/D6/D7（需人介入）
 铁律：--fix **只写 registry（镜像）**，绝不写 DB；不碰 skill 文档；不推送（推送交给调用方）
 """
 from __future__ import annotations
@@ -198,7 +203,17 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
                                f"必须改指向或删除，否则这条契约什么都没在查"),
                 })
                 continue
-            truth = a.get("expect_override") or (rrule_times(row["rrule"])[:1] or [None])[0]
+            times = rrule_times(row["rrule"])
+            if len(times) > 1:
+                # 多槽 rrule（BYHOUR=0,12）时 K1 只能校第一个时刻 —— 静默只校一半 = 少查了还不知道。
+                # 排程铁律本就禁止多槽（要重复请用 --interval-hours 建独立自动化），故直接报盲区。
+                findings.append({
+                    "kind": "anchor_multi_slot", "doc": raw, "label": label, "source_id": sid,
+                    "times": times,
+                    "detail": (f"「{label}」对应自动化有 {len(times)} 个时刻 {times}，"
+                               f"K1 只能校第一个 → 契约覆盖不全（多槽排程须拆成独立自动化）"),
+                })
+            truth = a.get("expect_override") or (times[:1] or [None])[0]
             if not label or not truth:
                 findings.append({"kind": "anchor_unverifiable", "doc": raw, "label": label,
                                  "source_id": sid,
@@ -247,6 +262,110 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
 
 
 DONE_STATES = {"done", "completed", "cancelled", "canceled", "closed", "skipped"}
+IF_NO_ACTION_ENUM = {"auto_switch_to_live", "keep_calibrate", "keep_as_is", "escalate"}
+# 前置条件表达式里的标识符（用于"契约 ↔ 校验器"是否已脱节的机械核对）
+COND_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")
+COND_STOPWORDS = {"true", "false", "True", "False", "and", "or", "not", "None"}
+
+
+def check_contract_blind(reg: dict, root: Path) -> list[dict]:
+    """D7：契约盲区 —— 声明本身是否还"能查出东西"。
+
+    存在理由（三次审计）：D1–D6 的每一次扫，都建立在"我的声明是完整、且它指向的东西还在"这个假设上。
+    假设一旦破了，检查器**不是报错，而是报 clean** —— 空声明和零漂移在输出上长得一模一样。
+    这正是"死守卫"家族（任何需要输入的机制都必须自证输入还在）在检查器自己身上的那一例。
+    """
+    out: list[dict] = []
+
+    def blind(key: str, detail: str) -> None:
+        out.append({"kind": "contract_blind", "key": key, "detail": detail})
+
+    # ---- 1) 各维度的输入声明是否非空（空声明 = 该维度永远空转，却仍计入 clean）----
+    if not (reg.get("automation_scope") or {}).get("include_name_patterns"):
+        blind("automation_scope.include_name_patterns",
+              "scope 的 include_name_patterns 为空 → D3「未纳管」永远查不到东西（空声明 ≠ 无漂移）")
+    if not (reg.get("automations") or []):
+        blind("automations", "自动化声明清单为空 → D1/D2/D4 全部空转")
+    docs = (reg.get("doc_contract") or {}).get("docs") or []
+    if not docs:
+        blind("doc_contract.docs", "文档契约未登记任何文档 → D5「文档漂移」永远查不到东西")
+    for d in docs:
+        spec = d if isinstance(d, dict) else {"path": d}
+        merged = {**(reg.get("doc_contract") or {}), **spec}
+        if not (merged.get("time_anchors") or merged.get("must_mention_keys")
+                or merged.get("table_keys_expected")):
+            blind(f"doc_contract.docs[{spec.get('path')}]",
+                  f"文档「{spec.get('path')}」已登记，但锚点/必提键/表检查三者皆空 → 这条契约什么都没在查")
+    if not (reg.get("autonomy_methods") or {}).get("ladder"):
+        blind("autonomy_methods.ladder",
+              "自主度阶梯未声明 → 「谁被允许自己动手」没有可对账的来源")
+
+    # ---- 2) 切换守卫是否可验证（这是全系统唯一能自己改生产 mode 的机器开关）----
+    sg = (reg.get("doc_apply") or {}).get("switch_guard") or {}
+    ver = sg.get("precondition_verifier")
+    if not ver:
+        blind("doc_apply.switch_guard.precondition_verifier",
+              "守卫声明了自动切换，却没声明用哪个校验器判定 → 前置条件不可验证")
+    else:
+        m = re.search(r"([\w$./\-]+\.py)", str(ver))
+        raw = m.group(1) if m else None
+        path = None
+        if not raw:
+            blind("doc_apply.switch_guard.precondition_verifier",
+                  f"校验器字符串里找不到脚本路径：{ver!r}")
+        elif raw.startswith("$CLAW/"):
+            path = root / raw[len("$CLAW/"):]
+        elif raw.startswith("/"):
+            path = Path(raw)
+        else:
+            blind("doc_apply.switch_guard.precondition_verifier",
+                  f"校验器用 **cwd 相对路径** {raw} → 换个工作目录执行就 No such file，"
+                  f"守卫会在无人察觉时失效（一律写成 $CLAW/... 或绝对路径）")
+        if path is not None:
+            if not path.exists():
+                blind("doc_apply.switch_guard.precondition_verifier",
+                      f"校验器 {path} 不存在 → 自动切换的前置条件无法求值")
+            else:
+                vsrc = path.read_text(encoding="utf-8", errors="replace")
+                for cond in sg.get("preconditions") or []:
+                    for ident in COND_IDENT_RE.findall(str(cond)):
+                        if ident in COND_STOPWORDS:
+                            continue
+                        leaf = ident.rsplit(".", 1)[-1]
+                        if leaf not in vsrc:
+                            blind(f"switch_guard.preconditions[{cond}]",
+                                  f"前置条件里的 `{leaf}` 在校验器 {path.name} 里找不到 → "
+                                  f"契约与校验器可能已脱节（改了输出键名而没改前置条件）")
+
+    conds = [str(x) for x in (sg.get("preconditions") or [])]
+    if conds and not any(re.match(r"^\s*[\w.]*\.?ok\s*==", c) for c in conds):
+        blind("doc_apply.switch_guard.preconditions",
+              "前置条件缺少 `ok == true` 兜底 → 校验器返回错误 payload（键整体缺失）时，"
+              "缺键可能被当成空值/假值而判为通过 —— **错误 ≠ 通过**")
+
+    # ---- 3) if_no_action 枚举 × auto_switch：消灭"到期不动会怎样"的自由文本副本 ----
+    pa = reg.get("pending_actions") or []
+    switch_flag = bool((reg.get("doc_apply") or {}).get("auto_switch"))
+    for a in pa:
+        v = a.get("if_no_action")
+        pid = a.get("id")
+        if v is None:
+            blind(f"pending_actions[{pid}]",
+                  "缺 `if_no_action`（枚举）：到期不动的后果没有机器可读声明，自由文本迟早与真值脱节")
+        elif v not in IF_NO_ACTION_ENUM:
+            blind(f"pending_actions[{pid}]",
+                  f"`if_no_action={v}` 不在枚举 {sorted(IF_NO_ACTION_ENUM)} 内（枚举才能机器交叉核对）")
+        elif v == "auto_switch_to_live" and not switch_flag:
+            blind(f"pending_actions[{pid}]",
+                  "声明「到期不动就自动切 live」，但 doc_apply.auto_switch=false —— 两处真值互相矛盾")
+        elif v == "keep_calibrate" and switch_flag:
+            blind(f"pending_actions[{pid}]",
+                  "声明「到期不动就保持 calibrate」，但 doc_apply.auto_switch=true —— 两处真值互相矛盾")
+    if switch_flag and not any(a.get("if_no_action") == "auto_switch_to_live" for a in pa):
+        blind("doc_apply.auto_switch",
+              "auto_switch=true，却没有任何待办声明 `if_no_action: auto_switch_to_live` → "
+              "「自动切换」这件事没有可对账的待办条目")
+    return out
 
 
 def check_pending_due(reg: dict, now_dt: datetime.datetime) -> list[dict]:
@@ -273,9 +392,10 @@ def check_pending_due(reg: dict, now_dt: datetime.datetime) -> list[dict]:
             out.append({"id": a.get("id"), "title": a.get("title"), "owner": a.get("owner"),
                         "due": str(due_d), "overdue_days": (today - due_d).days,
                         "status": a.get("status"),
-                        "default_if_no_action": a.get("default_if_no_action"),
+                        "if_no_action": a.get("if_no_action"),
                         "detail": (f"{a.get('id')} 已逾期 {(today - due_d).days} 天（due {due_d}，"
-                                   f"owner={a.get('owner')}，status={a.get('status')}）"
+                                   f"owner={a.get('owner')}，status={a.get('status')}，"
+                                   f"不动则 {a.get('if_no_action')}）"
                                    f"：{a.get('title')}")})
     return out
 
@@ -388,6 +508,9 @@ def main() -> int:
     # ---- D6 待办逾期（有期限的待办最容易在没人看着时悄悄过期）----
     d6 = check_pending_due(reg, now_dt)
 
+    # ---- D7 契约盲区（检查器自查：我这份声明还查得出东西吗）----
+    d7 = check_contract_blind(reg, CLAW)
+
     # ---- 收敛（仅 D1，且仅在 --fix）----
     fixed = []
     if args.fix and d1:
@@ -419,11 +542,12 @@ def main() -> int:
         "D4_heartbeat_stale": d4,
         "D5_doc_drift": d5,
         "D6_pending_overdue": d6,
+        "D7_contract_blind": d7,
         "fixed": fixed,
-        "clean": not (d1 or d2 or d3 or d4 or d5 or d6),
-        "needs_human": bool(d2 or d3 or d4 or d5 or d6),
+        "clean": not (d1 or d2 or d3 or d4 or d5 or d6 or d7),
+        "needs_human": bool(d2 or d3 or d4 or d5 or d6 or d7),
     }
-    rc = 0 if out["clean"] else (10 if (d1 and not (d2 or d3 or d4 or d5 or d6)) else 20)
+    rc = 0 if out["clean"] else (10 if (d1 and not (d2 or d3 or d4 or d5 or d6 or d7)) else 20)
 
     if args.brief:
         # 供告警正文：只列"需人审"的项，天然带 6h 冷却由调用方控制
@@ -437,6 +561,8 @@ def main() -> int:
             print(f"[文档腐烂] {Path(os.path.expanduser(x['doc'])).name} — {x['detail']}")
         for x in d6:
             print(f"[待办逾期] {x.get('detail')}")
+        for x in d7:
+            print(f"[契约盲区] {x.get('key')} — {x.get('detail')}")
         return rc
 
     if args.json:
@@ -448,7 +574,8 @@ def main() -> int:
                          ("D3_unregistered", "D3 未纳管(需人审)"),
                          ("D4_heartbeat_stale", "D4 心跳超时(需人审)"),
                          ("D5_doc_drift", "D5 文档漂移(需人审)"),
-                         ("D6_pending_overdue", "D6 待办逾期(需人审)")):
+                         ("D6_pending_overdue", "D6 待办逾期(需人审)"),
+                         ("D7_contract_blind", "D7 契约盲区(检查器自己空转，需人审)")):
             items = out[k]
             if items:
                 print(f"  {label}: {len(items)}")
@@ -461,6 +588,8 @@ def main() -> int:
                         print(f"    · [{it.get('kind')}] {it['detail']}")
                     elif k == "D6_pending_overdue":
                         print(f"    · {it.get('detail')}")
+                    elif k == "D7_contract_blind":
+                        print(f"    · [{it.get('key')}] {it.get('detail')}")
                     else:
                         print(f"    · {it.get('name')} {it.get('rrule','')} {it.get('why','')}")
         if fixed:

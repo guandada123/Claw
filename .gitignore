@@ -178,3 +178,6 @@ _archive/
 quant_trading.db
 .workbuddy/tmp_backup/
 .workbuddy/scripts/*_anchor.json
+
+# 试跑/探测产物（观测行为不进证据目录，三次审计 2026-09-24）
+.workbuddy/inspection_hub/calibration/probe/
