@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.0.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T16:00:17",
+  "updated_at": "2026-09-24T16:05:30",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -54,6 +54,33 @@
       "note": "发现回路·落地半程（Mode B）：读 registry.discovery_candidates → 质量闸 → top≤3 合并落地；校准期=只读对拍(至2026-10-08)，live 后 1 commit/1 CHANGELOG/1 回滚点；核心类永不进本通道"
     },
     {
+      "name": "📚【知识库】全网挖掘+文章精读(LLM)",
+      "id": "automation-1782137216020",
+      "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=50",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-25T00:50",
+      "note": "LLM 逐篇精读公众号增量文章（槽位1/3 · 00:50）。三槽共用同一份正文，改正文须三处同步"
+    },
+    {
+      "name": "📚【知识库】全网挖掘+文章精读 · 槽位2",
+      "id": "11a78567-823d-4d13-970b-42ed417e9b5f",
+      "rrule": "FREQ=DAILY;BYHOUR=3;BYMINUTE=20",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-25T03:20",
+      "note": "LLM 逐篇精读公众号增量文章（槽位2-3/3）。三槽 × --max 15 = ≤45 篇/天，全在 Hy4 夜间免费窗口；"
+    },
+    {
+      "name": "📚【知识库】全网挖掘+文章精读 · 槽位3",
+      "id": "0d18c526-eab5-4402-b949-b9439eb682e1",
+      "rrule": "FREQ=DAILY;BYHOUR=5;BYMINUTE=50",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-25T05:50",
+      "note": "LLM 逐篇精读公众号增量文章（槽位2-3/3）。三槽 × --max 15 = ≤45 篇/天，全在 Hy4 夜间免费窗口；"
+    },
+    {
       "name": "🧬 技能演进-周度",
       "id": "0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4",
       "rrule": "FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22",
@@ -72,10 +99,12 @@
       "note": "复用 skill-hygiene（缺失则降级只读盘点）：重复/坏链/未用/prompt-injection"
     },
     {
-      "name": "🐴 空间+技能巡检-季度",
-      "rrule": "FREQ=YEARLY;BYMONTH=1,4,7,10;BYMONTHDAY=1;BYHOUR=9;BYMINUTE=0",
+      "name": "马厩管理法-季度空间巡检",
+      "rrule": "FREQ=YEARLY;BYMONTH=1,4,7,10;BYMONTHDAY=1;BYHOUR=23;BYMINUTE=49",
       "status": "ACTIVE",
-      "note": "已建 id=52db25b4-b948-464b-ad62-44b77b875d2a（majiu 季度巡检）"
+      "note": "季度空间+技能巡检（majiu）。镜像按 DB 真值校正（原镜像误记为 🐴 空间+技能巡检-季度 / 09:00）",
+      "id": "52db25b4-b948-464b-ad62-44b77b875d2a",
+      "next_run": "2026-10-01T23:49"
     },
     {
       "name": "💓 中枢存活看门狗",
@@ -89,20 +118,11 @@
     {
       "name": "🩺 统一巡检·报错自诊与修复",
       "id": "f8443038-26e3-4f69-9f60-ab838dc83df3",
-      "rrule": "FREQ=DAILY;BYHOUR=20;BYMINUTE=0",
+      "rrule": "FREQ=DAILY;BYHOUR=23;BYMINUTE=2",
       "status": "ACTIVE",
       "last_run": null,
-      "next_run": "2026-09-21T20:00 (daily)",
+      "next_run": "2026-09-24T23:02",
       "note": "读 automation_health.json 做报错 triage：系统性假阳性(🟢态, 含 field_lag)幂等自修，真实下探(🔴/🟡)推 propose_review 卡；PAUSED/瞬时中断不盲改"
-    },
-    {
-      "name": "📚【知识库】全网挖掘+文章精读(LLM)",
-      "id": "automation-1782137216020",
-      "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=50",
-      "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-09-25T00:50",
-      "note": "LLM 逐篇精读公众号增量文章（--max 15）。**日锁**（check_schedule 全网挖掘）= 每天只真正执行 1 次；故由 6h RRULE 4 槽改为 DAILY 00:50 单槽：①保证唯一真实执行落在免费窗口；②消除每日 3 次被锁空跑开销"
     }
   ],
   "evolution_watch_skills": [
@@ -309,9 +329,10 @@
       "技能演进-周度": "SA 23:22",
       "技能卫生审计-月度": "1日 23:44",
       "空间+技能巡检-季度": "季首日 23:49",
-      "知识库挖掘+文章精读": "00:50（日锁：每天仅此一次真执行）"
+      "知识库挖掘+文章精读": "00:50 / 03:20 / 05:50（三槽，1h 槽锁；≤45 篇/天）"
     },
     "race_avoidance": "发现(00:20 写 registry) 与 技能演进(SA 23:22 读 registry) 分处不同时段，避免同刻读写竞态",
-    "day_lock_note": "⚠️ 多个自动化用 check_schedule <name>（无 --interval-hours）＝**日锁**，当天只有首个触发槽真执行，其余槽位'被锁'空退但仍消耗一次 agent 开销。→ ①想要'每天真跑多次'必须改 --interval-hours；②只想每天跑一次时，**别用 6h/多槽 RRULE**（其余槽位是纯浪费），直接用 DAILY 单槽。"
+    "day_lock_note": "⚠️ **更正（2026-09-24 晚）**：`check_schedule <name>`（不带 --interval-hours）只在**配合 done_schedule 写锁**时才真正生效；**只 check 不 done = 守卫是死的**（锁文件永不存在 → 每次都放行）。判据：①`ls /tmp/claw_lock_<name>_*` 有没有文件；②prompt 里有没有 `done_schedule`/`schedule_utils.py done`。📚 知识库挖掘旧版正是'只 check 不 done'→ 所谓日锁从未生效，6h RRULE 的 4 个槽**全部真跑**（实测 runs 09-19 起 4 次/天：02:3x/08:3x/14:3x/20:3x）。→ 结论：**多槽 RRULE 必须用 --interval-hours（真槽位锁）；想锁定某时段一律用单 BYHOUR 的 DAILY**（`FREQ=HOURLY;INTERVAL=n` 相位会漂移）。",
+    "interval_lock_note": "槽位锁粒度：`--interval-hours N` → `[小时//N]` 槽，锁在**完成时刻**写入。故选 N 时须保证相邻触发点不落进同一槽、且前一次即使跑很久也不会写进下一次的槽：本例三槽 00:50/03:20/05:50 用 **N=1**（分处 0/3/5 点，互不干扰）；若用 N=2 则 03:20 跑过 04:00 就会锁死 05:50。"
   }
 }
