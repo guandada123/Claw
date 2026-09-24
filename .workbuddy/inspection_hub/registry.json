@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.0.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T16:05:30",
+  "updated_at": "2026-09-24T16:53:56",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -35,6 +35,15 @@
     "skill_hygiene_audit"
   ],
   "automations": [
+    {
+      "name": "💾【系统维护】每日数据备份",
+      "id": "automation-1782394153045",
+      "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=10",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-25T00:10",
+      "note": "backup_data.py 打包 DB+output，产物按日命名（claw-backup-<date>.tar.gz，保留 14 天）。原 HOURLY;INTERVAL=6（4 次/天、相位漂移、其中 3 次在扣分时段）→ 收敛 DAILY 00:10（同一文件当天反复覆盖，3 次纯冗余）"
+    },
     {
       "name": "🛡️ 统一发现-每日扫描",
       "id": "2a404a97-c262-4cad-8a43-3c5a69febfbb",
@@ -155,7 +164,10 @@
       "status": "proposal_new_capability",
       "found_at": "2026-09-22",
       "resolved_at": "2026-09-23T14:30:32+0800",
-      "resolution": "TradingAgents 多空辩论+五档评级; 目标 wb-finance-skill 未安装, 且本地对比基线 expert_team_analyst.py/run_debate.py 亦不存在 → 属净新建能力提案, 非增强; 留档待未来若建辩论框架时采纳. a-stock-data 为可能承载方."
+      "resolution": "TradingAgents 多空辩论+五档评级; 目标 wb-finance-skill 未安装, 且本地对比基线 expert_team_analyst.py/run_debate.py 亦不存在 → 属净新建能力提案, 非增强; 留档待未来若建辩论框架时采纳. a-stock-data 为可能承载方.",
+      "needs_review": true,
+      "review_reason": "对标 7 专家框架，评估补\"多空辩论\"能力（新能力提案，须人审）",
+      "review_by": "2026-09-26"
     },
     {
       "id": "disc-20260922-03",
@@ -184,7 +196,10 @@
       "resolved_at": "2026-09-23T14:21:06+0800",
       "resolution": "文档类(auto_apply)已落地 majiu-management/references/skill-lifecycle-states.md; SKILL.md version header 部分属核心改动, 仅提案待审(同目录 skill-version-header-proposal.md)",
       "applied_action": "references/skill-lifecycle-states.md",
-      "core_change": "proposed (skill-version-header-proposal.md, 未改写 SKILL.md)"
+      "core_change": "proposed (skill-version-header-proposal.md, 未改写 SKILL.md)",
+      "needs_review": true,
+      "review_reason": "majiu 版本/生命周期治理 8 态状态机（文档已应用部分，核心部分待审）",
+      "review_by": "2026-09-26"
     },
     {
       "id": "disc-20260923-02",
@@ -211,7 +226,10 @@
       "status": "proposal_new_capability",
       "found_at": "2026-09-23",
       "resolved_at": "2026-09-23T14:30:32+0800",
-      "resolution": "TradingAgents-Astock A股生产化变体(多空辩论+五档评级+生产后端); 同上, 目标skill与本地基线均不存在 → 净新建提案; 留档."
+      "resolution": "TradingAgents-Astock A股生产化变体(多空辩论+五档评级+生产后端); 同上, 目标skill与本地基线均不存在 → 净新建提案; 留档.",
+      "needs_review": true,
+      "review_reason": "TradingAgents A股生产化变体（新能力提案，须人审）",
+      "review_by": "2026-09-26"
     },
     {
       "id": "disc-20260924-01",
@@ -333,6 +351,63 @@
     },
     "race_avoidance": "发现(00:20 写 registry) 与 技能演进(SA 23:22 读 registry) 分处不同时段，避免同刻读写竞态",
     "day_lock_note": "⚠️ **更正（2026-09-24 晚）**：`check_schedule <name>`（不带 --interval-hours）只在**配合 done_schedule 写锁**时才真正生效；**只 check 不 done = 守卫是死的**（锁文件永不存在 → 每次都放行）。判据：①`ls /tmp/claw_lock_<name>_*` 有没有文件；②prompt 里有没有 `done_schedule`/`schedule_utils.py done`。📚 知识库挖掘旧版正是'只 check 不 done'→ 所谓日锁从未生效，6h RRULE 的 4 个槽**全部真跑**（实测 runs 09-19 起 4 次/天：02:3x/08:3x/14:3x/20:3x）。→ 结论：**多槽 RRULE 必须用 --interval-hours（真槽位锁）；想锁定某时段一律用单 BYHOUR 的 DAILY**（`FREQ=HOURLY;INTERVAL=n` 相位会漂移）。",
-    "interval_lock_note": "槽位锁粒度：`--interval-hours N` → `[小时//N]` 槽，锁在**完成时刻**写入。故选 N 时须保证相邻触发点不落进同一槽、且前一次即使跑很久也不会写进下一次的槽：本例三槽 00:50/03:20/05:50 用 **N=1**（分处 0/3/5 点，互不干扰）；若用 N=2 则 03:20 跑过 04:00 就会锁死 05:50。"
-  }
+    "interval_lock_note": "槽位锁粒度：`--interval-hours N` → `[小时//N]` 槽，锁在**完成时刻**写入。故选 N 时须保证相邻触发点不落进同一槽、且前一次即使跑很久也不会写进下一次的槽：本例三槽 00:50/03:20/05:50 用 **N=1**（分处 0/3/5 点，互不干扰）；若用 N=2 则 03:20 跑过 04:00 就会锁死 05:50。",
+    "free_window_decisions": {
+      "搬进窗口": [
+        "🛡️ 统一发现-每日扫描 00:20",
+        "📥 每日·文档类落地 00:40",
+        "📚 知识库精读 ×3 00:50/03:20/05:50",
+        "💾 每日数据备份 00:10"
+      ],
+      "刻意保留窗口外": {
+        "盘中/盘后依赖当日时点": [
+          "📊 盘中助理实盘监控 ×5",
+          "📈 投顾策略执行 ×5 + 选股类",
+          "📊 收盘综合复盘/晚报 15:50",
+          "🧪 QTS 策略日评 14:55",
+          "📋 盘后账户汇总 15:07",
+          "Claw→QTS 模拟盘同步 15:10",
+          "📊 知识库信号溯源 15:05"
+        ],
+        "必须在晚报(15:50)前跑完": [
+          "上述 15:0x/14:5x 盘后类 —— 若挪到 23:00，晚报将消费过期数据，故不挪"
+        ],
+        "监控类需白天覆盖": [
+          "💓 中枢存活看门狗 2h",
+          "🛡️ 统一巡检中枢 3h",
+          "🛡️ 失败扫表 watchdog 3h",
+          "🛡️ 巡检中枢存活看门狗 6h"
+        ],
+        "需人白天读": [
+          "🎁 签到提醒 08:38",
+          "📊 微信早报 08:45",
+          "📅 盘前摘要 08:50"
+        ]
+      },
+      "结论": "窗口外剩余的活跃自动化均为'时点强依赖'或'监控/需人读'类，刻意不挪；本次仅把无时点依赖的备份搬入窗口。"
+    }
+  },
+  "pending_actions": [
+    {
+      "id": "PA-001",
+      "due": "2026-10-08",
+      "owner": "human",
+      "title": "校准期 → 生效期：doc_apply.mode 置 live",
+      "criteria": "满 14 天 + 对拍 0 越界 + 人工抽检 ≥3 份 0 反例",
+      "default_if_no_action": "保持 calibrate（只读对拍，发现成果不落地）",
+      "status": "waiting"
+    },
+    {
+      "id": "PA-002",
+      "due": "2026-09-26",
+      "owner": "auto",
+      "title": "周度审 core 类候选（技能演进-周度 SA 23:22）",
+      "items": [
+        "disc-20260922-02",
+        "disc-20260923-01",
+        "disc-20260923-03"
+      ],
+      "status": "scheduled"
+    }
+  ]
 }
