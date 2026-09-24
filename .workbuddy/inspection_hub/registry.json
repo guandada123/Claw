@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.0.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T16:53:56",
+  "updated_at": "2026-09-24T16:58:24",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -319,7 +319,7 @@
     "core_class_channel": "周度审（🧬 技能演进-周度）；核心类永不进每日自动通道",
     "switch_criteria": "校准满14天(至2026-10-08)且对拍无偏差 → mode 置 live",
     "last_calibration": {
-      "ts": "2026-09-24T15:45:24+08:00",
+      "ts": "2026-09-24T16:57:59+08:00",
       "mode": "calibrate",
       "selected": [
         "disc-20260924-01",
@@ -329,13 +329,38 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260924.md"
     },
     "last_live": null,
-    "calibrate_runs": 2,
+    "calibrate_runs": 4,
     "rollback_point": "0540a62",
-    "p0_landed_at": "2026-09-24"
+    "p0_landed_at": "2026-09-24",
+    "parity_verifier": ".workbuddy/scripts/doc_apply_parity.py",
+    "parity_ledger": ".workbuddy/inspection_hub/calibration/parity.json",
+    "switch_criteria_machine": [
+      {
+        "no": 1,
+        "criterion": "时长满 14 天（至 2026-10-08）",
+        "verifiable": "machine",
+        "by": "doc_apply_parity.py → days_elapsed/days_needed"
+      },
+      {
+        "no": 2,
+        "criterion": "对拍 0 越界（selected.target 全在白名单）",
+        "verifiable": "machine",
+        "by": "doc_apply_parity.py → violations=[]"
+      },
+      {
+        "no": 3,
+        "criterion": "人工抽检 ≥3 份 0 反例",
+        "verifiable": "human-only",
+        "by": "对 human_spotcheck_sample 逐条回答『真写进去会不会更糟』"
+      }
+    ],
+    "auto_switch": false,
+    "auto_switch_reason": "不设自动切换：判据③『会不会更糟』本质是人的价值判断，无法机器化；且 live 一旦生效即自动改写 skill 文档，错了要等到下次人不定什么时候看才发现。→ 保持『机器把①②算清 + 人点头』，把人工成本从『翻 14 份报告』压到『看一条命令的结论』。"
   },
   "_state_sync_notes": [
     "2026-09-24 巡检发现 registry 记录的 rrule 与 scheduler DB 实际漂移：🧬 技能演进 registry=Sat 10:00 vs DB=FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22；🧹 技能卫生 registry=1日09:00 vs DB=BYHOUR=23;BYMINUTE=44。此处不改既有自动化调度（真值=DB），仅登记待确认意图。",
-    "2026-09-24 已闭环：registry 镜像的 rrule/next_run 按 scheduler DB 真值校正（技能演进→SA 23:22；技能卫生→1日 23:44），并新增「📥 每日·文档类落地（校准期）」。同步纪律：**DB=唯一真值，registry=只读镜像**；凡发现漂移 → 以 DB 校正镜像，绝不反向改 DB（除非人明确要求改调度）。"
+    "2026-09-24 已闭环：registry 镜像的 rrule/next_run 按 scheduler DB 真值校正（技能演进→SA 23:22；技能卫生→1日 23:44），并新增「📥 每日·文档类落地（校准期）」。同步纪律：**DB=唯一真值，registry=只读镜像**；凡发现漂移 → 以 DB 校正镜像，绝不反向改 DB（除非人明确要求改调度）。",
+    "2026-09-24 校准期可验证化：新增 doc_apply_parity.py（判据①②机器判定，越界退出码1）+ parity.json 账本（apply_doc_candidates.py 每次运行写一条）。明确 auto_switch=False：切换仍需人点头，理由写入 doc_apply.auto_switch_reason。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -395,7 +420,10 @@
       "title": "校准期 → 生效期：doc_apply.mode 置 live",
       "criteria": "满 14 天 + 对拍 0 越界 + 人工抽检 ≥3 份 0 反例",
       "default_if_no_action": "保持 calibrate（只读对拍，发现成果不落地）",
-      "status": "waiting"
+      "status": "waiting",
+      "verifier": "python3 .workbuddy/scripts/doc_apply_parity.py   # 输出 ready_for_live_by_machine_criteria",
+      "auto_check": "📥 每日·文档类落地 v1.1 每日跑（越界即飞书告警）；🧬 技能演进-周度 v1.1 读 pending_actions",
+      "human_step": "① 跑到期日看 parity 结论 ② 对 human_spotcheck_sample 抽检 ③ 将 doc_apply.mode 置 live"
     },
     {
       "id": "PA-002",

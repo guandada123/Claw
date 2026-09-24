@@ -152,6 +152,37 @@ def write_calibration_report(sel: list[dict], dropped: list[dict], mode: str) ->
     return p
 
 
+def write_parity_ledger(sel: list[dict], mode: str, report: Path) -> Path:
+    """对拍账本（机器可读，供 doc_apply_parity.py 校验校准期是否"0 越界"）。
+
+    按 <日期>:<模式> 幂等覆盖，避免同日重跑产生重复行。
+    """
+    CALIBRATION_DIR.mkdir(parents=True, exist_ok=True)
+    lp = CALIBRATION_DIR / "parity.json"
+    try:
+        led = json.loads(lp.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        led = {}
+    runs = led.setdefault("runs", {})
+    runs[f"{today8()}:{mode}"] = {
+        "date": datetime.datetime.now().strftime("%Y-%m-%d"),
+        "ts": now_iso(),
+        "mode": mode,
+        "report": str(report.relative_to(CLAW)),
+        "selected": [
+            {"id": c.get("id"), "skill": c.get("skill"), "target": doc_target(c),
+             "value": c.get("value"), "risk": c.get("risk"), "url": c.get("url")}
+            for c in sel
+        ],
+    }
+    led["updated_at"] = now_iso()
+    try:
+        lp.write_text(json.dumps(led, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        print(f"[apply_doc] warn: 对拍账本写入失败(不阻断): {e}", file=sys.stderr)
+    return lp
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["calibrate", "live"], default=None)
@@ -178,6 +209,7 @@ def main() -> int:
 
     sel, dropped = select(reg, cfg, Path(args.skills_dir))
     report = write_calibration_report(sel, dropped, mode)
+    write_parity_ledger(sel, mode, report)
 
     # 账本回写（registry 允许自动写：属 auto_apply 层）
     da = reg.setdefault("doc_apply", {})

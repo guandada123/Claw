@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-09-24 晚·判断] 校准期「对拍」可验证化：机器算得清的让机器算，人只点头
+
+### 判断（明确不做）
+- **不设自动切换**（`doc_apply.auto_switch = false`）：三条切换判据不等价 —— ①时长、②对拍越界可机器判定；**③"真写进去会不会更糟"是价值判断**。live 一旦生效即自动改写 skill 文档，放过①③的错要等人偶然翻到才发现。→ 机器把①②算清并每日自检，人只做③。理由记入 `doc_apply.auto_switch_reason`
+
+### 新增
+- `.workbuddy/scripts/doc_apply_parity.py` — 校准期对拍校验器：判据①算 `days_elapsed/days_needed`；判据②逐条校验 `selected.target ∈ references/*.md|README.md|CHANGELOG.md`（**越界退出码 1**）；判据③只输出 `human_spotcheck_sample` 样本、不下结论。输出 `ready_for_live_by_machine_criteria`
+- `.workbuddy/inspection_hub/calibration/parity.json` — 机器可读账本（每次闸门运行一条，`<日期>:<模式>` 幂等覆盖），免去解析 markdown
+
+### 变更
+- `apply_doc_candidates.py` 新增 `write_parity_ledger()`（写上述账本）
+- 「📥 每日·文档类落地」升 **v1.1**：calibrate 分支新增 Step 1b 跑校验器 —— `violations` 非空 → 飞书告警（闸门漏了非文档目标，属客观异常）；为空 → 静默留痕
+- registry `doc_apply` 增 `parity_verifier` / `parity_ledger` / `switch_criteria_machine`（逐条标注 machine vs human-only）/ `auto_switch` / `auto_switch_reason`；PA-001 增 `verifier` / `auto_check` / `human_step`
+
+### 文档
+- `output/discovery-loop-upgrade-2026-09-24.md` 增补 §十四（判断依据 + 校验器自测：正常 rc=0 / 越界样本 rc=1）
+
 ## [2026-09-24 晚·收口] 备份搬夜 + 周度审闭路 + 中枢三件静默语义统一
 
 ### 变更
