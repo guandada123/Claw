@@ -18,7 +18,13 @@
 - `.workbuddy/docs/unified_inspection_hub_overview.md`、`skill_self_evolution_plan.md` 时段与节奏表同步
 
 ### 修复
-- 调度改动前的 DB 备份方式纠正：`cp workbuddy.db` 会**漏掉 WAL 中未 checkpoint 的写入**（实测漏 1 行）→ 改用 `sqlite3 ... "VACUUM INTO"` 一致快照；已同步修订 `automation-rrule-safety-check` skill 的 Gate 2
+- 调度改动前的 DB 备份方式纠正：`cp workbuddy.db` 会**漏掉 WAL 中未 checkpoint 的写入**（实测漏 1 行）→ 改用 `sqlite3 ... "VACUUM INTO"` 一致快照；已同步修订 `automation-rrule-safety-check` skill 的 Gate 2、并新增 Gate 4「改点槽位体检」
+- 「🛡️ 统一发现-每日扫描」v1.1：修「假静默」——收尾原本**无条件**调 `push_feishu.sh` 且内容取 `/tmp/discovery_push.md`，跨天残留会把**昨日候选当今日推送**。现改为：判定前 `rm -f`、无候选不写文件不推送、收尾用 `[ -s ]` 守卫
+- 「📚【知识库】全网挖掘+文章精读」v10：发现并修正「日锁空跑」——`check_schedule 全网挖掘` 是**日锁**，原 6h RRULE 每天触发 4 次但只有首次真执行、其余 3 次空转，且那次真执行的时刻会随完成时间**漂移**（可能落到白天扣积分）。改为 `DAILY 00:50` 单槽锁定免费窗口；误建的 03:20/05:50 两槽已删除
+
+### 变更（第二批）
+- 「📚【知识库】全网挖掘+文章精读(LLM)」`HOURLY;INTERVAL=6` → **DAILY 00:50**（Hy4 夜间免费窗口内）
+- `registry.json` `schedule_policy` 增补 `day_lock_note`（日锁语义与反模式）与知识库夜间槽位
 
 ## [2026-06-13] Phase 13: 配置模板
 

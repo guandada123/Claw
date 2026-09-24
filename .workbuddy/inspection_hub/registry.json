@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.0.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T15:50:45",
+  "updated_at": "2026-09-24T16:00:17",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -94,6 +94,15 @@
       "last_run": null,
       "next_run": "2026-09-21T20:00 (daily)",
       "note": "读 automation_health.json 做报错 triage：系统性假阳性(🟢态, 含 field_lag)幂等自修，真实下探(🔴/🟡)推 propose_review 卡；PAUSED/瞬时中断不盲改"
+    },
+    {
+      "name": "📚【知识库】全网挖掘+文章精读(LLM)",
+      "id": "automation-1782137216020",
+      "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=50",
+      "status": "ACTIVE",
+      "last_run": null,
+      "next_run": "2026-09-25T00:50",
+      "note": "LLM 逐篇精读公众号增量文章（--max 15）。**日锁**（check_schedule 全网挖掘）= 每天只真正执行 1 次；故由 6h RRULE 4 槽改为 DAILY 00:50 单槽：①保证唯一真实执行落在免费窗口；②消除每日 3 次被锁空跑开销"
     }
   ],
   "evolution_watch_skills": [
@@ -299,8 +308,10 @@
       "每日·文档类落地（校准期）": "00:40",
       "技能演进-周度": "SA 23:22",
       "技能卫生审计-月度": "1日 23:44",
-      "空间+技能巡检-季度": "季首日 23:49"
+      "空间+技能巡检-季度": "季首日 23:49",
+      "知识库挖掘+文章精读": "00:50（日锁：每天仅此一次真执行）"
     },
-    "race_avoidance": "发现(00:20 写 registry) 与 技能演进(SA 23:22 读 registry) 分处不同时段，避免同刻读写竞态"
+    "race_avoidance": "发现(00:20 写 registry) 与 技能演进(SA 23:22 读 registry) 分处不同时段，避免同刻读写竞态",
+    "day_lock_note": "⚠️ 多个自动化用 check_schedule <name>（无 --interval-hours）＝**日锁**，当天只有首个触发槽真执行，其余槽位'被锁'空退但仍消耗一次 agent 开销。→ ①想要'每天真跑多次'必须改 --interval-hours；②只想每天跑一次时，**别用 6h/多槽 RRULE**（其余槽位是纯浪费），直接用 DAILY 单槽。"
   }
 }
