@@ -14,8 +14,9 @@
   D3 未纳管    DB 中活跃且命中中枢 scope，但未登记      → 需人审（清单不完整）
   D4 心跳超时  declared 且节奏 ≤48h 的项，距最近一次运行超阈值 → 需人审（该跑没跑 / 平台停摆）
   D5 文档漂移  skill 文档里的**时段/键名/自动化 id** 与真值不一致 → 需人审（文档是"会腐烂的声明"）
+  D6 待办逾期  registry.pending_actions[] 里 due 已过但未完结      → 需人审（"没人知道它过期了"才是问题）
 
-退出码：0=全净；10=仅 D1（可 --fix 自愈）；20=存在 D2/D3/D4/D5（需人介入）
+退出码：0=全净；10=仅 D1（可 --fix 自愈）；20=存在 D2/D3/D4/D5/D6（需人介入）
 铁律：--fix **只写 registry（镜像）**，绝不写 DB；不碰 skill 文档；不推送（推送交给调用方）
 """
 from __future__ import annotations
@@ -129,25 +130,37 @@ def doc_section_keys(text: str, header: str = "## 中央注册表") -> list[str]
 
 def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.datetime,
                     docs_override: list[str] | None = None) -> list[dict]:
-    """D5：文档里的时段/键名/自动化 id 是否与真值一致。只读，不改任何文档。"""
+    """D5：文档里的时段/键名/自动化 id 是否与真值一致。只读，不改任何文档。
+
+    契约支持多文档：doc_contract.docs[] 每项可为字符串（继承顶层默认）或对象（可逐项覆盖）。
+    ⚠️ 铁律：锚点的 source_id 若不在 DB 里 → 必须**报出来**，绝不静默跳过
+       （静默跳过 = 死守卫，锚点看着在、其实什么都没查 —— 与「只 check 不 done」同族）。
+    """
     contract = reg.get("doc_contract") or {}
-    docs = docs_override or contract.get("docs") or []
-    if not docs:
+    raw_docs = docs_override or contract.get("docs") or []
+    if not raw_docs:
         return []
+
+    defaults = {
+        "key_table_header": contract.get("key_table_header", "## 中央注册表"),
+        "must_mention_keys": contract.get("must_mention_keys", []),
+        "time_anchors": contract.get("time_anchors", []),
+        "table_keys_expected": contract.get("table_keys_expected", False),
+        "table_keys_expected_exclude": contract.get("table_keys_expected_exclude", []),
+    }
+    # 归一化：字符串项继承顶层默认；对象项缺省字段同样继承
+    docs = []
+    for d in raw_docs:
+        if isinstance(d, str):
+            docs.append({"path": d, **defaults})
+        else:
+            docs.append({**defaults, **d})
 
     reg_keys = set(reg.keys())
     findings: list[dict] = []
 
-    # 时段锚点：真值从调度器 DB 现算（不写死在文档/契约里，避免两头腐烂）
-    anchors = []
-    for a in contract.get("time_anchors", []) or []:
-        sid = a.get("source_id")
-        row = live.get(sid)
-        truth = rrule_times(row["rrule"]) if row else []
-        anchors.append({"label": a.get("label"), "source_id": sid,
-                        "truth": a.get("expect_override") or (truth[0] if truth else None)})
-
-    for raw in docs:
+    for spec in docs:
+        raw = spec["path"]
         p = Path(os.path.expanduser(raw))
         if not p.exists():
             findings.append({"kind": "doc_missing", "doc": raw, "detail": "契约声明的文档不存在"})
@@ -155,38 +168,50 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
         text = p.read_text(encoding="utf-8", errors="replace")
         lines = text.splitlines()
 
-        # K1 时段漂移：label 所在行必须出现真值时刻
-        for an in anchors:
-            label, truth = an["label"], an["truth"]
+        # K1 时段漂移：label 所在行必须出现真值时刻（真值现算，不写死在契约里）
+        for a in spec.get("time_anchors", []) or []:
+            label = a.get("label")
+            sid = a.get("source_id")
+            row = live.get(sid)
+            if row is None:
+                findings.append({
+                    "kind": "anchor_dangling", "doc": raw, "label": label, "source_id": sid,
+                    "detail": (f"时段锚点「{label}」指向的 {sid} 不在活跃自动化里"
+                               f"（{'已软删' if sid in all_ids else 'DB 中不存在'}）→ 锚点**静默失效**，"
+                               f"必须改指向或删除，否则这条契约什么都没在查"),
+                })
+                continue
+            truth = a.get("expect_override") or (rrule_times(row["rrule"])[:1] or [None])[0]
             if not label or not truth:
+                findings.append({"kind": "anchor_unverifiable", "doc": raw, "label": label,
+                                 "source_id": sid,
+                                 "detail": f"锚点「{label}」无法算出真值（rrule={row['rrule']} 无 BYHOUR/BYMINUTE）"})
                 continue
-            hit = any(label in ln and truth in ln for ln in lines)
-            if hit:
+            if any(label in ln and truth in ln for ln in lines):
                 continue
-            near = {f"{h}:{m}" for ln in lines if label in ln for h, m in TIME_RE.findall(ln)}
-            near_s = sorted(near)
+            near = sorted({f"{h}:{m}" for ln in lines if label in ln for h, m in TIME_RE.findall(ln)})
             findings.append({
-                "kind": "time_mismatch", "doc": raw, "label": label, "source_id": an["source_id"],
-                "truth": truth, "doc_times": near_s,
+                "kind": "time_mismatch", "doc": raw, "label": label, "source_id": sid,
+                "truth": truth, "doc_times": near,
                 "detail": (f"「{label}」真值 {truth}，但文档中没有该时刻" +
-                           (f"（文档同类行出现 {', '.join(near_s)}）" if near_s else "（文档完全未提该时段）")),
+                           (f"（文档同类行出现 {', '.join(near)}）" if near else "（文档完全未提该时段）")),
             })
 
         # K2 契约键缺失
-        for k in contract.get("must_mention_keys", []) or []:
+        for k in spec.get("must_mention_keys", []) or []:
             if k not in text:
                 findings.append({"kind": "key_omitted", "doc": raw, "key": k,
                                  "detail": f"契约要求提及的 registry 键 `{k}` 在文档中找不到"})
 
         # K3 文档表格列出的键不存在于 registry / registry 有键但表格漏列
-        listed = doc_section_keys(text, contract.get("key_table_header", "## 中央注册表"))
+        listed = doc_section_keys(text, spec.get("key_table_header", "## 中央注册表"))
         listed_norm = {k[:-2] if k.endswith("[]") else k for k in listed}
         for k in listed_norm:
             if k not in reg_keys:
                 findings.append({"kind": "key_unknown", "doc": raw, "key": k,
                                  "detail": f"文档注册表列出了 `{k}`，但 registry.json 里没有这个键"})
-        if listed_norm and contract.get("table_keys_expected"):
-            excl = set(contract.get("table_keys_expected_exclude", []))
+        if listed_norm and spec.get("table_keys_expected"):
+            excl = set(spec.get("table_keys_expected_exclude", []) or [])
             expected = {k for k in reg_keys if k not in excl}
             for k in sorted(expected - listed_norm):
                 findings.append({"kind": "key_missing_from_table", "doc": raw, "key": k,
@@ -202,6 +227,40 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
                                      "detail": f"第 {i} 行引用了不存在的自动化 id {m}"})
 
     return findings
+
+
+DONE_STATES = {"done", "completed", "cancelled", "canceled", "closed", "skipped"}
+
+
+def check_pending_due(reg: dict, now_dt: datetime.datetime) -> list[dict]:
+    """D6：pending_actions[] 里 due 已过但仍未完结的待办。
+
+    存在理由：PA-001（校准期→生效期）这类"有期限、默认不动也行"的待办，
+    最容易在没人的时候悄悄过期 —— 过期本身不是故障，但**没人知道它过期了**才是。
+    """
+    out = []
+    today = now_dt.date()
+    for a in reg.get("pending_actions", []) or []:
+        due = a.get("due")
+        if not due:
+            continue
+        try:
+            due_d = datetime.date.fromisoformat(str(due)[:10])
+        except ValueError:
+            out.append({"id": a.get("id"), "due": due, "kind": "bad_due",
+                        "detail": f"`due` 不是 ISO 日期: {due}"})
+            continue
+        if str(a.get("status", "")).lower() in DONE_STATES:
+            continue
+        if due_d < today:
+            out.append({"id": a.get("id"), "title": a.get("title"), "owner": a.get("owner"),
+                        "due": str(due_d), "overdue_days": (today - due_d).days,
+                        "status": a.get("status"),
+                        "default_if_no_action": a.get("default_if_no_action"),
+                        "detail": (f"{a.get('id')} 已逾期 {(today - due_d).days} 天（due {due_d}，"
+                                   f"owner={a.get('owner')}，status={a.get('status')}）"
+                                   f"：{a.get('title')}")})
+    return out
 
 
 def main() -> int:
@@ -307,6 +366,9 @@ def main() -> int:
     # ---- D5 文档漂移（只读；文档是"会腐烂的声明"）----
     d5 = [] if args.no_doc else check_doc_drift(reg, live, all_ids, now_dt, args.doc)
 
+    # ---- D6 待办逾期（有期限的待办最容易在没人看着时悄悄过期）----
+    d6 = check_pending_due(reg, now_dt)
+
     # ---- 收敛（仅 D1，且仅在 --fix）----
     fixed = []
     if args.fix and d1:
@@ -337,11 +399,12 @@ def main() -> int:
         "D3_unregistered": d3,
         "D4_heartbeat_stale": d4,
         "D5_doc_drift": d5,
+        "D6_pending_overdue": d6,
         "fixed": fixed,
-        "clean": not (d1 or d2 or d3 or d4 or d5),
-        "needs_human": bool(d2 or d3 or d4 or d5),
+        "clean": not (d1 or d2 or d3 or d4 or d5 or d6),
+        "needs_human": bool(d2 or d3 or d4 or d5 or d6),
     }
-    rc = 0 if out["clean"] else (10 if (d1 and not (d2 or d3 or d4 or d5)) else 20)
+    rc = 0 if out["clean"] else (10 if (d1 and not (d2 or d3 or d4 or d5 or d6)) else 20)
 
     if args.brief:
         # 供告警正文：只列"需人审"的项，天然带 6h 冷却由调用方控制
@@ -353,6 +416,8 @@ def main() -> int:
             print(f"[未纳管] {x.get('name')} {x.get('rrule')}")
         for x in d5:
             print(f"[文档腐烂] {Path(os.path.expanduser(x['doc'])).name} — {x['detail']}")
+        for x in d6:
+            print(f"[待办逾期] {x.get('detail')}")
         return rc
 
     if args.json:
@@ -363,7 +428,8 @@ def main() -> int:
                          ("D2_declared_missing", "D2 声明悬空(需人审)"),
                          ("D3_unregistered", "D3 未纳管(需人审)"),
                          ("D4_heartbeat_stale", "D4 心跳超时(需人审)"),
-                         ("D5_doc_drift", "D5 文档漂移(需人审)")):
+                         ("D5_doc_drift", "D5 文档漂移(需人审)"),
+                         ("D6_pending_overdue", "D6 待办逾期(需人审)")):
             items = out[k]
             if items:
                 print(f"  {label}: {len(items)}")
@@ -374,6 +440,8 @@ def main() -> int:
                         print(f"    · {it['name'][:30]} 上次 {it['last_run']} 已 {it['age_h']}h (阈 {it['threshold_h']}h)")
                     elif k == "D5_doc_drift":
                         print(f"    · [{it.get('kind')}] {it['detail']}")
+                    elif k == "D6_pending_overdue":
+                        print(f"    · {it.get('detail')}")
                     else:
                         print(f"    · {it.get('name')} {it.get('rrule','')} {it.get('why','')}")
         if fixed:

@@ -35,7 +35,12 @@
 - 被接管已PAUSED：综合健康1781780654327/跨项目1785918166172/多项目1785928720152；保留独立：watchdog失败扫表1785506975961、飞书自检1784084428353；飞书告知结构化卡，全绿SILENT
 - 🔴 **真值纪律(09-24固化)**：scheduler DB(`~/.workbuddy/workbuddy.db`)=**唯一真值**，`.workbuddy/inspection_hub/registry.json`=**只读镜像**。发现漂移一律 **DB→校正镜像**，绝不反向改 DB。skill 定义=`.workbuddy/skills/unified-inspection-hub/SKILL.md`（v1.1）
 - 对账器 **`hub_reconcile.py`**：observe(DB 只读URI)→diff(vs registry)→act(**只写镜像**)。漂移 **D1**镜像漂移(`--fix`自愈)/**D2**声明悬空/**D3**未纳管/**D4**心跳超时/**D5**文档漂移；心跳阈值=`周期+max(3h,周期×25%)`；退出码 **0干净/10仅D1/20须人**；开关 `--json`/`--brief`/`--fix`/`--doc`/`--no-doc`
-- **D5 文档漂移(v1.1.1)**：`registry.doc_contract` 声明「本部 SKILL.md 里哪些时段/键名/id 必须与真值一致」。**真值现算**（`rrule_times()` 从 DB 的 BYHOUR/BYMINUTE 推 HH:MM），**绝不写死在契约里**（写死=第三份会腐烂且自证的副本）。判据 K1 时段不一致/K2 契约键未提及/K3 注册表表格双向校验/K4 引用不存在 id（跳过含 `http` 行，防 bittide 文章号子串误报）。**文档腐烂 ≡ 镜像漂移，同一类病（都是声明的副本）**
+- **D5 文档漂移(v1.1.1)**：`registry.doc_contract` 声明「本部 SKILL.md 里哪些时段/键名/id 必须与真值一致」。**真值现算**（`rrule_times()` 从 DB 的 BYHOUR/BYMINUTE 推 HH:MM），**绝不写死在契约里**（写死=第三份会腐烂且自证的副本）。判据 K1 时段不一致/K1' **`anchor_dangling`**（锚点源非活跃→原为静默跳过=死守卫，已改报）/K2 契约键未提及/K3 注册表表格双向校验/K4 引用不存在 id（跳过含 `http` 行，防 bittide 文章号子串误报）。**文档腐烂 ≡ 镜像漂移，同一类病（都是声明的副本）**。多文档：`docs[]` 字符串继承默认/对象逐项覆盖；扩容只收"被中枢治理且文档写死真值"者（不收叙事报告）
+- 🔴 **通用铁律(09-24 三度踩坑固化)**：**凡"检查需要有输入"的机制，必须自检"输入还在不在"** —— 同族三例：①锁只 check 不 done（锁文件永不产生）②契约锚点指向已删自动化（静默 continue）③看门狗读空目录。三者形态都"看着在跑"，实际恒放行
+- **D6 待办逾期(v1.2)**：`pending_actions[].due < 今天` 且 status ∉ {done,completed,cancelled,closed,skipped} → 报逾期天数/owner/`default_if_no_action`。**"过期本身不是故障，没人知道它过期了才是"**
+- **PA-001 = 守卫式自动切换（用户 09-24 全授权）**：`doc_apply.auto_switch=true` + `switch_guard`（前置=满14天∧0越界（parity 机器判定）；每候选自审=宿主存在/**纯增量**/来源已登记；**前 3 批 live 必推卡**；落地后复跑 parity+对账，越界/提交失败→自动 `git revert`+mode 退回 calibrate）。定性 **supervised**（非 auto）→ 人从"切换前点头"改为"切换后抽查"
+- 🔴 **改名纪律**：自动化名/prompt 里**不写死状态字样**（如"（校准期）"）—— 状态只在 `registry.doc_apply.mode`。改名须同步 registry `night_slots` 键 + `free_window_decisions` + 文档；`_state_sync_notes` 里的历史记录**不改**（改了就是伪造历史）
+- 🔴 **改长 prompt 的安全姿势**：调度库只读导出备份(`/tmp/autoprompt_<id>.bak-<date>`) → `assert old in src` 锚点替换生成 `.new`（不命中即中止）→ `diff` 看改动面 → `automation_update` 写入 → **逐字节比对 DB 与 `.new`**（平台会剥尾换行）+ 回归 `rrule/status` 未动
 - 纳管范围由 **`registry.automation_scope`**(include/exclude 名称规则) 声明，**不手写全量**（库里71条约50条是业务/投研类=噪音）。范围内未登记→报 D3；新增治理类自动化会自动被抓出
 - 🔴 **外部死信层(09-24)**：AI 看门狗守中枢有**双死盲区**(中枢死→看门狗同死)→ 给**无LLM的 launchd 看门狗** `~/.local/bin/wb_health_check.sh`(30min) 加第5检查段调 `hub_reconcile.py`，rc≥20→飞书(6h冷却,锚`~/.local/etc/wb_health/…/hub_alert_ts`)。**绝不让 AI 报告自己的死**
 - 落地通道 `doc_apply`：`mode=calibrate`(至2026-10-08，只读对拍，**一行文档都不写**)→`live`；**不设自动切换**(`auto_switch=false`，③"会不会更糟"是人的价值判断)；对账器 `doc_apply_parity.py` + 账本 `calibration/parity.json`

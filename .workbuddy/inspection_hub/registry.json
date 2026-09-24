@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.0.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T17:27:36",
+  "updated_at": "2026-09-24T17:33:42",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -54,13 +54,13 @@
       "note": "A内部健康快照 + B外部同类研究 + 比对 → registry.discovery_candidates"
     },
     {
-      "name": "📥 每日·文档类落地（校准期）",
+      "name": "📥 每日·文档类落地（校准/生效自动）",
       "id": "1fd52465-899f-4525-a82d-4cc5df01155c",
       "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=40",
       "status": "ACTIVE",
       "last_run": null,
       "next_run": "2026-09-25T00:40",
-      "note": "发现回路·落地半程（Mode B）：读 registry.discovery_candidates → 质量闸 → top≤3 合并落地；校准期=只读对拍(至2026-10-08)，live 后 1 commit/1 CHANGELOG/1 回滚点；核心类永不进本通道"
+      "note": "发现回路·落地半程（Mode B）：读 registry.discovery_candidates → 质量闸 → top≤3 合并落地；校准期=只读对拍（至2026-10-08），达标即自动置 live（守卫：纯增量自审/前3批推卡/落地后复检/越界回滚）；核心类永不进本通道。名字不含状态字样（状态只在 doc_apply.mode），避免会腐烂的声明"
     },
     {
       "name": "📚【知识库】全网挖掘+文章精读(LLM)",
@@ -480,15 +480,35 @@
         "by": "对 human_spotcheck_sample 逐条回答『真写进去会不会更糟』"
       }
     ],
-    "auto_switch": false,
-    "auto_switch_reason": "不设自动切换：判据③『会不会更糟』本质是人的价值判断，无法机器化；且 live 一旦生效即自动改写 skill 文档，错了要等到下次人不定什么时候看才发现。→ 保持『机器把①②算清 + 人点头』，把人工成本从『翻 14 份报告』压到『看一条命令的结论』。"
+    "auto_switch": true,
+    "auto_switch_reason": "2026-09-24 用户「全部授权给你」→ 改为**有守卫的自动切换**（不是无条件自动）。原判据③『会不会更糟』是人的价值判断，无法机器化；但可以用**等价的过程约束**替代，而把『人点头』从切换前置改成切换后抽查：①判据①②由 doc_apply_parity.py 机器判定；②切换后不改行为边界（仍只写 references/*.md|README.md|CHANGELOG.md 白名单，top≤3，1 commit + 1 CHANGELOG + 1 回滚点）；③前 3 批 live **必须推卡**（=notify-on-apply，不是静默落地）；④落地后立刻复跑 parity，越界或提交失败 → 自动回滚到 rollback_point 并把 mode 退回 calibrate。→ 自主度按『shadow → notify-only → supervised → auto』逐级晋升，这批属 **supervised**。",
+    "switch_guard": {
+      "preconditions": [
+        "days_elapsed >= days_needed",
+        "violations == []"
+      ],
+      "precondition_verifier": "python3 .workbuddy/scripts/doc_apply_parity.py --json",
+      "self_audit_per_candidate": [
+        "目标文件已存在，或为宿主 skill 下的新 references/*.md（宿主目录必须存在）",
+        "改动**纯增量**：不删除、不覆盖既有正文（只追加/新增小节）",
+        "来源 URL 必须已在候选里登记（不臆造来源）"
+      ],
+      "notify_on_apply_batches": 3,
+      "post_apply_verify": "复跑 doc_apply_parity.py；violations 非空 → 回滚",
+      "rollback": "git reset --hard <doc_apply.rollback_point> 前先 git revert 该批 commit；并把 doc_apply.mode 退回 calibrate",
+      "never": [
+        "核心类（SKILL.md 主流程/脚本/自动化 prompt）",
+        "禁区（automations/、scripts/*.db、.git、.venv、symlink 目标、memory 层）"
+      ]
+    }
   },
   "_state_sync_notes": [
     "2026-09-24 巡检发现 registry 记录的 rrule 与 scheduler DB 实际漂移：🧬 技能演进 registry=Sat 10:00 vs DB=FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22；🧹 技能卫生 registry=1日09:00 vs DB=BYHOUR=23;BYMINUTE=44。此处不改既有自动化调度（真值=DB），仅登记待确认意图。",
     "2026-09-24 已闭环：registry 镜像的 rrule/next_run 按 scheduler DB 真值校正（技能演进→SA 23:22；技能卫生→1日 23:44），并新增「📥 每日·文档类落地（校准期）」。同步纪律：**DB=唯一真值，registry=只读镜像**；凡发现漂移 → 以 DB 校正镜像，绝不反向改 DB（除非人明确要求改调度）。",
     "2026-09-24 校准期可验证化：新增 doc_apply_parity.py（判据①②机器判定，越界退出码1）+ parity.json 账本（apply_doc_candidates.py 每次运行写一条）。明确 auto_switch=False：切换仍需人点头，理由写入 doc_apply.auto_switch_reason。",
     "2026-09-24 审计+全网优化轮：①枢纽 skill 文档 `unified-inspection-hub/SKILL.md` 由 v1.0→v1.1 （原文已腐烂：统一发现 07:30 / 演进 10:00 / 卫生 09:00 / 季度 09:00 / 中央注册表只列 6 键 / 架构 7 层）——**skill 文档与会腐烂的声明，和 registry 一样需要对账**；下一步扩展 `hub_reconcile.py` 出 **D5 文档漂移**（比对 skill 文档里的时段字符串/键名/自动化 id 与真值）。②本轮新增 hub_reconcile.py（D1–D4，退出码 0/10/20）+ doc_apply_parity.py + 原生看门狗第 5 检查段（无 LLM，30min，负责『中枢自己死掉』的外部死信检测）。③刻意不做：不自动 calibrate→live、不清 D2 软删、不降频监控类、不全量搬 71 条、不自动补登记 D3。",
-    "2026-09-24 D5 文档漂移上线：新增 `doc_contract`（docs / must_mention_keys / time_anchors / table_keys_expected / checked_by / why）。真值**现算**（从 DB rrule 推 HH:MM），不写死在契约里 → 文档改错和调度改错两个方向都能被抓。四类判据：K1 时段不一致 / K2 契约键未提及 / K3 注册表表格双向校验（列出不存在的键 or 漏列 registry 的键）/ K4 引用不存在的自动化 id（跳过含 http 的行，避免 bittide 文章号那类子串误报）。自测：正常 rc=0、D5=0；故障注入 4/4 命中且 rc=20。文档契约同时成为本部 SKILL.md 的自检 —— v1.1.0 已满足契约。"
+    "2026-09-24 D5 文档漂移上线：新增 `doc_contract`（docs / must_mention_keys / time_anchors / table_keys_expected / checked_by / why）。真值**现算**（从 DB rrule 推 HH:MM），不写死在契约里 → 文档改错和调度改错两个方向都能被抓。四类判据：K1 时段不一致 / K2 契约键未提及 / K3 注册表表格双向校验（列出不存在的键 or 漏列 registry 的键）/ K4 引用不存在的自动化 id（跳过含 http 的行，避免 bittide 文章号那类子串误报）。自测：正常 rc=0、D5=0；故障注入 4/4 命中且 rc=20。文档契约同时成为本部 SKILL.md 的自检 —— v1.1.0 已满足契约。",
+    "2026-09-24 全授权轮：①D5 扩容为多文档契约（+majiu 季度巡检规程）→ **立刻抓到真实腐烂**：quarterly-inspection.md 写『1/4/7/10 月 1 日 09:00』且 RRULE 模板 BYHOUR=9，真值 23:49 → 已按 auto_apply 档修正。②D5 修掉自身死守卫：锚点 source_id 指向非活跃自动化时原为 `continue` 静默跳过（=什么都没查），改为报 `anchor_dangling`。③新增 D6 待办逾期（pending_actions[].due 过期未完结）。④PA-001 由 human 改 auto：doc_apply.auto_switch=true + switch_guard（纯增量自审/前3批推卡/落地后复检/越界回滚），自主度按 shadow→notify-only→supervised→auto 逐级晋升，这批=supervised。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -496,7 +516,7 @@
     "truth_source": "scheduler DB（~/.workbuddy/workbuddy.db → automations.rrule）；registry 为只读镜像",
     "night_slots": {
       "统一发现-每日扫描": "00:20",
-      "每日·文档类落地（校准期）": "00:40",
+      "每日·文档类落地（校准/生效自动）": "00:40",
       "技能演进-周度": "SA 23:22",
       "技能卫生审计-月度": "1日 23:44",
       "空间+技能巡检-季度": "季首日 23:49",
@@ -544,14 +564,14 @@
     {
       "id": "PA-001",
       "due": "2026-10-08",
-      "owner": "human",
-      "title": "校准期 → 生效期：doc_apply.mode 置 live",
-      "criteria": "满 14 天 + 对拍 0 越界 + 人工抽检 ≥3 份 0 反例",
+      "owner": "auto",
+      "title": "校准期 → 生效期：doc_apply.mode 置 live（已授权的守卫式自动切换）",
+      "criteria": "满 14 天 + 对拍 0 越界（机器判定）→ 自动置 live；每候选另过 self_audit（纯增量/宿主存在/来源已登记）；前 3 批推卡；落地后复检，越界即回滚",
       "default_if_no_action": "保持 calibrate（只读对拍，发现成果不落地）",
-      "status": "waiting",
-      "verifier": "python3 .workbuddy/scripts/doc_apply_parity.py   # 输出 ready_for_live_by_machine_criteria",
-      "auto_check": "📥 每日·文档类落地 v1.1 每日跑（越界即飞书告警）；🧬 技能演进-周度 v1.1 读 pending_actions",
-      "human_step": "① 跑到期日看 parity 结论 ② 对 human_spotcheck_sample 抽检 ③ 将 doc_apply.mode 置 live"
+      "status": "scheduled",
+      "verifier": "python3 .workbuddy/scripts/doc_apply_parity.py   # ready_for_live_by_machine_criteria",
+      "auto_check": "「📥 每日·文档类落地」v1.2：每日跑 parity → 达标即切 live 并按 switch_guard 执行",
+      "human_step": "无需动作（已授权给自动化）。首批 live 会推卡 → 届时抽查，若判断失误直接回滚即可"
     },
     {
       "id": "PA-002",
@@ -607,52 +627,66 @@
   },
   "doc_contract": {
     "docs": [
-      "~/.workbuddy/skills/unified-inspection-hub/SKILL.md"
-    ],
-    "key_table_header": "## 中央注册表",
-    "must_mention_keys": [
-      "doc_apply",
-      "schedule_policy",
-      "pending_actions",
-      "automation_scope",
-      "discovery_candidates",
-      "authorization_tiers",
-      "forbidden_zones",
-      "known_failure_modes"
-    ],
-    "time_anchors": [
       {
-        "label": "统一发现",
-        "source_id": "2a404a97-c262-4cad-8a43-3c5a69febfbb"
+        "path": "~/.workbuddy/skills/unified-inspection-hub/SKILL.md",
+        "key_table_header": "## 中央注册表",
+        "table_keys_expected": true,
+        "table_keys_expected_exclude": [
+          "hub",
+          "version",
+          "created_at",
+          "updated_at",
+          "state_anchor",
+          "doc_contract"
+        ],
+        "must_mention_keys": [
+          "doc_apply",
+          "schedule_policy",
+          "pending_actions",
+          "automation_scope",
+          "discovery_candidates",
+          "authorization_tiers",
+          "forbidden_zones",
+          "known_failure_modes"
+        ],
+        "time_anchors": [
+          {
+            "label": "统一发现",
+            "source_id": "2a404a97-c262-4cad-8a43-3c5a69febfbb"
+          },
+          {
+            "label": "落地剧本",
+            "source_id": "1fd52465-899f-4525-a82d-4cc5df01155c"
+          },
+          {
+            "label": "演进剧本",
+            "source_id": "0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4"
+          },
+          {
+            "label": "技能卫生",
+            "source_id": "a0b1b435-225f-43eb-8e9b-a7bb82fde97a"
+          },
+          {
+            "label": "马厩管理法",
+            "source_id": "52db25b4-b948-464b-ad62-44b77b875d2a"
+          }
+        ]
       },
       {
-        "label": "落地剧本",
-        "source_id": "1fd52465-899f-4525-a82d-4cc5df01155c"
-      },
-      {
-        "label": "演进剧本",
-        "source_id": "0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4"
-      },
-      {
-        "label": "技能卫生",
-        "source_id": "a0b1b435-225f-43eb-8e9b-a7bb82fde97a"
-      },
-      {
-        "label": "马厩管理法",
-        "source_id": "52db25b4-b948-464b-ad62-44b77b875d2a"
+        "path": "~/.workbuddy/skills/majiu-management/references/quarterly-inspection.md",
+        "time_anchors": [
+          {
+            "label": "季度巡检",
+            "source_id": "52db25b4-b948-464b-ad62-44b77b875d2a"
+          }
+        ]
       }
     ],
+    "key_table_header": "## 中央注册表",
     "checked_by": "hub_reconcile.py → D5 文档漂移（退出码计入 20）",
     "why": "skill 文档是**会腐烂的声明**：2026-09-24 审计即发现 v1.0 的时段（07:30/10:00/09:00）、注册表键清单、架构层数全部与现实脱节。文档里写死时刻的地方必须等于调度器真值，否则照文档建自动化的人会按错误前提做决策。真值现算（不写死在契约里）→ 两头都不可能自证正确。",
     "scope_note": "只锚定文档**明确承诺过的时刻**（章节标题/清单行）；夜间时段全表住在 schedule_policy.night_slots，文档不复制 = 不制造第二份会腐烂的副本。",
-    "table_keys_expected": true,
-    "table_keys_expected_exclude": [
-      "hub",
-      "version",
-      "created_at",
-      "updated_at",
-      "state_anchor",
-      "doc_contract"
-    ]
+    "docs_note": "多文档契约：字符串项继承顶层默认；对象项可逐项覆盖。扩容纪律=**只收「被中枢治理且文档里写死了真值」的文档**，不收叙事型报告（如 output/*.md 里把 07:30 当历史记录写的地方会假阳性）。",
+    "anchor_rule": "锚点的 source_id 必须指向**活跃**自动化：指向已删/不存在者 → 报 `anchor_dangling`，**绝不静默跳过**（静默跳过=死守卫，锚点看着在、其实什么都没查）。"
   }
 }

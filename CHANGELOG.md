@@ -1,5 +1,52 @@
 # Changelog
 
+## [2026-09-24 晚·全授权收口] D5 扩容即抓到真实腐烂 + D6 待办逾期 + PA-001 改为守卫式自动切换
+
+### 一处真实腐烂（扩容立刻见效）
+- `majiu-management/references/quarterly-inspection.md` 写「每年 1/4/7/10 月 1 日 **09:00**」，且文末**创建模板**也是 `BYHOUR=9;BYMINUTE=0` —— 真值 **23:49**（早已挪进免费窗口）。
+  → 按 `auto_apply` 档修正两处，并加一句"本行受 `doc_contract` 对账约束"
+- **意义**：这是扩容后**当天就抓到**的第一个真实案例 —— 证明 D5 不是纸面机制。若没抓到，下一个照模板建自动化的人会把新自动化建在扣积分的 09:00
+
+### D5 扩容与自纠
+- `doc_contract.docs[]` **多文档**：字符串项继承顶层默认，对象项逐项覆盖。新增 `docs_note`（扩容纪律）与 `anchor_rule`
+  - 扩容纪律：**只收"被中枢治理且文档里写死了真值"的文档**；不收叙事型报告（`output/*.md` 把旧时间当历史写会假阳性）
+- **修掉 D5 自身的死守卫**：锚点 `source_id` 指向非活跃自动化时，原实现是 `continue` **静默跳过** → 锚点看着在、其实什么都没查（与"只 check 不 done"同族）。
+  改为报 **`anchor_dangling`**；另增 `anchor_unverifiable`（rrule 里没有 BYHOUR/BYMINUTE 算不出真值）
+- 清理上一版残留在顶层的 `must_mention_keys`/`time_anchors` 等字段（留着会被第二份文档继承 → 8 条假阳性）
+
+### 新增 D6 待办逾期
+- `pending_actions[]` 中 `due < 今天` 且 `status ∉ {done,completed,cancelled,closed,skipped}` → 报逾期天数 + `owner` + `default_if_no_action`
+- 理由：**"过期本身不是故障，没人知道它过期了才是"** —— 有期限却"不动作也行"的待办最容易静默过期
+
+### PA-001 改为守卫式自动切换（用户全授权）
+- `doc_apply.auto_switch: true` + 新增 `doc_apply.switch_guard`：
+  - 前置（机器判定，缺一不可）：`days_elapsed >= days_needed` + `violations == []`
+  - 每候选自审：宿主存在 / **纯增量**（不删不覆盖） / 来源已登记
+  - **前 3 批 live 必须推卡**（notify-on-apply）；落地后复跑 parity + 对账；越界或提交失败 → **自动 `git revert`** 并把 `mode` 退回 `calibrate`
+  - `never`：核心类、禁区
+- PA-001 `owner: human → auto`、`status: waiting → scheduled`，`human_step` 改为"无需动作，首批会推卡，届时抽查即可"
+- 定性：自主度按 **shadow → notify-only → supervised → auto** 逐级晋升，**当前为 supervised**（人从"切换前点头"改为"切换后抽查"）
+
+### 变更
+- 「📥 每日·文档类落地（校准/生效自动）」v1.1 → **v1.2**：加 1c 模式自动切换（切完推卡 + 留一个观察日）、Step 2 自审、3b 落地后复检 + 自动回滚、Step 5 推送纪律；**名字去掉"（校准期）"** —— 状态只在 `doc_apply.mode`，名字里写死状态就是制造会腐烂的声明
+- 「🩺 统一巡检·报错自诊与修复」v2.1 → **v2.2**：Step 5 五类→**六类**漂移，补 D6 说明（卡片须给 id/逾期天数/owner/default_if_no_action）
+- 两处 prompt 改动均**先只读备份 → 锚点替换（`assert old in src`）→ diff 确认改动面 → 写入后逐字节比对**（2442==2442、3970==3970，差异仅平台剥离的尾换行；rrule/status 未动）
+- `unified-inspection-hub/SKILL.md` v1.1.1 → **v1.2.0**：对账剧本补 D6 行 + `anchor_dangling`/`anchor_unverifiable` + 多文档规矩；分级授权补"守卫式自动切换"；落地剧本补模式自动切换/落地守卫/名字不含状态；反模式加"守卫的判据指向不存在的源"；审计检查点 9→**10**（+ 依赖的输入还在不在）
+- registry：`night_slots` 键与 `free_window_decisions` 同步新名
+
+### 自测
+```
+D5/D6 故障注入 7 项全过 ✅
+ 1 多文档契约基线无 findings
+ 2 锚点指向不存在自动化 → anchor_dangling（死守卫不再静默）
+ 3 季度巡检文档改回 09:00 → time_mismatch（真值 23:49）
+ 4 锚点按文档隔离（docs[0] 的锚点不落到 docs[1]）
+ 5 D6 检出逾期 10 天（含 owner/default_if_no_action）
+ 6 D6 已完结不误报   7 D6 未到期不误报
+对账：clean=True | D1..D6 全 0 | rc=0        py_compile / bash -n OK
+```
+> 注：测试 4 第一版判据写错（hub 文档里确实同时有「majiu 季度巡检」与 23:49 → 合法通过）。**是测试错，不是代码错**，已改为按 doc 隔离断言
+
 ## [2026-09-24 晚·D5] 文档漂移对账上线 —— skill 文档也纳入"会腐烂的声明"
 
 ### 判断
