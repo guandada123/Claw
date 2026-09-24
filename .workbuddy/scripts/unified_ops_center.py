@@ -2017,6 +2017,11 @@ def _sync_state_anchor(
             {"failure_id": h.get("failure_id"), "tier": h.get("tier"), "alert": h.get("alert")}
             for h in known_hits
         ]
+    # ⚠️ 修正(2026-09-24 跨项目闭环审计)：写回必须 bump 顶层 updated_at。
+    #    此前只更新 monitoring.global.unified_ops_center.*，顶层 updated_at 一直停在 09-18 不动，
+    #    而文件实际每天都在被改（mtime 09-24 19:30）→ **「最后更新」这个字段在说谎 6.4 天**。
+    #    D8 会报 updated_at_lie；此处从源头修掉（谁写谁 bump）。
+    data["updated_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     try:
         # 2026-08-12: 原子写(tmp+os.replace), 与 self_heal.py 一致, 防跨项目状态锚并发写坏
         import os as _os

@@ -15,13 +15,18 @@
   D4 心跳超时  declared 且节奏 ≤48h 的项，距最近一次运行超阈值 → 需人审（该跑没跑 / 平台停摆）
   D5 文档漂移  skill 文档里的**时段/键名/自动化 id** 与真值不一致 → 需人审（文档是"会腐烂的声明"）
   D6 待办逾期  registry.pending_actions[] 里 due 已过但未完结      → 需人审（"没人知道它过期了"才是问题）
+  D8 跨项目闭环  active_projects 声明的项目是否真有人管；状态锚自身是否说谎 → 需人审
+              （三次审计后新增：D1–D7 只覆盖 Claw 一个项目，而"闭环"是**跨项目**概念 ——
+               7 个项目有的 0 自动化、有的跑 docker、有的休眠；它们的闭环状态写在
+               ~/.workbuddy/cross_project_state.json，此前不在任何机器检查覆盖内，
+               于是 handoff 里 08-04 写的"明日开盘前"可以静静躺 50 天无人报警）
   D7 契约盲区  **声明本身**空了/指向不存在的东西 → 该维度"看着在查、其实什么都没查" → 需人审
               （三次审计新增：这是"死守卫"家族在**检查器自己**身上的那一例。
                 D1–D6 检查的是"世界有没有漂移"；D7 检查的是"我这份声明还能不能查出漂移"。
                 例：scope 被清空 → D3 恒 0 且报 clean；doc_contract.docs 为空 → D5 恒 0；
                     守卫的校验器路径不存在/依赖 cwd → 自动切换的前置条件根本求不了值。）
 
-退出码：0=全净；10=仅 D1（可 --fix 自愈）；20=存在 D2/D3/D4/D5/D6/D7（需人介入）
+退出码：0=全净；10=仅 D1（可 --fix 自愈）；20=存在 D2/D3/D4/D5/D6/D7/D8（需人介入）
 铁律：--fix **只写 registry（镜像）**，绝不写 DB；不碰 skill 文档；不推送（推送交给调用方）
 """
 from __future__ import annotations
@@ -244,7 +249,12 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
                                  "detail": f"文档注册表列出了 `{k}`，但 registry.json 里没有这个键"})
         if listed_norm and spec.get("table_keys_expected"):
             excl = set(spec.get("table_keys_expected_exclude", []) or [])
-            expected = {k for k in reg_keys if k not in excl}
+            # ⚠️ 2026-09-24：`_` 前缀 = 元数据/审计痕迹（`_history`/`_state_sync_notes`），
+            #    不是配置，不该进"配置索引表"。**但这条例外必须是声明出来的，不能在代码里硬写** ——
+            #    否则就成了"看着在查、其实默默少查一批键"的死守卫。
+            #    想知道被排除了什么，读 registry.doc_contract 即可。
+            pref = tuple(spec.get("table_keys_expected_exclude_prefixes", []) or [])
+            expected = {k for k in reg_keys if k not in excl and not k.startswith(pref)}
             for k in sorted(expected - listed_norm):
                 findings.append({"kind": "key_missing_from_table", "doc": raw, "key": k,
                                  "detail": f"registry 有键 `{k}`，但文档中央注册表表格漏列了（表=registry 的索引，会一起腐烂）"})
@@ -368,6 +378,172 @@ def check_contract_blind(reg: dict, root: Path) -> list[dict]:
     return out
 
 
+CROSS_STATE = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "cross_project_state.json"
+WB_ROOT = Path(os.environ.get("HOME", "/Users/guan")) / "WorkBuddy"
+# "明日/今日/开盘前" 这类相对时间无法被机器判定何时过期（写到文件里的那一刻就已经开始腐烂）
+REL_TIME_RE = re.compile(r"(明日|今日|今天|明天|后天|开盘前|收盘前|本周内|下周|稍后|尽快)")
+
+
+def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
+                        exists: bool = True, load_error: str | None = None) -> list[dict]:
+    """D8 跨项目闭环：active_projects 声明的每个项目是否真的有人管、且状态锚自己不说谎。
+
+    存在理由（2026-09-24 用户"统计目前所有项目，所有项目都要闭环"）：
+      D1–D7 全部只覆盖 Claw 这一个项目（registry + skill 文档 + 调度库）。
+      但"闭环"是**跨项目**概念：7 个项目里有的 0 自动化、有的跑在 docker、有的休眠。
+      它们的闭环状态写在另一个文件里（~/.workbuddy/cross_project_state.json），
+      而那个文件**此前不在任何机器检查的覆盖范围内** —— 于是它里面的"明日开盘前"
+      可以静静躺 50 天而无人报警（实测：handoff 的 C1 实盘止损项，08-04 写的期限，至今未决）。
+    """
+    out: list[dict] = []
+
+    def f(kind: str, key: str, detail: str) -> None:
+        out.append({"kind": kind, "key": key, "detail": detail})
+
+    # ⚠️ 修正(2026-09-24 D8 自查)：**「不存在」「读不出」「是空的」是三种不同的输入故障，
+    #    不能共用一个错误码，更不能都渲染成一句「不存在」**。
+    #    原实现只判 `if not cs:` 就报 state_anchor_missing —— 文件明明在、只是内容为 `{}` 时，
+    #    输出说"状态锚不存在"，既误导排障，又掩盖"输入不可信"这一层语义
+    #    （真正的危险是：把"读不出来"当成"没有跨项目问题"）。
+    if not exists:
+        f("state_anchor_missing", str(cs_path),
+          "跨项目状态锚文件不存在 → 所有项目的闭环声明都无从核对"
+          "（换会话/host 恢复现场的唯一权威源丢了）")
+        return out
+    if load_error:
+        f("state_anchor_unreadable", str(cs_path),
+          f"状态锚存在但读不出来（{load_error}）→ **输入不可信**，"
+          "本次不得据此判定「跨项目无问题」，先修输入")
+        return out
+    if not cs:
+        f("state_anchor_empty", str(cs_path),
+          "状态锚是空对象（存在但没有任何内容）→ 空 ≠ 无问题；"
+          "active_projects/monitoring 缺失时 D8 无从核对")
+        return out
+
+    aps = cs.get("active_projects") or {}
+    surfaces = (cs.get("monitoring") or {}).get("surfaces") or {}
+
+    # ⚠️ active_projects 为空 → K1/K3/K5 全部空转，输出依然是"D8 = 0"。
+    #    这正是 D7 抓的那类盲区（空声明与零漂移同形），所以在 D8 自己身上也要自证一次。
+    if not aps:
+        f("no_active_projects", "active_projects",
+          "active_projects 为空 → 所有项目的闭环声明都不在核对范围内（空 ≠ 无问题）")
+
+    # ---- K1 声明悬空：声明的 cwd 不存在（项目搬走了 / 外部盘没挂 / 路径写错）----
+    for name, v in aps.items():
+        cwd = (v or {}).get("cwd") if isinstance(v, dict) else None
+        if cwd and not Path(str(cwd)).exists():
+            f("project_cwd_missing", str(name),
+              f"声明 cwd 不存在：{cwd}（项目已搬走 / 外部盘未挂载 / 路径写错）")
+
+    # ---- K2 未纳管：磁盘上真实存在的 git 仓库，却没进 active_projects ----
+    # 注意：WorkBuddy 整棵树本身是软链（realpath → /Volumes/ZHITAI/WorkBuddy），
+    # 且同一目录可能通过两个路径可见 → 必须按 realpath 去重，否则全是假阳性。
+    declared_real = set()
+    for v in aps.values():
+        if not isinstance(v, dict):
+            continue
+        paths = [v.get("cwd")] if v.get("cwd") else []
+        paths += list(v.get("cwds") or [])          # 一个条目可能承载多个仓库（如 wechat 三件套）
+        for cwd in paths:
+            if cwd and Path(str(cwd)).exists():
+                declared_real.add(os.path.realpath(str(cwd)))
+    if WB_ROOT.exists():
+        for d in sorted(WB_ROOT.iterdir()):
+            try:
+                if not (d / ".git").exists():
+                    continue
+            except OSError:
+                continue
+            rp = os.path.realpath(str(d))
+            if rp in declared_real:
+                continue
+            f("project_unregistered", d.name,
+              f"{d.name} 是真实 git 仓库，但未登记进 active_projects → 跨项目闭环矩阵漏项"
+              f"（re: {rp}）")
+    else:
+        # ⚠️ 同样不能静默：`~/WorkBuddy` 是软链（→ /Volumes/ZHITAI/WorkBuddy），
+        #    外部盘没挂时整棵树的 git 仓库扫描会**一条都不查**，却仍然输出 D8=0。
+        f("scan_root_missing", str(WB_ROOT),
+          f"{WB_ROOT} 不可访问（外部盘未挂载？）→ K2「磁盘上真实存在但未登记的仓库」整段空转，"
+          "本次的 D8=0 **不代表**没有漏项")
+
+    # ---- K3 覆盖缺口：声明了项目，却没说它怎么被监控（或已显式声明休眠）----
+    covered_tokens: set[str] = set()
+    for k in surfaces:
+        for t in re.split(r"[+/,、\s]+", str(k)):
+            if t:
+                covered_tokens.add(t)
+    for name in aps:
+        tokens = [t for t in re.split(r"[+/,、\s]+", str(name)) if t]
+        if any(t in covered_tokens for t in tokens):
+            continue
+        f("coverage_gap", str(name),
+          f"active_projects 有 `{name}`，但 monitoring.surfaces 没有对应的健康检查声明 → "
+          "该项目「活着还是死了」无人监控（休眠项也要显式写 runtime=none 的理由）")
+
+    # ---- K4 时间戳说谎：updated_at ≠ 文件真实修改时间 ----
+    if cs_path.exists():
+        mt = datetime.datetime.fromtimestamp(cs_path.stat().st_mtime).astimezone()
+        ua = str(cs.get("updated_at") or "")
+        ua_dt = None
+        try:
+            ua_dt = datetime.datetime.fromisoformat(ua)
+        except Exception as e:  # noqa: BLE001
+            if ua:
+                f("updated_at_unparsable", "updated_at", f"updated_at 不可解析：{ua!r}（{e}）")
+        # ⚠️ 修正(2026-09-24 自查)：解析失败与**比较**失败必须分开。
+        #    原实现把两者塞进同一个 except → 时区不匹配(aware vs naive)抛的 TypeError
+        #    被报成"时间戳不可解析"，而那个值本身完全合法（我第一次就误报了自己）。
+        #    「错误 ≠ 通过」的另一面：**不同的错误也不能共用一个错误码**。
+        if ua_dt is not None:
+            try:
+                if ua_dt.tzinfo is None:
+                    ua_dt = ua_dt.astimezone()
+                delta_h = (mt - ua_dt).total_seconds() / 3600
+                if delta_h > 24:
+                    f("updated_at_lie", "updated_at",
+                      f"文件 mtime={mt:%Y-%m-%d %H:%M}，但 updated_at={ua} → 差 {delta_h/24:.1f} 天。"
+                      "写者只更新子节点却没 bump 顶层 → 「最后更新」这个字段在说谎")
+            except Exception as e:  # noqa: BLE001
+                f("updated_at_check_failed", "updated_at",
+                  f"时间戳比较本身出错（解析成功，比较失败）：{type(e).__name__}: {e} —— "
+                  "这属于检查器的缺陷，不是数据的问题")
+
+    # ---- K5/K6 交接：有期限的"等人决定"必须机器可判定 ----
+    handoff = cs.get("handoff") or {}
+    items = handoff.get("items") if isinstance(handoff, dict) else None
+    if not items:
+        blob = json.dumps(handoff, ensure_ascii=False)
+        rel = sorted(set(REL_TIME_RE.findall(blob)))
+        if rel:
+            f("handoff_relative_time", "handoff",
+              f"handoff 用相对时间描述期限（{'/'.join(rel)}）→ 到期那天没人知道它到期了，"
+              f"必须写成 ISO 日期")
+        f("handoff_unstructured", "handoff",
+          "handoff 未结构化（缺 items[] 带 due/owner/status）→ 交接项是否过期无法机器核对")
+    else:
+        for it in items:
+            pid = it.get("id")
+            if str(it.get("status", "")).lower() in DONE_STATES:
+                continue
+            due = it.get("due")
+            if not due:
+                f("handoff_no_due", str(pid), f"交接项 `{pid}` 没有 due → 无从判断是否已过期")
+                continue
+            try:
+                dd = datetime.date.fromisoformat(str(due)[:10])
+            except ValueError:
+                f("handoff_bad_due", str(pid), f"`due` 不是 ISO 日期：{due}")
+                continue
+            if dd < now_dt.date():
+                f("handoff_overdue", str(pid),
+                  f"{pid}（owner={it.get('owner')}，due {dd}）已逾期 {(now_dt.date() - dd).days} 天"
+                  f"，status={it.get('status')}：{it.get('what')}")
+    return out
+
+
 def check_pending_due(reg: dict, now_dt: datetime.datetime) -> list[dict]:
     """D6：pending_actions[] 里 due 已过但仍未完结的待办。
 
@@ -408,6 +584,8 @@ def main() -> int:
     ap.add_argument("--doc", action="append", default=None,
                     help="覆盖 doc_contract.docs（可重复；供自测造错样本，不写回任何文件）")
     ap.add_argument("--no-doc", action="store_true", help="跳过 D5 文档漂移检查")
+    ap.add_argument("--cross-state", default=str(CROSS_STATE),
+                    help="跨项目状态锚路径（D8）")
     ap.add_argument("--brief", action="store_true",
                     help="仅输出需人审项的一行式摘要（供外部看门狗做告警正文，避免调用方拼 JSON）")
     ap.add_argument("--json", action="store_true")
@@ -511,6 +689,16 @@ def main() -> int:
     # ---- D7 契约盲区（检查器自查：我这份声明还查得出东西吗）----
     d7 = check_contract_blind(reg, CLAW)
 
+    # ---- D8 跨项目闭环（7 个项目的闭环状态是否真有人管；状态锚是否说谎）----
+    # 输入的可读性单独传进去：`{}`（空）与"读不出来"必须报不同的错，且都不能被当成 clean。
+    cs_path = Path(args.cross_state)
+    if cs_path.exists():
+        cs_raw = load_json(cs_path)
+        d8 = check_cross_project(cs_raw, cs_path, now_dt,
+                                 exists=True, load_error=cs_raw.get("_error"))
+    else:
+        d8 = check_cross_project({}, cs_path, now_dt, exists=False)
+
     # ---- 收敛（仅 D1，且仅在 --fix）----
     fixed = []
     if args.fix and d1:
@@ -531,8 +719,15 @@ def main() -> int:
             Path(tmp).write_text(json.dumps(reg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             os.replace(tmp, reg_path)
 
+    # ⚠️ rc 必须先算、并写进 out：此前 rc 只作为进程退出码存在，JSON 里没有这个键，
+    #    而文档/告警文案都在说"看退出码" —— 消费方读 out["rc"] 会拿到 KeyError 或 None，
+    #    又一次掉进"缺键 ≠ 空集"的坑。**退出码与 JSON 里的 rc 必须同源。**
+    rc = 0 if not (d1 or d2 or d3 or d4 or d5 or d6 or d7 or d8) else (
+        10 if (d1 and not (d2 or d3 or d4 or d5 or d6 or d7 or d8)) else 20)
+
     out = {
         "ok": True,
+        "rc": rc,
         "declared": len(declared),
         "observed_live": len(live),
         "scope": {"include": scope.get("include_name_patterns", []), "exclude": scope.get("exclude_name_patterns", [])},
@@ -543,11 +738,11 @@ def main() -> int:
         "D5_doc_drift": d5,
         "D6_pending_overdue": d6,
         "D7_contract_blind": d7,
+        "D8_cross_project": d8,
         "fixed": fixed,
-        "clean": not (d1 or d2 or d3 or d4 or d5 or d6 or d7),
-        "needs_human": bool(d2 or d3 or d4 or d5 or d6 or d7),
+        "clean": not (d1 or d2 or d3 or d4 or d5 or d6 or d7 or d8),
+        "needs_human": bool(d2 or d3 or d4 or d5 or d6 or d7 or d8),
     }
-    rc = 0 if out["clean"] else (10 if (d1 and not (d2 or d3 or d4 or d5 or d6 or d7)) else 20)
 
     if args.brief:
         # 供告警正文：只列"需人审"的项，天然带 6h 冷却由调用方控制
@@ -563,6 +758,8 @@ def main() -> int:
             print(f"[待办逾期] {x.get('detail')}")
         for x in d7:
             print(f"[契约盲区] {x.get('key')} — {x.get('detail')}")
+        for x in d8:
+            print(f"[跨项目闭环] {x.get('key')} — {x.get('detail')}")
         return rc
 
     if args.json:
@@ -575,7 +772,8 @@ def main() -> int:
                          ("D4_heartbeat_stale", "D4 心跳超时(需人审)"),
                          ("D5_doc_drift", "D5 文档漂移(需人审)"),
                          ("D6_pending_overdue", "D6 待办逾期(需人审)"),
-                         ("D7_contract_blind", "D7 契约盲区(检查器自己空转，需人审)")):
+                         ("D7_contract_blind", "D7 契约盲区(检查器自己空转，需人审)"),
+                         ("D8_cross_project", "D8 跨项目闭环(需人审)")):
             items = out[k]
             if items:
                 print(f"  {label}: {len(items)}")
@@ -588,7 +786,7 @@ def main() -> int:
                         print(f"    · [{it.get('kind')}] {it['detail']}")
                     elif k == "D6_pending_overdue":
                         print(f"    · {it.get('detail')}")
-                    elif k == "D7_contract_blind":
+                    elif k in ("D7_contract_blind", "D8_cross_project"):
                         print(f"    · [{it.get('key')}] {it.get('detail')}")
                     else:
                         print(f"    · {it.get('name')} {it.get('rrule','')} {it.get('why','')}")

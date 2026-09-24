@@ -1,8 +1,8 @@
 {
   "hub": "unified-inspection-hub",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T18:00:00",
+  "updated_at": "2026-09-24T20:16:05+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -427,7 +427,7 @@
       "since": "2026-09-24",
       "severity": "low",
       "mitigation": "本轮手工同步两份 prompt（land v1.3 / diag v2.3）；后续可把 prompt 作为「虚拟文档」纳入契约（读 DB prompt 列做 K1/K2）",
-      "does_not_affect": "D1–D7 的机器判据本身（它们读 registry 与 DB，不读 prompt）"
+      "does_not_affect": "D1–D8 的机器判据本身（它们读 registry 与 DB，不读 prompt）"
     }
   ],
   "doc_apply": {
@@ -735,7 +735,11 @@
             "source_id": "52db25b4-b948-464b-ad62-44b77b875d2a"
           }
         ],
-        "version_check": true
+        "version_check": true,
+        "table_keys_expected_exclude_prefixes": [
+          "_"
+        ],
+        "table_keys_expected_exclude_note": "`_` 前缀的键（`_history` / `_state_sync_notes`）是**元数据/审计痕迹**，不是配置 → 不进「中央注册表」索引表。排除规则**声明在这里而不是硬写在代码里**：硬写 = 看着在查、其实默默少查一批键（死守卫家族）。"
       },
       {
         "path": "~/.workbuddy/skills/majiu-management/references/quarterly-inspection.md",
@@ -781,5 +785,8 @@
       }
     },
     "checked_by": "无自动晋升机制（有意为之）—— 本键是人工决策的依据台账"
-  }
+  },
+  "_history": [
+    "2026-09-24 跨项目闭环轮：①新增 D8（K1–K6）把 cross_project_state.json 纳入机器检查 —— 该文件此前不在任何检查覆盖内，导致 handoff 里 08-04 的「明日开盘前」静默过期 50 天；②D8 已从自己身上抓出真问题：「updated_at 在说谎 6.4 天」（写者只改子节点不 bump 顶层）；③D8 自身补 K0 输入自证：state_anchor_missing / state_anchor_unreadable / state_anchor_empty / no_active_projects / scan_root_missing 五种输入故障各报各的，且都不许被读成 clean（原实现把它们全渲染成一句「状态锚不存在」—— 第四次踩「错误≠通过」同一个坑）；④hub_reconcile 的 rc 同时写进 JSON（此前只有退出码，消费方读 out['rc'] 会缺键）。"
+  ]
 }

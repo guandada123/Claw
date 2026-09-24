@@ -1,5 +1,57 @@
 # Changelog
 
+## [2026-09-24 晚·跨项目闭环] D8 把"7 个项目是否都闭环"变成机器可判定 —— 顺带抓出状态锚自己在说谎 6.4 天
+
+### 起因
+用户要求"统计目前所有项目，所有项目都要闭环"。问题是：**"闭环"此前只是一句声明** ——
+D1–D7 全部只覆盖 Claw 一个项目，7 个项目的闭环状态写在 `~/.workbuddy/cross_project_state.json`，
+而那份文件**不在任何机器检查的覆盖范围内**。
+
+### 新增 D8 跨项目闭环（`hub_reconcile.py` K1–K6）
+- 权威清单 = `active_projects`（7 条）；磁盘实际 git 仓库 8 个（`wechat_api`/`wechat-download-api` 同一 entry 承载两仓，
+  用 `cwds` 声明）→ 8/8 一一对应，无漏项
+- K1 `project_cwd_missing` / K2 `project_unregistered`（**按 realpath 去重**，`~/WorkBuddy` 整树是软链）/
+  K3 `coverage_gap`（休眠项也必须显式声明 runtime=none 的理由）/ K4 `updated_at` 三态 /
+  K5 `handoff_overdue` / K6 `handoff_relative_time`·`handoff_unstructured`·`handoff_no_due`
+- 新开关 `--cross-state`（默认指向真实锚，故**默认就在跑**，不是"要手工加参才生效"的摆设）
+
+### D8 首跑抓出的真问题（全部已修）
+- ❌【高】**状态锚的"最后更新"在说谎 6.4 天**：`updated_at` 停在 09-18，而文件每天都真在被改（mtime 09-24 19:30）——
+  写者（`unified_ops_center._sync_state_anchor`）只更新子节点不 bump 顶层。→ 补"谁写谁 bump"（已用副本验证：写→bump / dry_run→不写 / 真文件未动）
+- ❌【高】**一条 50 天前就该到期的交接项没人知道它到期了**：`handoff` 原为自由文本 + 相对时间（"明日开盘前"），
+  写进文件那一刻就不可判定。→ 重构为 `items[]`（`id`/`owner`/`due`(ISO)/`status`/`escalate`/`evidence`/`why_not_auto`），
+  旧自由文本保留为 `_legacy_next_session_action` 并附腐烂说明；**没有替用户"清掉"这条，而是让它每天被 D8 报出来**
+- ❌ `pmf` 的 note 与事实矛盾（写"不配看门狗"，实测 docker 5 容器 Up 8 天）→ 删矛盾叙述，改记 runtime 实测
+- ❌ `wechat-download-api` 曾被误报"未登记"（entry 只带一个 `cwd` 而目录下有两个仓）→ 支持 `cwds`
+- ❌ `marvis_bridge` / `wechat_api` 无记忆层 → 建 `.workbuddy/memory/2026-09-24.md` 闭环快照
+- ❌ `_contract.closure_rules` 缺失（闭环的判据本身没写下来）→ 补 6 条 + `why`
+
+### D8 自查：新检查的第一条判据必须是"输入自证"（第四次踩同一个坑）
+D8 初版只写 `if not cs:` 就报"**状态锚不存在**"—— 文件明明在、只是内容为 `{}` 时**输出在说谎**；
+更危险的是把"读不出来"和"没有跨项目问题"混成同一个结果。→ 拆成五种各报各的：
+`state_anchor_missing` / `state_anchor_unreadable` / `state_anchor_empty` / `no_active_projects` /
+`scan_root_missing`（`~/WorkBuddy` 不可访问时 K2 一条都不查，须明写"本次 D8=0 不代表没有漏项"）。
+六连测（不存在 / 空 / 坏 JSON / active_projects 空 / 扫描根缺失 / 真实锚）**6/6 PASS**。
+
+### 顺带修掉的自身缺陷
+- `hub_reconcile` 的 `rc` 此前**只作为进程退出码存在，JSON 里没有这个键**，而文档和告警都在说"看退出码" →
+  消费方读 `out["rc"]` 会缺键（又一次"缺键 ≠ 空集"）→ **rc 现在与退出码同源写进 JSON**（四场景验证一致）
+- `D5 K3` 表校验的排除项**声明化**：新增 `table_keys_expected_exclude_prefixes: ["_"]`，
+  `_` 前缀（`_history`/`_state_sync_notes`）= 元数据而非配置。**排除规则必须在 registry 里声明，不许硬写进代码** ——
+  硬写就是"看着在查、其实默默少查一批键"
+- **记忆层是同一事实的第三份副本，同样会腐烂**：`MEMORY.md` 还写着"不设自动切换(`auto_switch=false`)"，
+  而 registry 真值早已是 `true`（PA-001 守卫式自动切换）。D7 只核 registry 内部自洽，管不到这里。
+  → 本文件里"状态/开关"类事实改为**只写指针**，不复述具体值
+
+### 结果
+`hub_reconcile --cross-state` → **rc=20，D1–D7 全 0，D8 = 1（唯一那条真逾期项）**；
+registry **1.5.0**、SKILL.md **v1.5.0**（D8 加 K0 输入自证、K3 排除声明化）；报告 `output/all-projects-closure-2026-09-24.md`
+
+### 留给人的只有一件事
+**H1 实盘止损**（`owner: human`，`due: 2026-08-05`，逾期 50 天）：长电 600584 / 华天 002185 双仓击穿 -8% 止损仍未清仓。
+三选一：执行 / 作废该纪律 / 挂起并给 ISO 复核日。**机器只负责让它每天都出现，不替人做决定。**
+
+
 ## [2026-09-24 晚·三次审计] 检查器"空转"的三种形态 —— 切换守卫可被错误放行 / 看门狗会静默死 / 声明清空=clean
 
 ### 方法
