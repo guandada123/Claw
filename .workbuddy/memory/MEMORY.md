@@ -34,7 +34,8 @@
 - unified_ops_center.py(宿主QTS自动化1785982929477每小时)；复用专项脚本(automation_health/self_heal/qts_pmf_guard/disk/feishu_channel)不重写；Runbook自愈白名单=memwatch_threshold_bump+docker_restart_container；审计unified_self_heal_log.json
 - 被接管已PAUSED：综合健康1781780654327/跨项目1785918166172/多项目1785928720152；保留独立：watchdog失败扫表1785506975961、飞书自检1784084428353；飞书告知结构化卡，全绿SILENT
 - 🔴 **真值纪律(09-24固化)**：scheduler DB(`~/.workbuddy/workbuddy.db`)=**唯一真值**，`.workbuddy/inspection_hub/registry.json`=**只读镜像**。发现漂移一律 **DB→校正镜像**，绝不反向改 DB。skill 定义=`.workbuddy/skills/unified-inspection-hub/SKILL.md`（v1.1）
-- 对账器 **`hub_reconcile.py`**：observe(DB 只读URI)→diff(vs registry)→act(**只写镜像**)。漂移 **D1**镜像漂移(`--fix`自愈)/**D2**声明悬空/**D3**未纳管/**D4**心跳超时；心跳阈值=`周期+max(3h,周期×25%)`；退出码 **0干净/10仅D1/20须人**；开关 `--json`/`--brief`/`--fix`
+- 对账器 **`hub_reconcile.py`**：observe(DB 只读URI)→diff(vs registry)→act(**只写镜像**)。漂移 **D1**镜像漂移(`--fix`自愈)/**D2**声明悬空/**D3**未纳管/**D4**心跳超时/**D5**文档漂移；心跳阈值=`周期+max(3h,周期×25%)`；退出码 **0干净/10仅D1/20须人**；开关 `--json`/`--brief`/`--fix`/`--doc`/`--no-doc`
+- **D5 文档漂移(v1.1.1)**：`registry.doc_contract` 声明「本部 SKILL.md 里哪些时段/键名/id 必须与真值一致」。**真值现算**（`rrule_times()` 从 DB 的 BYHOUR/BYMINUTE 推 HH:MM），**绝不写死在契约里**（写死=第三份会腐烂且自证的副本）。判据 K1 时段不一致/K2 契约键未提及/K3 注册表表格双向校验/K4 引用不存在 id（跳过含 `http` 行，防 bittide 文章号子串误报）。**文档腐烂 ≡ 镜像漂移，同一类病（都是声明的副本）**
 - 纳管范围由 **`registry.automation_scope`**(include/exclude 名称规则) 声明，**不手写全量**（库里71条约50条是业务/投研类=噪音）。范围内未登记→报 D3；新增治理类自动化会自动被抓出
 - 🔴 **外部死信层(09-24)**：AI 看门狗守中枢有**双死盲区**(中枢死→看门狗同死)→ 给**无LLM的 launchd 看门狗** `~/.local/bin/wb_health_check.sh`(30min) 加第5检查段调 `hub_reconcile.py`，rc≥20→飞书(6h冷却,锚`~/.local/etc/wb_health/…/hub_alert_ts`)。**绝不让 AI 报告自己的死**
 - 落地通道 `doc_apply`：`mode=calibrate`(至2026-10-08，只读对拍，**一行文档都不写**)→`live`；**不设自动切换**(`auto_switch=false`，③"会不会更糟"是人的价值判断)；对账器 `doc_apply_parity.py` + 账本 `calibration/parity.json`

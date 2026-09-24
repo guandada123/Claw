@@ -1,5 +1,40 @@
 # Changelog
 
+## [2026-09-24 晚·D5] 文档漂移对账上线 —— skill 文档也纳入"会腐烂的声明"
+
+### 判断
+- 「文档腐烂」和「镜像漂移」是**同一类病**：都是声明的副本，没人对账就会默认失真。上一条审计刚抓到 v1.0 的 07:30/10:00/09:00/7 层全错 → 这次把它变成**机器每天查**的东西，而不是等下次审计再抓一次
+
+### 新增
+- `registry.doc_contract` — 文档契约（声明式）：`docs` / `key_table_header` / `must_mention_keys` / `time_anchors[]` / `table_keys_expected(+_exclude)` / `checked_by` / `why` / `scope_note`
+- `hub_reconcile.py` 新增 **D5 文档漂移**（`check_doc_drift()`），四类判据：
+  - **K1 `time_mismatch`** —— 契约 `time_anchors[].label` 所在行必须出现该自动化 rrule 的**真值时刻**。真值**现算**（由 `rrule_times()` 从 DB 的 BYHOUR/BYMINUTE 推 `HH:MM`），**不写死在契约里** → 文档改错、调度改错两个方向都能抓
+  - **K2 `key_omitted`** —— `must_mention_keys` 必须被文档提及
+  - **K3 `key_unknown` / `key_missing_from_table`** —— 中央注册表表格**双向**校验：既不许列出 registry 没有的键，也不许漏列 registry 有的键（**表 = registry 的索引，会一起腐烂**）
+  - **K4 `id_dangling`** —— 文档引用的自动化 id 必须存在于 DB；**跳过含 `http` 的行**（把上一轮 A3 的"bittide 文章号子串误报"教训固化进代码）
+- 新开关：`--doc PATH`（覆盖契约文档，供自测造错样本）/ `--no-doc`
+
+### 变更
+- D5 计入 `needs_human` 与退出码 20；`--brief` 输出 `[文档腐烂] <doc> — <detail>`；人类可读输出新增 D5 分组
+- `--doc` 只读覆盖，**不写回任何文档**（改 skill 文档仍属 `propose_review` 档）
+- 「🩺 统一巡检·报错自诊与修复」升 **v2.1**：Step 5 从"四类漂移"扩为**五类**，补 D5 说明（卡里只给"哪一行该改成什么"，不直接改文件）。改动前先从调度库只读备份原 prompt（`/tmp/autoprompt_f8443038.bak-20260924`），写入后**逐字节比对**确认一致（2236 == 2236 ✅）
+- `unified-inspection-hub/SKILL.md` **v1.1.0 → v1.1.1**：注册表表补 `doc_contract` 行；对账剧本补 D5 行 + 四类判据 + 新开关；审计检查点 8→**9** 条（+ 契约文档一致性）；反模式加"文档写死时刻却无人对账"；「可扩展方向」把"待做"改为已实现
+
+### 自测
+```
+$ python3 .workbuddy/scripts/hub_reconcile.py --json
+clean=True | D1..D4 空 | D5=0                            rc=0   ← 契约文档自洽（dogfood）
+
+# 故障注入（临时副本：时段改回 07:30 + 删 automation_scope 表行 + 加 ghost_key 行 + 加悬空 id）
+$ python3 .workbuddy/scripts/hub_reconcile.py --doc /tmp/xxx/bad.md --json
+clean=False needs_human=True                              rc=20
+ - time_mismatch           | 「统一发现」真值 00:20，但文档中没有该时刻（文档同类行出现 07:30）
+ - key_unknown             | 文档注册表列出了 `ghost_key`，但 registry.json 里没有这个键
+ - key_missing_from_table  | registry 有键 `automation_scope`，但文档中央注册表表格漏列了
+ - id_dangling             | 第 173 行引用了不存在的自动化 id automation-9999999999
+```
+→ **4/4 命中**；`--brief` 4 行告警文案正确；`py_compile` / `bash -n` OK
+
 ## [2026-09-24 晚·审计+全网优化] 补上「中枢自己静默死掉」盲区 + 声明覆盖率 11→25
 
 ### 审计发现（4 项，2 项真问题）

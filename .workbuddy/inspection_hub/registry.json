@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.0.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-24T17:11:30",
+  "updated_at": "2026-09-24T17:27:36",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -487,7 +487,8 @@
     "2026-09-24 巡检发现 registry 记录的 rrule 与 scheduler DB 实际漂移：🧬 技能演进 registry=Sat 10:00 vs DB=FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22；🧹 技能卫生 registry=1日09:00 vs DB=BYHOUR=23;BYMINUTE=44。此处不改既有自动化调度（真值=DB），仅登记待确认意图。",
     "2026-09-24 已闭环：registry 镜像的 rrule/next_run 按 scheduler DB 真值校正（技能演进→SA 23:22；技能卫生→1日 23:44），并新增「📥 每日·文档类落地（校准期）」。同步纪律：**DB=唯一真值，registry=只读镜像**；凡发现漂移 → 以 DB 校正镜像，绝不反向改 DB（除非人明确要求改调度）。",
     "2026-09-24 校准期可验证化：新增 doc_apply_parity.py（判据①②机器判定，越界退出码1）+ parity.json 账本（apply_doc_candidates.py 每次运行写一条）。明确 auto_switch=False：切换仍需人点头，理由写入 doc_apply.auto_switch_reason。",
-    "2026-09-24 审计+全网优化轮：①枢纽 skill 文档 `unified-inspection-hub/SKILL.md` 由 v1.0→v1.1 （原文已腐烂：统一发现 07:30 / 演进 10:00 / 卫生 09:00 / 季度 09:00 / 中央注册表只列 6 键 / 架构 7 层）——**skill 文档与会腐烂的声明，和 registry 一样需要对账**；下一步扩展 `hub_reconcile.py` 出 **D5 文档漂移**（比对 skill 文档里的时段字符串/键名/自动化 id 与真值）。②本轮新增 hub_reconcile.py（D1–D4，退出码 0/10/20）+ doc_apply_parity.py + 原生看门狗第 5 检查段（无 LLM，30min，负责『中枢自己死掉』的外部死信检测）。③刻意不做：不自动 calibrate→live、不清 D2 软删、不降频监控类、不全量搬 71 条、不自动补登记 D3。"
+    "2026-09-24 审计+全网优化轮：①枢纽 skill 文档 `unified-inspection-hub/SKILL.md` 由 v1.0→v1.1 （原文已腐烂：统一发现 07:30 / 演进 10:00 / 卫生 09:00 / 季度 09:00 / 中央注册表只列 6 键 / 架构 7 层）——**skill 文档与会腐烂的声明，和 registry 一样需要对账**；下一步扩展 `hub_reconcile.py` 出 **D5 文档漂移**（比对 skill 文档里的时段字符串/键名/自动化 id 与真值）。②本轮新增 hub_reconcile.py（D1–D4，退出码 0/10/20）+ doc_apply_parity.py + 原生看门狗第 5 检查段（无 LLM，30min，负责『中枢自己死掉』的外部死信检测）。③刻意不做：不自动 calibrate→live、不清 D2 软删、不降频监控类、不全量搬 71 条、不自动补登记 D3。",
+    "2026-09-24 D5 文档漂移上线：新增 `doc_contract`（docs / must_mention_keys / time_anchors / table_keys_expected / checked_by / why）。真值**现算**（从 DB rrule 推 HH:MM），不写死在契约里 → 文档改错和调度改错两个方向都能被抓。四类判据：K1 时段不一致 / K2 契约键未提及 / K3 注册表表格双向校验（列出不存在的键 or 漏列 registry 的键）/ K4 引用不存在的自动化 id（跳过含 http 的行，避免 bittide 文章号那类子串误报）。自测：正常 rc=0、D5=0；故障注入 4/4 命中且 rc=20。文档契约同时成为本部 SKILL.md 的自检 —— v1.1.0 已满足契约。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -603,5 +604,55 @@
     ],
     "checked_by": "hub_reconcile.py（D3 未纳管）→ 每次运行报告'范围内但未登记'的活跃自动化，防手写清单落后于现实",
     "why_not_all": "库里 71 条活跃自动化约 50 条是业务/投研类；全搬进 registry 只会让清单变噪音。故用**规则**声明范围（可机器校验），而非追求全量列出。"
+  },
+  "doc_contract": {
+    "docs": [
+      "~/.workbuddy/skills/unified-inspection-hub/SKILL.md"
+    ],
+    "key_table_header": "## 中央注册表",
+    "must_mention_keys": [
+      "doc_apply",
+      "schedule_policy",
+      "pending_actions",
+      "automation_scope",
+      "discovery_candidates",
+      "authorization_tiers",
+      "forbidden_zones",
+      "known_failure_modes"
+    ],
+    "time_anchors": [
+      {
+        "label": "统一发现",
+        "source_id": "2a404a97-c262-4cad-8a43-3c5a69febfbb"
+      },
+      {
+        "label": "落地剧本",
+        "source_id": "1fd52465-899f-4525-a82d-4cc5df01155c"
+      },
+      {
+        "label": "演进剧本",
+        "source_id": "0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4"
+      },
+      {
+        "label": "技能卫生",
+        "source_id": "a0b1b435-225f-43eb-8e9b-a7bb82fde97a"
+      },
+      {
+        "label": "马厩管理法",
+        "source_id": "52db25b4-b948-464b-ad62-44b77b875d2a"
+      }
+    ],
+    "checked_by": "hub_reconcile.py → D5 文档漂移（退出码计入 20）",
+    "why": "skill 文档是**会腐烂的声明**：2026-09-24 审计即发现 v1.0 的时段（07:30/10:00/09:00）、注册表键清单、架构层数全部与现实脱节。文档里写死时刻的地方必须等于调度器真值，否则照文档建自动化的人会按错误前提做决策。真值现算（不写死在契约里）→ 两头都不可能自证正确。",
+    "scope_note": "只锚定文档**明确承诺过的时刻**（章节标题/清单行）；夜间时段全表住在 schedule_policy.night_slots，文档不复制 = 不制造第二份会腐烂的副本。",
+    "table_keys_expected": true,
+    "table_keys_expected_exclude": [
+      "hub",
+      "version",
+      "created_at",
+      "updated_at",
+      "state_anchor",
+      "doc_contract"
+    ]
   }
 }
