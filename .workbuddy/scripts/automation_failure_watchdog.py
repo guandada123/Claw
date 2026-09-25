@@ -76,10 +76,56 @@ def classify(title: str) -> tuple[str, str]:
         return "hard", "被编排器重启杀掉（根因=memwatch 内存看门狗，非 Marvis）"
     if "did not create a session" in t:
         return "hard", "会话未拉起（建会话超时：资源争抢 或 调度器/会话服务故障）"
+    # 2026-09-25 补：**确定性失败**也要算 hard —— 修好前每次必失败，不是"偶尔没跑成"。
+    # 实测 failure_code=automation-workspace-unavailable（cwds 双重 JSON 编码 → 目录不存在）
+    # 被归入 other → 即使名字命中了关键白名单也还是次要，等于永不告警。
+    if "automation-workspace-unavailable" in t:
+        return "hard", "工作目录不可用（配置错 → 修好前每次必失败）"
     return "other", (t[:60] or "未知失败")
 
 
-def is_critical(name: str) -> bool:
+# 2026-09-25 补：**hub registry 已声明的自动化一律算关键**。
+# 原来只按 9 个业务关键词判定 → 新增的治理类（看门狗/卫生/演进）**结构性漏网**：
+# 💓中枢存活看门狗 连跑 48 次 0 成功（cwds 双重编码 → 工作目录不存在），
+# 本脚本每小时都读到了它，却因「名字不含 早报/晚报/…」被归入 minor → 静默。
+# → 白名单写在脚本里、而清单在另一个文件 = 「同一事实多副本必腐烂」，
+#   只不过这次漏在了我自己的核对范围之外。改为**以 registry 的声明为单一事实源**：
+#   新类型的自动化只要被 hub 纳管，就自动受本看门狗监控，不再需要人往白名单里加词。
+REGISTRY = ROOT / ".workbuddy" / "inspection_hub" / "registry.json"
+
+
+def _declared_critical() -> tuple[set[str], set[str]]:
+    """从 hub registry 读「已纳管」的自动化 id 与名字（声明即"须被监控"）。
+
+    读不到就返回空集 → 退化为原来的关键词判定（**不静默跳过整段**，
+    与"输入缺失要自己报出来"同一条纪律：这里至少不能因此少监控）。
+    """
+    try:
+        import json as _json
+
+        data = _json.loads(REGISTRY.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return set(), set()
+    ids, names = set(), set()
+    for a in data.get("automations", []) or []:
+        if isinstance(a, dict):
+            if a.get("id"):
+                ids.add(str(a["id"]))
+            if a.get("name"):
+                names.add(str(a["name"]))
+    return ids, names
+
+
+_ID_CRITICAL, _NAME_CRITICAL = _declared_critical()
+
+
+def is_critical(name: str, aid: str | None = None) -> bool:
+    # ① hub 声明的治理类（单一事实源）→ 一律关键
+    if aid and aid in _ID_CRITICAL:
+        return True
+    if name and name in _NAME_CRITICAL:
+        return True
+    # ② 业务类关键词（保留为补充）
     return any(k in (name or "") for k in CRITICAL_KEYWORDS)
 
 
@@ -297,7 +343,7 @@ def main() -> int:
         when = datetime.fromtimestamp(ts / 1000).strftime("%m-%d %H:%M")
         item = {"aid": aid, "name": name, "when": when, "ts": ts, "level": level, "reason": reason}
         # 关键自动化 + 硬失败 才算关键；soft(收尾打断) 一律降级
-        if is_critical(name) and level == "hard":
+        if is_critical(name, aid) and level == "hard":
             critical.append(item)
         else:
             minor.append(item)
@@ -320,11 +366,25 @@ def main() -> int:
 
     pushed = False
     if new_critical and not args.dry_run:
-        lines = [f"🔴 近 {args.hours}h 有 {len(new_critical)} 个关键自动化静默失败（新增）", ""]
+        # 2026-09-25：按 (自动化, 原因) 聚合 —— 一条根因一行。
+        # 实测：一条配置错（cwds 双重编码 → 工作目录不可用）在 48h 内产生 22 条失败记录，
+        # 逐条列会让卡片变成 22 行重复，读的人还得自己做聚合。
+        # **报告粒度要对齐人的决策粒度**（与 D9「一个键报一条」同一条纪律）。
+        _groups: dict[tuple[str, str], list] = {}
         for it in new_critical:
-            lines.append(f"• [{it['when']}] {it['name']}")
-            lines.append(f"   原因：{it['reason']}")
-            lines.append(f"   ID：{it['aid'].replace('automation-', '')}")
+            _groups.setdefault((it["name"], it["reason"]), []).append(it)
+        lines = [
+            f"🔴 近 {args.hours}h 关键失败 {len(new_critical)} 条（{len(_groups)} 个不同问题，新增）",
+            "",
+        ]
+        for (_nm, _reason), _items in _groups.items():
+            _times = "、".join(i["when"] for i in _items[:4])
+            if len(_items) > 4:
+                _times += f" …共 {len(_items)} 次"
+            lines.append(f"• {_nm}（{len(_items)} 次）")
+            lines.append(f"   原因：{_reason}")
+            lines.append(f"   最近：{_times}")
+            lines.append(f"   ID：{_items[0]['aid'].replace('automation-', '')}")
             lines.append("")
         if minor:
             lines.append(f"（另有 {len(minor)} 条次要失败，未列出）")
@@ -345,13 +405,29 @@ def main() -> int:
         # 2026-08-13 修正：根因文案依赖实际检测，不再硬编码"memwatch 内存看门狗"。
         # 若确为 memwatch 超阈值重启 → 巡检已尝试自动提阈值；否则通常为主进程被外部触发重启
         # （清空排队会话）所致，需排查外部重启来源（如巡检中枢/看门狗的 restart 调度）。
-        if _memwatch_restarted_recently():
+        # 2026-09-25 修正：**根因提示必须与实际观测到的失败类型匹配**。
+        # 原来无条件追加"主进程被重启 → 会话未拉起"，而实测这次的失败全是
+        # automation-workspace-unavailable（配置错，与"会话未拉起"无关）→
+        # 读的人被指向"查重启来源"，真正该做的（改 cwds）反被掩盖。
+        # 提示不依赖观测 = 从"提示"退化成"误导"，与"声明空掉仍报 clean"同族。
+        _restart_kind = any("会话未拉起" in it["reason"] for it in new_critical)
+        if _restart_kind:
+            if _memwatch_restarted_recently():
+                lines.append(
+                    "根因=memwatch 内存看门狗超阈值重启主进程；巡检已自动诊断，必要时自动提阈值。"
+                )
+            else:
+                lines.append(
+                    "根因=主进程近期被重启（日志显示为「外部触发」，非内存超阈值），"
+                    "重启时清空排队会话致部分定时任务「会话未拉起」；"
+                    "建议排查外部重启来源（如巡检中枢/看门狗的 restart 调度）。"
+                )
+        elif any("工作目录不可用" in it["reason"] for it in new_critical):
             lines.append(
-                "根因=memwatch 内存看门狗超阈值重启主进程；巡检已自动诊断，必要时自动提阈值。"
-            )
-        else:
-            lines.append(
-                "根因=主进程近期被重启（日志显示为「外部触发」，非内存超阈值），重启时清空排队会话致部分定时任务「会话未拉起」；建议排查外部重启来源（如巡检中枢/看门狗的 restart 调度）。"
+                "根因=自动化的工作目录配置无效（如 cwds 被双重 JSON 编码 → 解析成带方括号的路径）"
+                "→ **确定性失败，修好前每次必失败**。修法：用 automation_update 写回干净的项目目录；"
+                "注意该工具拒绝把 Claw 设为自动化工作区（cannot host automations），"
+                "而这些 prompt 通常自带 `cd $CLAW`，故换任一项目目录即可，不影响功能。"
             )
         pushed = push("自动化失败巡检", "\n".join(lines))
         if pushed:

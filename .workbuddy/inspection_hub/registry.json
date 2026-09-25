@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.7.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-25T16:36:09+08:00",
+  "updated_at": "2026-09-25T18:52:26+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -139,9 +139,18 @@
       "id": "337116da-e9b3-46f6-8993-a00b35ad7e86",
       "rrule": "FREQ=HOURLY;INTERVAL=2",
       "status": "ACTIVE",
-      "last_run": null,
+      "last_run": "2026-09-25T18:52:26+08:00",
       "next_run": "2026-09-21T14:00 (每2h)",
-      "note": "读 registry.last_run >180min → 飞书告警（独立调度, cwds=QTS 符合禁托管新规）"
+      "note": "读 registry.last_run >180min → 飞书告警（独立调度, cwds=QTS 符合禁托管新规）",
+      "liveness_dedup": {
+        "automation-1783671485008": "2026-09-25T16:46:52+08:00",
+        "automation-1785506976058": "2026-09-25T16:46:52+08:00",
+        "automation-1780769419635": "2026-09-25T16:46:52+08:00",
+        "372a8c5e-4ead-47d1-b4f2-f2583b58d3a7": "2026-09-25T16:46:52+08:00",
+        "automation-1785506975961": "2026-09-25T16:46:52+08:00",
+        "automation-1785982929477": "2026-09-25T16:46:52+08:00",
+        "automation-1786000625371": "2026-09-25T16:46:52+08:00"
+      }
     },
     {
       "name": "🛡️ 自动化失败扫表 watchdog（每小时）",
