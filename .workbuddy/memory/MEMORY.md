@@ -3,7 +3,7 @@
 > 架构：本文件=FACT层(铁律/技术决策)，变更→原条目加 `→superseded by <日期>` 可回溯，禁平行堆重复。SCHEMA.md=L5｜INTENT.md=L6｜CHRONICLE.md=编年史｜日日志=RAW+SUMMARY(首行记原始指令)。检索：先Grep日日志标题+MEMORY/INTENT/SCHEMA关键词再Read；L3仅具体数据才Read(≤3文件)；审计→memory-consistency-audit；蒸馏：日日志>30天→蒸馏进对应层→源移`.backups/`；单文件>15KB优先蒸馏；豁免🔴铁律+演化链段。
 
 ## 🧭 注入上限与速查索引（09-25 建 · 每日记忆维护自动核对）
-> ⚠️ **本文件注入上下文有字节上限 ≈17KB**（09-25 实测：全文 26,710B 时截断于 16,983B）→ **超出部分模型默认读不到，且随文件增长不断下移**。
+> ⚠️ **本文件注入上下文有字节上限 ≈16–17KB**（09-25 实测 26,710B→截断 16,983B；09-26 复测 34,164B→截断 ≈16,220B，**可见仅 47%**）→ **超出部分模型默认读不到，且随文件增长不断下移**。
 > 复现方法：拿注入块末尾原文串回文件做字节定位（见 skill `context-health-cleanup` 第零节脚本）。
 > 用法：命中主题 → `grep -n "<关键词>" $CLAW/.workbuddy/memory/MEMORY.md` → Read 该行前后 30 行。
 > 纪律：新增高价值规则 → **同步更新本索引 + 写靠前位置**，不要只 append 到末尾（末尾=不可见=白写）。
@@ -12,10 +12,10 @@
 **B 防错(股价/推荐)**：`price_sanity` · `check-entry` · `_apply_sanity` · `_sanity_guard` · `reliable_current_price` · `sanity_failed`
 **C 排程/rrule**：`单BYHOUR` · `automation-rrule-safety-check` · `check_schedule` · `done_schedule` · `automation- 前缀` · `影子记录`
 **D 巡检中枢**：`hub_reconcile` · `D1`–`D8` · `registry.json`(只读镜像) · `workbuddy.db`(唯一真值) · `doc_apply` · `parity` · `wb_health_check` · `if_no_action`
-**E 系统边界/选股**：`simulation/portfolio.json` · `user/portfolio.json` · `mainboard_scan_pool` · `总资¥50,000` · `分级止盈双模` · `market_gate`
+**E 系统边界/选股**：`simulation/portfolio.json` · `user/portfolio.json` · `mainboard_scan_pool` · `总资¥50,000` · `分级止盈双模` · `market_gate` · `防回退锁定`
 **F 盘中监控/推送**：`1784039316540` · `1784506600526` · `push_feishu.sh` · `盘中监控双链` · `push_*_report.py`
 **G 数据源/抓取**：`qt.gtimg` · `Wind` · `鱼盆`/`yupen` · `wechatrss` · `backfill_wx_content` · `wechat-download-api`
-**H 运维/技术债**：`实盘同步管线已死` · `ths_account_sync` · `1785421201464` · `ZHITAI` · `ruff` · `Colima`
+**H 运维/技术债**：`实盘同步管线已死` · `ths_account_sync` · `1785421201464` · `ZHITAI` · `ruff` · `Colima` · `QTS日线`/`qfqday`
 **I 记忆/协作**：`domain_expertise_map` · `运行态目录版本控制` · `SAFE-MODE 重建` · `memory-consistency-audit` · `context-health-cleanup`
 
 ## 🔴 不可违反铁律

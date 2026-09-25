@@ -181,3 +181,6 @@ quant_trading.db
 
 # 试跑/探测产物（观测行为不进证据目录，三次审计 2026-09-24）
 .workbuddy/inspection_hub/calibration/probe/
+
+# 巡检/看门狗类去重状态（运行时产物，不进版本库；命名遵循 .watchdog_alerted.json 先例）
+.workbuddy/scripts/.hub_liveness_alerted.json

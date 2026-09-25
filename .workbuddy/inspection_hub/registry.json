@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.7.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-25T18:52:26+08:00",
+  "updated_at": "2026-09-26T05:05:04.279975+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -49,8 +49,8 @@
       "id": "2a404a97-c262-4cad-8a43-3c5a69febfbb",
       "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=20",
       "status": "ACTIVE",
-      "last_run": "2026-09-25T00:20:35+08:00",
-      "next_run": "2026-09-26T00:20:00+08:00",
+      "last_run": "2026-09-26T00:20:39+08:00",
+      "next_run": "2026-09-27T00:20:00+08:00",
       "note": "A内部健康快照 + B外部同类研究 + 比对 → registry.discovery_candidates"
     },
     {
@@ -58,8 +58,8 @@
       "id": "1fd52465-899f-4525-a82d-4cc5df01155c",
       "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=40",
       "status": "ACTIVE",
-      "last_run": "2026-09-25T00:41:30+08:00",
-      "next_run": "2026-09-25T00:40",
+      "last_run": "2026-09-26T00:41:30+08:00",
+      "next_run": "2026-09-27T00:40",
       "note": "发现回路·落地半程（Mode B）：读 registry.discovery_candidates → 质量闸 → top≤3 合并落地；校准期=只读对拍（至2026-10-08），达标即自动置 live（守卫：纯增量自审/前3批推卡/落地后复检/越界回滚）；核心类永不进本通道。名字不含状态字样（状态只在 doc_apply.mode），避免会腐烂的声明"
     },
     {
@@ -139,7 +139,7 @@
       "id": "337116da-e9b3-46f6-8993-a00b35ad7e86",
       "rrule": "FREQ=HOURLY;INTERVAL=2",
       "status": "ACTIVE",
-      "last_run": "2026-09-25T18:52:26+08:00",
+      "last_run": "2026-09-26T05:05:04.279975+08:00",
       "next_run": "2026-09-21T14:00 (每2h)",
       "note": "读 registry.last_run >180min → 飞书告警（独立调度, cwds=QTS 符合禁托管新规）",
       "liveness_dedup": {
@@ -455,6 +455,39 @@
       "found_at": "2026-09-25",
       "suggestion": "【L3 护栏·误报稀释】pre-task.sh 对**新式 UUID 型** automation id 一律报『格式异常：缺少 automation- 前缀』并使 gates_failed=1（实测本自动化 id 1fd52465-… 命中，非阻断但必报）。新式 id 已是主流 → 每次 pre-hook 恒报 1 个假失败，真失败的信号被稀释（『检测静默失效』同类）。建议把 id 校验放宽为『UUID 或 automation- 前缀』二者皆可。目标 = 脚本(*.sh) = 核心类 → 仅提案待审，本自动化不改写。",
       "source_summary": "内部发现（非外部来源）：2026-09-25 run#1 的 run_l3_pre 输出 `⚠️ Automation ID 格式异常: '1fd52465-899f-4525-a82d-4cc5df01155c'（缺少 automation- 前缀）` + `gates_failed=1`。"
+    },
+    {
+      "id": "disc-20260926-01",
+      "skill": "a-stock-data",
+      "url": "https://github.com/simonlin1212/a-stock-data/blob/main/README_en.md",
+      "source_summary": "a-stock-data V3.10.0（2026-09-22）架构重大升级：15层·87端点·34源（较 disc-20260925-01 的 11层/54端点/19源大幅扩张）。关键变更：TDX 公共服务器停服 K线/逐笔/五档(#52) → 行情层源顺序重排（腾讯→腾讯K线→TDX日线包→腾讯逐笔），mootdx 退为归档；新增 tencent_ticks() 日内逐笔 + futures_kline() 期货日K（覆盖 DCE）。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "对本地 a-stock-data 安装是**源可用性预警+零鉴权封装演进参考**：①核对本地 skill 是否仍依赖 mootdx 取 K线/逐笔（TDX 公共服已停 → 需切腾讯源，否则静默空数据）；②沉淀『主源失效→备份源快速切换』清单到 references/tdx-deprecation-fallback.md（文档类 auto_apply）。",
+      "status": "pending",
+      "found_at": "2026-09-26"
+    },
+    {
+      "id": "disc-20260926-02",
+      "skill": "a-stock-data",
+      "url": "https://skills.rest/skill/akshare-0xzknw",
+      "source_summary": "akshare 被独立打包为 Agent Skill（vibe-trading-tap 仓的 akshare-0xzknw，npx skills add 一键装）：零配置拉取 A股/美股/港股 OHLCV + 宏观指标，依赖 akshare/pandas，无需 API Key。",
+      "value": "medium-high",
+      "risk": "low",
+      "suggestion": "对标本地 a-stock-data 的 akshare 维度：评估是否补『akshare 零配置宏观/期货』封装作为备份源（akshare 是东财/腾讯之外的第三极公共源，可补 mootdx 失效后的缺口）；写 references/akshare-skill-compat.md 兼容对比（文档类 auto_apply）。",
+      "status": "pending",
+      "found_at": "2026-09-26"
+    },
+    {
+      "id": "disc-20260926-03",
+      "skill": "majiu-management",
+      "url": "https://theagenttimes.com/agents/article/agent-skills-framework-hits-26k-stars-as-developers-demand-w-6c584cdd",
+      "source_summary": "Agent Skills Framework（Addy Osmani, 2026-05, 26K★, MIT）：20 个 skill 覆盖 6 生命周期阶段（Define/Plan/Build/Verify/Review/Ship）+ 7 个 slash 命令。核心论点『process over prose, workflows over reference』——skill 是带检查点、产出证据、有退出判据的工作流，而非『漂亮 markdown 参考文档』；把资深工程师的脚手架（spec/test/scope/reviewable diff）固化成非可选流程。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "强化 majiu-management 的『资产化沉淀/治理』：引入『流程优于散文』原则——技能模板须含可验证检查点与退出判据（而非纯散文指令）；落地 references/skill-as-workflow.md（文档类 auto_apply，不改核心流程）。",
+      "status": "pending",
+      "found_at": "2026-09-26"
     }
   ],
   "known_failure_modes": [
@@ -539,17 +572,17 @@
     "core_class_channel": "周度审（🧬 技能演进-周度）；核心类永不进每日自动通道",
     "switch_criteria": "校准满14天(至2026-10-08)且对拍无偏差 → mode 置 live",
     "last_calibration": {
-      "ts": "2026-09-25T00:40:56+08:00",
+      "ts": "2026-09-26T00:40:23+08:00",
       "mode": "calibrate",
       "selected": [
         "disc-20260924-01",
         "disc-20260924-02",
         "disc-20260924-03"
       ],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260925.md"
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260926.md"
     },
     "last_live": null,
-    "calibrate_runs": 5,
+    "calibrate_runs": 6,
     "rollback_point": "0540a62",
     "p0_landed_at": "2026-09-24",
     "parity_verifier": ".workbuddy/scripts/doc_apply_parity.py",
@@ -611,7 +644,8 @@
     "2026-09-24 D5 文档漂移上线：新增 `doc_contract`（docs / must_mention_keys / time_anchors / table_keys_expected / checked_by / why）。真值**现算**（从 DB rrule 推 HH:MM），不写死在契约里 → 文档改错和调度改错两个方向都能被抓。四类判据：K1 时段不一致 / K2 契约键未提及 / K3 注册表表格双向校验（列出不存在的键 or 漏列 registry 的键）/ K4 引用不存在的自动化 id（跳过含 http 的行，避免 bittide 文章号那类子串误报）。自测：正常 rc=0、D5=0；故障注入 4/4 命中且 rc=20。文档契约同时成为本部 SKILL.md 的自检 —— v1.1.0 已满足契约。",
     "2026-09-24 全授权轮：①D5 扩容为多文档契约（+majiu 季度巡检规程）→ **立刻抓到真实腐烂**：quarterly-inspection.md 写『1/4/7/10 月 1 日 09:00』且 RRULE 模板 BYHOUR=9，真值 23:49 → 已按 auto_apply 档修正。②D5 修掉自身死守卫：锚点 source_id 指向非活跃自动化时原为 `continue` 静默跳过（=什么都没查），改为报 `anchor_dangling`。③新增 D6 待办逾期（pending_actions[].due 过期未完结）。④PA-001 由 human 改 auto：doc_apply.auto_switch=true + switch_guard（纯增量自审/前3批推卡/落地后复检/越界回滚），自主度按 shadow→notify-only→supervised→auto 逐级晋升，这批=supervised。",
     "2026-09-24 二次审计：①修 `--doc` 覆盖回归（多文档迁移后覆盖只继承顶层默认→锚点/键名全丢→取证通道静默失效，死守卫第四例）②修 `apply_doc_candidates.py --mode` 可翻转生产 mode 的缺陷（现改为显式 --mode 时完全不回写）③修 D4 对 PAUSED 自动化误报心跳 ④新增 K5 版本对（文档 frontmatter version ↔ registry.version）并把 registry.version 1.0.0 → 1.2.0 ⑤把文档里悬空的 `autonomy_methods` 落成真键 ⑥新增 PA-003（三槽 model/expert 差异，工具改不动，须人在 UI 决定）",
-    "2026-09-25 文档类落地 run#1（mode=calibrate）：①对拍 rc=0/ok=true/violations=[] 干净；②自动切换前置 1/14 天未满 → 保持 calibrate，不推送；③**刻意未按 Step 4 字面回写候选 status=applied**（校准期零落地 ⇒ 零 applied，否则次日被质量闸静默滤除）——已登记核心类提案 disc-20260925-04 交周度审；④新增 disc-20260925-05（L3 pre-hook 对新式 UUID id 恒报假失败，稀释真信号）；⑤仅回写 automations[1fd52465].last_run。"
+    "2026-09-25 文档类落地 run#1（mode=calibrate）：①对拍 rc=0/ok=true/violations=[] 干净；②自动切换前置 1/14 天未满 → 保持 calibrate，不推送；③**刻意未按 Step 4 字面回写候选 status=applied**（校准期零落地 ⇒ 零 applied，否则次日被质量闸静默滤除）——已登记核心类提案 disc-20260925-04 交周度审；④新增 disc-20260925-05（L3 pre-hook 对新式 UUID id 恒报假失败，稀释真信号）；⑤仅回写 automations[1fd52465].last_run。",
+    "2026-09-26 文档类落地 run#2（mode=calibrate）：①对拍 rc=0/ok=true/violations=[] 干净；②切换前置 days_elapsed=2/14 未满 → 保持 calibrate，不推送；③D7 镜像核对 PA-001.if_no_action=auto_switch_to_live 与 doc_apply.auto_switch=true 一致，未停手；④**零文档写入 / 零 commit / 零 applied 回写**（校准期照 Step 4 字面执行会把未落地候选标记为 applied → 次日被质量闸滤除，等于静默销毁成果；已登记核心类提案 disc-20260925-04 交周度审）；⑤只读复检 hub_reconcile rc=20，D1–D7 全空，仅 D8 H1 实盘止损逾期 52 天 / D9 槽位配置（均人工作业，与本批无关）。仅回写 automations[1fd52465].last_run/next_run。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",

@@ -274,8 +274,23 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
             pref = tuple(spec.get("table_keys_expected_exclude_prefixes", []) or [])
             expected = {k for k in reg_keys if k not in excl and not k.startswith(pref)}
             for k in sorted(expected - listed_norm):
+                # 2026-09-26：报「文档漏列」时给出**两条修法**，并尽量指出是哪一条。
+                # 起因：看门狗把去重表 `liveness_dedup`（{id: ISO 时间}）写进了 registry，
+                # 这里报的是"文档漏列" → 读的人会去往文档表格补一行，而真正该做的是
+                # **把该键从 registry 移出去**（registry 是声明文件，不是状态库）。
+                # 文案指向错误修法，等于半个误导（与「根因提示不依赖观测」同一个病）。
+                val = reg.get(k)
+                runtime_hint = ""
+                if isinstance(val, dict) and val and all(
+                        isinstance(v, str) and re.match(r"^\d{4}-\d{2}-\d{2}T", v)
+                        for v in val.values()):
+                    runtime_hint = ("；⚠️ 该键的值形如 {id: ISO 时间} → **疑似运行时状态**，"
+                                    "应把它从 registry **移出**到状态文件，而不是往文档表格补一行")
                 findings.append({"kind": "key_missing_from_table", "doc": raw, "key": k,
-                                 "detail": f"registry 有键 `{k}`，但文档中央注册表表格漏列了（表=registry 的索引，会一起腐烂）"})
+                                 "detail": (f"registry 有键 `{k}`，但文档中央注册表表格没列"
+                                            f"（表=registry 的索引，会一起腐烂）。两种可能："
+                                            f"①声明性键 → 补进文档表格；"
+                                            f"②运行时状态 → **从 registry 移出**{runtime_hint}")})
 
         # K4 引用了 DB 中不存在的自动化 id（跳过含 URL 的行 —— 曾把 bittide 文章号误判为 dangling id）
         for i, ln in enumerate(lines, 1):
