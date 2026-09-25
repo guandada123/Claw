@@ -19,24 +19,44 @@ from pathlib import Path
 HOLIDAYS_FILE = str(Path(__file__).resolve().parent.parent / "data" / "astock_holidays.json")
 
 
-def load_holidays(path: str = HOLIDAYS_FILE) -> set:
-    """加载休市日期集合"""
+def load_holidays(path: str = HOLIDAYS_FILE) -> dict:
+    """加载休市日历。返回 {'dates': set, 'names': {date: 假期名}}。
+
+    09-25 修复：原先只读 all_holiday_dates 扁平列表，无法说明"因何休市" →
+    reason 恒为笼统的"法定节假日休市"，中秋节/国庆节无法区分（日志与告警歧义）。
+    现优先用 holidays{} 分节（可命名），all_holiday_dates 仅作兜底来源。
+    """
     try:
         with open(path) as f:
             data = json.load(f)
-        return set(data.get("all_holiday_dates", []))
     except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
         print(f"[错误] 无法加载休市日历: {e}", file=sys.stderr)
         sys.exit(2)
 
+    names: dict = {}
+    dates: set = set()
+    for hname, info in (data.get("holidays") or {}).items():
+        for ds in info.get("dates", []) or []:
+            dates.add(ds)
+            names[ds] = hname
+    # 兜底：分节缺失时用扁平列表
+    for ds in data.get("all_holiday_dates", []) or []:
+        dates.add(ds)
+        names.setdefault(ds, "法定节假日")
+    return {"dates": dates, "names": names}
 
-def is_trading_day(d: date, holidays: set) -> bool:
-    """判断某日是否为A股交易日"""
+
+def is_trading_day(d: date, holidays) -> bool:
+    """判断某日是否为A股交易日。
+
+    holidays 兼容两种入参：load_holidays() 的 dict，或裸 set（旧调用方）。
+    """
     # 周末直接排除
     if d.weekday() >= 5:  # 5=周六, 6=周日
         return False
     # 法定节假日排除
-    return d.isoformat() not in holidays
+    dates = holidays["dates"] if isinstance(holidays, dict) else holidays
+    return d.isoformat() not in dates
 
 
 def main():
@@ -59,7 +79,8 @@ def main():
             weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
             reason = f"（{weekdays[target.weekday()]}，周末休市）"
         else:
-            reason = "（法定节假日休市）"
+            hname = holidays["names"].get(target.isoformat(), "法定节假日")
+            reason = f"（{hname}休市）"
 
     print(f"{target.isoformat()} → {status} {reason}")
     sys.exit(0 if trading else 1)
