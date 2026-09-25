@@ -1,8 +1,8 @@
 {
   "hub": "unified-inspection-hub",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-25T10:13:26+08:00",
+  "updated_at": "2026-09-25T16:36:09+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -494,6 +494,15 @@
       "detect": "hub_reconcile.py → D9（registry.consistency_groups 声明成员与必须一致的键）",
       "fix": "拆槽后立刻回自动化管理 UI 把 model / expert 对齐；D9 会在不一致时每天报出来。",
       "does_not_affect": "D1–D9 的机器判据本身（它们不读这几个字段）",
+      "since": "2026-09-25"
+    },
+    {
+      "id": "cwds-double-encoded",
+      "severity": "high",
+      "title": "自动化 cwds 被双重 JSON 编码 → 工作目录解析成不存在的路径 → 自动化 100% 起不来",
+      "detail": "平台里 cwds 存成 `[\"[\\\"/Users/guan/...\\\"]\"]`（JSON 数组里套了一个 JSON 字符串）。运行时把它解析成字面量 `[\"/Users/guan/...\"]`（带方括号与引号）→ 目录不存在 → `failure_code=automation-workspace-unavailable`，**每次运行都失败**。实测 3 条 ACTIVE 自动化中招，全是治理类：💓中枢存活看门狗（**48 次运行 0 次成功**，从创建起就没跑成过）、🧹技能卫生审计-月度、🧬技能演进-周度。看门狗自己死了 —— 正是「绝不让 AI 报告自己的死」要防的事。",
+      "detect": "① 一次性扫描：对每条 ACTIVE 自动化 json.loads(cwds)，检查元素是否为字符串且 os.path.isdir 成立（元素以 `[`/`{` 开头或含 `\"` 即双重编码）；② 常态化：hub_reconcile D4' 看 result_success（不只 last_run）→ 「跑了但从未成功」会被每天报出。",
+      "fix": "用 automation_update 写回**干净路径**（本机可接受值：项目目录如 /Users/guan/WorkBuddy/QuantTradingSystem）。⚠️ 平台限制：`automation_update` **拒绝**把 Claw 设为自动化工作区（报 cannot host automations），尽管 DB 里有 42 条 cwds=Claw 且运行正常 —— 工具校验与运行时不一致，遇到时改用其它项目目录即可（这些 prompt 都自带 `cd $CLAW`，cwd 不影响功能）。",
       "since": "2026-09-25"
     }
   ],

@@ -46,6 +46,9 @@ DEFAULT_REGISTRY = CLAW / ".workbuddy" / "inspection_hub" / "registry.json"
 DEFAULT_DB = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "workbuddy.db"
 
 # D4 只覆盖"高频项"（节奏 ≤ 此小时数）；周/月/季项的漏跑由各自周期审阅覆盖，避免噪音
+# D4' 用：最近 N 次运行全失败才算「跑了但从未成功」（单次失败是常态，不该刷屏）
+MIN_RUNS_FOR_SUCCESS = 3
+
 HEARTBEAT_MAX_CADENCE_H = 48
 
 
@@ -58,6 +61,21 @@ def load_json(p: Path) -> dict:
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception as e:  # noqa: BLE001
         return {"_error": str(e)}
+
+
+def recent_runs(conn, aid: str, n: int) -> list[tuple[bool, str | None]]:
+    """最近 n 次运行 (是否成功, failure_code)，按时间倒序。
+
+    为什么需要它：`last_run` 只能回答"跑没跑"，回答不了"跑成没有"。
+    实测 💓中枢存活看门狗 连跑 48 次 0 成功，而心跳每 2h 刷新 → 旧 D4 判它健康。
+    表缺失/查询失败一律返回 []（**不误报**，与 D4 对 PAUSED 的处理同一原则）。
+    """
+    try:
+        return [(bool(r[0]), r[1]) for r in conn.execute(
+            "select result_success, failure_code from automation_runs "
+            "where automation_id = ? order by created_at desc limit ?", (aid, n)).fetchall()]
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def cadence_hours(rrule: str) -> float | None:
@@ -766,6 +784,32 @@ def main() -> int:
                        "last_run": datetime.datetime.fromtimestamp(base_ts / 1000).strftime("%Y-%m-%d %H:%M")
                        if last_run.get(i) else "(从未运行，按创建时刻计)"})
 
+    # ---- D4' 跑了但从未成功（2026-09-25 补：心跳新鲜 ≠ 在工作）----
+    # 存在理由（实测）：`💓 中枢存活看门狗` 连续 48 次运行 **0 次成功**
+    # （cwds 被双重 JSON 编码 → 工作目录解析成不存在的路径 → automation-workspace-unavailable），
+    # 而它在 registry 里是已声明的 ACTIVE 项、`last_run` 每 2 小时都在刷新
+    # → **D4 只看"最近跑没跑"，于是静默通过**。
+    # 一个 100% 失败的自动化，心跳是全场最健康的 —— 这是「看着在跑、其实没在跑」
+    # 在检查器身上的第五例：**判据测错了东西**（测存活，不测产出）。
+    # 阈值：最近 MIN_RUNS_FOR_SUCCESS 次全失败才报（单次失败是常态，不该刷屏）。
+    for a in declared:
+        i = a.get("id")
+        row = live.get(i)
+        if row is None or row["status"] != "ACTIVE":
+            continue
+        recent = recent_runs(conn, i, MIN_RUNS_FOR_SUCCESS)
+        if len(recent) < MIN_RUNS_FOR_SUCCESS:
+            continue          # 样本不足不判（只跑过一两次，失败是常态）
+        if all(not ok for ok, _ in recent):
+            codes = sorted({c for _, c in recent if c})
+            d4.append({"kind": "never_succeeds", "id": i, "name": row["name"],
+                       "rrule": row["rrule"],
+                       "runs": len(recent), "success": 0,
+                       "failure_codes": codes,
+                       "detail": (f"{row['name']}：最近 {len(recent)} 次运行 **一次都没成功**"
+                                  f"（心跳却是新鲜的，故旧 D4 静默通过）"
+                                  + (f"，failure_code={codes}" if codes else ""))})
+
     # ---- D5 文档漂移（只读；文档是"会腐烂的声明"）----
     d5 = [] if args.no_doc else check_doc_drift(reg, live, all_ids, now_dt, args.doc)
 
@@ -837,7 +881,10 @@ def main() -> int:
     if args.brief:
         # 供告警正文：只列"需人审"的项，天然带 6h 冷却由调用方控制
         for x in d4:
-            print(f"[心跳超时] {x['name']} 上次 {x['last_run']} 已 {x['age_h']}h（阈 {x['threshold_h']}h）")
+            if x.get("kind") == "never_succeeds":
+                print(f"[从未成功] {x['detail']}")
+            else:
+                print(f"[心跳超时] {x['name']} 上次 {x['last_run']} 已 {x['age_h']}h（阈 {x['threshold_h']}h）")
         for x in d2:
             print(f"[声明悬空] {x.get('name')} — {x.get('why')}")
         for x in d3:
@@ -874,7 +921,10 @@ def main() -> int:
                     if k == "D1_mirror_drift":
                         print(f"    · {it['name'][:30]} {it['field']}: {it['declared']} -> {it['observed']}")
                     elif k == "D4_heartbeat_stale":
-                        print(f"    · {it['name'][:30]} 上次 {it['last_run']} 已 {it['age_h']}h (阈 {it['threshold_h']}h)")
+                        if it.get("kind") == "never_succeeds":
+                            print(f"    · {it['detail']}")
+                        else:
+                            print(f"    · {it['name'][:30]} 上次 {it['last_run']} 已 {it['age_h']}h (阈 {it['threshold_h']}h)")
                     elif k == "D5_doc_drift":
                         print(f"    · [{it.get('kind')}] {it['detail']}")
                     elif k == "D6_pending_overdue":
