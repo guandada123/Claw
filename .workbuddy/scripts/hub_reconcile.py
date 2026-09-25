@@ -378,6 +378,90 @@ def check_contract_blind(reg: dict, root: Path) -> list[dict]:
     return out
 
 
+def short_id(aid: str) -> str:
+    """自动化 id 截断显示（简报里只要够区分）。
+
+    两种 id 形态：`automation-<毫秒时间戳>` 与 UUID。直接切前 8 位会把前者切成
+    `automati`（全组同前缀，等于没区分）→ 数字型取时间戳前 6 位，UUID 取前 8 位。
+    """
+    s = str(aid)
+    if s.startswith("automation-") and len(s) > 12:
+        return "auto-" + s.split("-", 1)[1][:6]
+    return s[:8] if "-" in s else s
+
+
+def check_slot_consistency(reg: dict, live: dict, rows_all: dict) -> list[dict]:
+    """D9 同组槽位配置一致性：声明为"同一任务"的多条自动化，运行时配置必须同口径。
+
+    存在理由（2026-09-25 PA-003 深挖）：
+      「单 RRULE 禁多 BYHOUR」这条铁律要求把多时刻排程**拆成多条独立自动化**。
+      但 `automation_update` **改不了 model_id / model_is_thinking / expert_id /
+      permission_mode / push_to_wechat** —— 拆分时新建的那几条只会拿到平台默认值。
+      实测：知识库精读三槽（00:50 / 03:20 / 05:50，prompt 自述「共用同一份正文」）
+      槽1 = hy3 + thinking + EquityResearchExpert，槽2/3 = 平台默认 flash + 无专家。
+      三条跑同一件事、吃同一份正文，却用两套口径 → 每天 2/3 的精读产出质量被静默下调。
+      **这不是配置疏漏，是拆分动作的系统性副作用** → 必须机器盯着，否则每次拆槽复发。
+
+    声明式：`registry.consistency_groups[]` 写明成员 + 必须一致的键 + 有意差异的键及理由。
+    「有意差异」也必须声明（同 K3 的排除规则）：不声明就是漏查，声明了才可审。
+    """
+    out: list[dict] = []
+
+    def f(kind: str, key: str, detail: str) -> None:
+        out.append({"kind": kind, "key": key, "detail": detail})
+
+    groups = reg.get("consistency_groups") or []
+    if not groups:
+        return out
+
+    for g in groups:
+        gid = g.get("id")
+        ids = [i for i in (g.get("ids") or []) if i]
+        keys = [k for k in (g.get("keys") or []) if k]
+        intentional = set(g.get("keys_intentionally_differing") or [])
+        if not keys:
+            f("group_no_keys", str(gid), f"一致性组 `{gid}` 没有声明要比对的键 → 这条组永远不会查出东西")
+            continue
+
+        members = []
+        for i in ids:
+            r = live.get(i)
+            if r is None:
+                f("group_member_missing", str(gid),
+                  f"一致性组 `{gid}` 的成员 {i} 不在调度库（已删/ID 写错）→ 组不完整，"
+                  f"配置一致性无从核对")
+                continue
+            members.append((i, r))
+        if len(members) < 2:
+            # 少于 2 条就没有"一致性"可言 —— 静默返回会让这条组变成死守卫
+            f("group_too_small", str(gid),
+              f"一致性组 `{gid}` 只剩 {len(members)} 条活跃成员（<2）→ 该组空转，"
+              f"要么补成员，要么撤掉这条组")
+            continue
+
+        anchor_id, anchor_row = members[0]
+        for key in keys:
+            if key in intentional:
+                continue
+            ref = anchor_row[key] if key in anchor_row.keys() else None
+            diffs = []
+            for mid, row in members[1:]:
+                cur = row[key] if key in row.keys() else None
+                if cur != ref:
+                    diffs.append((mid, cur))
+            if not diffs:
+                continue
+            # 一个键只报一条（把差异成员并列写在一行）：逐成员各报一条会把「同一件事」
+            # 拆成 N 条噪音，简报里读不出重点 —— 报告粒度要对齐人的决策粒度。
+            shown = "、".join(f"{short_id(mid)}={cur!r}" for mid, cur in diffs)
+            f("slot_config_mismatch", f"{gid}.{key}",
+              f"同组 `{gid}` 的 {key} 不一致：基准 {short_id(anchor_id)}={ref!r}，但 {shown}"
+              f"（{'/'.join(short_id(i) for i, _ in members[1:])} 共 {len(members)} 条跑同一件事）。"
+              f"如属有意差异，请写进 keys_intentionally_differing 并给出理由 —— "
+              f"不要靠人记得")
+    return out
+
+
 CROSS_STATE = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "cross_project_state.json"
 WB_ROOT = Path(os.environ.get("HOME", "/Users/guan")) / "WorkBuddy"
 # "明日/今日/开盘前" 这类相对时间无法被机器判定何时过期（写到文件里的那一刻就已经开始腐烂）
@@ -606,7 +690,9 @@ def main() -> int:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "select id,name,rrule,status,deleted_at,created_at from automations"
+            "select id,name,rrule,status,deleted_at,created_at,"
+            "model_id,model_is_thinking,expert_id,permission_mode,push_to_wechat "
+            "from automations"
         ).fetchall()
     except Exception as e:  # noqa: BLE001
         print(json.dumps({"ok": False, "error": f"调度库读取失败: {e}"}, ensure_ascii=False))
@@ -699,6 +785,9 @@ def main() -> int:
     else:
         d8 = check_cross_project({}, cs_path, now_dt, exists=False)
 
+    # ---- D9 同组槽位配置一致性（拆分排程会重置 model/expert/权限 → 兄弟槽位静默降级）----
+    d9 = check_slot_consistency(reg, live, {r["id"]: r for r in rows})
+
     # ---- 收敛（仅 D1，且仅在 --fix）----
     fixed = []
     if args.fix and d1:
@@ -722,8 +811,8 @@ def main() -> int:
     # ⚠️ rc 必须先算、并写进 out：此前 rc 只作为进程退出码存在，JSON 里没有这个键，
     #    而文档/告警文案都在说"看退出码" —— 消费方读 out["rc"] 会拿到 KeyError 或 None，
     #    又一次掉进"缺键 ≠ 空集"的坑。**退出码与 JSON 里的 rc 必须同源。**
-    rc = 0 if not (d1 or d2 or d3 or d4 or d5 or d6 or d7 or d8) else (
-        10 if (d1 and not (d2 or d3 or d4 or d5 or d6 or d7 or d8)) else 20)
+    rc = 0 if not (d1 or d2 or d3 or d4 or d5 or d6 or d7 or d8 or d9) else (
+        10 if (d1 and not (d2 or d3 or d4 or d5 or d6 or d7 or d8 or d9)) else 20)
 
     out = {
         "ok": True,
@@ -739,9 +828,10 @@ def main() -> int:
         "D6_pending_overdue": d6,
         "D7_contract_blind": d7,
         "D8_cross_project": d8,
+        "D9_slot_config": d9,
         "fixed": fixed,
-        "clean": not (d1 or d2 or d3 or d4 or d5 or d6 or d7 or d8),
-        "needs_human": bool(d2 or d3 or d4 or d5 or d6 or d7 or d8),
+        "clean": not (d1 or d2 or d3 or d4 or d5 or d6 or d7 or d8 or d9),
+        "needs_human": bool(d2 or d3 or d4 or d5 or d6 or d7 or d8 or d9),
     }
 
     if args.brief:
@@ -760,6 +850,8 @@ def main() -> int:
             print(f"[契约盲区] {x.get('key')} — {x.get('detail')}")
         for x in d8:
             print(f"[跨项目闭环] {x.get('key')} — {x.get('detail')}")
+        for x in d9:
+            print(f"[同组配置] {x.get('key')} — {x.get('detail')}")
         return rc
 
     if args.json:
@@ -773,7 +865,8 @@ def main() -> int:
                          ("D5_doc_drift", "D5 文档漂移(需人审)"),
                          ("D6_pending_overdue", "D6 待办逾期(需人审)"),
                          ("D7_contract_blind", "D7 契约盲区(检查器自己空转，需人审)"),
-                         ("D8_cross_project", "D8 跨项目闭环(需人审)")):
+                         ("D8_cross_project", "D8 跨项目闭环(需人审)"),
+                         ("D9_slot_config", "D9 同组槽位配置不一致(需人审)")):
             items = out[k]
             if items:
                 print(f"  {label}: {len(items)}")
@@ -786,7 +879,7 @@ def main() -> int:
                         print(f"    · [{it.get('kind')}] {it['detail']}")
                     elif k == "D6_pending_overdue":
                         print(f"    · {it.get('detail')}")
-                    elif k in ("D7_contract_blind", "D8_cross_project"):
+                    elif k in ("D7_contract_blind", "D8_cross_project", "D9_slot_config"):
                         print(f"    · [{it.get('key')}] {it.get('detail')}")
                     else:
                         print(f"    · {it.get('name')} {it.get('rrule','')} {it.get('why','')}")

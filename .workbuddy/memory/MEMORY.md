@@ -2,6 +2,22 @@
 
 > 架构：本文件=FACT层(铁律/技术决策)，变更→原条目加 `→superseded by <日期>` 可回溯，禁平行堆重复。SCHEMA.md=L5｜INTENT.md=L6｜CHRONICLE.md=编年史｜日日志=RAW+SUMMARY(首行记原始指令)。检索：先Grep日日志标题+MEMORY/INTENT/SCHEMA关键词再Read；L3仅具体数据才Read(≤3文件)；审计→memory-consistency-audit；蒸馏：日日志>30天→蒸馏进对应层→源移`.backups/`；单文件>15KB优先蒸馏；豁免🔴铁律+演化链段。
 
+## 🧭 注入上限与速查索引（09-25 建 · 每日记忆维护自动核对）
+> ⚠️ **本文件注入上下文有字节上限 ≈17KB**（09-25 实测：全文 26,710B 时截断于 16,983B）→ **超出部分模型默认读不到，且随文件增长不断下移**。
+> 复现方法：拿注入块末尾原文串回文件做字节定位（见 skill `context-health-cleanup` 第零节脚本）。
+> 用法：命中主题 → `grep -n "<关键词>" $CLAW/.workbuddy/memory/MEMORY.md` → Read 该行前后 30 行。
+> 纪律：新增高价值规则 → **同步更新本索引 + 写靠前位置**，不要只 append 到末尾（末尾=不可见=白写）。
+
+**A 铁律(渠道/文件/数据/推送)**：`oc_9ee5303497f5e0e71666b610d6bdc346` · `先复制` · `get_effective_capital` · `push_card` · `cost_tracker` · `qt.gtimg.cn`
+**B 防错(股价/推荐)**：`price_sanity` · `check-entry` · `_apply_sanity` · `_sanity_guard` · `reliable_current_price` · `sanity_failed`
+**C 排程/rrule**：`单BYHOUR` · `automation-rrule-safety-check` · `check_schedule` · `done_schedule` · `automation- 前缀` · `影子记录`
+**D 巡检中枢**：`hub_reconcile` · `D1`–`D8` · `registry.json`(只读镜像) · `workbuddy.db`(唯一真值) · `doc_apply` · `parity` · `wb_health_check` · `if_no_action`
+**E 系统边界/选股**：`simulation/portfolio.json` · `user/portfolio.json` · `mainboard_scan_pool` · `总资¥50,000` · `分级止盈双模` · `market_gate`
+**F 盘中监控/推送**：`1784039316540` · `1784506600526` · `push_feishu.sh` · `盘中监控双链` · `push_*_report.py`
+**G 数据源/抓取**：`qt.gtimg` · `Wind` · `鱼盆`/`yupen` · `wechatrss` · `backfill_wx_content` · `wechat-download-api`
+**H 运维/技术债**：`实盘同步管线已死` · `ths_account_sync` · `1785421201464` · `ZHITAI` · `ruff` · `Colima`
+**I 记忆/协作**：`domain_expertise_map` · `运行态目录版本控制` · `SAFE-MODE 重建` · `memory-consistency-audit` · `context-health-cleanup`
+
 ## 🔴 不可违反铁律
 - 渠道：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346(免审直推)；维护类默认不推仅⚠️/🔴异常推；前缀📈投顾操盘/📊炒股助理/🇺🇸美股监控
 - 删/移文件须「先复制→验证→再删源」+ 删前用户确认
@@ -54,6 +70,10 @@
 - 🔴 **改名纪律**：自动化名/prompt 里**不写死状态字样**（如"（校准期）"）—— 状态只在 `registry.doc_apply.mode`。改名须同步 registry `night_slots` 键 + `free_window_decisions` + 文档；`_state_sync_notes` 里的历史记录**不改**（改了就是伪造历史）
 - 🔴 **改长 prompt 的安全姿势**：调度库只读导出备份(`/tmp/autoprompt_<id>.bak-<date>`) → `assert old in src` 锚点替换生成 `.new`（不命中即中止）→ `diff` 看改动面 → `automation_update` 写入 → **逐字节比对 DB 与 `.new`**（平台会剥尾换行）+ 回归 `rrule/status` 未动
 - 纳管范围由 **`registry.automation_scope`**(include/exclude 名称规则) 声明，**不手写全量**（库里71条约50条是业务/投研类=噪音）。范围内未登记→报 D3；新增治理类自动化会自动被抓出
+- 🔴 **D9 同组槽位配置不一致(09-25，hub_reconcile 第 9 类漂移)**：铁律「单 RRULE 禁多 BYHOUR」要求多时刻**拆成多条独立自动化**，而 **`automation_update` 改不了** `model_id`/`model_is_thinking`/`expert_id`/`permission_mode`/`push_to_wechat` → **拆槽时新建的那几条只会拿到平台默认值**。实测知识库精读三槽（prompt 自述「共用同一份正文」）：槽1 = hy3+thinking+EquityResearchExpert，槽2/3 = 默认 flash+无专家 → 同一件事每天 2/3 的产出被静默降档。**这不是配置疏漏，是拆分动作的系统性副作用（拆一次复发一次）**。判据来自 `registry.consistency_groups[]`（成员 `ids` + 必须一致的 `keys` + **有意差异也要声明**）。退化形态不许静默：`group_no_keys`/`group_member_missing`/`group_too_small`。修好后自动转静默（七连测 7/7）。已记 `known_failure_modes: slot-split-resets-config`。
+- 🔴 **报告粒度要对齐人的决策粒度(09-25)**：D9 初版对「一个键不一致」逐成员各报一条（3 成员 → 6 条），简报里读不出重点 → 改为一键一条、差异成员并列写一行。**把一个事实拆成 N 条噪音，等于让读的人替我做聚合。**
+- 🔴 **写死日期的测试 = 会腐烂的声明(09-25)**：QTS `TestLocalDbFreshnessTruncation` 用写死的 `2026-09-04`，而判据是 `effective >= today - 5天` → 09-09 后必然转红，**与代码无关**；它不再验证"新鲜/截断"，只在验证"今天离写测试那天多远"。同族三例：相对时间的交接项（"明日开盘前"）、契约里写死真值、**写死日期的测试**。→ 一律相对化，判据本身由专门用例钉住。
+- 🔴 **哨兵盲区：只覆盖"路径式引用"，漏了"sys.path 注入式引用"(09-25)**：`restore_forwarders.py` 与 `check_broken_refs.py` 的正则只认 `scripts/X.py` 字面串，而 prompt 里还有 `sys.path.insert(0,'scripts')` + **裸** `import X` 这种形态 → 两道哨兵**双双报「✅ 健康」**，实际 import 直接 ModuleNotFoundError（📊微信早报 / 📊收盘晚报 静默降级）。→ 新增 `find_syspath_bareimport_breaks.py` 并**委托**接入 check_broken_refs（单一实现）。**盲区不是"没查"，是查了一个自以为完备的子集。**
 - 🔴 **外部死信层(09-24)**：AI 看门狗守中枢有**双死盲区**(中枢死→看门狗同死)→ 给**无LLM的 launchd 看门狗** `~/.local/bin/wb_health_check.sh`(30min) 加第5检查段调 `hub_reconcile.py`，rc≥20→飞书(6h冷却,锚`~/.local/etc/wb_health/…/hub_alert_ts`)。**绝不让 AI 报告自己的死**
 - 🔴 **D8 跨项目闭环(09-24，「所有项目都要闭环」轮，hub_reconcile 第 8 类漂移)**：D1–D7 全部只覆盖 Claw 一个项目，而"闭环"是**跨项目**概念 —— 7 个项目的闭环状态写在 `~/.workbuddy/cross_project_state.json`，**此前不在任何机器检查覆盖内**：其 `handoff` 里 08-04 写的「明日开盘前」**静默躺了 50 天**（相对时间从写下那一刻就不可判定）。D8 K1 cwd/cwds 悬挂 / K2 磁盘真实 git 仓库未登记（**按 realpath 去重**，`~/WorkBuddy` 整树是软链→同目录两路径可见，不去重全是假阳性）/ K3 无 surfaces 健康声明 / K4 `updated_at` 与 mtime 差>24h（**写者只改子节点不 bump 顶层 → 「最后更新」这个字段在说谎 6.4 天**）/ K5 handoff 逾期 / K6 相对时间·未结构化·无 due。**判据：闭环 = 有声明 + 有覆盖 + 有留痕 + 有期限（且期限机器可判定）；休眠 ≠ 无主。**
 - 🔴🔴 **新检查的第一条判据必须是"输入自证"(09-24 D8 自查，第四次踩同一个坑)**：D8 初版只写 `if not cs:` 就报"状态锚不存在" → 文件明明在、内容为 `{}` 时**输出在说谎**；更危险的是把「读不出来」和「没有跨项目问题」混成一个结果。修法：`state_anchor_missing`（不在）/`state_anchor_unreadable`（在但读不出=输入不可信）/`state_anchor_empty`（空对象）/`no_active_projects`（空 → K1/K3/K5 全空转）/`scan_root_missing`（`~/WorkBuddy` 不可访问 → K2 一条都不查，须明写"本次 D8=0 不代表没有漏项"）**五种各报各的**。→ 已把 K0 输入自证写进 skill 的 D8 判据清单：**「错误 ≠ 通过；缺键 ≠ 空集」要成为每条新检查的起手式。**

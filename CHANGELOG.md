@@ -1,5 +1,56 @@
 # Changelog
 
+## [2026-09-25 上午·D2/D3 收口] 148 项未提交逐仓清完 + D9 同组槽位配置一致性
+
+### D2 逐仓 review：不是「一堆没提交的文件」，是三类不同的东西
+89(Claw) / 35(QTS) / 16(StockInsight) / 4(marvis) / 3(pmf) / 1(eak) —— 逐仓看清后才敢动：
+- **Claw** = 09-23 双副本去重**未收尾**（薄壳/删除/路径解析/测试契约）→ 拆提交收口
+- **QTS** = 真实 WIP（data_fetcher/data_quality/report_service + 大量测试）→ **先跑测试**：1344 passed
+- **StockInsight** = 13 个 08-30~09-11 memory 日日志未提交（与「记忆层 09-11 后闲置」互相印证）
+- **pmf** = `routes/console.php` **删 3 处 `->runInBackground()`**，配对 learning「runInBackground 静默杀掉三个定时任务」→ 是修复，不是垃圾
+- **marvis** = LEARNINGS + 新 memory + docs；**2 个 `.DS_Store` 被跟踪** → `git rm --cached` + gitignore
+- **eak** = 只有 `.DS_Store` → gitignore，无内容可提交
+
+### 四个关键发现（都是「看着在跑、其实没在跑」同族）
+- ❌【高】**`anysearch_helper` 真断链**：📊微信早报(1782741941693) 与 📊收盘晚报(1782817769722)
+  的 prompt 写的是 `import sys; sys.path.insert(0,'scripts')` + **裸** `import anysearch_helper` ——
+  这种形态**不含** `scripts/X.py` 字面串，于是 `restore_forwarders.py` 与 `check_broken_refs.py`
+  **双双报「✅ 健康」**，而实际 import 直接 `ModuleNotFoundError` → 两份报告静默降级。
+  → 新增 `find_syspath_bareimport_breaks.py` + 在 `check_broken_refs` 末尾**委托**调用（单一实现）+
+  补 `scripts/anysearch_helper.py` 薄壳。**证伪实验**：移走薄壳 → rc=1 并点名 2 条自动化；恢复 → rc=0。
+  **盲区不是"没查"，是查了一个自以为完备的子集（只覆盖路径式引用，漏了 sys.path 注入式）。**
+- ❌【中】**Claw 单测红灯**：`test_load_holidays_from_file` 断言旧契约（裸 set），
+  而 `load_holidays` 09-25 已升级为 `{'dates','names'}`（为区分中秋/国庆）→ 同步契约并**补 2 条**
+  钉住新行为 → **503 passed**（此前 1 failed / 500 passed）
+- ❌【中】**QTS 测试因写死日期腐烂**：`TestLocalDbFreshnessTruncation` 用写死的 `2026-09-04`，
+  而判据是 `effective >= today - 5天` → 09-09 之后必然转红，**与代码无关**。
+  → 改相对今天。**写死日期的测试就是一条会腐烂的声明**：它不再验证"新鲜/截断"，
+  只在验证"今天离写测试那天有多远"
+- ❌【高】**拆槽会静默重置配置**（见下 D9）
+
+### D3 → 新增 D9 同组槽位配置一致性（registry 1.6.0 / SKILL.md v1.6.0）
+铁律「单 RRULE 禁多 BYHOUR」要求多时刻**拆成多条独立自动化**，而 `automation_update`
+**改不了** `model_id` / `model_is_thinking` / `expert_id` / `permission_mode` / `push_to_wechat`
+→ **拆槽时新建的那几条只会拿到平台默认值**。实测知识库精读三槽（prompt 自述「共用同一份正文」）：
+槽1（06-22 建）= hy3+thinking+EquityResearchExpert，槽2/3（09-24 16:03 同一次拆槽）= 默认 flash+无专家
+→ 同一件事每天 2/3 的产出被静默降档。**不是配置疏漏，是拆分动作的系统性副作用 —— 拆一次复发一次。**
+
+- 判据来自 `registry.consistency_groups[]`（成员 `ids` + 必须一致的 `keys` +
+  `keys_intentionally_differing`）；**有意差异也必须声明**（同 D5 K3 排除规则那条纪律）
+- 一个键报**一条**（差异成员并列写一行）：逐成员各报一条 = 同一件事拆成 N 条噪音 →
+  **报告粒度要对齐人的决策粒度**
+- 退化形态不许静默：`group_no_keys` / `group_member_missing` / `group_too_small`（存活成员 <2）
+- 七连测 **7/7**（一致→静默 / 三键不一致→恰好 3 条 / 单键→恰好 1 条 / 有意差异已声明→静默 /
+  成员 ID 打错→报 / 只剩 1 条→报 / 没声明键→报）
+- 记入 `known_failure_modes: slot-split-resets-config`；diag prompt → **v2.5**（逐字节校验）
+- PA-003：`if_no_action` keep_as_is → **escalate**（不动 = 每天 2/3 精读继续用弱模型，有实际代价，
+  不适合表述为"无害保持现状"）；修复动作**只能在自动化管理 UI 做**（工具层改不了这四个字段）
+
+### 结果
+`hub_reconcile`：D1–D7 = 0 / **D8 = 1**（H1 实盘止损）/ **D9 = 3**（槽位配置）→ rc=20；
+`check_broken_refs` rc=0；Claw pytest **503 passed**；QTS pytest **1344 passed**
+
+
 ## [2026-09-24 晚·跨项目闭环] D8 把"7 个项目是否都闭环"变成机器可判定 —— 顺带抓出状态锚自己在说谎 6.4 天
 
 ### 起因
