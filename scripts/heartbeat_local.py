@@ -35,6 +35,12 @@ PROJECT_DIR = Path(__file__).parent.parent
 HEARTBEAT_FILE = PROJECT_DIR / "data" / "heartbeat.json"
 DB_PATH = Path.home() / ".workbuddy" / "workbuddy.db"
 
+# 2026-09-23 双副本去重后 qts_client/is_trading_day 等 helper 单源移至 .workbuddy/scripts/，
+# 此处 append 追加为 fallback（append 不抢占本地 scripts/ 优先级，避免同名遮蔽）
+_HELPER_SCRIPTS = PROJECT_DIR / ".workbuddy" / "scripts"
+if _HELPER_SCRIPTS.is_dir() and str(_HELPER_SCRIPTS) not in sys.path:
+    sys.path.append(str(_HELPER_SCRIPTS))
+
 # ── Ollama 相关 ──────────────────────────────────────────────
 OLLAMA_BASE = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:7b"

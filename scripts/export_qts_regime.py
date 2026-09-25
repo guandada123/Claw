@@ -16,11 +16,18 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 from datetime import datetime
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _OUTPUT = _PROJECT_ROOT / "data" / "qts_regime.json"
+
+# 2026-09-23 双副本去重后 qts_client/is_trading_day 等 helper 单源移至 .workbuddy/scripts/，
+# 此处 append 追加为 fallback（append 不抢占本地 scripts/ 优先级，避免同名遮蔽）
+_HELPER_SCRIPTS = _PROJECT_ROOT / ".workbuddy" / "scripts"
+if _HELPER_SCRIPTS.is_dir() and str(_HELPER_SCRIPTS) not in sys.path:
+    sys.path.append(str(_HELPER_SCRIPTS))
 
 # 沪深300 指数代码（QTS daily_quote 中存储）
 INDEX_TS_CODE = "000300.SH"

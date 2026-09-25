@@ -98,12 +98,12 @@ STEPS: list[tuple[str, list[str], bool]] = [
     ),
     (
         "STEP2-2 权重落盘",
-        [str(PY), str(CLAW_ROOT / "scripts" / "source_weight.py")],
+        [str(PY), str(CLAW_ROOT / ".workbuddy" / "scripts" / "source_weight.py")],
         True,  # 产出 source_weights.json
     ),
     (
         "STEP2-3 共识计算",
-        [str(PY), str(CLAW_ROOT / "scripts" / "signal_consensus.py")],
+        [str(PY), str(CLAW_ROOT / ".workbuddy" / "scripts" / "signal_consensus.py")],
         True,  # 产出 signal_consensus.json
     ),
 ]
@@ -117,8 +117,12 @@ def _child_env() -> dict:
     import os
 
     src = str(CLAW_ROOT / "src")
+    # 2026-09-23 修正：qts_client 等模块现单源位于 .workbuddy/scripts/（9-21 去重后
+    # scripts/ 的副本已移除），须将其纳入子进程 PYTHONPATH，否则 pull_qts_signals.py
+    # 的 `from qts_client import ...` 报 ModuleNotFoundError。
+    wb_scripts = str(CLAW_ROOT / ".workbuddy" / "scripts")
     existing = os.environ.get("PYTHONPATH", "").strip()
-    parts = [src]
+    parts = [src, wb_scripts]
     parts += [p for p in existing.split(":") if p and p not in parts]
     return {**os.environ, "PYTHONPATH": ":".join(parts)}
 

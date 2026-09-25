@@ -27,6 +27,12 @@ from pathlib import Path
 # ── 双数据源统一层：anysearch_helper（westock 优先 + AnySearch 降级）──
 _HELPER_PATH = Path(__file__).resolve().parent / "anysearch_helper.py"
 sys.path.insert(0, str(_HELPER_PATH.parent))
+
+# 2026-09-23 双副本去重后 qts_client/is_trading_day 等 helper 单源移至 .workbuddy/scripts/，
+# 此处 append 追加为 fallback（append 不抢占本地 scripts/ 优先级，避免同名遮蔽）
+_HELPER_SCRIPTS = _HELPER_PATH.parent.parent / ".workbuddy" / "scripts"
+if _HELPER_SCRIPTS.is_dir() and str(_HELPER_SCRIPTS) not in sys.path:
+    sys.path.append(str(_HELPER_SCRIPTS))
 try:
     import anysearch_helper as _helper
 except Exception:

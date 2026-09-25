@@ -34,6 +34,12 @@ DAILY_WARNING_CNY = 25.0
 
 # 直接从 cost_tracker 导入估算配置
 sys.path.insert(0, str(SCRIPTS_DIR))
+
+# 2026-09-23 双副本去重后 qts_client/is_trading_day 等 helper 单源移至 .workbuddy/scripts/，
+# 此处 append 追加为 fallback（append 不抢占本地 scripts/ 优先级，避免同名遮蔽）
+_HELPER_SCRIPTS = SCRIPTS_DIR.parent / ".workbuddy" / "scripts"
+if _HELPER_SCRIPTS.is_dir() and str(_HELPER_SCRIPTS) not in sys.path:
+    sys.path.append(str(_HELPER_SCRIPTS))
 from cost_tracker import AUTO_COST_ESTIMATES, MODEL_PRICES
 
 # ============================================================

@@ -17,9 +17,17 @@ QTS daily_quote(quant-postgres:15432/quant_trading):
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pandas as pd
+
+# qts_client 单源现位于 <Claw>/.workbuddy/scripts/（2026-09-23 双副本去重后 scripts/ 副本已退役）。
+# 本模块仍留在 scripts/，故须显式把该目录加入 sys.path，否则 import 失败。
+_HELPER_DIR = Path(__file__).resolve().parent.parent / ".workbuddy" / "scripts"
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
+
 import qts_client  # noqa: E402 - 服务直连唯一入口(2026-08-13 打通)
 
 # 除权跳变阈值: 单日 pct_change 绝对值超过此值(排除涨跌停极限)视为未复权跳空

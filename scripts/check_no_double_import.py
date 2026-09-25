@@ -1,85 +1,30 @@
-#!/usr/bin/env python3
-"""check_no_double_import.py — CI 守卫：禁止 `from scripts.` 双导入反模式回归。
-
-scripts/ 目录没有 __init__.py，从不以包形式导入，因此所有
-`from scripts.X import ...` 都是死代码兜底分支。该反模式已在 F6 整改中清除，
-此脚本作为 CI 门禁防止复发。
-
-配置（pyproject.toml）:
-    [tool.ci.double_import]
-    ignore_paths = ["tests/conftest.py"]   # 忽略的相对路径列表
-
-用法:
-    python3 scripts/check_no_double_import.py [-v|--verbose]
-退出码:
-    0 = 无违规
-    1 = 发现双导入反模式
-  -v / --verbose  打印每个被检查的文件名
-"""
-from __future__ import annotations
-
+# AUTO-GENERATED FORWARDER — 单源薄壳 (safe_dedup.py, rule: dual-copy-audit v1.1.0)
+# 真实实现: .workbuddy/scripts/check_no_double_import.py  (运行时向上搜索定位, 位置无关)
+import importlib.util
+import runpy
 import sys
 from pathlib import Path
 
-try:
-    import tomllib  # Python 3.11+
-except ImportError:
-    import tomli as tomllib  # type: ignore[import-not-found,no-redef]
 
-ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS = ROOT / "scripts"
-
-
-def _load_ignored_paths() -> set[str]:
-    """从 pyproject.toml 读取 [tool.ci.double_import] ignore_paths"""
-    pyproject = ROOT / "pyproject.toml"
-    if not pyproject.exists():
-        return set()
-    try:
-        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-        ci = data.get("tool", {}).get("ci", {}).get("double_import", {})
-        return set(ci.get("ignore_paths", []))
-    except Exception:
-        return set()
+def _find_real():
+    here = Path(__file__).resolve().parent
+    for cand in [here, *here.parents]:
+        for rel in (Path(".workbuddy") / "scripts" / "check_no_double_import.py",
+                    Path("src") / "claw" / "check_no_double_import.py"):
+            p = cand / rel
+            if p.is_file():
+                return p
+    raise RuntimeError("forwarder[check_no_double_import]: 找不到权威副本, 已从 dual-copy-audit v1.1.0 中断链?")
 
 
-def main(argv: list[str] | None = None) -> int:
-    verbose = "-v" in (argv or sys.argv) or "--verbose" in (argv or sys.argv)
-
-    if not SCRIPTS.exists():
-        print(f"[OK] 未找到 {SCRIPTS}")
-        return 0
-
-    ignored = _load_ignored_paths()
-    if verbose and ignored:
-        print(f"  忽略路径: {', '.join(sorted(ignored))}")
-
-    violations: list[str] = []
-    checked = 0
-    for path in sorted(SCRIPTS.rglob("*.py")):
-        rel = str(path.relative_to(ROOT))
-        if "archive" in path.parts or rel in ignored:
-            continue
-        checked += 1
-        if verbose:
-            print(f"  ✓ {rel}")
-        for ln, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            stripped = line.strip()
-            if stripped.startswith(("from scripts.", "import scripts.")):
-                violations.append(f"{rel}:{ln}: {stripped}")
-
-    if verbose:
-        print(f"\n  检查 {checked} 个文件")
-
-    if violations:
-        print("❌ 发现双导入反模式（scripts/ 无 __init__.py，不应以包形式导入）：")
-        for v in violations:
-            print("  " + v)
-        return 1
-
-    print("[OK] 无双导入反模式")
-    return 0
-
+_real = _find_real()
+_auth_dir = str(_real.parent)
+if _auth_dir not in sys.path:
+    sys.path.insert(0, _auth_dir)   # 让真实模块的同级 import 可解析 (等同 CLI 从权威目录运行)
+_spec = importlib.util.spec_from_file_location("check_no_double_import", str(_real))
+_mod = importlib.util.module_from_spec(_spec)
+sys.modules["check_no_double_import"] = _mod          # 让 `import check_no_double_import` 直接拿到真实模块
+_spec.loader.exec_module(_mod)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    runpy.run_path(str(_real), run_name="__main__")  # 兼容 `python scripts/check_no_double_import.py`
