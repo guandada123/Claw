@@ -72,10 +72,11 @@ def plain_code_to_windcode(code: str) -> str:
 # 100 过于保守（按注释换算仅用半数），180 贴近 200 次简单查询的 90% 安全线。
 # 2026-09-01 解 Wind 日限（用户要求）：
 #   1) 上限由 180 抬至 200，对齐真实配额天花板（200 次简单查询≈1000 积分，无超额风险）。
+#      2026-09-23 用户要求再抬至 1000（"计数器调到1000"）；env CLAW_WIND_DAILY_LIMIT 可继续覆盖。
 #   2) 新增「同日内查询缓存」——相同 (server,tool,params) 直接返回缓存，不打网络、不计数，
 #      真正释放有效吞吐（根治 signal_verify 逐股重复查 Wind 的浪费），而非单纯抬高数字。
 #   3) 支持环境变量 CLAW_WIND_DAILY_LIMIT 覆盖（用户升级 Wind 套餐后可调高）。
-_DAILY_QUERY_LIMIT = int(os.environ.get("CLAW_WIND_DAILY_LIMIT", "200"))
+_DAILY_QUERY_LIMIT = int(os.environ.get("CLAW_WIND_DAILY_LIMIT", "1000"))
 _query_lock = threading.Lock()
 _limit_warned = False  # 进程内去重：日限警告仅打印一次，避免 signal_verify 逐股循环刷屏（08-24 修复 25 天刷屏）
 

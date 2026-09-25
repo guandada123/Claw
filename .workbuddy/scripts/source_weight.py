@@ -27,7 +27,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# 2026-09-23 修正：定位 Claw 根目录。
+# 优先取 CLAW 环境变量（preamble 统一注入的权威根指针，与脚本调用位置解耦）；
+# 否则自脚本位置向上寻找含 `.workbuddy/data` 的目录（Claw 根）。
+# 原 `parent.parent` 假设脚本位于 scripts/ 下，移入 .workbuddy/scripts/ 后解析为
+# .workbuddy，导致找不到 .workbuddy/data/signal_verify_report.json 与 data/ 产物。
+_CLAW_ENV = os.environ.get("CLAW")
+if _CLAW_ENV and (Path(_CLAW_ENV) / ".workbuddy" / "data").is_dir():
+    _PROJECT_ROOT = Path(_CLAW_ENV).resolve()
+else:
+    _ROOT = Path(__file__).resolve()
+    while _ROOT.parent != _ROOT and not (_ROOT / ".workbuddy" / "data").is_dir():
+        _ROOT = _ROOT.parent
+    _PROJECT_ROOT = _ROOT
 _VERIFY_REPORT = _PROJECT_ROOT / ".workbuddy" / "data" / "signal_verify_report.json"
 _OUTPUT = _PROJECT_ROOT / "data" / "source_weights.json"
 
@@ -67,6 +79,7 @@ def compute_weights() -> dict[str, Any]:
         result = {
             "generated_at": datetime.now().isoformat(),
             "source": "默认（无验证数据）",
+            "verified_accounts": 0,
             "weights": base_weights,
         }
         _write_output(result)

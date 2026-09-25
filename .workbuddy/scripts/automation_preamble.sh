@@ -79,12 +79,16 @@ done_schedule() {
     local today
     today=$(date +%Y%m%d)
     touch "/tmp/claw_lock_${name}_${today}"
-    cd $CLAW && python3 scripts/cost_tracker.py log_estimate "$name" 2>/dev/null
+    local ct="$CLAW/.workbuddy/scripts/cost_tracker.py"
+    [ -f "$ct" ] || ct="$CLAW/scripts/cost_tracker.py"
+    cd "$CLAW" && python3 "$ct" log_estimate "$name" 2>/dev/null
 }
 
 # 交易日检查
 check_trading_day() {
-    cd $CLAW && python3 scripts/is_trading_day.py
+    local f="$CLAW/.workbuddy/scripts/is_trading_day.py"
+    [ -f "$f" ] || f="$CLAW/scripts/is_trading_day.py"
+    cd "$CLAW" && python3 "$f"
     return $?
 }
 

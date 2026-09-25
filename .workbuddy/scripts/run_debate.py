@@ -3,17 +3,17 @@
 
 用法:
     # 单只股票辩论（数据内嵌）
-    python3 scripts/run_debate.py --code 000333 --name "美的集团" --price 85.92 --change 1.6 \
+    python3 .workbuddy/scripts/run_debate.py --code 000333 --name "美的集团" --price 85.92 --change 1.6 \
         --pe 14.5 --pb 3.2 --roe 22 --rsi 58 --macd bullish --sector 家用电器
 
     # 从 scan 候选 JSON 批量
-    python3 scripts/run_debate.py --from-scan output/scan_candidates.json
+    python3 .workbuddy/scripts/run_debate.py --from-scan output/scan_candidates.json
 
     # 对当前持仓辩论
-    python3 scripts/run_debate.py --from-holdings .workbuddy/data/simulation/portfolio.json
+    python3 .workbuddy/scripts/run_debate.py --from-holdings .workbuddy/data/simulation/portfolio.json
 
     # 查看最近辩论结果
-    python3 scripts/run_debate.py --latest
+    python3 .workbuddy/scripts/run_debate.py --latest
 """
 
 from __future__ import annotations
@@ -22,17 +22,38 @@ import argparse
 import datetime
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
 logger = logging.getLogger("run_debate")
 
+# ── Claw 根目录解析：兼容 scripts/ 与 .workbuddy/scripts/ 两种位置 ──
+# 9-21 去重后将 run_debate.py 从 scripts/ 移到 .workbuddy/scripts/，
+# 原 parent.parent / "src" 会错指 .workbuddy/src（不存在）→ ModuleNotFoundError: No module named 'claw'，
+# 进而整条辩论链路（含 anysearch 兜底基本面）全部失效（用户侧表现为「anysearch 停用」）。
+# 改用 $CLAW 环境变量优先 + 向上回溯到含 src/claw 的目录，两种位置都能跑通。
+def _resolve_claw_root() -> Path:
+    env_root = os.environ.get("CLAW")
+    if env_root and (Path(env_root) / "src" / "claw").is_dir():
+        return Path(env_root).resolve()
+    cur = Path(__file__).resolve()
+    while cur != cur.parent:
+        if (cur / "src" / "claw").is_dir():
+            return cur
+        cur = cur.parent
+    return Path(__file__).resolve().parent.parent  # 兜底：保持原 parent.parent 行为
+
+
+_CLAW_ROOT = _resolve_claw_root()
+# 确保本脚本目录（anysearch_helper / calc_rsi 等同目录模块）在 path 中
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 # 确保 src/claw 在 path 中
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(_CLAW_ROOT / "src"))
 
 from claw.debate import batch_debate, run_debate
 
-RESULT_FILE = Path(__file__).parent.parent / ".workbuddy" / "data" / "debate" / "debate_result.json"
+RESULT_FILE = _CLAW_ROOT / ".workbuddy" / "data" / "debate" / "debate_result.json"
 
 
 def parse_args():
@@ -40,10 +61,10 @@ def parse_args():
     p.add_argument("--code", help="股票代码（6位）")
     p.add_argument("--name", help="股票名称")
     p.add_argument("--price", type=float, help="最新价")
-    p.add_argument("--change", type=float, default=0, help="涨跌幅%")
+    p.add_argument("--change", type=float, default=0, help="涨跌幅%%")
     p.add_argument("--pe", type=float, help="市盈率")
     p.add_argument("--pb", type=float, help="市净率")
-    p.add_argument("--roe", type=float, help="ROE(%)")
+    p.add_argument("--roe", type=float, help="ROE(%%)")
     p.add_argument("--rsi", type=float, help="RSI")
     p.add_argument("--macd", help="MACD信号(bullish/bearish/neutral)")
     p.add_argument("--sector", default="未知", help="所属行业")
@@ -378,7 +399,7 @@ def _fetch_sentiment(code: str) -> dict:
     senti = {}
     # 1) 公众号信号（本地数据，零网络）
     try:
-        sig_path = Path(__file__).parent.parent / ".workbuddy" / "data" / "article_signals.json"
+        sig_path = _CLAW_ROOT / ".workbuddy" / "data" / "article_signals.json"
         recs = json.loads(sig_path.read_text(encoding="utf-8")) if sig_path.exists() else []
         cutoff = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
         bulls = bears = 0
