@@ -1,8 +1,8 @@
 {
   "hub": "unified-inspection-hub",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-26T05:05:04.279975+08:00",
+  "updated_at": "2026-09-27T09:41:46+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -40,8 +40,6 @@
       "id": "automation-1782394153045",
       "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=10",
       "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-09-25T00:10",
       "note": "backup_data.py 打包 DB+output，产物按日命名（claw-backup-<date>.tar.gz，保留 14 天）。原 HOURLY;INTERVAL=6（4 次/天、相位漂移、其中 3 次在扣分时段）→ 收敛 DAILY 00:10（同一文件当天反复覆盖，3 次纯冗余）"
     },
     {
@@ -49,8 +47,6 @@
       "id": "2a404a97-c262-4cad-8a43-3c5a69febfbb",
       "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=20",
       "status": "ACTIVE",
-      "last_run": "2026-09-26T00:20:39+08:00",
-      "next_run": "2026-09-27T00:20:00+08:00",
       "note": "A内部健康快照 + B外部同类研究 + 比对 → registry.discovery_candidates"
     },
     {
@@ -58,8 +54,6 @@
       "id": "1fd52465-899f-4525-a82d-4cc5df01155c",
       "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=40",
       "status": "ACTIVE",
-      "last_run": "2026-09-26T00:41:30+08:00",
-      "next_run": "2026-09-27T00:40",
       "note": "发现回路·落地半程（Mode B）：读 registry.discovery_candidates → 质量闸 → top≤3 合并落地；校准期=只读对拍（至2026-10-08），达标即自动置 live（守卫：纯增量自审/前3批推卡/落地后复检/越界回滚）；核心类永不进本通道。名字不含状态字样（状态只在 doc_apply.mode），避免会腐烂的声明"
     },
     {
@@ -67,8 +61,6 @@
       "id": "automation-1782137216020",
       "rrule": "FREQ=DAILY;BYHOUR=0;BYMINUTE=50",
       "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-09-25T00:50",
       "note": "LLM 逐篇精读公众号增量文章（槽位1/3 · 00:50）。三槽共用同一份正文，改正文须三处同步"
     },
     {
@@ -76,8 +68,6 @@
       "id": "automation-1783671485008",
       "rrule": "FREQ=DAILY;BYHOUR=23;BYMINUTE=12",
       "status": "ACTIVE",
-      "last_run": "2026-09-23T23:12",
-      "next_run": "2026-09-24T23:12",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -85,8 +75,6 @@
       "id": "f8443038-26e3-4f69-9f60-ab838dc83df3",
       "rrule": "FREQ=DAILY;BYHOUR=23;BYMINUTE=2",
       "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-09-24T23:02",
       "note": "读 automation_health.json 做报错 triage：系统性假阳性(🟢态, 含 field_lag)幂等自修，真实下探(🔴/🟡)推 propose_review 卡；PAUSED/瞬时中断不盲改"
     },
     {
@@ -94,8 +82,6 @@
       "id": "automation-1785506976058",
       "rrule": "FREQ=DAILY;BYHOUR=23;BYMINUTE=7",
       "status": "ACTIVE",
-      "last_run": "2026-09-23T23:07",
-      "next_run": "2026-09-24T23:07",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -103,8 +89,6 @@
       "id": "11a78567-823d-4d13-970b-42ed417e9b5f",
       "rrule": "FREQ=DAILY;BYHOUR=3;BYMINUTE=20",
       "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-09-25T03:20",
       "note": "LLM 逐篇精读公众号增量文章（槽位2-3/3）。三槽 × --max 15 = ≤45 篇/天，全在 Hy4 夜间免费窗口；"
     },
     {
@@ -112,8 +96,6 @@
       "id": "automation-1780769419635",
       "rrule": "FREQ=DAILY;BYHOUR=3;BYMINUTE=30",
       "status": "ACTIVE",
-      "last_run": "2026-09-24T03:30",
-      "next_run": "2026-09-25T03:30",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -121,8 +103,6 @@
       "id": "372a8c5e-4ead-47d1-b4f2-f2583b58d3a7",
       "rrule": "FREQ=DAILY;BYHOUR=3;BYMINUTE=50",
       "status": "ACTIVE",
-      "last_run": "2026-09-24T03:50",
-      "next_run": "2026-09-25T03:50",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -130,8 +110,6 @@
       "id": "0d18c526-eab5-4402-b949-b9439eb682e1",
       "rrule": "FREQ=DAILY;BYHOUR=5;BYMINUTE=50",
       "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-09-25T05:50",
       "note": "LLM 逐篇精读公众号增量文章（槽位2-3/3）。三槽 × --max 15 = ≤45 篇/天，全在 Hy4 夜间免费窗口；"
     },
     {
@@ -139,26 +117,13 @@
       "id": "337116da-e9b3-46f6-8993-a00b35ad7e86",
       "rrule": "FREQ=HOURLY;INTERVAL=2",
       "status": "ACTIVE",
-      "last_run": "2026-09-26T05:05:04.279975+08:00",
-      "next_run": "2026-09-21T14:00 (每2h)",
-      "note": "读 registry.last_run >180min → 飞书告警（独立调度, cwds=QTS 符合禁托管新规）",
-      "liveness_dedup": {
-        "automation-1783671485008": "2026-09-25T16:46:52+08:00",
-        "automation-1785506976058": "2026-09-25T16:46:52+08:00",
-        "automation-1780769419635": "2026-09-25T16:46:52+08:00",
-        "372a8c5e-4ead-47d1-b4f2-f2583b58d3a7": "2026-09-25T16:46:52+08:00",
-        "automation-1785506975961": "2026-09-25T16:46:52+08:00",
-        "automation-1785982929477": "2026-09-25T16:46:52+08:00",
-        "automation-1786000625371": "2026-09-25T16:46:52+08:00"
-      }
+      "note": "读 registry.last_run >180min → 飞书告警（独立调度, cwds=QTS 符合禁托管新规）"
     },
     {
       "name": "🛡️ 自动化失败扫表 watchdog（每小时）",
       "id": "automation-1785506975961",
       "rrule": "FREQ=HOURLY;INTERVAL=3;BYDAY=MO,TU,WE,TH,FR,SA,SU",
       "status": "ACTIVE",
-      "last_run": "2026-09-24T15:18",
-      "next_run": "2026-09-24T18:20",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -166,8 +131,6 @@
       "id": "automation-1785982929477",
       "rrule": "FREQ=HOURLY;INTERVAL=3;BYDAY=MO,TU,WE,TH,FR,SA,SU",
       "status": "ACTIVE",
-      "last_run": "2026-09-24T16:23",
-      "next_run": "2026-09-24T19:28",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -175,8 +138,6 @@
       "id": "automation-1786000625371",
       "rrule": "FREQ=HOURLY;INTERVAL=6;BYDAY=MO,TU,WE,TH,FR,SA,SU",
       "status": "ACTIVE",
-      "last_run": "2026-09-24T15:08",
-      "next_run": "2026-09-24T21:10",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -184,8 +145,6 @@
       "id": "a0b1b435-225f-43eb-8e9b-a7bb82fde97a",
       "rrule": "FREQ=MONTHLY;BYMONTHDAY=1;BYHOUR=23;BYMINUTE=44",
       "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-10-01T23:44",
       "note": "复用 skill-hygiene（缺失则降级只读盘点）：重复/坏链/未用/prompt-injection"
     },
     {
@@ -193,8 +152,6 @@
       "id": "automation-1782035436209",
       "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=23;BYMINUTE=22",
       "status": "ACTIVE",
-      "last_run": "2026-09-23T23:22",
-      "next_run": "2026-09-24T23:22",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -202,8 +159,6 @@
       "id": "automation-1782002834355",
       "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=23;BYMINUTE=27",
       "status": "ACTIVE",
-      "last_run": "2026-09-23T23:27",
-      "next_run": "2026-09-24T23:27",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -211,8 +166,6 @@
       "id": "automation-1781663740184",
       "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9;BYMINUTE=35",
       "status": "ACTIVE",
-      "last_run": "2026-09-24T09:44",
-      "next_run": "2026-09-25T09:35",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -220,8 +173,6 @@
       "id": "0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4",
       "rrule": "FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22",
       "status": "ACTIVE",
-      "last_run": null,
-      "next_run": "2026-09-26T23:22 (Sat)",
       "note": "读 registry pending 候选；文档类应用 / 核心类提案待审"
     },
     {
@@ -229,8 +180,6 @@
       "id": "automation-1786001867730",
       "rrule": "FREQ=WEEKLY;BYDAY=SU;BYHOUR=23;BYMINUTE=42",
       "status": "ACTIVE",
-      "last_run": "2026-09-20T20:30",
-      "next_run": "2026-09-27T23:42",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -238,8 +187,6 @@
       "id": "automation-1786000798763",
       "rrule": "FREQ=WEEKLY;BYDAY=SU;BYHOUR=23;BYMINUTE=47",
       "status": "ACTIVE",
-      "last_run": "2026-09-20T21:00",
-      "next_run": "2026-09-27T23:47",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -247,8 +194,6 @@
       "id": "automation-1785825576843",
       "rrule": "FREQ=WEEKLY;BYDAY=SU;BYHOUR=23;BYMINUTE=52",
       "status": "ACTIVE",
-      "last_run": "2026-09-20T21:00",
-      "next_run": "2026-09-27T23:52",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -256,8 +201,6 @@
       "id": "automation-1786439069962",
       "rrule": "FREQ=WEEKLY;BYDAY=SU;BYHOUR=23;BYMINUTE=57",
       "status": "ACTIVE",
-      "last_run": "2026-09-20T22:00",
-      "next_run": "2026-09-27T23:57",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -265,8 +208,7 @@
       "rrule": "FREQ=YEARLY;BYMONTH=1,4,7,10;BYMONTHDAY=1;BYHOUR=23;BYMINUTE=49",
       "status": "ACTIVE",
       "note": "季度空间+技能巡检（majiu）。镜像按 DB 真值校正（原镜像误记为 🐴 空间+技能巡检-季度 / 09:00）",
-      "id": "52db25b4-b948-464b-ad62-44b77b875d2a",
-      "next_run": "2026-10-01T23:49"
+      "id": "52db25b4-b948-464b-ad62-44b77b875d2a"
     }
   ],
   "evolution_watch_skills": [
@@ -296,13 +238,11 @@
       "value": "medium-high",
       "risk": "medium",
       "suggestion": "对标本地 expert_team_analyst.py 7专家框架，评估是否缺“多空辩论+五档评级”闭环；若纳入 wb-finance-skill 编排属核心流程改动→仅提案待审(propose_review)，不改写",
-      "status": "proposal_new_capability",
+      "status": "proposed",
       "found_at": "2026-09-22",
       "resolved_at": "2026-09-23T14:30:32+0800",
       "resolution": "TradingAgents 多空辩论+五档评级; 目标 wb-finance-skill 未安装, 且本地对比基线 expert_team_analyst.py/run_debate.py 亦不存在 → 属净新建能力提案, 非增强; 留档待未来若建辩论框架时采纳. a-stock-data 为可能承载方.",
-      "needs_review": true,
-      "review_reason": "对标 7 专家框架，评估补\"多空辩论\"能力（新能力提案，须人审）",
-      "review_by": "2026-09-26"
+      "proposal": "新增能力提案：为 wb-finance-skill / a-stock-data 编排层引入『多空辩论 + 五档评级』闭环（对标 TradingAgents）。属核心流程改动 -> 仅提案，待人工授权后落地。当前本地对比基线 expert_team_analyst.py / run_debate.py 不存在，建议先确认是否真需新建辩论框架。"
     },
     {
       "id": "disc-20260922-03",
@@ -326,15 +266,13 @@
       "value": "high",
       "risk": "low",
       "suggestion": "强化 majiu-management 的版本与生命周期治理：落地 8 态生命周期状态机 + 分层分类清单 + 执行反馈健康闭环（可落到 references/ 文档后自动应用 auto_apply）；技能 SKILL.md 加 version header + changelog，CI 做接口哈希门禁",
-      "status": "applied_doc_proposed_core",
+      "status": "proposed",
       "found_at": "2026-09-23",
       "resolved_at": "2026-09-23T14:21:06+0800",
       "resolution": "文档类(auto_apply)已落地 majiu-management/references/skill-lifecycle-states.md; SKILL.md version header 部分属核心改动, 仅提案待审(同目录 skill-version-header-proposal.md)",
       "applied_action": "references/skill-lifecycle-states.md",
       "core_change": "proposed (skill-version-header-proposal.md, 未改写 SKILL.md)",
-      "needs_review": true,
-      "review_reason": "majiu 版本/生命周期治理 8 态状态机（文档已应用部分，核心部分待审）",
-      "review_by": "2026-09-26"
+      "proposal": "核心改动提案：majiu-management/SKILL.md 加 version header + changelog（8 态生命周期治理收尾）。文档部分（skill-lifecycle-states.md）已于 2026-09-23 落地；本提案仅针对 SKILL.md 主流程，未改写。待人工审阅授权。"
     },
     {
       "id": "disc-20260923-02",
@@ -358,13 +296,11 @@
       "value": "medium-high",
       "risk": "medium",
       "suggestion": "对标 disc-20260922-02 上游 TradingAgents 的 A股生产化变体：评估 expert_team_analyst.py 7专家框架是否补『多空辩论+五档评级+生产后端』闭环；若纳入 wb-finance-skill 编排属核心流程改动→仅提案待审(propose_review)，不改写",
-      "status": "proposal_new_capability",
+      "status": "proposed",
       "found_at": "2026-09-23",
       "resolved_at": "2026-09-23T14:30:32+0800",
       "resolution": "TradingAgents-Astock A股生产化变体(多空辩论+五档评级+生产后端); 同上, 目标skill与本地基线均不存在 → 净新建提案; 留档.",
-      "needs_review": true,
-      "review_reason": "TradingAgents A股生产化变体（新能力提案，须人审）",
-      "review_by": "2026-09-26"
+      "proposal": "新增能力提案：评估 expert_team_analyst.py 7 专家框架补『多空辩论 + 五档评级 + 生产后端』闭环（TradingAgents-Astock A股生产化变体）。属净新建能力 -> 仅提案待审。"
     },
     {
       "id": "disc-20260924-01",
@@ -374,8 +310,11 @@
       "value": "high",
       "risk": "low",
       "suggestion": "强化 majiu-management 的『边界优先+可逆优先+非交互安全』治理框架：引入 SKILL_ADAPT 适配覆盖层与 immutable/protected 声明、非交互环境 blocked 输出范式；落到 references/workspace-governance-patterns.md（文档类 auto_apply）",
-      "status": "pending",
-      "found_at": "2026-09-24"
+      "status": "applied",
+      "found_at": "2026-09-24",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/workspace-governance-patterns.md",
+      "applied_action": "majiu-management/references/workspace-governance-patterns.md"
     },
     {
       "id": "disc-20260924-02",
@@ -385,8 +324,11 @@
       "value": "high",
       "risk": "low",
       "suggestion": "对标 a-stock-data 的数据+工具广度：评估是否补『回测(Backtrader/RQAlpha)/策略(AKQuant/MiniQMT)/QMT文档』维度；写 references/quant-skills-ecosystem.md 能力对比矩阵（文档类 auto_apply，不改动核心 SKILL.md/脚本）",
-      "status": "pending",
-      "found_at": "2026-09-24"
+      "status": "applied",
+      "found_at": "2026-09-24",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/quant-skills-ecosystem.md",
+      "applied_action": "a-stock-data/references/quant-skills-ecosystem.md"
     },
     {
       "id": "disc-20260924-03",
@@ -396,8 +338,11 @@
       "value": "medium-high",
       "risk": "low",
       "suggestion": "强化 majiu-management 版本/生命周期治理：引入 skills.lock.yaml 锁版+with/without Eval 闭环、风险分级审批框架；落到 references/skill-version-lock-eval.md（文档类 auto_apply）",
-      "status": "pending",
-      "found_at": "2026-09-24"
+      "status": "applied",
+      "found_at": "2026-09-24",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-version-lock-eval.md",
+      "applied_action": "majiu-management/references/skill-version-lock-eval.md"
     },
     {
       "id": "disc-20260925-01",
@@ -407,8 +352,11 @@
       "value": "high",
       "risk": "low",
       "suggestion": "对标本地 a-stock-data 的数据源广度与零鉴权策略：评估补 19源/54端点覆盖缺口（北向/港股通、龙虎榜、资金流），沉淀零鉴权端点封装模式到 references/a-stock-zero-auth-endpoints.md（文档类 auto_apply，不改动核心 SKILL.md/脚本）。",
-      "status": "pending",
-      "found_at": "2026-09-25"
+      "status": "applied",
+      "found_at": "2026-09-25",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/a-stock-zero-auth-endpoints.md",
+      "applied_action": "a-stock-data/references/a-stock-zero-auth-endpoints.md"
     },
     {
       "id": "disc-20260925-02",
@@ -418,8 +366,11 @@
       "value": "high",
       "risk": "low",
       "suggestion": "为 majiu-management 引入『版本钉固 + 内容寻址 provenance』治理机制：在 references/skill-version-pinning.md 记录 pin 策略与 tree-SHA 校验范式，使 skill 升级可回溯、不静默漂移（文档类 auto_apply）。",
-      "status": "pending",
-      "found_at": "2026-09-25"
+      "status": "applied",
+      "found_at": "2026-09-25",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-version-pinning.md",
+      "applied_action": "majiu-management/references/skill-version-pinning.md"
     },
     {
       "id": "disc-20260925-03",
@@ -429,32 +380,35 @@
       "value": "medium-high",
       "risk": "low",
       "suggestion": "强化 majiu-management 的『治理注册表』概念：补版本历史/RBAC/审计/隔离回滚维度到 references/skill-lifecycle-registry.md（文档类 auto_apply，不触碰核心流程）。",
-      "status": "pending",
-      "found_at": "2026-09-25"
+      "status": "applied",
+      "found_at": "2026-09-25",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-lifecycle-registry.md",
+      "applied_action": "majiu-management/references/skill-lifecycle-registry.md"
     },
     {
       "id": "disc-20260925-04",
-      "status": "proposal_new_capability",
-      "needs_review": true,
+      "status": "proposed",
       "core_change": true,
       "skill": "unified-inspection-hub",
       "value": "high",
       "risk": "low",
       "found_at": "2026-09-25",
       "suggestion": "【本通道自身发现·契约守卫】落地剧本 Step 4『候选 status → applied』未按 mode 区分：mode=calibrate 时照字面回写 applied，会把**未落地**的候选标记为已应用，次日被质量闸（允许集 pending|approved）滤除 → **静默销毁待落地成果**（与 parity.json _notes 记录的『试跑写入伪造 live 记录』同类）。请在 unified-inspection-hub/SKILL.md 落地剧本写明『calibrate 期零落地 ⇒ 零 applied 回写，仅回写 last_run』，并给 apply_doc_candidates.py 加断言。目标含 SKILL.md/脚本 = 核心类 → 仅提案待审(propose_review)，本自动化不改写。",
-      "source_summary": "内部发现（非外部来源）：本自动化 2026-09-25 run#1 实测——Step 4 字面指令与 calibrate『只读零写入』语义冲突；旁证 parity.json._notes（2026-09-24 二次审计删除一条 --mode live 试跑写入的伪造记录）。"
+      "source_summary": "内部发现（非外部来源）：本自动化 2026-09-25 run#1 实测——Step 4 字面指令与 calibrate『只读零写入』语义冲突；旁证 parity.json._notes（2026-09-24 二次审计删除一条 --mode live 试跑写入的伪造记录）。",
+      "proposal": "核心守卫提案：unified-inspection-hub/SKILL.md 落地剧本须写明『calibrate 期零落地 => 零 applied 回写，仅回写 last_run』，并给 apply_doc_candidates.py 加断言。目标含 SKILL.md/脚本 = 核心类 -> 仅提案，本自动化不改写。根因：2026-09-25 run#1 实测 Step 4 字面指令与 calibrate 只读语义冲突，会静默销毁待落地成果。"
     },
     {
       "id": "disc-20260925-05",
-      "status": "proposal_new_capability",
-      "needs_review": true,
+      "status": "proposed",
       "core_change": true,
       "skill": "unified-inspection-hub",
       "value": "medium",
       "risk": "low",
       "found_at": "2026-09-25",
       "suggestion": "【L3 护栏·误报稀释】pre-task.sh 对**新式 UUID 型** automation id 一律报『格式异常：缺少 automation- 前缀』并使 gates_failed=1（实测本自动化 id 1fd52465-… 命中，非阻断但必报）。新式 id 已是主流 → 每次 pre-hook 恒报 1 个假失败，真失败的信号被稀释（『检测静默失效』同类）。建议把 id 校验放宽为『UUID 或 automation- 前缀』二者皆可。目标 = 脚本(*.sh) = 核心类 → 仅提案待审，本自动化不改写。",
-      "source_summary": "内部发现（非外部来源）：2026-09-25 run#1 的 run_l3_pre 输出 `⚠️ Automation ID 格式异常: '1fd52465-899f-4525-a82d-4cc5df01155c'（缺少 automation- 前缀）` + `gates_failed=1`。"
+      "source_summary": "内部发现（非外部来源）：2026-09-25 run#1 的 run_l3_pre 输出 `⚠️ Automation ID 格式异常: '1fd52465-899f-4525-a82d-4cc5df01155c'（缺少 automation- 前缀）` + `gates_failed=1`。",
+      "proposal": "脚本误报修复提案：pre-task.sh 对 UUID 型 automation id 一律报『格式异常 + gates_failed=1』，稀释真失败信号。建议把 id 校验放宽为『UUID 或 automation- 前缀』二者皆可。目标 = 脚本(*.sh) = 核心类 -> 仅提案，本自动化不改写。"
     },
     {
       "id": "disc-20260926-01",
@@ -464,8 +418,11 @@
       "value": "high",
       "risk": "low",
       "suggestion": "对本地 a-stock-data 安装是**源可用性预警+零鉴权封装演进参考**：①核对本地 skill 是否仍依赖 mootdx 取 K线/逐笔（TDX 公共服已停 → 需切腾讯源，否则静默空数据）；②沉淀『主源失效→备份源快速切换』清单到 references/tdx-deprecation-fallback.md（文档类 auto_apply）。",
-      "status": "pending",
-      "found_at": "2026-09-26"
+      "status": "applied",
+      "found_at": "2026-09-26",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/tdx-deprecation-fallback.md",
+      "applied_action": "a-stock-data/references/tdx-deprecation-fallback.md"
     },
     {
       "id": "disc-20260926-02",
@@ -475,8 +432,11 @@
       "value": "medium-high",
       "risk": "low",
       "suggestion": "对标本地 a-stock-data 的 akshare 维度：评估是否补『akshare 零配置宏观/期货』封装作为备份源（akshare 是东财/腾讯之外的第三极公共源，可补 mootdx 失效后的缺口）；写 references/akshare-skill-compat.md 兼容对比（文档类 auto_apply）。",
-      "status": "pending",
-      "found_at": "2026-09-26"
+      "status": "applied",
+      "found_at": "2026-09-26",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/akshare-skill-compat.md",
+      "applied_action": "a-stock-data/references/akshare-skill-compat.md"
     },
     {
       "id": "disc-20260926-03",
@@ -486,8 +446,44 @@
       "value": "high",
       "risk": "low",
       "suggestion": "强化 majiu-management 的『资产化沉淀/治理』：引入『流程优于散文』原则——技能模板须含可验证检查点与退出判据（而非纯散文指令）；落地 references/skill-as-workflow.md（文档类 auto_apply，不改核心流程）。",
+      "status": "applied",
+      "found_at": "2026-09-26",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-as-workflow.md",
+      "applied_action": "majiu-management/references/skill-as-workflow.md"
+    },
+    {
+      "id": "disc-20260927-01",
+      "skill": "majiu-management",
+      "url": "https://luismori.dev/article/how-to-build-company-skill-registry-agent-skills",
+      "source_summary": "企业内部技能注册表设计范式：ownership / versioning / approval / access control / telemetry / security review；更新走 lockfile-driven（记录 skill 版本或 commit，对比 registry 开 update PR）；贡献走 PR 工作流（validation + owners + 安全审查）。把公共目录 skills.sh 的「发现+安装」形态升级为带治理的私有 registry。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "强化 majiu-management 的「治理注册表」职责：补 ownership/版本钉固/审批/回滚/安全审查维度到 references/company-skill-registry.md（文档类 auto_apply，不触碰核心流程）；可直接映射到本中枢 registry.json 这一私有 registry 雏形。",
       "status": "pending",
-      "found_at": "2026-09-26"
+      "found_at": "2026-09-27"
+    },
+    {
+      "id": "disc-20260927-02",
+      "skill": "a-stock-data",
+      "url": "https://github.com/birdilsss-byte/stoke",
+      "source_summary": "stoke — 免费 A股数据层（零 API Key/零注册/零付费），14 接口覆盖 6 大层面（行情/新闻/电报/研报/公告/涨停/概念）；三 Source 各自独立 + health_check() 必实现（1秒验证连通性）+ 内置限流器（带随机抖动+日志，东财系5秒/腾讯3秒，防封IP）；返回 DataFrame 对接 pandas；MIT；兼容 Claude Code/OpenClaw/Hermes。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "对标本地 a-stock-data 的「数据层健壮性」：评估补『per-source health_check + 内置限流 + 随机抖动』封装范式（本地 skill 缺独立健康探测与限流纪律，易静默空数据/被封IP）；写 references/stoke-rate-limit-healthcheck.md 兼容性对比（文档类 auto_apply）。",
+      "status": "pending",
+      "found_at": "2026-09-27"
+    },
+    {
+      "id": "disc-20260927-03",
+      "skill": "majiu-management",
+      "url": "http://www.jxxy.net/ai/articles/ah-google-agent-skills-build-test-scale",
+      "source_summary": "Google Agent Skills 开源库治理流程：标准化目录结构（SKILL.md 必需 + OWNERS 维护者 + EVAL.yaml 评估套件）+ CI/CD 流水线（Linter 校验 frontmatter/行数/布局；链接检查器 lychee 消 404 与幻觉链接；AI 辅助清单校验护栏）+ 持续评估（文档/API/模型演化，今日可用明日可能失效）。",
+      "value": "medium-high",
+      "risk": "low",
+      "suggestion": "强化 majiu-management 的「质量门禁/零幻觉链接」治理：引入 EVAL.yaml 评估套件 + CI 链接检查(lychee) + 持续评估闭环到 references/skill-quality-eval-gate.md（文档类 auto_apply）。直接对应 registry known_failure_modes.ff-hygiene-falsepos（坏链/幻觉链接）。",
+      "status": "pending",
+      "found_at": "2026-09-27"
     }
   ],
   "known_failure_modes": [
@@ -572,17 +568,17 @@
     "core_class_channel": "周度审（🧬 技能演进-周度）；核心类永不进每日自动通道",
     "switch_criteria": "校准满14天(至2026-10-08)且对拍无偏差 → mode 置 live",
     "last_calibration": {
-      "ts": "2026-09-26T00:40:23+08:00",
+      "ts": "2026-09-27T00:40:25+08:00",
       "mode": "calibrate",
       "selected": [
-        "disc-20260924-01",
-        "disc-20260924-02",
-        "disc-20260924-03"
+        "disc-20260927-01",
+        "disc-20260927-02",
+        "disc-20260927-03"
       ],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260926.md"
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260927.md"
     },
     "last_live": null,
-    "calibrate_runs": 6,
+    "calibrate_runs": 7,
     "rollback_point": "0540a62",
     "p0_landed_at": "2026-09-24",
     "parity_verifier": ".workbuddy/scripts/doc_apply_parity.py",
@@ -645,7 +641,11 @@
     "2026-09-24 全授权轮：①D5 扩容为多文档契约（+majiu 季度巡检规程）→ **立刻抓到真实腐烂**：quarterly-inspection.md 写『1/4/7/10 月 1 日 09:00』且 RRULE 模板 BYHOUR=9，真值 23:49 → 已按 auto_apply 档修正。②D5 修掉自身死守卫：锚点 source_id 指向非活跃自动化时原为 `continue` 静默跳过（=什么都没查），改为报 `anchor_dangling`。③新增 D6 待办逾期（pending_actions[].due 过期未完结）。④PA-001 由 human 改 auto：doc_apply.auto_switch=true + switch_guard（纯增量自审/前3批推卡/落地后复检/越界回滚），自主度按 shadow→notify-only→supervised→auto 逐级晋升，这批=supervised。",
     "2026-09-24 二次审计：①修 `--doc` 覆盖回归（多文档迁移后覆盖只继承顶层默认→锚点/键名全丢→取证通道静默失效，死守卫第四例）②修 `apply_doc_candidates.py --mode` 可翻转生产 mode 的缺陷（现改为显式 --mode 时完全不回写）③修 D4 对 PAUSED 自动化误报心跳 ④新增 K5 版本对（文档 frontmatter version ↔ registry.version）并把 registry.version 1.0.0 → 1.2.0 ⑤把文档里悬空的 `autonomy_methods` 落成真键 ⑥新增 PA-003（三槽 model/expert 差异，工具改不动，须人在 UI 决定）",
     "2026-09-25 文档类落地 run#1（mode=calibrate）：①对拍 rc=0/ok=true/violations=[] 干净；②自动切换前置 1/14 天未满 → 保持 calibrate，不推送；③**刻意未按 Step 4 字面回写候选 status=applied**（校准期零落地 ⇒ 零 applied，否则次日被质量闸静默滤除）——已登记核心类提案 disc-20260925-04 交周度审；④新增 disc-20260925-05（L3 pre-hook 对新式 UUID id 恒报假失败，稀释真信号）；⑤仅回写 automations[1fd52465].last_run。",
-    "2026-09-26 文档类落地 run#2（mode=calibrate）：①对拍 rc=0/ok=true/violations=[] 干净；②切换前置 days_elapsed=2/14 未满 → 保持 calibrate，不推送；③D7 镜像核对 PA-001.if_no_action=auto_switch_to_live 与 doc_apply.auto_switch=true 一致，未停手；④**零文档写入 / 零 commit / 零 applied 回写**（校准期照 Step 4 字面执行会把未落地候选标记为 applied → 次日被质量闸滤除，等于静默销毁成果；已登记核心类提案 disc-20260925-04 交周度审）；⑤只读复检 hub_reconcile rc=20，D1–D7 全空，仅 D8 H1 实盘止损逾期 52 天 / D9 槽位配置（均人工作业，与本批无关）。仅回写 automations[1fd52465].last_run/next_run。"
+    "2026-09-26 文档类落地 run#2（mode=calibrate）：①对拍 rc=0/ok=true/violations=[] 干净；②切换前置 days_elapsed=2/14 未满 → 保持 calibrate，不推送；③D7 镜像核对 PA-001.if_no_action=auto_switch_to_live 与 doc_apply.auto_switch=true 一致，未停手；④**零文档写入 / 零 commit / 零 applied 回写**（校准期照 Step 4 字面执行会把未落地候选标记为 applied → 次日被质量闸滤除，等于静默销毁成果；已登记核心类提案 disc-20260925-04 交周度审）；⑤只读复检 hub_reconcile rc=20，D1–D7 全空，仅 D8 H1 实盘止损逾期 52 天 / D9 槽位配置（均人工作业，与本批无关）。仅回写 automations[1fd52465].last_run/next_run。",
+    "2026-09-26 技能演进-周度 run（0dd41dcb）：①文档类 auto_apply 落地 9 篇 references （majiu x5 / a-stock-data x4）+ 两 skill CHANGELOG；9 候选置 applied。②核心类 5 候选（disc-20260922-02 / 2023-01 / 2023-03 / 2025-04 / 2025-05）置 proposed + 清 needs_review，仅提案待人工授权，未改写任何 SKILL.md/脚本/prompt。③PA-002 -> done。④本自动化 last_run 回写，next_run=2026-10-03。注：文档类落地走周度审通道（每日文档类落地通道 calibrate 期只读，周度审为当前唯一活跃 doc-apply 路径）；待 2026-10-08 每日通道转 live 时这些候选已 applied，不会被重复拾取。",
+    "2026-09-27 文档类落地 run#3（mode=calibrate）：①闸门 rc=0/ok=true，selected=3（disc-20260927-01/02/03，均 references/*.md 白名单内），dropped=17（09-22~09-26 候选已由 09-26 23:22「技能演进-周度」落地或转 proposed）；②对拍 rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[] 干净，days_elapsed=3/14；③切换前置未足 → 保持 calibrate，不推送；④D7 镜像 PA-001.if_no_action=auto_switch_to_live 与 auto_switch=true 一致，未停手；⑤零文档写入 / 零 commit / 零 applied 回写（校准期照 Step 4 字面执行会把未落地候选标记 applied → 次日被质量闸静默滤除，等同销毁成果）；⑥只读复检 hub_reconcile rc=20，D1–D7 全空，仅 D8 H1 实盘止损逾期 53 天 / D9 kb-read-3slots 槽位 model/expert 差异（均人工作业，与本批无关）；⑦独立核验 09-26 周度落地 9 篇 references 真实存在（size 1.0–1.6KB，mtime 09-26 23:29:38），非伪 applied。",
+    "2026-09-27 摘除 automations[].last_run / next_run（共 49 个字段）：它们是**运行时状态**，却被 SKILL.md 旧规范要求由**每条中枢自动化各自回写**（5 个写者、5 种格式）→ 实测 39 处格式不规范（`+0800` 无冒号 / 无时区 / 带微秒）、2 处含中文注释直接解析失败、多条 next_run 已过期 2–4 天而无人知（D1 只比 rrule/status，next_run 从不在覆盖内）。唯一读者（💓 中枢存活看门狗）已改为读 DB 真值；代码侧本就不读这两个字段。**声明文件只放声明；运行时间读 DB（automation_runs / automation_runtime_state）。**",
+    "2026-09-27 registry → 1.8.0：①声明 `doc_contract.automation_fields_allowed`（automations[] 只许 name/id/rrule/status/note）；②新增 D5 K5 `runtime_state_in_declaration` —— 运行时状态混入声明文件即报（本轮就是被 liveness_dedup + 5 写者回写 last_run 打出来的）；③SKILL.md 同步（字段表 / 回写规范 / D1 判据描述与实现对齐）。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -724,9 +724,11 @@
         "disc-20260923-01",
         "disc-20260923-03"
       ],
-      "status": "scheduled",
+      "status": "done",
       "if_no_action": "keep_as_is",
-      "if_no_action_note": "当周未审完 → 顺延至下次周度审（候选不丢，仍在 discovery_candidates 里）"
+      "if_no_action_note": "当周未审完 → 顺延至下次周度审（候选不丢，仍在 discovery_candidates 里）",
+      "resolved_at": "2026-09-26T23:22:00+0800",
+      "resolution": "周度审核心类候选已于 2026-09-26 处理：disc-20260922-02 / disc-20260923-01 / disc-20260923-03 均置 status=proposed 并清 needs_review（核心类仅提案待人工授权，未改写任何文件）。"
     },
     {
       "id": "PA-003",
@@ -861,7 +863,15 @@
         "table_keys_expected_exclude_prefixes": [
           "_"
         ],
-        "table_keys_expected_exclude_note": "`_` 前缀的键（`_history` / `_state_sync_notes`）是**元数据/审计痕迹**，不是配置 → 不进「中央注册表」索引表。排除规则**声明在这里而不是硬写在代码里**：硬写 = 看着在查、其实默默少查一批键（死守卫家族）。"
+        "table_keys_expected_exclude_note": "`_` 前缀的键（`_history` / `_state_sync_notes`）是**元数据/审计痕迹**，不是配置 → 不进「中央注册表」索引表。排除规则**声明在这里而不是硬写在代码里**：硬写 = 看着在查、其实默默少查一批键（死守卫家族）。",
+        "automation_fields_allowed": [
+          "name",
+          "id",
+          "rrule",
+          "status",
+          "note"
+        ],
+        "automation_fields_allowed_note": "registry.automations[] 只许含**声明性字段**。`last_run`/`next_run` 是运行时状态，2026-09-27 前由 5 条自动化各自回写（5 种时间格式、39 处不规范、2 处解析失败、next_run 过期数天无人知）→ 已全部摘除；再出现即报 `runtime_state_in_declaration`。运行时间读 DB（automation_runs / automation_runtime_state）。"
       },
       {
         "path": "~/.workbuddy/skills/majiu-management/references/quarterly-inspection.md",

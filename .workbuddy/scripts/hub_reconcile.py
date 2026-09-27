@@ -292,6 +292,29 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
                                             f"①声明性键 → 补进文档表格；"
                                             f"②运行时状态 → **从 registry 移出**{runtime_hint}")})
 
+        # K6 自动化条目里混入「运行时状态」字段（2026-09-27 新增；编号沿用文档顺序，
+        #    代码位置在 K4 之前只为贴近上一段键校验，不影响判据）
+        #   起因：`automations[].last_run` / `next_run` 是**每天变化的运行时状态**，却按旧规范
+        #   由 5 条自动化各自回写（5 种格式 → 39 处不规范、2 处解析失败、next_run 过期数天无人知），
+        #   而 D1 只比 rrule/status、代码侧也不读它们 → 腐烂多日无人知。
+        #   允许多少字段**声明在 registry**（doc_contract.automation_fields_allowed），不硬写在代码里：
+        #   想知道"为什么这几个字段可以留"，读声明即可（同 D5 K3 排除规则那条纪律）。
+        allowed = [str(x) for x in (spec.get("automation_fields_allowed") or [])]
+        if allowed:
+            allowed_set = set(allowed)
+            for a in reg.get("automations") or []:
+                if not isinstance(a, dict):
+                    findings.append({"kind": "automation_entry_not_object", "doc": raw,
+                                     "detail": f"registry.automations 里有非对象条目: {a!r:.80}"})
+                    continue
+                for k in sorted(set(a) - allowed_set):
+                    findings.append({
+                        "kind": "runtime_state_in_declaration", "doc": raw, "key": k,
+                        "detail": (f"registry.automations[{a.get('name')}] 出现非声明字段 `{k}`"
+                                   f"（声明允许的字段: {allowed}）—— **声明文件只放声明**；"
+                                   f"运行时间/状态读 DB，别写回声明文件"),
+                    })
+
         # K4 引用了 DB 中不存在的自动化 id（跳过含 URL 的行 —— 曾把 bittide 文章号误判为 dangling id）
         for i, ln in enumerate(lines, 1):
             if "http" in ln:
