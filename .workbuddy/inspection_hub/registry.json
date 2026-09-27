@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.8.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-27T09:41:46+08:00",
+  "updated_at": "2026-09-27T09:50:13+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -645,7 +645,8 @@
     "2026-09-26 技能演进-周度 run（0dd41dcb）：①文档类 auto_apply 落地 9 篇 references （majiu x5 / a-stock-data x4）+ 两 skill CHANGELOG；9 候选置 applied。②核心类 5 候选（disc-20260922-02 / 2023-01 / 2023-03 / 2025-04 / 2025-05）置 proposed + 清 needs_review，仅提案待人工授权，未改写任何 SKILL.md/脚本/prompt。③PA-002 -> done。④本自动化 last_run 回写，next_run=2026-10-03。注：文档类落地走周度审通道（每日文档类落地通道 calibrate 期只读，周度审为当前唯一活跃 doc-apply 路径）；待 2026-10-08 每日通道转 live 时这些候选已 applied，不会被重复拾取。",
     "2026-09-27 文档类落地 run#3（mode=calibrate）：①闸门 rc=0/ok=true，selected=3（disc-20260927-01/02/03，均 references/*.md 白名单内），dropped=17（09-22~09-26 候选已由 09-26 23:22「技能演进-周度」落地或转 proposed）；②对拍 rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[] 干净，days_elapsed=3/14；③切换前置未足 → 保持 calibrate，不推送；④D7 镜像 PA-001.if_no_action=auto_switch_to_live 与 auto_switch=true 一致，未停手；⑤零文档写入 / 零 commit / 零 applied 回写（校准期照 Step 4 字面执行会把未落地候选标记 applied → 次日被质量闸静默滤除，等同销毁成果）；⑥只读复检 hub_reconcile rc=20，D1–D7 全空，仅 D8 H1 实盘止损逾期 53 天 / D9 kb-read-3slots 槽位 model/expert 差异（均人工作业，与本批无关）；⑦独立核验 09-26 周度落地 9 篇 references 真实存在（size 1.0–1.6KB，mtime 09-26 23:29:38），非伪 applied。",
     "2026-09-27 摘除 automations[].last_run / next_run（共 49 个字段）：它们是**运行时状态**，却被 SKILL.md 旧规范要求由**每条中枢自动化各自回写**（5 个写者、5 种格式）→ 实测 39 处格式不规范（`+0800` 无冒号 / 无时区 / 带微秒）、2 处含中文注释直接解析失败、多条 next_run 已过期 2–4 天而无人知（D1 只比 rrule/status，next_run 从不在覆盖内）。唯一读者（💓 中枢存活看门狗）已改为读 DB 真值；代码侧本就不读这两个字段。**声明文件只放声明；运行时间读 DB（automation_runs / automation_runtime_state）。**",
-    "2026-09-27 registry → 1.8.0：①声明 `doc_contract.automation_fields_allowed`（automations[] 只许 name/id/rrule/status/note）；②新增 D5 K5 `runtime_state_in_declaration` —— 运行时状态混入声明文件即报（本轮就是被 liveness_dedup + 5 写者回写 last_run 打出来的）；③SKILL.md 同步（字段表 / 回写规范 / D1 判据描述与实现对齐）。"
+    "2026-09-27 registry → 1.8.0：①声明 `doc_contract.automation_fields_allowed`（automations[] 只许 name/id/rrule/status/note）；②新增 D5 K5 `runtime_state_in_declaration` —— 运行时状态混入声明文件即报（本轮就是被 liveness_dedup + 5 写者回写 last_run 打出来的）；③SKILL.md 同步（字段表 / 回写规范 / D1 判据描述与实现对齐）。",
+    "2026-09-27 PA-003 更新：二次实测确认 automation_update 改不了 model_id/model_is_thinking/expert_id（success=true 但 DB 逐字段未变）；补平台在用 model_id 清单（hy3/deepseek-v4-flash/deepseek-v4.1-flash/deepseek-v4-pro，**无 hy4**，而三槽 prompt 自称 Hy4 → 待用户确认是备忘还是陈旧文案）。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -765,12 +766,13 @@
         "根因": "三槽 prompt 自述**共用同一份正文**（同一任务的三个时刻：00:50 / 03:20 / 05:50）。槽2/3 创建于 2026-09-24 16:03（同一次拆槽），并拿到了平台默认 model（deepseek-v4.1-flash，无 thinking）与 expert_id=NULL；槽1（06-22 建）为 hy3 + thinking + EquityResearchExpert。**这是拆槽动作的副作用，不是有意为之** —— automation_update 无法设置 model/expert/permission/push 四个字段。"
       },
       "judgement": "① direction：不是「两种口径各有用处」，而是**同一任务被静默降到两套质量**→ 按缺陷处理。② permission_mode=NULL 仍判正常（既有中枢自动化同为 NULL 且稳定运行）。③ 已加 **D9 机器守卫**（registry.consistency_groups → kb-read-3slots）：只要三槽不齐就每天报出来，修好后自动转静默。④ 修复动作只能在 UI 做（工具层改不了这四个字段）。",
-      "how": "在自动化管理 UI 打开「📚【知识库】全网挖掘+文章精读 · 槽位2 / 槽位3」，把 模型 与 专家 对齐槽位1（hy3 + 思考 + EquityResearchExpert）；若确实有意用快模型分摊成本，则把 push_to_wechat 之类**有意差异**写进 consistency_groups.keys_intentionally_differing 并给出理由。",
+      "how": "**只能在自动化管理 UI 改**（2026-09-27 二次实测证实）：对槽位2 用 automation_update 传 `model_id` / `model_is_thinking` / `expert_id`，接口返回 success=true 但**逐字段核对 DB 全未变**（连 rrule/status 也未动 → 平台只更新它认识的字段，这三个不在 API 管辖内；automation 接口的返回对象里也从不含这三个字段）。\n操作：打开「📚【知识库】全网挖掘+文章精读 · 槽位2 / 槽位3」→ 模型 / 专家两项对齐目标值。\n可选模型（当前平台上在用的 model_id，UI 里能选到的以 UI 为准）：`hy3`（58 条在用，槽位1 现用值）/ `deepseek-v4-flash` / `deepseek-v4.1-flash`（槽位2/3 现用值）/ `deepseek-v4-pro`。\n⚠️ 顺带发现：三槽 prompt 第 1 行都自称「Hy4 夜间免费窗口」，但**平台上不存在 `hy4` 这个 model_id** ——这句自述当前无法兑现。是「等 Hy4 可用后切换」的备忘，还是陈旧文案，需你确认；**我不擅改用户措辞**。",
       "if_no_action": "escalate",
       "if_no_action_note": "到期不动 = 继续每天用默认快模型跑 2/3 的知识库精读（产出质量被静默下调），D9 会持续每日报出；这不是「无害保持现状」，故用 escalate 而非 keep_as_is。",
       "_history": [
         "2026-09-24 三次审计：`default_if_no_action`(自由文本 保持现状（差异继续存在，但已在案）…) → `if_no_action` 枚举",
-        "2026-09-25 深挖根因：确认差异来自拆槽副作用（非有意）→ 新增 D9 机器守卫；if_no_action keep_as_is → escalate（不动有实际代价，不适合表述为无害保持）"
+        "2026-09-25 深挖根因：确认差异来自拆槽副作用（非有意）→ 新增 D9 机器守卫；if_no_action keep_as_is → escalate（不动有实际代价，不适合表述为无害保持）",
+        "2026-09-27 二次实测：automation_update 传 model_id/model_is_thinking/expert_id → success=true 但 DB 逐字段未变（排除『之前只是没试过』）；并记录平台在用 model_id 清单（无 hy4）"
       ]
     }
   ],
