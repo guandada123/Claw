@@ -11,7 +11,7 @@
 **A 铁律(渠道/文件/数据/推送)**：`不可违反铁律` · `oc_9ee5303497f5e0e71666b610d6bdc346` · `先复制` · `get_effective_capital` · `push_card` · `cost_tracker` · `qt.gtimg.cn`
 **B 防错(股价/推荐)**：`price_sanity` · `check-entry` · `_apply_sanity` · `_sanity_guard` · `reliable_current_price` · `sanity_failed`
 **C 排程/rrule**：`单BYHOUR` · `automation-rrule-safety-check` · `check_schedule` · `done_schedule` · `automation- 前缀` · `影子记录`
-**D 巡检中枢**：`统一巡检中枢` · `hub_reconcile` · `D1`–`D8` · `registry.json`(只读镜像) · `workbuddy.db`(唯一真值) · `doc_apply` · `parity` · `wb_health_check` · `if_no_action`
+**D 巡检中枢**：`统一巡检中枢` · `hub_reconcile` · `D1`–`D9` · `registry.json`(**只读镜像，只放声明**) · `workbuddy.db`(唯一真值) · `doc_apply` · `parity` · `wb_health_check` · `if_no_action` · `hub_liveness_probe`(只读探针) · `runtime_state_in_declaration`(D5 K6)
 **E 系统边界/选股**：`三系统边界` · `模拟炒股+选股` · `simulation/portfolio.json` · `user/portfolio.json` · `mainboard_scan_pool` · `总资¥50,000` · `分级止盈双模` · `market_gate` · `防回退锁定`
 **F 盘中监控/推送**：`1784039316540` · `1784506600526` · `push_feishu.sh` · `盘中监控双链` · `push_*_report.py`
 **G 数据源/抓取**：`公众号抓取链` · `qt.gtimg` · `Wind` · `鱼盆`/`yupen` · `wechatrss` · `backfill_wx_content` · `wechat-download-api`
