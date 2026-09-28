@@ -25,7 +25,30 @@ import sys
 SKILL_DIR = os.path.expanduser("~/.workbuddy/skills/anysearch")
 SKILL_CLI = os.path.join(SKILL_DIR, "scripts", "anysearch_cli.py")
 PY = "/Users/guan/.workbuddy/binaries/python/versions/3.13.12/bin/python3"
-NODE = "/Users/guan/.workbuddy/binaries/node/versions/22.22.2/bin/npx"
+
+
+def _resolve_npx() -> str:
+    """动态解析 npx 路径，避免 managed node 版本号漂移导致路径腐烂。
+
+    历史踩坑（2026-08-31 在 earnings_calendar.py、2026-09-28 在本文件各犯一次）：
+    硬编码 `.../node/versions/22.22.2/bin/npx`，而实际目录带构建后缀
+    （22.22.2-2 / 22.22.2-3），于是 subprocess 静默 FileNotFoundError →
+    函数返回空串 → 上游把"取不到数据"误读成"没有数据"。
+    优先用 PATH 中的 npx（managed node 会把自己放最前），保留 glob 兜底。
+    """
+    found = shutil.which("npx")
+    if found:
+        return found
+    # 兜底：扫 managed node 目录，取版本号最高的 npx
+    import glob
+    cands = sorted(glob.glob(
+        os.path.expanduser("~/.workbuddy/binaries/node/versions/*/bin/npx")))
+    if cands:
+        return cands[-1]
+    return "npx"
+
+
+NODE = _resolve_npx()
 WESTOCK_CLI = "westock-data-clawhub@1.0.4"
 TIMEOUT_WESTOCK = 60
 TIMEOUT_ANYSEARCH = 40
