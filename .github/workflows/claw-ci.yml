@@ -6,10 +6,22 @@ name: Claw CI
 
 on:
   pull_request:
-    paths: [".workbuddy/**", ".github/workflows/**", "ruff.toml", ".pre-commit-config.yaml"]
+    paths:
+      - ".workbuddy/**"
+      - "tests/**"
+      - ".github/workflows/**"
+      - "ruff.toml"
+      - ".pre-commit-config.yaml"
+      - "pyproject.toml"
   push:
     branches: [main]
-    paths: [".workbuddy/**", ".github/workflows/**", "ruff.toml", ".pre-commit-config.yaml"]
+    paths:
+      - ".workbuddy/**"
+      - "tests/**"
+      - ".github/workflows/**"
+      - "ruff.toml"
+      - ".pre-commit-config.yaml"
+      - "pyproject.toml"
   workflow_dispatch:
 
 env:
