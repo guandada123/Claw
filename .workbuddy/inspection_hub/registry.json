@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.9.1",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-28T18:16:13+08:00",
+  "updated_at": "2026-09-28T18:40:58+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -575,6 +575,15 @@
       "detect": "① 一次性扫描：对每条 ACTIVE 自动化 json.loads(cwds)，检查元素是否为字符串且 os.path.isdir 成立（元素以 `[`/`{` 开头或含 `\"` 即双重编码）；② 常态化：hub_reconcile D4' 看 result_success（不只 last_run）→ 「跑了但从未成功」会被每天报出。",
       "fix": "用 automation_update 写回**干净路径**（本机可接受值：项目目录如 /Users/guan/WorkBuddy/QuantTradingSystem）。⚠️ 平台限制：`automation_update` **拒绝**把 Claw 设为自动化工作区（报 cannot host automations），尽管 DB 里有 42 条 cwds=Claw 且运行正常 —— 工具校验与运行时不一致，遇到时改用其它项目目录即可（这些 prompt 都自带 `cd $CLAW`，cwd 不影响功能）。",
       "since": "2026-09-25"
+    },
+    {
+      "id": "freshness-check-ignores-holidays",
+      "severity": "low",
+      "title": "数据新鲜度检查不认识交易日历 → 节假日后误报「数据管线可能停摆」",
+      "detail": "`check_data_freshness` 原用固定窗口 `mt.date() < today - 1day`。2026-09-25 中秋节休市（+ 周末）→ 09-24 收盘后到 09-28 05:00 之间**没有任何交易日**，产物 84h 未刷新是正常的，却被报成「管线可能停摆」（实测管线 `automation-1780964240621` / `automation-1785284629106` 09-23~09-28 每天 success=1，一天没落）。原 docstring 却写着「非交易日允许放宽到最近1交易日」—— **文档声称做了、实现没做**（与 D1 的 next_run 同型）。",
+      "detect": "hub_reconcile D8 无关；此项在中枢 9 项检查里（`unified_ops_center.check_data_freshness`）",
+      "fix": "改为按**同一份交易日历**（`is_trading_day.py` + `data/astock_holidays.json`）推算「最近一次应当已完成的刷新时点」（交易日 05:05 / 15:05 槽 + 90min 宽限）；日历不可用时**退回旧窗口并标注 `降级判断`**（取不到依据 ≠ 数据新鲜）。`tests/test_data_freshness.py` 7 用例含**告警现场回放**，并做证伪实验。",
+      "since": "2026-09-28"
     }
   ],
   "doc_apply": {
@@ -683,7 +692,8 @@
     "2026-09-28 run#4：mode=calibrate（registry 真值）→ 只读对拍，零文档写入、零 commit。闸门 rc=0/ok=true，selected=disc-20260927-01/02/03（连续第 2 日入选，FIFO：这 3 条仍 pending 且 id 最小）。parity rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[]，days_elapsed=4/14 → 不切换、不推送。D7 镜像核对：pending_actions[PA-001].if_no_action=auto_switch_to_live 与 doc_apply.auto_switch=true 一致。按铁律❼：本日未回写 automations[].last_run/next_run（09-27 已摘除，本日复核仍为 null，保持不动）。按 calibrate 零落地 ⇒ 零 applied 回写，6 条 pending（09-27×3 + 09-28×3）全部保留；独立核验 12 条 applied 目标文件全部真实存在（0 缺失），无伪 applied。复检 hub_reconcile rc=20：D1–D7 全空，finding 仅 D8 H1 实盘止损逾期 54 天 + D9 kb-read-3slots 槽位配置（均人工作业，与本批无关）。",
     "2026-09-28 registry → 1.9.0：新增 D8 K7 `open_items` —— 把各项目的**开放决策/待办**纳入每日机器检查（审计实测：全部项目待办 ≈1320 行、仅 6% 带期限，且只有 Claw 有 D6；H1 就是这样静默逾期 54 天）。首批登记 8 条已核实开放项（Claw 2 / QTS 5 / pmf 1）+ 8 条已核实关闭项（进 handoff._resolved 留痕）。同日改掉「记忆维护」自动化的不可达告警口径（MEMORY<2KB → 索引可见性三判据，automation-1780769419635 v9）。",
     "2026-09-28 registry → 1.9.1：K5/K7 支持**条目级显式静音**（`no_reminder` + 必填 `no_reminder_reason`；缺理由则不生效并报 `no_reminder_without_reason`）。首个用例 = H1 实盘止损 —— 用户当日明确「实盘止损不用提醒」，**条目保留不删**（删掉会让账本说谎），只关掉每日催办；去掉两个字段即可重启提醒。",
-    "2026-09-28 PA-003.how 补入**已验证的 UI 操作路径**（来源：客户端 app.asar 内 `renderer/assets/automation-*.js` 的代码与注释，非推测）：侧边栏「自动化」tab → 编辑器与聊天框同源的 provider 条（model / skill / expert / connector / workspace）→ 改模型与专家，以槽位1 为参照。"
+    "2026-09-28 PA-003.how 补入**已验证的 UI 操作路径**（来源：客户端 app.asar 内 `renderer/assets/automation-*.js` 的代码与注释，非推测）：侧边栏「自动化」tab → 编辑器与聊天框同源的 provider 条（model / skill / expert / connector / workspace）→ 改模型与专家，以槽位1 为参照。",
+    "2026-09-28 新增 known_failure_modes: freshness-check-ignores-holidays（中秋误报「管线停摆」，根因=固定窗口不认交易日历，且 docstring 声称做了）。同时把「记忆维护」自动化升到 v10：① 修正 1c 的**错误路径**（原查 ~/.workbuddy/automations，实测只有 6 个小文件；真位置是 Claw/.workbuddy/memory/automations，49 个、最大 148KB）② 周日新增自动化 memory 滚动归档（确定性脚本 rotate_automation_memory.py；首跑 6 个文件 920KB→211KB，逐文件核对行数守恒）。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",

@@ -944,41 +944,89 @@ def check_qts_pmf_ci() -> dict:
         return {"ok": False, "alerts": [f"qts_guard 异常: {e}"]}
 
 
-def check_data_freshness() -> dict:
-    """数据管线新鲜度检查（2026-08-06 新增，盲点#1）。
+def _last_expected_refresh(now: datetime.datetime):
+    """最近一次「应当已跑完」的信号管线刷新时点 → (时点, 依据说明) 或 (None, 原因)。
+
+    见本函数上方注释：原实现用固定 ±1 天窗口，**不认识节假日**，把中秋+周末的正常空档
+    报成「管线停摆」。现用与管线**同一份交易日历**反推。
+
+    返回 None 时由调用方降级（并**必须标明是退化判断**）—— 日历读不出来 ≠ 数据新鲜。
+    """
+    try:
+        import sys as _sys
+
+        if str(SCRIPT_DIR) not in _sys.path:
+            _sys.path.insert(0, str(SCRIPT_DIR))
+        import is_trading_day as _itd
+
+        holidays = _itd.load_holidays()
+    except Exception as exc:  # noqa: BLE001
+        return None, f"calendar_unavailable({type(exc).__name__})"
+    if not isinstance(holidays, dict) or not holidays.get("dates"):
+        return None, "calendar_empty"
+
+    day = now.date()
+    for back in range(0, 30):
+        d = day - datetime.timedelta(days=back)
+        if not _itd.is_trading_day(d, holidays):
+            continue
+        for hh, mm in sorted(PIPELINE_SLOTS, reverse=True):
+            ts = datetime.datetime.combine(d, datetime.time(hh, mm))
+            if ts <= now - datetime.timedelta(minutes=PIPELINE_GRACE_MIN):
+                return ts, f"最近交易日 {d} {hh:02d}:{mm:02d}"
+    return None, "no_recent_trading_day"
+
+
+# 信号溯源管线（signal_trace_pipeline）的槽位：**只在交易日** 05:05 / 15:05
+PIPELINE_SLOTS = [(5, 5), (15, 5)]
+# 管线实测约 9 分钟；给足 LLM 编排抖动（拥堵时会更久），故宽限 90 分钟
+PIPELINE_GRACE_MIN = 90
+
+
+def check_data_freshness(now: datetime.datetime | None = None,
+                        root: pathlib.Path | None = None) -> dict:
+    """数据管线新鲜度检查（2026-08-06 新增，盲点#1；2026-09-28 改判据）。
+
     中枢 check_docker_self_heal 只查容器存活，不查数据产物新鲜度——
     数据管线(Quant数据管线/QTS日线回填/WIND桥/信号富化)失败会导致选股/策略用陈旧K线，
     但中枢完全失明（实证：qts_daily_backfill.py 注释'08-04 16:30失败致daily_quote缺整日'）。
-    设计：监测 data/ 下活跃产物白名单的 mtime 是否为当日（非交易日允许放宽到最近1交易日）。
 
-    2026-09-01 run#55 修复：本检查被加入的**唯一目的**就是抓「数据产物陈旧/缺失」，
-    但原实现算出了 stale 却仍 return ok=True —— 抓到也不报，等于没装，且 note 无出口无人读
-    （实证：自 08-06 加入起 AST 审计确认无任何 ok=False 出口，恒假绿）。
-    修复：stale 非空 → ok=False 进告警链。不自动修复（数据管线自动化负责重跑），仅告警。"""
-    # 活跃产物白名单（今日实测15:00-15:06更新的业务产物，废弃产物已排除）
+    2026-09-01 run#55 修复：原实现算出了 stale 却仍 return ok=True —— 抓到也不报，等于没装。
+    2026-09-28 修复（**误报**）：原判据 `mt.date() < today - 1day` 是**固定窗口、不认节假日**，
+    把中秋休市（09-25）+ 周末造成的正常空档报成「管线停摆」（实测管线 09-23~09-28 每天 success=1）。
+    现改为按交易日历推算「最近一次应当已完成的刷新时点」，见 `_last_expected_refresh`。
+    日历不可用时**退回旧窗口并标注 degraded** —— 取不到判断依据 ≠ 数据新鲜。"""
     WHITELIST = [
         "qts_daily_signals.json",
         "qts_regime.json",
         "signal_consensus.json",
         "source_weights.json",
     ]
-    now = datetime.datetime.now()
-    today = now.date()
-    # 最近交易日（非交易日放宽到昨日，避免周末误报）
+    now = now or datetime.datetime.now()
+    root = root or (CLAW_ROOT / "data")
+    expected, how = _last_expected_refresh(now)
+
     stale = []
     checked = 0
     for fn in WHITELIST:
-        p = CLAW_ROOT / "data" / fn
+        p = root / fn
         if not p.exists():
             stale.append(f"{fn}(缺失)")
             continue
         checked += 1
         mt = datetime.datetime.fromtimestamp(p.stat().st_mtime)
-        if mt.date() < today - datetime.timedelta(days=1):  # 容忍非交易日±1天
-            age_h = (now - mt).total_seconds() / 3600
-            stale.append(f"{fn}({age_h:.0f}h前)")
+        age_h = (now - mt).total_seconds() / 3600
+        if expected is not None:
+            if mt < expected:
+                stale.append(f"{fn}({age_h:.0f}h前, 早于{how})")
+        else:
+            # 退化判断：日历不可用 → 沿用旧固定窗口，并在文案里标明这是降级结果
+            if mt.date() < now.date() - datetime.timedelta(days=1):
+                stale.append(f"{fn}({age_h:.0f}h前)[降级判断:{how}]")
+
+    prefix = "" if expected is not None else f"⚠️ 交易日历不可用（{how}），本次为降级判断："
     if stale:
-        msg = f"数据产物陈旧/缺失 {len(stale)}/{len(WHITELIST)}: {'; '.join(stale)}"
+        msg = f"{prefix}数据产物陈旧/缺失 {len(stale)}/{len(WHITELIST)}: {'; '.join(stale)}"
         return {
             "ok": False,
             "alerts": [
@@ -986,11 +1034,11 @@ def check_data_freshness() -> dict:
             ],
             "note": msg,
         }
-    return {
-        "ok": True,
-        "alerts": [],
-        "note": f"数据产物新鲜度: {checked}/{len(WHITELIST)} 全部当日新鲜",
-    }
+    note = (f"数据产物新鲜度: {checked}/{len(WHITELIST)} 全部不早于{how}"
+            if expected is not None
+            else f"{prefix}数据产物新鲜度: {checked}/{len(WHITELIST)}（未按期判定）")
+    return {"ok": True, "alerts": [], "note": note}
+
 
 
 WECHAT_FETCH_ANCHOR = SCRIPT_DIR / ".wechat_last_fetch_anchor.json"
