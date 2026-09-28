@@ -29,6 +29,7 @@
 退出码：0=全净；10=仅 D1（可 --fix 自愈）；20=存在 D2/D3/D4/D5/D6/D7/D8（需人介入）
 铁律：--fix **只写 registry（镜像）**，绝不写 DB；不碰 skill 文档；不推送（推送交给调用方）
 """
+
 from __future__ import annotations
 
 import argparse
@@ -71,9 +72,14 @@ def recent_runs(conn, aid: str, n: int) -> list[tuple[bool, str | None]]:
     表缺失/查询失败一律返回 []（**不误报**，与 D4 对 PAUSED 的处理同一原则）。
     """
     try:
-        return [(bool(r[0]), r[1]) for r in conn.execute(
-            "select result_success, failure_code from automation_runs "
-            "where automation_id = ? order by created_at desc limit ?", (aid, n)).fetchall()]
+        return [
+            (bool(r[0]), r[1])
+            for r in conn.execute(
+                "select result_success, failure_code from automation_runs "
+                "where automation_id = ? order by created_at desc limit ?",
+                (aid, n),
+            ).fetchall()
+        ]
     except Exception:  # noqa: BLE001
         return []
 
@@ -147,7 +153,7 @@ def doc_section_keys(text: str, header: str = "## 中央注册表") -> list[str]
     if start is None:
         return []
     keys = []
-    for ln in lines[start + 1:]:
+    for ln in lines[start + 1 :]:
         if ln.startswith("## "):
             break
         m = TABLE_KEY_RE.match(ln)
@@ -156,8 +162,13 @@ def doc_section_keys(text: str, header: str = "## 中央注册表") -> list[str]
     return keys
 
 
-def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.datetime,
-                    docs_override: list[str] | None = None) -> list[dict]:
+def check_doc_drift(
+    reg: dict,
+    live: dict,
+    all_ids: set,
+    now_dt: datetime.datetime,
+    docs_override: list[str] | None = None,
+) -> list[dict]:
     """D5：文档里的时段/键名/自动化 id 是否与真值一致。只读，不改任何文档。
 
     契约支持多文档：doc_contract.docs[] 每项可为字符串（继承顶层默认）或对象（可逐项覆盖）。
@@ -172,6 +183,7 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
         "table_keys_expected": contract.get("table_keys_expected", False),
         "table_keys_expected_exclude": contract.get("table_keys_expected_exclude", []),
     }
+
     # 归一化：字符串项继承顶层默认；对象项缺省字段同样继承
     def norm(d):
         return {"path": d, **defaults} if isinstance(d, str) else {**defaults, **d}
@@ -205,13 +217,26 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
             doc_v = m.group(1) if m else None
             reg_v = str(reg.get("version", ""))
             if doc_v is None:
-                findings.append({"kind": "version_missing", "doc": raw,
-                                 "detail": "开启了 version_check 但文档 frontmatter 没有 `version:`"})
+                findings.append(
+                    {
+                        "kind": "version_missing",
+                        "doc": raw,
+                        "detail": "开启了 version_check 但文档 frontmatter 没有 `version:`",
+                    }
+                )
             elif doc_v != reg_v:
-                findings.append({"kind": "version_mismatch", "doc": raw,
-                                 "doc_version": doc_v, "registry_version": reg_v,
-                                 "detail": (f"文档 version={doc_v} 与 registry.version={reg_v} 不一致"
-                                            f"（两份声明要一起动，否则其中一份在说谎）")})
+                findings.append(
+                    {
+                        "kind": "version_mismatch",
+                        "doc": raw,
+                        "doc_version": doc_v,
+                        "registry_version": reg_v,
+                        "detail": (
+                            f"文档 version={doc_v} 与 registry.version={reg_v} 不一致"
+                            f"（两份声明要一起动，否则其中一份在说谎）"
+                        ),
+                    }
+                )
 
         # K1 时段漂移：label 所在行必须出现真值时刻（真值现算，不写死在契约里）
         for a in spec.get("time_anchors", []) or []:
@@ -219,52 +244,98 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
             sid = a.get("source_id")
             row = live.get(sid)
             if row is None:
-                findings.append({
-                    "kind": "anchor_dangling", "doc": raw, "label": label, "source_id": sid,
-                    "detail": (f"时段锚点「{label}」指向的 {sid} 不在活跃自动化里"
-                               f"（{'已软删' if sid in all_ids else 'DB 中不存在'}）→ 锚点**静默失效**，"
-                               f"必须改指向或删除，否则这条契约什么都没在查"),
-                })
+                findings.append(
+                    {
+                        "kind": "anchor_dangling",
+                        "doc": raw,
+                        "label": label,
+                        "source_id": sid,
+                        "detail": (
+                            f"时段锚点「{label}」指向的 {sid} 不在活跃自动化里"
+                            f"（{'已软删' if sid in all_ids else 'DB 中不存在'}）→ 锚点**静默失效**，"
+                            f"必须改指向或删除，否则这条契约什么都没在查"
+                        ),
+                    }
+                )
                 continue
             times = rrule_times(row["rrule"])
             if len(times) > 1:
                 # 多槽 rrule（BYHOUR=0,12）时 K1 只能校第一个时刻 —— 静默只校一半 = 少查了还不知道。
                 # 排程铁律本就禁止多槽（要重复请用 --interval-hours 建独立自动化），故直接报盲区。
-                findings.append({
-                    "kind": "anchor_multi_slot", "doc": raw, "label": label, "source_id": sid,
-                    "times": times,
-                    "detail": (f"「{label}」对应自动化有 {len(times)} 个时刻 {times}，"
-                               f"K1 只能校第一个 → 契约覆盖不全（多槽排程须拆成独立自动化）"),
-                })
+                findings.append(
+                    {
+                        "kind": "anchor_multi_slot",
+                        "doc": raw,
+                        "label": label,
+                        "source_id": sid,
+                        "times": times,
+                        "detail": (
+                            f"「{label}」对应自动化有 {len(times)} 个时刻 {times}，"
+                            f"K1 只能校第一个 → 契约覆盖不全（多槽排程须拆成独立自动化）"
+                        ),
+                    }
+                )
             truth = a.get("expect_override") or (times[:1] or [None])[0]
             if not label or not truth:
-                findings.append({"kind": "anchor_unverifiable", "doc": raw, "label": label,
-                                 "source_id": sid,
-                                 "detail": f"锚点「{label}」无法算出真值（rrule={row['rrule']} 无 BYHOUR/BYMINUTE）"})
+                findings.append(
+                    {
+                        "kind": "anchor_unverifiable",
+                        "doc": raw,
+                        "label": label,
+                        "source_id": sid,
+                        "detail": f"锚点「{label}」无法算出真值（rrule={row['rrule']} 无 BYHOUR/BYMINUTE）",
+                    }
+                )
                 continue
             if any(label in ln and truth in ln for ln in lines):
                 continue
-            near = sorted({f"{h}:{m}" for ln in lines if label in ln for h, m in TIME_RE.findall(ln)})
-            findings.append({
-                "kind": "time_mismatch", "doc": raw, "label": label, "source_id": sid,
-                "truth": truth, "doc_times": near,
-                "detail": (f"「{label}」真值 {truth}，但文档中没有该时刻" +
-                           (f"（文档同类行出现 {', '.join(near)}）" if near else "（文档完全未提该时段）")),
-            })
+            near = sorted(
+                {f"{h}:{m}" for ln in lines if label in ln for h, m in TIME_RE.findall(ln)}
+            )
+            findings.append(
+                {
+                    "kind": "time_mismatch",
+                    "doc": raw,
+                    "label": label,
+                    "source_id": sid,
+                    "truth": truth,
+                    "doc_times": near,
+                    "detail": (
+                        f"「{label}」真值 {truth}，但文档中没有该时刻"
+                        + (
+                            f"（文档同类行出现 {', '.join(near)}）"
+                            if near
+                            else "（文档完全未提该时段）"
+                        )
+                    ),
+                }
+            )
 
         # K2 契约键缺失
         for k in spec.get("must_mention_keys", []) or []:
             if k not in text:
-                findings.append({"kind": "key_omitted", "doc": raw, "key": k,
-                                 "detail": f"契约要求提及的 registry 键 `{k}` 在文档中找不到"})
+                findings.append(
+                    {
+                        "kind": "key_omitted",
+                        "doc": raw,
+                        "key": k,
+                        "detail": f"契约要求提及的 registry 键 `{k}` 在文档中找不到",
+                    }
+                )
 
         # K3 文档表格列出的键不存在于 registry / registry 有键但表格漏列
         listed = doc_section_keys(text, spec.get("key_table_header", "## 中央注册表"))
         listed_norm = {k[:-2] if k.endswith("[]") else k for k in listed}
         for k in listed_norm:
             if k not in reg_keys:
-                findings.append({"kind": "key_unknown", "doc": raw, "key": k,
-                                 "detail": f"文档注册表列出了 `{k}`，但 registry.json 里没有这个键"})
+                findings.append(
+                    {
+                        "kind": "key_unknown",
+                        "doc": raw,
+                        "key": k,
+                        "detail": f"文档注册表列出了 `{k}`，但 registry.json 里没有这个键",
+                    }
+                )
         if listed_norm and spec.get("table_keys_expected"):
             excl = set(spec.get("table_keys_expected_exclude", []) or [])
             # ⚠️ 2026-09-24：`_` 前缀 = 元数据/审计痕迹（`_history`/`_state_sync_notes`），
@@ -281,16 +352,31 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
                 # 文案指向错误修法，等于半个误导（与「根因提示不依赖观测」同一个病）。
                 val = reg.get(k)
                 runtime_hint = ""
-                if isinstance(val, dict) and val and all(
+                if (
+                    isinstance(val, dict)
+                    and val
+                    and all(
                         isinstance(v, str) and re.match(r"^\d{4}-\d{2}-\d{2}T", v)
-                        for v in val.values()):
-                    runtime_hint = ("；⚠️ 该键的值形如 {id: ISO 时间} → **疑似运行时状态**，"
-                                    "应把它从 registry **移出**到状态文件，而不是往文档表格补一行")
-                findings.append({"kind": "key_missing_from_table", "doc": raw, "key": k,
-                                 "detail": (f"registry 有键 `{k}`，但文档中央注册表表格没列"
-                                            f"（表=registry 的索引，会一起腐烂）。两种可能："
-                                            f"①声明性键 → 补进文档表格；"
-                                            f"②运行时状态 → **从 registry 移出**{runtime_hint}")})
+                        for v in val.values()
+                    )
+                ):
+                    runtime_hint = (
+                        "；⚠️ 该键的值形如 {id: ISO 时间} → **疑似运行时状态**，"
+                        "应把它从 registry **移出**到状态文件，而不是往文档表格补一行"
+                    )
+                findings.append(
+                    {
+                        "kind": "key_missing_from_table",
+                        "doc": raw,
+                        "key": k,
+                        "detail": (
+                            f"registry 有键 `{k}`，但文档中央注册表表格没列"
+                            f"（表=registry 的索引，会一起腐烂）。两种可能："
+                            f"①声明性键 → 补进文档表格；"
+                            f"②运行时状态 → **从 registry 移出**{runtime_hint}"
+                        ),
+                    }
+                )
 
         # K6 自动化条目里混入「运行时状态」字段（2026-09-27 新增；编号沿用文档顺序，
         #    代码位置在 K4 之前只为贴近上一段键校验，不影响判据）
@@ -304,16 +390,27 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
             allowed_set = set(allowed)
             for a in reg.get("automations") or []:
                 if not isinstance(a, dict):
-                    findings.append({"kind": "automation_entry_not_object", "doc": raw,
-                                     "detail": f"registry.automations 里有非对象条目: {a!r:.80}"})
+                    findings.append(
+                        {
+                            "kind": "automation_entry_not_object",
+                            "doc": raw,
+                            "detail": f"registry.automations 里有非对象条目: {a!r:.80}",
+                        }
+                    )
                     continue
                 for k in sorted(set(a) - allowed_set):
-                    findings.append({
-                        "kind": "runtime_state_in_declaration", "doc": raw, "key": k,
-                        "detail": (f"registry.automations[{a.get('name')}] 出现非声明字段 `{k}`"
-                                   f"（声明允许的字段: {allowed}）—— **声明文件只放声明**；"
-                                   f"运行时间/状态读 DB，别写回声明文件"),
-                    })
+                    findings.append(
+                        {
+                            "kind": "runtime_state_in_declaration",
+                            "doc": raw,
+                            "key": k,
+                            "detail": (
+                                f"registry.automations[{a.get('name')}] 出现非声明字段 `{k}`"
+                                f"（声明允许的字段: {allowed}）—— **声明文件只放声明**；"
+                                f"运行时间/状态读 DB，别写回声明文件"
+                            ),
+                        }
+                    )
 
         # K4 引用了 DB 中不存在的自动化 id（跳过含 URL 的行 —— 曾把 bittide 文章号误判为 dangling id）
         for i, ln in enumerate(lines, 1):
@@ -321,8 +418,15 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
                 continue
             for m in list(AUTO_ID_RE.findall(ln)) + list(UUID_RE.findall(ln)):
                 if m not in all_ids:
-                    findings.append({"kind": "id_dangling", "doc": raw, "id": m, "line": i,
-                                     "detail": f"第 {i} 行引用了不存在的自动化 id {m}"})
+                    findings.append(
+                        {
+                            "kind": "id_dangling",
+                            "doc": raw,
+                            "id": m,
+                            "line": i,
+                            "detail": f"第 {i} 行引用了不存在的自动化 id {m}",
+                        }
+                    )
 
     return findings
 
@@ -346,6 +450,8 @@ def reminder_off(it: dict) -> tuple[bool, str | None]:
     if not str(it.get("no_reminder_reason") or "").strip():
         return False, "no_reminder_without_reason"
     return True, None
+
+
 IF_NO_ACTION_ENUM = {"auto_switch_to_live", "keep_calibrate", "keep_as_is", "escalate"}
 # 前置条件表达式里的标识符（用于"契约 ↔ 校验器"是否已脱节的机械核对）
 COND_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")
@@ -366,8 +472,10 @@ def check_contract_blind(reg: dict, root: Path) -> list[dict]:
 
     # ---- 1) 各维度的输入声明是否非空（空声明 = 该维度永远空转，却仍计入 clean）----
     if not (reg.get("automation_scope") or {}).get("include_name_patterns"):
-        blind("automation_scope.include_name_patterns",
-              "scope 的 include_name_patterns 为空 → D3「未纳管」永远查不到东西（空声明 ≠ 无漂移）")
+        blind(
+            "automation_scope.include_name_patterns",
+            "scope 的 include_name_patterns 为空 → D3「未纳管」永远查不到东西（空声明 ≠ 无漂移）",
+        )
     if not (reg.get("automations") or []):
         blind("automations", "自动化声明清单为空 → D1/D2/D4 全部空转")
     docs = (reg.get("doc_contract") or {}).get("docs") or []
@@ -376,39 +484,51 @@ def check_contract_blind(reg: dict, root: Path) -> list[dict]:
     for d in docs:
         spec = d if isinstance(d, dict) else {"path": d}
         merged = {**(reg.get("doc_contract") or {}), **spec}
-        if not (merged.get("time_anchors") or merged.get("must_mention_keys")
-                or merged.get("table_keys_expected")):
-            blind(f"doc_contract.docs[{spec.get('path')}]",
-                  f"文档「{spec.get('path')}」已登记，但锚点/必提键/表检查三者皆空 → 这条契约什么都没在查")
+        if not (
+            merged.get("time_anchors")
+            or merged.get("must_mention_keys")
+            or merged.get("table_keys_expected")
+        ):
+            blind(
+                f"doc_contract.docs[{spec.get('path')}]",
+                f"文档「{spec.get('path')}」已登记，但锚点/必提键/表检查三者皆空 → 这条契约什么都没在查",
+            )
     if not (reg.get("autonomy_methods") or {}).get("ladder"):
-        blind("autonomy_methods.ladder",
-              "自主度阶梯未声明 → 「谁被允许自己动手」没有可对账的来源")
+        blind("autonomy_methods.ladder", "自主度阶梯未声明 → 「谁被允许自己动手」没有可对账的来源")
 
     # ---- 2) 切换守卫是否可验证（这是全系统唯一能自己改生产 mode 的机器开关）----
     sg = (reg.get("doc_apply") or {}).get("switch_guard") or {}
     ver = sg.get("precondition_verifier")
     if not ver:
-        blind("doc_apply.switch_guard.precondition_verifier",
-              "守卫声明了自动切换，却没声明用哪个校验器判定 → 前置条件不可验证")
+        blind(
+            "doc_apply.switch_guard.precondition_verifier",
+            "守卫声明了自动切换，却没声明用哪个校验器判定 → 前置条件不可验证",
+        )
     else:
         m = re.search(r"([\w$./\-]+\.py)", str(ver))
         raw = m.group(1) if m else None
         path = None
         if not raw:
-            blind("doc_apply.switch_guard.precondition_verifier",
-                  f"校验器字符串里找不到脚本路径：{ver!r}")
+            blind(
+                "doc_apply.switch_guard.precondition_verifier",
+                f"校验器字符串里找不到脚本路径：{ver!r}",
+            )
         elif raw.startswith("$CLAW/"):
-            path = root / raw[len("$CLAW/"):]
+            path = root / raw[len("$CLAW/") :]
         elif raw.startswith("/"):
             path = Path(raw)
         else:
-            blind("doc_apply.switch_guard.precondition_verifier",
-                  f"校验器用 **cwd 相对路径** {raw} → 换个工作目录执行就 No such file，"
-                  f"守卫会在无人察觉时失效（一律写成 $CLAW/... 或绝对路径）")
+            blind(
+                "doc_apply.switch_guard.precondition_verifier",
+                f"校验器用 **cwd 相对路径** {raw} → 换个工作目录执行就 No such file，"
+                f"守卫会在无人察觉时失效（一律写成 $CLAW/... 或绝对路径）",
+            )
         if path is not None:
             if not path.exists():
-                blind("doc_apply.switch_guard.precondition_verifier",
-                      f"校验器 {path} 不存在 → 自动切换的前置条件无法求值")
+                blind(
+                    "doc_apply.switch_guard.precondition_verifier",
+                    f"校验器 {path} 不存在 → 自动切换的前置条件无法求值",
+                )
             else:
                 vsrc = path.read_text(encoding="utf-8", errors="replace")
                 for cond in sg.get("preconditions") or []:
@@ -417,15 +537,19 @@ def check_contract_blind(reg: dict, root: Path) -> list[dict]:
                             continue
                         leaf = ident.rsplit(".", 1)[-1]
                         if leaf not in vsrc:
-                            blind(f"switch_guard.preconditions[{cond}]",
-                                  f"前置条件里的 `{leaf}` 在校验器 {path.name} 里找不到 → "
-                                  f"契约与校验器可能已脱节（改了输出键名而没改前置条件）")
+                            blind(
+                                f"switch_guard.preconditions[{cond}]",
+                                f"前置条件里的 `{leaf}` 在校验器 {path.name} 里找不到 → "
+                                f"契约与校验器可能已脱节（改了输出键名而没改前置条件）",
+                            )
 
     conds = [str(x) for x in (sg.get("preconditions") or [])]
     if conds and not any(re.match(r"^\s*[\w.]*\.?ok\s*==", c) for c in conds):
-        blind("doc_apply.switch_guard.preconditions",
-              "前置条件缺少 `ok == true` 兜底 → 校验器返回错误 payload（键整体缺失）时，"
-              "缺键可能被当成空值/假值而判为通过 —— **错误 ≠ 通过**")
+        blind(
+            "doc_apply.switch_guard.preconditions",
+            "前置条件缺少 `ok == true` 兜底 → 校验器返回错误 payload（键整体缺失）时，"
+            "缺键可能被当成空值/假值而判为通过 —— **错误 ≠ 通过**",
+        )
 
     # ---- 3) if_no_action 枚举 × auto_switch：消灭"到期不动会怎样"的自由文本副本 ----
     pa = reg.get("pending_actions") or []
@@ -434,21 +558,31 @@ def check_contract_blind(reg: dict, root: Path) -> list[dict]:
         v = a.get("if_no_action")
         pid = a.get("id")
         if v is None:
-            blind(f"pending_actions[{pid}]",
-                  "缺 `if_no_action`（枚举）：到期不动的后果没有机器可读声明，自由文本迟早与真值脱节")
+            blind(
+                f"pending_actions[{pid}]",
+                "缺 `if_no_action`（枚举）：到期不动的后果没有机器可读声明，自由文本迟早与真值脱节",
+            )
         elif v not in IF_NO_ACTION_ENUM:
-            blind(f"pending_actions[{pid}]",
-                  f"`if_no_action={v}` 不在枚举 {sorted(IF_NO_ACTION_ENUM)} 内（枚举才能机器交叉核对）")
+            blind(
+                f"pending_actions[{pid}]",
+                f"`if_no_action={v}` 不在枚举 {sorted(IF_NO_ACTION_ENUM)} 内（枚举才能机器交叉核对）",
+            )
         elif v == "auto_switch_to_live" and not switch_flag:
-            blind(f"pending_actions[{pid}]",
-                  "声明「到期不动就自动切 live」，但 doc_apply.auto_switch=false —— 两处真值互相矛盾")
+            blind(
+                f"pending_actions[{pid}]",
+                "声明「到期不动就自动切 live」，但 doc_apply.auto_switch=false —— 两处真值互相矛盾",
+            )
         elif v == "keep_calibrate" and switch_flag:
-            blind(f"pending_actions[{pid}]",
-                  "声明「到期不动就保持 calibrate」，但 doc_apply.auto_switch=true —— 两处真值互相矛盾")
+            blind(
+                f"pending_actions[{pid}]",
+                "声明「到期不动就保持 calibrate」，但 doc_apply.auto_switch=true —— 两处真值互相矛盾",
+            )
     if switch_flag and not any(a.get("if_no_action") == "auto_switch_to_live" for a in pa):
-        blind("doc_apply.auto_switch",
-              "auto_switch=true，却没有任何待办声明 `if_no_action: auto_switch_to_live` → "
-              "「自动切换」这件事没有可对账的待办条目")
+        blind(
+            "doc_apply.auto_switch",
+            "auto_switch=true，却没有任何待办声明 `if_no_action: auto_switch_to_live` → "
+            "「自动切换」这件事没有可对账的待办条目",
+        )
     return out
 
 
@@ -494,33 +628,45 @@ def check_slot_consistency(reg: dict, live: dict, rows_all: dict) -> list[dict]:
         keys = [k for k in (g.get("keys") or []) if k]
         intentional = set(g.get("keys_intentionally_differing") or [])
         if not keys:
-            f("group_no_keys", str(gid), f"一致性组 `{gid}` 没有声明要比对的键 → 这条组永远不会查出东西")
+            f(
+                "group_no_keys",
+                str(gid),
+                f"一致性组 `{gid}` 没有声明要比对的键 → 这条组永远不会查出东西",
+            )
             continue
 
         members = []
         for i in ids:
             r = live.get(i)
             if r is None:
-                f("group_member_missing", str(gid),
-                  f"一致性组 `{gid}` 的成员 {i} 不在调度库（已删/ID 写错）→ 组不完整，"
-                  f"配置一致性无从核对")
+                f(
+                    "group_member_missing",
+                    str(gid),
+                    f"一致性组 `{gid}` 的成员 {i} 不在调度库（已删/ID 写错）→ 组不完整，"
+                    f"配置一致性无从核对",
+                )
                 continue
             members.append((i, r))
         if len(members) < 2:
             # 少于 2 条就没有"一致性"可言 —— 静默返回会让这条组变成死守卫
-            f("group_too_small", str(gid),
-              f"一致性组 `{gid}` 只剩 {len(members)} 条活跃成员（<2）→ 该组空转，"
-              f"要么补成员，要么撤掉这条组")
+            f(
+                "group_too_small",
+                str(gid),
+                f"一致性组 `{gid}` 只剩 {len(members)} 条活跃成员（<2）→ 该组空转，"
+                f"要么补成员，要么撤掉这条组",
+            )
             continue
 
         anchor_id, anchor_row = members[0]
         for key in keys:
             if key in intentional:
                 continue
-            ref = anchor_row[key] if key in anchor_row.keys() else None
+            # noqa SIM118：这些 row 是 sqlite3.Row，`in` 查的是**值**不是键 ——
+            # `key in row` 不报错、恒为 False（静默判成"键不存在"），只有 .keys() 才对。
+            ref = anchor_row[key] if key in anchor_row.keys() else None  # noqa: SIM118
             diffs = []
             for mid, row in members[1:]:
-                cur = row[key] if key in row.keys() else None
+                cur = row[key] if key in row.keys() else None  # noqa: SIM118
                 if cur != ref:
                     diffs.append((mid, cur))
             if not diffs:
@@ -528,22 +674,32 @@ def check_slot_consistency(reg: dict, live: dict, rows_all: dict) -> list[dict]:
             # 一个键只报一条（把差异成员并列写在一行）：逐成员各报一条会把「同一件事」
             # 拆成 N 条噪音，简报里读不出重点 —— 报告粒度要对齐人的决策粒度。
             shown = "、".join(f"{short_id(mid)}={cur!r}" for mid, cur in diffs)
-            f("slot_config_mismatch", f"{gid}.{key}",
-              f"同组 `{gid}` 的 {key} 不一致：基准 {short_id(anchor_id)}={ref!r}，但 {shown}"
-              f"（{'/'.join(short_id(i) for i, _ in members[1:])} 共 {len(members)} 条跑同一件事）。"
-              f"如属有意差异，请写进 keys_intentionally_differing 并给出理由 —— "
-              f"不要靠人记得")
+            f(
+                "slot_config_mismatch",
+                f"{gid}.{key}",
+                f"同组 `{gid}` 的 {key} 不一致：基准 {short_id(anchor_id)}={ref!r}，但 {shown}"
+                f"（{'/'.join(short_id(i) for i, _ in members[1:])} 共 {len(members)} 条跑同一件事）。"
+                f"如属有意差异，请写进 keys_intentionally_differing 并给出理由 —— "
+                f"不要靠人记得",
+            )
     return out
 
 
-CROSS_STATE = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "cross_project_state.json"
+CROSS_STATE = (
+    Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "cross_project_state.json"
+)
 WB_ROOT = Path(os.environ.get("HOME", "/Users/guan")) / "WorkBuddy"
 # "明日/今日/开盘前" 这类相对时间无法被机器判定何时过期（写到文件里的那一刻就已经开始腐烂）
 REL_TIME_RE = re.compile(r"(明日|今日|今天|明天|后天|开盘前|收盘前|本周内|下周|稍后|尽快)")
 
 
-def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
-                        exists: bool = True, load_error: str | None = None) -> list[dict]:
+def check_cross_project(
+    cs: dict,
+    cs_path: Path,
+    now_dt: datetime.datetime,
+    exists: bool = True,
+    load_error: str | None = None,
+) -> list[dict]:
     """D8 跨项目闭环：active_projects 声明的每个项目是否真的有人管、且状态锚自己不说谎。
 
     存在理由（2026-09-24 用户"统计目前所有项目，所有项目都要闭环"）：
@@ -564,19 +720,28 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
     #    输出说"状态锚不存在"，既误导排障，又掩盖"输入不可信"这一层语义
     #    （真正的危险是：把"读不出来"当成"没有跨项目问题"）。
     if not exists:
-        f("state_anchor_missing", str(cs_path),
-          "跨项目状态锚文件不存在 → 所有项目的闭环声明都无从核对"
-          "（换会话/host 恢复现场的唯一权威源丢了）")
+        f(
+            "state_anchor_missing",
+            str(cs_path),
+            "跨项目状态锚文件不存在 → 所有项目的闭环声明都无从核对"
+            "（换会话/host 恢复现场的唯一权威源丢了）",
+        )
         return out
     if load_error:
-        f("state_anchor_unreadable", str(cs_path),
-          f"状态锚存在但读不出来（{load_error}）→ **输入不可信**，"
-          "本次不得据此判定「跨项目无问题」，先修输入")
+        f(
+            "state_anchor_unreadable",
+            str(cs_path),
+            f"状态锚存在但读不出来（{load_error}）→ **输入不可信**，"
+            "本次不得据此判定「跨项目无问题」，先修输入",
+        )
         return out
     if not cs:
-        f("state_anchor_empty", str(cs_path),
-          "状态锚是空对象（存在但没有任何内容）→ 空 ≠ 无问题；"
-          "active_projects/monitoring 缺失时 D8 无从核对")
+        f(
+            "state_anchor_empty",
+            str(cs_path),
+            "状态锚是空对象（存在但没有任何内容）→ 空 ≠ 无问题；"
+            "active_projects/monitoring 缺失时 D8 无从核对",
+        )
         return out
 
     aps = cs.get("active_projects") or {}
@@ -585,15 +750,21 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
     # ⚠️ active_projects 为空 → K1/K3/K5 全部空转，输出依然是"D8 = 0"。
     #    这正是 D7 抓的那类盲区（空声明与零漂移同形），所以在 D8 自己身上也要自证一次。
     if not aps:
-        f("no_active_projects", "active_projects",
-          "active_projects 为空 → 所有项目的闭环声明都不在核对范围内（空 ≠ 无问题）")
+        f(
+            "no_active_projects",
+            "active_projects",
+            "active_projects 为空 → 所有项目的闭环声明都不在核对范围内（空 ≠ 无问题）",
+        )
 
     # ---- K1 声明悬空：声明的 cwd 不存在（项目搬走了 / 外部盘没挂 / 路径写错）----
     for name, v in aps.items():
         cwd = (v or {}).get("cwd") if isinstance(v, dict) else None
         if cwd and not Path(str(cwd)).exists():
-            f("project_cwd_missing", str(name),
-              f"声明 cwd 不存在：{cwd}（项目已搬走 / 外部盘未挂载 / 路径写错）")
+            f(
+                "project_cwd_missing",
+                str(name),
+                f"声明 cwd 不存在：{cwd}（项目已搬走 / 外部盘未挂载 / 路径写错）",
+            )
 
     # ---- K2 未纳管：磁盘上真实存在的 git 仓库，却没进 active_projects ----
     # 注意：WorkBuddy 整棵树本身是软链（realpath → /Volumes/ZHITAI/WorkBuddy），
@@ -603,7 +774,7 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
         if not isinstance(v, dict):
             continue
         paths = [v.get("cwd")] if v.get("cwd") else []
-        paths += list(v.get("cwds") or [])          # 一个条目可能承载多个仓库（如 wechat 三件套）
+        paths += list(v.get("cwds") or [])  # 一个条目可能承载多个仓库（如 wechat 三件套）
         for cwd in paths:
             if cwd and Path(str(cwd)).exists():
                 declared_real.add(os.path.realpath(str(cwd)))
@@ -617,15 +788,21 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
             rp = os.path.realpath(str(d))
             if rp in declared_real:
                 continue
-            f("project_unregistered", d.name,
-              f"{d.name} 是真实 git 仓库，但未登记进 active_projects → 跨项目闭环矩阵漏项"
-              f"（re: {rp}）")
+            f(
+                "project_unregistered",
+                d.name,
+                f"{d.name} 是真实 git 仓库，但未登记进 active_projects → 跨项目闭环矩阵漏项"
+                f"（re: {rp}）",
+            )
     else:
         # ⚠️ 同样不能静默：`~/WorkBuddy` 是软链（→ /Volumes/ZHITAI/WorkBuddy），
         #    外部盘没挂时整棵树的 git 仓库扫描会**一条都不查**，却仍然输出 D8=0。
-        f("scan_root_missing", str(WB_ROOT),
-          f"{WB_ROOT} 不可访问（外部盘未挂载？）→ K2「磁盘上真实存在但未登记的仓库」整段空转，"
-          "本次的 D8=0 **不代表**没有漏项")
+        f(
+            "scan_root_missing",
+            str(WB_ROOT),
+            f"{WB_ROOT} 不可访问（外部盘未挂载？）→ K2「磁盘上真实存在但未登记的仓库」整段空转，"
+            "本次的 D8=0 **不代表**没有漏项",
+        )
 
     # ---- K3 覆盖缺口：声明了项目，却没说它怎么被监控（或已显式声明休眠）----
     covered_tokens: set[str] = set()
@@ -637,9 +814,12 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
         tokens = [t for t in re.split(r"[+/,、\s]+", str(name)) if t]
         if any(t in covered_tokens for t in tokens):
             continue
-        f("coverage_gap", str(name),
-          f"active_projects 有 `{name}`，但 monitoring.surfaces 没有对应的健康检查声明 → "
-          "该项目「活着还是死了」无人监控（休眠项也要显式写 runtime=none 的理由）")
+        f(
+            "coverage_gap",
+            str(name),
+            f"active_projects 有 `{name}`，但 monitoring.surfaces 没有对应的健康检查声明 → "
+            "该项目「活着还是死了」无人监控（休眠项也要显式写 runtime=none 的理由）",
+        )
 
     # ---- K4 时间戳说谎：updated_at ≠ 文件真实修改时间 ----
     if cs_path.exists():
@@ -661,13 +841,19 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
                     ua_dt = ua_dt.astimezone()
                 delta_h = (mt - ua_dt).total_seconds() / 3600
                 if delta_h > 24:
-                    f("updated_at_lie", "updated_at",
-                      f"文件 mtime={mt:%Y-%m-%d %H:%M}，但 updated_at={ua} → 差 {delta_h/24:.1f} 天。"
-                      "写者只更新子节点却没 bump 顶层 → 「最后更新」这个字段在说谎")
+                    f(
+                        "updated_at_lie",
+                        "updated_at",
+                        f"文件 mtime={mt:%Y-%m-%d %H:%M}，但 updated_at={ua} → 差 {delta_h / 24:.1f} 天。"
+                        "写者只更新子节点却没 bump 顶层 → 「最后更新」这个字段在说谎",
+                    )
             except Exception as e:  # noqa: BLE001
-                f("updated_at_check_failed", "updated_at",
-                  f"时间戳比较本身出错（解析成功，比较失败）：{type(e).__name__}: {e} —— "
-                  "这属于检查器的缺陷，不是数据的问题")
+                f(
+                    "updated_at_check_failed",
+                    "updated_at",
+                    f"时间戳比较本身出错（解析成功，比较失败）：{type(e).__name__}: {e} —— "
+                    "这属于检查器的缺陷，不是数据的问题",
+                )
 
     # ---- K5/K6 交接：有期限的"等人决定"必须机器可判定 ----
     handoff = cs.get("handoff") or {}
@@ -676,11 +862,17 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
         blob = json.dumps(handoff, ensure_ascii=False)
         rel = sorted(set(REL_TIME_RE.findall(blob)))
         if rel:
-            f("handoff_relative_time", "handoff",
-              f"handoff 用相对时间描述期限（{'/'.join(rel)}）→ 到期那天没人知道它到期了，"
-              f"必须写成 ISO 日期")
-        f("handoff_unstructured", "handoff",
-          "handoff 未结构化（缺 items[] 带 due/owner/status）→ 交接项是否过期无法机器核对")
+            f(
+                "handoff_relative_time",
+                "handoff",
+                f"handoff 用相对时间描述期限（{'/'.join(rel)}）→ 到期那天没人知道它到期了，"
+                f"必须写成 ISO 日期",
+            )
+        f(
+            "handoff_unstructured",
+            "handoff",
+            "handoff 未结构化（缺 items[] 带 due/owner/status）→ 交接项是否过期无法机器核对",
+        )
     else:
         for it in items:
             pid = it.get("id")
@@ -688,9 +880,12 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
                 continue
             _off, _err = reminder_off(it)
             if _err:
-                f(_err, str(pid),
-                  f"交接项 `{pid}` 声明了 `no_reminder` 但缺 `no_reminder_reason`"
-                  f" → 静音必须留痕（谁/何时/为什么关的），否则它就是个后门")
+                f(
+                    _err,
+                    str(pid),
+                    f"交接项 `{pid}` 声明了 `no_reminder` 但缺 `no_reminder_reason`"
+                    f" → 静音必须留痕（谁/何时/为什么关的），否则它就是个后门",
+                )
             if _off:
                 continue
             due = it.get("due")
@@ -703,9 +898,12 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
                 f("handoff_bad_due", str(pid), f"`due` 不是 ISO 日期：{due}")
                 continue
             if dd < now_dt.date():
-                f("handoff_overdue", str(pid),
-                  f"{pid}（owner={it.get('owner')}，due {dd}）已逾期 {(now_dt.date() - dd).days} 天"
-                  f"，status={it.get('status')}：{it.get('what')}")
+                f(
+                    "handoff_overdue",
+                    str(pid),
+                    f"{pid}（owner={it.get('owner')}，due {dd}）已逾期 {(now_dt.date() - dd).days} 天"
+                    f"，status={it.get('status')}：{it.get('what')}",
+                )
 
     # ---- K7 open_items：跨项目的「开放决策/待办」是否带期限（2026-09-28 新增）----
     # 存在理由（审计实测）：全部项目的「待决策/待办/后续」合计 ≈1320 行、**仅 6% 带期限**，
@@ -718,9 +916,12 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
         items = pv.get("open_items")
         if items is None:
             # 缺键 ≠ 空集：没声明与「声明了空表」必须区分开，否则「没人整理过」会伪装成「没有问题」
-            f("open_items_undeclared", str(pname),
-              f"项目 `{pname}` 未声明 `open_items` —— 无法区分「真的没有开放项」与「从没人整理过」"
-              f"（审计过的项目应显式写 `open_items: []`）")
+            f(
+                "open_items_undeclared",
+                str(pname),
+                f"项目 `{pname}` 未声明 `open_items` —— 无法区分「真的没有开放项」与「从没人整理过」"
+                f"（审计过的项目应显式写 `open_items: []`）",
+            )
             continue
         for it in items:
             if not isinstance(it, dict):
@@ -730,19 +931,28 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
                 continue
             _off, _err = reminder_off(it)
             if _err:
-                f(_err, f"{pname}.{iid}",
-                  f"开放项 `{iid}` 声明了 `no_reminder` 但缺 `no_reminder_reason`"
-                  f" → 静音必须留痕，否则它就是个后门")
+                f(
+                    _err,
+                    f"{pname}.{iid}",
+                    f"开放项 `{iid}` 声明了 `no_reminder` 但缺 `no_reminder_reason`"
+                    f" → 静音必须留痕，否则它就是个后门",
+                )
             if _off:
                 continue
             if not it.get("evidence"):
-                f("open_item_no_evidence", f"{pname}.{iid}",
-                  f"开放项 `{iid}` 缺 `evidence` → 无从核实它是否真的还开放"
-                  f"（政策要求写「怎么核实的」，核不出来就不该进表）")
+                f(
+                    "open_item_no_evidence",
+                    f"{pname}.{iid}",
+                    f"开放项 `{iid}` 缺 `evidence` → 无从核实它是否真的还开放"
+                    f"（政策要求写「怎么核实的」，核不出来就不该进表）",
+                )
             due = it.get("due")
             if not due:
-                f("open_item_no_due", f"{pname}.{iid}",
-                  f"开放项 `{iid}` 没有 due → 与 H1 同型：不会有人再来问它")
+                f(
+                    "open_item_no_due",
+                    f"{pname}.{iid}",
+                    f"开放项 `{iid}` 没有 due → 与 H1 同型：不会有人再来问它",
+                )
                 continue
             try:
                 dd = datetime.date.fromisoformat(str(due)[:10])
@@ -750,9 +960,12 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
                 f("open_item_bad_due", f"{pname}.{iid}", f"`due` 不是 ISO 日期：{due}")
                 continue
             if dd < now_dt.date():
-                f("open_item_overdue", f"{pname}.{iid}",
-                  f"{pname}/{iid}（owner={it.get('owner')}，due {dd}）已逾期 "
-                  f"{(now_dt.date() - dd).days} 天，if_no_action={it.get('if_no_action')}：{it.get('what')}")
+                f(
+                    "open_item_overdue",
+                    f"{pname}.{iid}",
+                    f"{pname}/{iid}（owner={it.get('owner')}，due {dd}）已逾期 "
+                    f"{(now_dt.date() - dd).days} 天，if_no_action={it.get('if_no_action')}：{it.get('what')}",
+                )
     return out
 
 
@@ -771,20 +984,35 @@ def check_pending_due(reg: dict, now_dt: datetime.datetime) -> list[dict]:
         try:
             due_d = datetime.date.fromisoformat(str(due)[:10])
         except ValueError:
-            out.append({"id": a.get("id"), "due": due, "kind": "bad_due",
-                        "detail": f"`due` 不是 ISO 日期: {due}"})
+            out.append(
+                {
+                    "id": a.get("id"),
+                    "due": due,
+                    "kind": "bad_due",
+                    "detail": f"`due` 不是 ISO 日期: {due}",
+                }
+            )
             continue
         if str(a.get("status", "")).lower() in DONE_STATES:
             continue
         if due_d < today:
-            out.append({"id": a.get("id"), "title": a.get("title"), "owner": a.get("owner"),
-                        "due": str(due_d), "overdue_days": (today - due_d).days,
-                        "status": a.get("status"),
-                        "if_no_action": a.get("if_no_action"),
-                        "detail": (f"{a.get('id')} 已逾期 {(today - due_d).days} 天（due {due_d}，"
-                                   f"owner={a.get('owner')}，status={a.get('status')}，"
-                                   f"不动则 {a.get('if_no_action')}）"
-                                   f"：{a.get('title')}")})
+            out.append(
+                {
+                    "id": a.get("id"),
+                    "title": a.get("title"),
+                    "owner": a.get("owner"),
+                    "due": str(due_d),
+                    "overdue_days": (today - due_d).days,
+                    "status": a.get("status"),
+                    "if_no_action": a.get("if_no_action"),
+                    "detail": (
+                        f"{a.get('id')} 已逾期 {(today - due_d).days} 天（due {due_d}，"
+                        f"owner={a.get('owner')}，status={a.get('status')}，"
+                        f"不动则 {a.get('if_no_action')}）"
+                        f"：{a.get('title')}"
+                    ),
+                }
+            )
     return out
 
 
@@ -793,20 +1021,30 @@ def main() -> int:
     ap.add_argument("--registry", default=str(DEFAULT_REGISTRY))
     ap.add_argument("--db", default=str(DEFAULT_DB))
     ap.add_argument("--fix", action="store_true", help="仅收敛 D1（以 DB 真值回写 registry 镜像）")
-    ap.add_argument("--doc", action="append", default=None,
-                    help="覆盖 doc_contract.docs（可重复；供自测造错样本，不写回任何文件）")
+    ap.add_argument(
+        "--doc",
+        action="append",
+        default=None,
+        help="覆盖 doc_contract.docs（可重复；供自测造错样本，不写回任何文件）",
+    )
     ap.add_argument("--no-doc", action="store_true", help="跳过 D5 文档漂移检查")
-    ap.add_argument("--cross-state", default=str(CROSS_STATE),
-                    help="跨项目状态锚路径（D8）")
-    ap.add_argument("--brief", action="store_true",
-                    help="仅输出需人审项的一行式摘要（供外部看门狗做告警正文，避免调用方拼 JSON）")
+    ap.add_argument("--cross-state", default=str(CROSS_STATE), help="跨项目状态锚路径（D8）")
+    ap.add_argument(
+        "--brief",
+        action="store_true",
+        help="仅输出需人审项的一行式摘要（供外部看门狗做告警正文，避免调用方拼 JSON）",
+    )
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
     reg_path = Path(args.registry)
     reg = load_json(reg_path)
     if "_error" in reg:
-        print(json.dumps({"ok": False, "error": f"registry 读取失败: {reg['_error']}"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"ok": False, "error": f"registry 读取失败: {reg['_error']}"}, ensure_ascii=False
+            )
+        )
         return 20
 
     db_path = Path(args.db)
@@ -849,15 +1087,27 @@ def main() -> int:
         i = a.get("id")
         row = live.get(i)
         if row is None:
-            d2.append({"id": i, "name": a.get("name"),
-                       "why": "已软删" if i in all_ids else "DB 中不存在",
-                       "declared_rrule": a.get("rrule")})
+            d2.append(
+                {
+                    "id": i,
+                    "name": a.get("name"),
+                    "why": "已软删" if i in all_ids else "DB 中不存在",
+                    "declared_rrule": a.get("rrule"),
+                }
+            )
             continue
         if row["rrule"] != a.get("rrule") or row["status"] != a.get("status"):
-            d1.append({"id": i, "name": row["name"],
-                       "field": "rrule" if row["rrule"] != a.get("rrule") else "status",
-                       "declared": a.get("rrule") if row["rrule"] != a.get("rrule") else a.get("status"),
-                       "observed": row["rrule"] if row["rrule"] != a.get("rrule") else row["status"]})
+            d1.append(
+                {
+                    "id": i,
+                    "name": row["name"],
+                    "field": "rrule" if row["rrule"] != a.get("rrule") else "status",
+                    "declared": a.get("rrule")
+                    if row["rrule"] != a.get("rrule")
+                    else a.get("status"),
+                    "observed": row["rrule"] if row["rrule"] != a.get("rrule") else row["status"],
+                }
+            )
 
     # ---- D3 未纳管 ----
     declared_ids = {a.get("id") for a in declared}
@@ -868,7 +1118,9 @@ def main() -> int:
             if r["status"] != "ACTIVE":
                 continue
             if in_scope(r["name"] or "", scope):
-                d3.append({"id": r["id"], "name": r["name"], "rrule": r["rrule"], "status": r["status"]})
+                d3.append(
+                    {"id": r["id"], "name": r["name"], "rrule": r["rrule"], "status": r["status"]}
+                )
 
     # ---- D4 心跳 ----
     for a in declared:
@@ -877,22 +1129,32 @@ def main() -> int:
         if row is None:
             continue
         if row["status"] != "ACTIVE":
-            continue          # ⚠️ 修正(二次审计)：PAUSED 的自动化"不跑"是预期行为，不该报心跳超时
+            continue  # ⚠️ 修正(二次审计)：PAUSED 的自动化"不跑"是预期行为，不该报心跳超时
         c = cadence_hours(row["rrule"])
         if c is None or c > HEARTBEAT_MAX_CADENCE_H:
             continue
         base_ts = last_run.get(i)
         if base_ts is None:
-            base_ts = row["created_at"]          # 新自动化：以创建时刻计宽限
+            base_ts = row["created_at"]  # 新自动化：以创建时刻计宽限
         if not base_ts:
             continue
         age_h = (now_dt - datetime.datetime.fromtimestamp(base_ts / 1000)).total_seconds() / 3600
         thr = stale_threshold_h(c)
         if age_h > thr:
-            d4.append({"id": i, "name": row["name"], "rrule": row["rrule"],
-                       "age_h": round(age_h, 1), "threshold_h": round(thr, 1),
-                       "last_run": datetime.datetime.fromtimestamp(base_ts / 1000).strftime("%Y-%m-%d %H:%M")
-                       if last_run.get(i) else "(从未运行，按创建时刻计)"})
+            d4.append(
+                {
+                    "id": i,
+                    "name": row["name"],
+                    "rrule": row["rrule"],
+                    "age_h": round(age_h, 1),
+                    "threshold_h": round(thr, 1),
+                    "last_run": datetime.datetime.fromtimestamp(base_ts / 1000).strftime(
+                        "%Y-%m-%d %H:%M"
+                    )
+                    if last_run.get(i)
+                    else "(从未运行，按创建时刻计)",
+                }
+            )
 
     # ---- D4' 跑了但从未成功（2026-09-25 补：心跳新鲜 ≠ 在工作）----
     # 存在理由（实测）：`💓 中枢存活看门狗` 连续 48 次运行 **0 次成功**
@@ -909,16 +1171,25 @@ def main() -> int:
             continue
         recent = recent_runs(conn, i, MIN_RUNS_FOR_SUCCESS)
         if len(recent) < MIN_RUNS_FOR_SUCCESS:
-            continue          # 样本不足不判（只跑过一两次，失败是常态）
+            continue  # 样本不足不判（只跑过一两次，失败是常态）
         if all(not ok for ok, _ in recent):
             codes = sorted({c for _, c in recent if c})
-            d4.append({"kind": "never_succeeds", "id": i, "name": row["name"],
-                       "rrule": row["rrule"],
-                       "runs": len(recent), "success": 0,
-                       "failure_codes": codes,
-                       "detail": (f"{row['name']}：最近 {len(recent)} 次运行 **一次都没成功**"
-                                  f"（心跳却是新鲜的，故旧 D4 静默通过）"
-                                  + (f"，failure_code={codes}" if codes else ""))})
+            d4.append(
+                {
+                    "kind": "never_succeeds",
+                    "id": i,
+                    "name": row["name"],
+                    "rrule": row["rrule"],
+                    "runs": len(recent),
+                    "success": 0,
+                    "failure_codes": codes,
+                    "detail": (
+                        f"{row['name']}：最近 {len(recent)} 次运行 **一次都没成功**"
+                        f"（心跳却是新鲜的，故旧 D4 静默通过）"
+                        + (f"，failure_code={codes}" if codes else "")
+                    ),
+                }
+            )
 
     # ---- D5 文档漂移（只读；文档是"会腐烂的声明"）----
     d5 = [] if args.no_doc else check_doc_drift(reg, live, all_ids, now_dt, args.doc)
@@ -934,8 +1205,9 @@ def main() -> int:
     cs_path = Path(args.cross_state)
     if cs_path.exists():
         cs_raw = load_json(cs_path)
-        d8 = check_cross_project(cs_raw, cs_path, now_dt,
-                                 exists=True, load_error=cs_raw.get("_error"))
+        d8 = check_cross_project(
+            cs_raw, cs_path, now_dt, exists=True, load_error=cs_raw.get("_error")
+        )
     else:
         d8 = check_cross_project({}, cs_path, now_dt, exists=False)
 
@@ -955,25 +1227,34 @@ def main() -> int:
             fixed.append(d["id"])
         if fixed:
             reg.setdefault("_state_sync_notes", []).append(
-                f"{now():%Y-%m-%d %H:%M} hub_reconcile --fix 以 DB 真值收敛镜像 D1 {len(fixed)} 处: " + ", ".join(fixed)
+                f"{now():%Y-%m-%d %H:%M} hub_reconcile --fix 以 DB 真值收敛镜像 D1 {len(fixed)} 处: "
+                + ", ".join(fixed)
             )
             reg["updated_at"] = now().strftime("%Y-%m-%dT%H:%M:%S")
             tmp = str(reg_path) + ".tmp"
-            Path(tmp).write_text(json.dumps(reg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            Path(tmp).write_text(
+                json.dumps(reg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
             os.replace(tmp, reg_path)
 
     # ⚠️ rc 必须先算、并写进 out：此前 rc 只作为进程退出码存在，JSON 里没有这个键，
     #    而文档/告警文案都在说"看退出码" —— 消费方读 out["rc"] 会拿到 KeyError 或 None，
     #    又一次掉进"缺键 ≠ 空集"的坑。**退出码与 JSON 里的 rc 必须同源。**
-    rc = 0 if not (d1 or d2 or d3 or d4 or d5 or d6 or d7 or d8 or d9) else (
-        10 if (d1 and not (d2 or d3 or d4 or d5 or d6 or d7 or d8 or d9)) else 20)
+    rc = (
+        0
+        if not (d1 or d2 or d3 or d4 or d5 or d6 or d7 or d8 or d9)
+        else (10 if (d1 and not (d2 or d3 or d4 or d5 or d6 or d7 or d8 or d9)) else 20)
+    )
 
     out = {
         "ok": True,
         "rc": rc,
         "declared": len(declared),
         "observed_live": len(live),
-        "scope": {"include": scope.get("include_name_patterns", []), "exclude": scope.get("exclude_name_patterns", [])},
+        "scope": {
+            "include": scope.get("include_name_patterns", []),
+            "exclude": scope.get("exclude_name_patterns", []),
+        },
         "D1_mirror_drift": d1,
         "D2_declared_missing": d2,
         "D3_unregistered": d3,
@@ -994,7 +1275,9 @@ def main() -> int:
             if x.get("kind") == "never_succeeds":
                 print(f"[从未成功] {x['detail']}")
             else:
-                print(f"[心跳超时] {x['name']} 上次 {x['last_run']} 已 {x['age_h']}h（阈 {x['threshold_h']}h）")
+                print(
+                    f"[心跳超时] {x['name']} 上次 {x['last_run']} 已 {x['age_h']}h（阈 {x['threshold_h']}h）"
+                )
         for x in d2:
             print(f"[声明悬空] {x.get('name')} — {x.get('why')}")
         for x in d3:
@@ -1014,27 +1297,35 @@ def main() -> int:
     if args.json:
         print(json.dumps(out, ensure_ascii=False))
     else:
-        print(f"[reconcile] declared={len(declared)} observed_live={len(live)} clean={out['clean']}")
-        for k, label in (("D1_mirror_drift", "D1 镜像漂移(可自动收敛)"),
-                         ("D2_declared_missing", "D2 声明悬空(需人审)"),
-                         ("D3_unregistered", "D3 未纳管(需人审)"),
-                         ("D4_heartbeat_stale", "D4 心跳超时(需人审)"),
-                         ("D5_doc_drift", "D5 文档漂移(需人审)"),
-                         ("D6_pending_overdue", "D6 待办逾期(需人审)"),
-                         ("D7_contract_blind", "D7 契约盲区(检查器自己空转，需人审)"),
-                         ("D8_cross_project", "D8 跨项目闭环(需人审)"),
-                         ("D9_slot_config", "D9 同组槽位配置不一致(需人审)")):
+        print(
+            f"[reconcile] declared={len(declared)} observed_live={len(live)} clean={out['clean']}"
+        )
+        for k, label in (
+            ("D1_mirror_drift", "D1 镜像漂移(可自动收敛)"),
+            ("D2_declared_missing", "D2 声明悬空(需人审)"),
+            ("D3_unregistered", "D3 未纳管(需人审)"),
+            ("D4_heartbeat_stale", "D4 心跳超时(需人审)"),
+            ("D5_doc_drift", "D5 文档漂移(需人审)"),
+            ("D6_pending_overdue", "D6 待办逾期(需人审)"),
+            ("D7_contract_blind", "D7 契约盲区(检查器自己空转，需人审)"),
+            ("D8_cross_project", "D8 跨项目闭环(需人审)"),
+            ("D9_slot_config", "D9 同组槽位配置不一致(需人审)"),
+        ):
             items = out[k]
             if items:
                 print(f"  {label}: {len(items)}")
                 for it in items[:8]:
                     if k == "D1_mirror_drift":
-                        print(f"    · {it['name'][:30]} {it['field']}: {it['declared']} -> {it['observed']}")
+                        print(
+                            f"    · {it['name'][:30]} {it['field']}: {it['declared']} -> {it['observed']}"
+                        )
                     elif k == "D4_heartbeat_stale":
                         if it.get("kind") == "never_succeeds":
                             print(f"    · {it['detail']}")
                         else:
-                            print(f"    · {it['name'][:30]} 上次 {it['last_run']} 已 {it['age_h']}h (阈 {it['threshold_h']}h)")
+                            print(
+                                f"    · {it['name'][:30]} 上次 {it['last_run']} 已 {it['age_h']}h (阈 {it['threshold_h']}h)"
+                            )
                     elif k == "D5_doc_drift":
                         print(f"    · [{it.get('kind')}] {it['detail']}")
                     elif k == "D6_pending_overdue":
@@ -1042,7 +1333,7 @@ def main() -> int:
                     elif k in ("D7_contract_blind", "D8_cross_project", "D9_slot_config"):
                         print(f"    · [{it.get('key')}] {it.get('detail')}")
                     else:
-                        print(f"    · {it.get('name')} {it.get('rrule','')} {it.get('why','')}")
+                        print(f"    · {it.get('name')} {it.get('rrule', '')} {it.get('why', '')}")
         if fixed:
             print(f"  ✅ 已收敛 D1 {len(fixed)} 处（DB → registry 镜像）")
         print(f"[reconcile] rc={rc}" + ("（可 --fix 自愈）" if rc == 10 else ""))

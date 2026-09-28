@@ -22,6 +22,7 @@ restore_forwarders.py — 为 9-21 去重误删的 scripts/ 副本补回转发�
     python3 restore_forwarders.py              # dry-run, 打印计划
     python3 restore_forwarders.py --apply      # 落盘 + 校验
 """
+
 from __future__ import annotations
 
 import argparse
@@ -35,7 +36,7 @@ try:
     from safe_dedup import FORWARDER_TPL, SKILL_RULE
 except Exception:
     SKILL_RULE = "dual-copy-audit v1.1.0"
-    FORWARDER_TPL = '''\
+    FORWARDER_TPL = """\
 # AUTO-GENERATED FORWARDER — 单源薄壳 (restore_forwarders.py)
 import importlib.util
 import runpy
@@ -65,7 +66,7 @@ _spec.loader.exec_module(_mod)
 
 if __name__ == "__main__":
     runpy.run_path(str(_real), run_name="__main__")
-'''
+"""
 
 
 def resolve_repo(repo: str | None) -> Path:
@@ -78,12 +79,15 @@ def resolve_repo(repo: str | None) -> Path:
 def referenced_scripts(repo: Path, scan_repo: bool = False):
     db = Path(os.path.expanduser("~/.workbuddy/workbuddy.db"))
     import re
+
     pat = re.compile(r"scripts/([A-Za-z0-9_./-]+\.py)")
     refs: set[str] = set()
     if db.is_file():
         try:
             con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-            for (prompt,) in con.execute("SELECT prompt FROM automations WHERE prompt LIKE '%scripts/%'"):
+            for (prompt,) in con.execute(
+                "SELECT prompt FROM automations WHERE prompt LIKE '%scripts/%'"
+            ):
                 refs |= set(pat.findall(prompt))
             con.close()
         except Exception as e:
@@ -93,7 +97,9 @@ def referenced_scripts(repo: Path, scan_repo: bool = False):
     if scan_repo:
         for ext in ("*.sh", "*.py", "*.md"):
             for p in repo.rglob(ext):
-                if any(part in {".git", "node_modules", "__pycache__", "archive"} for part in p.parts):
+                if any(
+                    part in {".git", "node_modules", "__pycache__", "archive"} for part in p.parts
+                ):
                     continue
                 try:
                     txt = p.read_text(encoding="utf-8", errors="ignore")
@@ -113,9 +119,15 @@ def is_forwarder(path: Path) -> bool:
 def smoke(name: str, scripts_dir: Path, py: str) -> bool:
     """import 冒烟: 从 scripts/ 目录 import X 一次 (走薄壳 -> 真身)。"""
     import subprocess
+
     try:
-        subprocess.run([py, "-c", f"import sys; sys.path.insert(0, {str(scripts_dir)!r}); import {name}"],
-                       check=True, capture_output=True, text=True, timeout=60)
+        subprocess.run(
+            [py, "-c", f"import sys; sys.path.insert(0, {str(scripts_dir)!r}); import {name}"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
         return True
     except Exception:
         return False
@@ -126,8 +138,12 @@ def main() -> int:
     ap.add_argument("--repo", default=None)
     ap.add_argument("--apply", action="store_true", help="默认 dry-run; 加此开关才落盘")
     ap.add_argument("--python", default=sys.executable)
-    ap.add_argument("--scan-repo", action="store_true", help="额外扫描仓库 .sh/.py/.md 里的 scripts/X.py 引用")
-    ap.add_argument("--force", action="store_true", help="覆盖已存在的转发薄壳(仅带 AUTO-GENERATED 标记的)")
+    ap.add_argument(
+        "--scan-repo", action="store_true", help="额外扫描仓库 .sh/.py/.md 里的 scripts/X.py 引用"
+    )
+    ap.add_argument(
+        "--force", action="store_true", help="覆盖已存在的转发薄壳(仅带 AUTO-GENERATED 标记的)"
+    )
     args = ap.parse_args()
 
     repo = resolve_repo(args.repo)
@@ -147,13 +163,13 @@ def main() -> int:
         p_w = wb_dir / s
         if p_s.is_file():
             if is_forwarder(p_s) and args.force:
-                overwritten.append(s)       # 旧薄壳, --force 覆盖为新模板
+                overwritten.append(s)  # 旧薄壳, --force 覆盖为新模板
             else:
-                skipped_ok.append(s)        # 已在 scripts/ (非薄壳或无需覆盖), 不动
+                skipped_ok.append(s)  # 已在 scripts/ (非薄壳或无需覆盖), 不动
         elif p_w.is_file():
-            candidates.append(s)            # 需补薄壳
+            candidates.append(s)  # 需补薄壳
         else:
-            missing_both.append(s)         # 两边都无, 另查
+            missing_both.append(s)  # 两边都无, 另查
 
     print(f"仓库: {repo}")
     print(f"模式: {'APPLY (落盘)' if args.apply else 'DRY-RUN (只打印)'}")
@@ -166,12 +182,14 @@ def main() -> int:
 
     created = 0
     failed = 0
-    for s in candidates + ([o for o in overwritten] if args.apply else []):
+    for s in candidates + (list(overwritten) if args.apply else []):
         name = s[:-3]
         target = scripts_dir / s
         if args.apply:
             try:
-                target.write_text(FORWARDER_TPL.format(name=name, rule=SKILL_RULE), encoding="utf-8")
+                target.write_text(
+                    FORWARDER_TPL.format(name=name, rule=SKILL_RULE), encoding="utf-8"
+                )
             except Exception as e:
                 print(f"  ❌ 写失败 {target}: {e}")
                 failed += 1

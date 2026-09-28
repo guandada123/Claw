@@ -16,6 +16,7 @@ scripts/ 目录没有 __init__.py，从不以包形式导入，因此所有
     1 = 发现双导入反模式
   -v / --verbose  打印每个被检查的文件名
 """
+
 from __future__ import annotations
 
 import sys

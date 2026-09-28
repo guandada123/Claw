@@ -109,7 +109,8 @@ def _stock_metrics(code: str) -> dict | None:
         "mom20": mom20,
         "ma20_pos": ma20_pos,
         "mom_slope": mom_slope,
-        "reclaimed_ma20": (cur > ma20) and (closes[-20] <= sum(closes[-40:-20]) / 20 if n >= 40 else False),
+        "reclaimed_ma20": (cur > ma20)
+        and (closes[-20] <= sum(closes[-40:-20]) / 20 if n >= 40 else False),
     }
 
 
@@ -185,11 +186,27 @@ def compute(date_str: str | None = None) -> dict | None:
         "report_date": date_str or date.today().isoformat(),
         "source": "QTS PG daily_quote (via qts_client, readonly)",
         "sectors": sectors_sorted,
-        "top3": [{"sector": s["sector"], "label": s["label"], "composite": s["composite"],
-                  "mom20": s["mom20"], "mom5": s["mom5"], "ma20_pos": s["ma20_pos"], "rps": s["rps"]}
-                 for s in top3],
-        "early_turning": [{"sector": s["sector"], "mom_slope": s["mom_slope"],
-                            "mom20": s["mom20"], "ma20_pos": s["ma20_pos"]} for s in early_turning],
+        "top3": [
+            {
+                "sector": s["sector"],
+                "label": s["label"],
+                "composite": s["composite"],
+                "mom20": s["mom20"],
+                "mom5": s["mom5"],
+                "ma20_pos": s["ma20_pos"],
+                "rps": s["rps"],
+            }
+            for s in top3
+        ],
+        "early_turning": [
+            {
+                "sector": s["sector"],
+                "mom_slope": s["mom_slope"],
+                "mom20": s["mom20"],
+                "ma20_pos": s["ma20_pos"],
+            }
+            for s in early_turning
+        ],
         "scan_focus_sectors": focus_sectors,
         "scan_focus_codes": focus_codes,
     }
@@ -209,8 +226,14 @@ def get_sector_label(code: str) -> dict | None:
         if code in codes:
             s = next((x for x in data["sectors"] if x["sector"] == sec), None)
             if s:
-                return {"sector": sec, "label": s["label"], "early": s["early"],
-                        "rps": s["rps"], "mom20": s["mom20"], "ma20_pos": s["ma20_pos"]}
+                return {
+                    "sector": sec,
+                    "label": s["label"],
+                    "early": s["early"],
+                    "rps": s["rps"],
+                    "mom20": s["mom20"],
+                    "ma20_pos": s["ma20_pos"],
+                }
     return None
 
 
@@ -246,7 +269,11 @@ def main() -> int:
 
     data = compute(args.date)
     if data is None:
-        print(json.dumps({"error": "PG 不可用，板块强弱层降级（调用方回退旧逻辑）"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"error": "PG 不可用，板块强弱层降级（调用方回退旧逻辑）"}, ensure_ascii=False
+            )
+        )
         return 1
 
     if not args.no_write:
@@ -260,19 +287,25 @@ def main() -> int:
         print("─" * 56)
         print("【当前最强板块 Top3】")
         for i, s in enumerate(t, 1):
-            print(f"  {i}. {s['sector']:10s} {s['label']:6s} 综合{s['composite']:+.3f} "
-                  f"| 20d {s['mom20']:+.1%} 5d {s['mom5']:+.1%} MA20 {s['ma20_pos']:+.1%} RPS{s['rps']}")
+            print(
+                f"  {i}. {s['sector']:10s} {s['label']:6s} 综合{s['composite']:+.3f} "
+                f"| 20d {s['mom20']:+.1%} 5d {s['mom5']:+.1%} MA20 {s['ma20_pos']:+.1%} RPS{s['rps']}"
+            )
         print("─" * 56)
         if e:
             print("【早期转折候选】（弱势但动量拐头，即将启动）")
             for s in e:
-                print(f"  ⚠️ {s['sector']:10s} 斜率 {s['mom_slope']:+.1%} "
-                      f"| 20d {s['mom20']:+.1%} MA20 {s['ma20_pos']:+.1%}")
+                print(
+                    f"  ⚠️ {s['sector']:10s} 斜率 {s['mom_slope']:+.1%} "
+                    f"| 20d {s['mom20']:+.1%} MA20 {s['ma20_pos']:+.1%}"
+                )
         else:
             print("【早期转折候选】无")
         print("─" * 56)
         print(f"【扫描聚焦】板块={data['scan_focus_sectors']}")
-        print(f"  聚焦代码({len(data['scan_focus_codes'])}只, 仅允许板块): {data['scan_focus_codes']}")
+        print(
+            f"  聚焦代码({len(data['scan_focus_codes'])}只, 仅允许板块): {data['scan_focus_codes']}"
+        )
     return 0
 
 

@@ -17,6 +17,7 @@
   ④ 两边都不存在 → 标准库/第三方/外部仓库，跳过
 退出：0=无断链 / 1=有断链
 """
+
 from __future__ import annotations
 
 import json
@@ -32,8 +33,11 @@ SHIM = CLAW / "scripts"
 
 INJECT = re.compile(r"sys\.path\.(?:insert|append)\([^)]*['\"]scripts['\"]")
 CD_SCRIPTS = re.compile(r"cd\s+\S*/scripts\b")
-BARE_IMPORT = re.compile(r"^\s*(?:import\s+([A-Za-z_][\w]*)"
-                         r"|from\s+([A-Za-z_][\w]*)\s+import)", re.M)
+BARE_IMPORT = re.compile(
+    r"^\s*(?:import\s+([A-Za-z_][\w]*)"
+    r"|from\s+([A-Za-z_][\w]*)\s+import)",
+    re.M,
+)
 
 STDLIB = set(sys.stdlib_module_names)
 
@@ -73,7 +77,9 @@ def main() -> int:
     if not broken:
         print("✅ 无此类断链")
         return 0
-    print(f"\n❌ 发现 {len(broken)} 个模块被裸 import，但 scripts/ 下无薄壳（真身在 .workbuddy/scripts/）：")
+    print(
+        f"\n❌ 发现 {len(broken)} 个模块被裸 import，但 scripts/ 下无薄壳（真身在 .workbuddy/scripts/）："
+    )
     for mod, hits in sorted(broken.items()):
         print(f"\n  {mod}.py  ← {len(hits)} 条自动化")
         for h in hits:

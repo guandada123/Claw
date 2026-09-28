@@ -10,6 +10,7 @@ subscription_brief.py — 全开订阅增长简报（C 可选周报推送）
   python3 scripts/subscription_brief.py          # 正常执行，推飞书
   python3 scripts/subscription_brief.py --dry    # 仅打印，不推送
 """
+
 from __future__ import annotations
 
 import json
@@ -64,11 +65,19 @@ def build_brief(dry: bool = False) -> dict:
     # 近 7 天新增
     now = datetime.now()
     cutoff = now - timedelta(days=7)
-    new_7d = sum(1 for c in candidates if c.get("status") == "subscribed"  # type: ignore[misc]
-                 and _parse_iso(c.get("discovered_at", ""))  # type: ignore[arg-type]
-                 and _parse_iso(c["discovered_at"]) >= cutoff)  # type: ignore[operator,return-value]
-    new_total_7d = sum(1 for c in candidates if _parse_iso(c.get("discovered_at", ""))  # type: ignore[misc]
-                       and _parse_iso(c["discovered_at"]) >= cutoff)  # type: ignore[operator,return-value]
+    new_7d = sum(
+        1
+        for c in candidates
+        if c.get("status") == "subscribed"  # type: ignore[misc]
+        and _parse_iso(c.get("discovered_at", ""))  # type: ignore[arg-type]
+        and _parse_iso(c["discovered_at"]) >= cutoff
+    )  # type: ignore[operator,return-value]
+    new_total_7d = sum(
+        1
+        for c in candidates
+        if _parse_iso(c.get("discovered_at", ""))  # type: ignore[misc]
+        and _parse_iso(c["discovered_at"]) >= cutoff
+    )  # type: ignore[operator,return-value]
 
     title = f"📬【订阅周报】{now.strftime('%Y-%m-%d')}"
 
@@ -96,7 +105,13 @@ def build_brief(dry: bool = False) -> dict:
     for c in recent:
         ds = c.get("discovered_at", "")[:10]
         st = c.get("status", "?")
-        icon = {"subscribed": "✅", "pending_cap": "🟡", "pending": "⏳", "subscribe_failed": "❌", "already_subscribed": "📌"}.get(st, "⚪")
+        icon = {
+            "subscribed": "✅",
+            "pending_cap": "🟡",
+            "pending": "⏳",
+            "subscribe_failed": "❌",
+            "already_subscribed": "📌",
+        }.get(st, "⚪")
         lines.append(f"  {icon} {c['name']}—{st}（{ds}）")
 
     brief = {
@@ -122,9 +137,17 @@ def build_brief(dry: bool = False) -> dict:
     # 推飞书（合并环境，避免覆盖 PATH 导致 push_feishu.sh 内部命令找不到）
     env = {**os.environ, "FEISHU_CHAT_ID": CHAT_ID}
     push = subprocess.run(
-        ["bash", str(PROJECT_ROOT / ".workbuddy" / "scripts" / "push_feishu.sh"),
-         title, "\n".join(lines)],
-        capture_output=True, text=True, env=env, check=False, timeout=30,
+        [
+            "bash",
+            str(PROJECT_ROOT / ".workbuddy" / "scripts" / "push_feishu.sh"),
+            title,
+            "\n".join(lines),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+        timeout=30,
     )
     brief["push_ok"] = push.returncode == 0
     brief["push_detail"] = push.stdout[:200]

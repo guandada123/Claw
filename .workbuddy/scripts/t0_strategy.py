@@ -238,8 +238,10 @@ class T0Strategy:
             effective_stop = dynamic
             result["atr14"] = round(atr14, 3)
             result["atr_stop_pct"] = round(dynamic, 4)
-            anchor = "低波动收紧" if dynamic < self.stop_loss_pct else (
-                "高波动放宽" if dynamic > self.stop_loss_pct else "持平"
+            anchor = (
+                "低波动收紧"
+                if dynamic < self.stop_loss_pct
+                else ("高波动放宽" if dynamic > self.stop_loss_pct else "持平")
             )
             result["stop_loss_note"] = (
                 f"ATR动态止损{anchor}: {dynamic * 100:.1f}% (ATR14={atr14:.2f}, "
@@ -550,7 +552,7 @@ class T0Strategy:
         if len(bars) < ATR_PERIOD + 1:
             return None
         # 去掉当日未走完 bar，取最近 ATR_PERIOD+1 根
-        bars = bars[-(ATR_PERIOD + 1):]
+        bars = bars[-(ATR_PERIOD + 1) :]
         return self._calc_atr14(bars)
 
     @staticmethod

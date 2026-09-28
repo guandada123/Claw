@@ -28,6 +28,7 @@ safe_dedup.py — 带闸门的去重 / 单源化脚本 (P0 防护栏)
     python3 safe_dedup.py --only export_qts_regime.py
     python3 safe_dedup.py --repo /path/to/repo --authority .workbuddy/scripts --stale scripts
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,10 +45,18 @@ from pathlib import Path
 # 配置
 # --------------------------------------------------------------------------
 SKILL_RULE = "dual-copy-audit v1.1.0"
-EXCLUDE_DIRS = {".git", "node_modules", "__pycache__", "archive", "claw.egg-info", ".venv", ".mypy_cache"}
+EXCLUDE_DIRS = {
+    ".git",
+    "node_modules",
+    "__pycache__",
+    "archive",
+    "claw.egg-info",
+    ".venv",
+    ".mypy_cache",
+}
 
 # 位置无关转发薄壳模板。{name} = 模块名(无 .py)。运行时向上搜索权威副本。
-FORWARDER_TPL = '''\
+FORWARDER_TPL = """\
 # AUTO-GENERATED FORWARDER — 单源薄壳 (safe_dedup.py, rule: {rule})
 # 真实实现: .workbuddy/scripts/{name}.py  (运行时向上搜索定位, 位置无关)
 import importlib.util
@@ -78,7 +87,7 @@ _spec.loader.exec_module(_mod)
 
 if __name__ == "__main__":
     runpy.run_path(str(_real), run_name="__main__")  # 兼容 `python scripts/{name}.py`
-'''
+"""
 
 
 # --------------------------------------------------------------------------
@@ -93,7 +102,12 @@ def is_forwarder(path: Path) -> bool:
         src = path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return False
-    return bool(re.search(r"import\s+claw|from\s+claw|runpy|sys\.path|src/claw|spec_from_file_location|AUTO-GENERATED FORWARDER", src))
+    return bool(
+        re.search(
+            r"import\s+claw|from\s+claw|runpy|sys\.path|src/claw|spec_from_file_location|AUTO-GENERATED FORWARDER",
+            src,
+        )
+    )
 
 
 def is_symlink(path: Path) -> bool:
@@ -158,7 +172,9 @@ def find_fs_callers(repo: Path, mod_name: str):
     caller_dirs: set[Path] = set()
     caller_files: set[Path] = set()
     pat_import = re.compile(rf"(import|from)\s+{re.escape(mod_name)}\b")
-    pat_path = re.compile(re.escape(f"scripts/{mod_name}.py") + r"|" + re.escape(f".workbuddy/scripts/{mod_name}.py"))
+    pat_path = re.compile(
+        re.escape(f"scripts/{mod_name}.py") + r"|" + re.escape(f".workbuddy/scripts/{mod_name}.py")
+    )
     for p in iter_py(repo):
         try:
             text = p.read_text(encoding="utf-8", errors="ignore")
@@ -202,7 +218,9 @@ def find_db_callers(mod_name: str):
 # --------------------------------------------------------------------------
 # 两道闸门
 # --------------------------------------------------------------------------
-def gate_import_smoke(mod_name: str, caller_dirs: set[Path], extra_dirs: set[Path], py: str) -> list[str]:
+def gate_import_smoke(
+    mod_name: str, caller_dirs: set[Path], extra_dirs: set[Path], py: str
+) -> list[str]:
     """从每个调用方目录 import 一次。返回失败列表。"""
     fails = []
     dirs = set(caller_dirs) | set(extra_dirs)
@@ -210,10 +228,15 @@ def gate_import_smoke(mod_name: str, caller_dirs: set[Path], extra_dirs: set[Pat
         try:
             subprocess.run(
                 [py, "-c", f"import sys; sys.path.insert(0, {str(d)!r}); import {mod_name}"],
-                check=True, capture_output=True, text=True, timeout=60,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
         except subprocess.CalledProcessError as e:
-            fails.append(f"{d} -> {mod_name}: {e.stderr.strip().splitlines()[-1] if e.stderr.strip() else 'import failed'}")
+            fails.append(
+                f"{d} -> {mod_name}: {e.stderr.strip().splitlines()[-1] if e.stderr.strip() else 'import failed'}"
+            )
         except Exception as e:
             fails.append(f"{d} -> {mod_name}: {e}")
     return fails
@@ -223,11 +246,16 @@ def gate_pytest(tests_dir: Path, py: str) -> str | None:
     if not tests_dir.is_dir():
         return None  # 无测试目录, 跳过 (不算失败)
     try:
-        r = subprocess.run([py, "-m", "pytest", str(tests_dir), "-q"],
-                           check=True, capture_output=True, text=True, timeout=600)
+        r = subprocess.run(
+            [py, "-m", "pytest", str(tests_dir), "-q"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
         return None
     except subprocess.CalledProcessError as e:
-        last = [l for l in e.stderr.strip().splitlines()][-3:]
+        last = e.stderr.strip().splitlines()[-3:]
         return "pytest 失败:\n" + "\n".join(last)
     except Exception as e:
         return f"pytest 异常: {e}"
@@ -299,8 +327,7 @@ def do_apply(plan, repo, auth_dir, backup_dir: Path, py: str, tests_dir: Path) -
             return False
     elif action == "REPLACE_FORWARDER":
         try:
-            stale.write_text(FORWARDER_TPL.format(name=mod, rule=SKILL_RULE),
-                             encoding="utf-8")
+            stale.write_text(FORWARDER_TPL.format(name=mod, rule=SKILL_RULE), encoding="utf-8")
             log(f"  🔧 改写为转发薄壳 {stale}")
         except Exception as e:
             log(f"  ❌ 改写失败: {e}")
@@ -308,7 +335,7 @@ def do_apply(plan, repo, auth_dir, backup_dir: Path, py: str, tests_dir: Path) -
 
     # 双闸门
     extra = {auth_dir, stale.parent}
-    fails = gate_import_smoke(mod, set(Path(x) for x in plan["fs_caller_dirs"]), extra, py)
+    fails = gate_import_smoke(mod, {Path(x) for x in plan["fs_caller_dirs"]}, extra, py)
     if fails:
         log("  🔴 闸门1(导入冒烟)失败:\n    " + "\n    ".join(fails))
         _rollback(stale, backup)
@@ -339,12 +366,20 @@ def _rollback(stale: Path, backup: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description="带闸门的去重/单源化脚本 (P0 防护栏)")
     ap.add_argument("--repo", default=None, help="仓库根 (默认 $CLAW 或 cwd)")
-    ap.add_argument("--authority", default=None, help="权威目录 (默认 $SCRIPTS 或 <repo>/.workbuddy/scripts)")
+    ap.add_argument(
+        "--authority", default=None, help="权威目录 (默认 $SCRIPTS 或 <repo>/.workbuddy/scripts)"
+    )
     ap.add_argument("--stale", default="scripts", help="旧副本侧目录名 (默认 scripts)")
     ap.add_argument("--apply", action="store_true", help="默认 dry-run; 加此开关才落磁盘")
     ap.add_argument("--only", default=None, help="只处理指定文件名, 如 export_qts_regime.py")
-    ap.add_argument("--tests-dir", default=None, help="pytest 目录 (默认 <repo>/tests 或 <repo>/.workbuddy/tests)")
-    ap.add_argument("--backup-dir", default=None, help="备份目录 (默认 /tmp/safe_dedup_<YYYYMMDD>/)")
+    ap.add_argument(
+        "--tests-dir",
+        default=None,
+        help="pytest 目录 (默认 <repo>/tests 或 <repo>/.workbuddy/tests)",
+    )
+    ap.add_argument(
+        "--backup-dir", default=None, help="备份目录 (默认 /tmp/safe_dedup_<YYYYMMDD>/)"
+    )
     ap.add_argument("--python", default=sys.executable, help="用于冒烟/测试的解释器")
     args = ap.parse_args()
 
@@ -372,7 +407,11 @@ def main() -> int:
             if cand.is_dir():
                 tests_dir = cand
                 break
-    backup_dir = Path(args.backup_dir) if args.backup_dir else Path(f"/tmp/safe_dedup_{datetime.now():%Y%m%d}")
+    backup_dir = (
+        Path(args.backup_dir)
+        if args.backup_dir
+        else Path(f"/tmp/safe_dedup_{datetime.now():%Y%m%d}")
+    )
     if args.apply:
         backup_dir.mkdir(parents=True, exist_ok=True)
 
@@ -396,7 +435,9 @@ def main() -> int:
 
         if args.apply:
             log("   🔧 执行中...")
-            if not do_apply(plan, repo, auth_dir, backup_dir, args.python, tests_dir or Path("/dev/null")):
+            if not do_apply(
+                plan, repo, auth_dir, backup_dir, args.python, tests_dir or Path("/dev/null")
+            ):
                 ok = False
                 log(f"   🛑 {name} 处置失败/已回滚, ABORT。后续项跳过。")
                 break
@@ -404,7 +445,9 @@ def main() -> int:
         print()
 
     if args.apply:
-        log(f"{'🎉 全部处置完成 (备份在 ' + str(backup_dir) + ')' if ok else '⚠️  存在失败项, 已回滚。请检查后重试。'}")
+        log(
+            f"{'🎉 全部处置完成 (备份在 ' + str(backup_dir) + ')' if ok else '⚠️  存在失败项, 已回滚。请检查后重试。'}"
+        )
         return 0 if ok else 1
     else:
         log("（以上为 DRY-RUN 计划。确认无误后加 --apply 执行；执行会自动备份并跑双闸门。）")

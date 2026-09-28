@@ -145,7 +145,8 @@ ROUTING_RULES = {
 
 # 预编译路由正则（避免每次 route_task() 调用都编译）
 _COMPILED_RULES = {
-    tier: [re.compile(p, re.IGNORECASE) for p in patterns] for tier, patterns in ROUTING_RULES.items()
+    tier: [re.compile(p, re.IGNORECASE) for p in patterns]
+    for tier, patterns in ROUTING_RULES.items()
 }
 
 # 旗舰模型信号词（触发 PREMIUM 层级）— frozenset 禁止运行时修改
@@ -683,8 +684,7 @@ def call_with_fallback(
         primary_cost = primary["cost_per_10k"]
         before = len(unique_candidates)
         unique_candidates = [
-            c for c in unique_candidates
-            if c.get("cost_per_10k", 999) <= primary_cost
+            c for c in unique_candidates if c.get("cost_per_10k", 999) <= primary_cost
         ]
         if not unique_candidates and before > 0:
             return {

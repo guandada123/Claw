@@ -52,7 +52,7 @@ FLAGSHIP_MODELS = (
     "gpt-4.1",
     "gpt-4o-mini",
 )
-PRO_MODEL = "deepseek-v4-pro"    # 中级模型
+PRO_MODEL = "deepseek-v4-pro"  # 中级模型
 FLASH_MODEL = "deepseek-v4-flash"  # 兜底降级目标
 
 # flash_preferred 层级下，非关键任务需降级的旗舰子集
@@ -123,6 +123,7 @@ def check_budget_status() -> dict:
 
     from cost_tracker import MONTHLY_BUDGET_CNY as _RAW_BUDGET
     from cost_tracker import get_monthly_spent
+
     budget = parse_budget(str(_RAW_BUDGET))
     month = date.today().strftime("%Y-%m")
     spent = get_monthly_spent(month)
@@ -250,6 +251,7 @@ def budget_summary() -> str:
     status = check_budget_status()
     from cost_tracker import MODEL_PRICES, _match_model  # noqa: F401
     from cost_tracker import MONTHLY_BUDGET_CNY as _RAW_BUDGET
+
     budget = parse_budget(str(_RAW_BUDGET))
     _, days_in_month = calendar.monthrange(date.today().year, date.today().month)
     today_day = date.today().day
@@ -267,6 +269,7 @@ def budget_summary() -> str:
 
     # 日检查（预加载当日记录，避免 daily_report 重复读取 JSONL）
     from cost_tracker import _load_records, daily_report
+
     today_records = _load_records(date.today().isoformat())
     today = daily_report("today_only", records=today_records)
     if isinstance(today, dict) and today.get("total", 0) > DAILY_WARNING:

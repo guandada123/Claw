@@ -1002,13 +1002,9 @@ class AdvisorRules:
             if cache_path.exists():
                 data = json.loads(cache_path.read_text(encoding="utf-8"))
                 if data.get("report_date") == date.today().isoformat():
-                    sec = next(
-                        (s for s, cs in _SSL_SECTORS.items() if code in cs), None
-                    )
+                    sec = next((s for s, cs in _SSL_SECTORS.items() if code in cs), None)
                     if sec:
-                        row = next(
-                            (x for x in data.get("sectors", []) if x["sector"] == sec), None
-                        )
+                        row = next((x for x in data.get("sectors", []) if x["sector"] == sec), None)
                         if row:
                             return {
                                 "sector": sec,
@@ -1360,9 +1356,7 @@ def main():
             diag = advisor.diagnose_holding(h, quotes=None, trade_log=trade_log)
             diag["stop_trading_today"] = bool(breaker.get("triggered"))
             if breaker.get("triggered"):
-                diag["flags"].append(
-                    {"level": "block", "rule": "H", "reason": breaker["reason"]}
-                )
+                diag["flags"].append({"level": "block", "rule": "H", "reason": breaker["reason"]})
                 diag["has_block"] = True
             diag["daily_loss_breaker"] = breaker
             diag["sector_concentration"] = concentration

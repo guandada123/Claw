@@ -155,9 +155,7 @@ def check_health(auto: dict) -> dict:
     platform_last_ts = _to_ms(auto.get("last_run_at"))
     newest_run_ts = _to_ms(runs[0].get("created_at")) if runs else 0
     field_lag_h = (
-        (newest_run_ts - platform_last_ts) / 3600000
-        if newest_run_ts and platform_last_ts
-        else 0.0
+        (newest_run_ts - platform_last_ts) / 3600000 if newest_run_ts and platform_last_ts else 0.0
     )
     last_run_ts = max(platform_last_ts, newest_run_ts)
 
@@ -205,9 +203,7 @@ def check_health(auto: dict) -> dict:
         if interrupted or result_state == "partial_delivered":
             last_run_interrupted = True
             health = "🔴"
-            issues.append(
-                f"最近运行被中断({result_state or 'interrupted'}，产物未落盘)"
-            )
+            issues.append(f"最近运行被中断({result_state or 'interrupted'}，产物未落盘)")
         elif runs[0].get("result_success") in (0, "0", False):
             # 非中断但平台标记未成功
             health = "🔴" if health == "🟢" else health

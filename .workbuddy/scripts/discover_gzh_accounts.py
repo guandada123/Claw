@@ -11,6 +11,7 @@ discover_gzh_accounts.py v2 — 红狐 API 发现 + 股票提取 + 方向验证 
 用法:
   python3 scripts/discover_gzh_accounts.py
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -28,11 +29,13 @@ try:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
     from claw.feeds.wind_utils import get_wind_realtime_price, wind_available
 except ImportError:
+
     def wind_available() -> bool:  # type: ignore[misc]
         return False
 
     def get_wind_realtime_price(code: str) -> None:  # type: ignore[misc]
         return None
+
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _OUTPUT_FILE = _PROJECT_ROOT / "data" / "discovered_accounts.json"
@@ -76,7 +79,6 @@ _QT_URL = "https://qt.gtimg.cn/q={codes}"
 _CODE_RE = re.compile(r"(?<!\d)([036]\d{5})(?!\d)")
 
 
-
 def _is_valid_stock_code(code: str) -> bool:
     """判断 6 位数字是否为有效 A 股代码（主板/中小板/创业板/科创板）"""
     if not code.isdigit() or len(code) != 6:
@@ -91,8 +93,10 @@ def _search(keyword: str, start_date: str) -> list[dict]:
             [
                 sys.executable,
                 str(_FETCH_SCRIPT),
-                "--keyword", keyword,
-                "--start-date", start_date,
+                "--keyword",
+                keyword,
+                "--start-date",
+                start_date,
             ],
             capture_output=True,
             text=True,
@@ -108,7 +112,7 @@ def _search(keyword: str, start_date: str) -> list[dict]:
         s, e = text.find("{"), text.rfind("}")
         if s == -1 or e == -1 or e <= s:
             return []
-        data = json.loads(text[s:e + 1])
+        data = json.loads(text[s : e + 1])
         return data.get("articles", [])  # type: ignore[no-any-return]
     except Exception:
         return []
@@ -152,7 +156,7 @@ def _fetch_stock_name(codes: list[str]) -> dict[str, str]:
     batch_size = 20
     result = {}
     for i in range(0, len(formatted), batch_size):
-        batch = formatted[i:i + batch_size]
+        batch = formatted[i : i + batch_size]
         url = _QT_URL.format(codes=",".join(batch))
         try:
             req = urllib.request.Request(url)
@@ -192,7 +196,9 @@ def _check_price_change(code: str, check_date_str: str) -> dict | None:
                     "current_price": r["price"],
                     "change_pct": r.get("change_pct", 0),
                     "days_since_article": days_ago,
-                    "direction": "up" if (r.get("change_pct") or 0) > 0 else ("down" if (r.get("change_pct") or 0) < 0 else "flat"),
+                    "direction": "up"
+                    if (r.get("change_pct") or 0) > 0
+                    else ("down" if (r.get("change_pct") or 0) < 0 else "flat"),
                     "source": "wind",
                 }
         except Exception:
@@ -265,6 +271,7 @@ def _resolve_fakeid(nickname: str) -> str | None:
     q = nickname.strip().lower()
     try:
         from urllib.parse import quote
+
         url = f"{_LOCAL_API_BASE}/api/public/searchbiz?query={quote(nickname)}"
         req = urllib.request.Request(url)
         with urllib.request.urlopen(req, timeout=8) as resp:
@@ -290,13 +297,17 @@ def _subscribe_local(fakeid: str, nickname: str, alias: str = "") -> bool:
         return False
     try:
         url = f"{_LOCAL_API_BASE}/api/rss/subscribe"
-        payload = json.dumps({
-            "fakeid": fakeid,
-            "nickname": nickname,
-            "alias": alias or "",
-        }).encode("utf-8")
+        payload = json.dumps(
+            {
+                "fakeid": fakeid,
+                "nickname": nickname,
+                "alias": alias or "",
+            }
+        ).encode("utf-8")
         req = urllib.request.Request(
-            url, data=payload, method="POST",
+            url,
+            data=payload,
+            method="POST",
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=8) as resp:
@@ -374,18 +385,22 @@ def discover() -> dict:
                 account_meta[author]["sample_url"] = art.get("url", "")
 
             for code in codes:
-                account_stocks[author].append({
-                    "code": code,
-                    "article_date": pub_time,
-                    "article_title": title[:40],
-                })
+                account_stocks[author].append(
+                    {
+                        "code": code,
+                        "article_date": pub_time,
+                        "article_title": title[:40],
+                    }
+                )
 
     # 注：原"Pinchtab 全文抓取补充代码"已移除（v8 @2026-07-18）。
     # 新号接入本地订阅(localhost:5001)后，wx_collector→collect_local_feeds 会自动
     # 拉取全文并提取信号，无需浏览器自动化。标题/摘要中的股票代码已足够做命中率初筛。
 
     # 第二阶段：验证股价方向
-    print(f"发现 {len(account_meta)} 个公众号，{sum(len(v) for v in account_stocks.values())} 条股票提及")
+    print(
+        f"发现 {len(account_meta)} 个公众号，{sum(len(v) for v in account_stocks.values())} 条股票提及"
+    )
 
     # 批量收集所有代码并查询名称
     all_codes = set()
@@ -422,37 +437,44 @@ def discover() -> dict:
             if price_info["direction"] == "up":
                 direction_correct += 1
 
-            stock_details.append({
-                "code": s["code"],
-                "name": price_info["name"],
-                "article_date": s["article_date"][:10],
-                "change_pct": price_info["change_pct"],
-                "article_title": s["article_title"],
-            })
+            stock_details.append(
+                {
+                    "code": s["code"],
+                    "name": price_info["name"],
+                    "article_date": s["article_date"][:10],
+                    "change_pct": price_info["change_pct"],
+                    "article_title": s["article_title"],
+                }
+            )
 
         hit_rate = round(direction_correct / verified * 100, 1) if verified > 0 else None
 
-        candidates.append({
-            "id": hashlib.md5(author.encode(), usedforsecurity=False).hexdigest()[:8],
-            "name": author,
-            "articles": meta["articles"],
-            "keywords": sorted(meta["keywords"]),
-            "sample_titles": meta["sample_titles"],
-            "sample_url": meta.get("sample_url", ""),
-            "stocks_mentioned": len(stocks),
-            "stocks_verified": verified,
-            "direction_correct": direction_correct,
-            "hit_rate": hit_rate,
-            "stock_details": stock_details[:10],  # 最多存 10 条明细
-            "source": "红狐发现",
-        })
+        candidates.append(
+            {
+                "id": hashlib.md5(author.encode(), usedforsecurity=False).hexdigest()[:8],
+                "name": author,
+                "articles": meta["articles"],
+                "keywords": sorted(meta["keywords"]),
+                "sample_titles": meta["sample_titles"],
+                "sample_url": meta.get("sample_url", ""),
+                "stocks_mentioned": len(stocks),
+                "stocks_verified": verified,
+                "direction_correct": direction_correct,
+                "hit_rate": hit_rate,
+                "stock_details": stock_details[:10],  # 最多存 10 条明细
+                "source": "红狐发现",
+            }
+        )
 
     # 排序：有命中率的排前面，按命中率降序；无命中率的按文章数降序
-    candidates.sort(key=lambda x: (
-        x["hit_rate"] is not None,  # 有命中率的排前面
-        x["hit_rate"] if x["hit_rate"] is not None else -1,
-        x["stocks_mentioned"],
-    ), reverse=True)
+    candidates.sort(
+        key=lambda x: (
+            x["hit_rate"] is not None,  # 有命中率的排前面
+            x["hit_rate"] if x["hit_rate"] is not None else -1,
+            x["stocks_mentioned"],
+        ),
+        reverse=True,
+    )
 
     # ── 本地订阅接入（替换原 Pinchtab 全文抓取）─────────────────
     # 真值源 = 本地 WeChat Download API 当前订阅列表；新号走本地订阅，不再依赖浏览器自动化。
@@ -491,25 +513,29 @@ def discover() -> dict:
                 onboard_pending += 1
         # 仅登记首次出现的号（幂等）
         if name not in seen_names:
-            existing_candidates.append({
-                "name": name,
-                "fakeid": fakeid or "",
-                "hit_rate": cand["hit_rate"],
-                "stocks_verified": cand["stocks_verified"],
-                "status": status,
-                "discovered_at": datetime.now().isoformat(),
-                "sample_url": cand.get("sample_url", ""),
-                "sample_titles": cand.get("sample_titles", []),
-                "keywords": cand.get("keywords", []),
-            })
+            existing_candidates.append(
+                {
+                    "name": name,
+                    "fakeid": fakeid or "",
+                    "hit_rate": cand["hit_rate"],
+                    "stocks_verified": cand["stocks_verified"],
+                    "status": status,
+                    "discovered_at": datetime.now().isoformat(),
+                    "sample_url": cand.get("sample_url", ""),
+                    "sample_titles": cand.get("sample_titles", []),
+                    "keywords": cand.get("keywords", []),
+                }
+            )
             seen_names.add(name)
             if status != "already_subscribed":
                 onboard_new += 1
     _save_subscribe_candidates(existing_candidates)
     already = sum(1 for c in candidates if c["name"].strip().lower() in local_subs["names"])
-    print(f"[本地订阅] 当前已订阅 {cur_sub_count}/{_AUTO_SUBSCRIBE_CAP} | "
-          f"新候选 {onboard_new} | 自动接入 {onboard_sub} | 达上限转pending {onboard_capped} | "
-          f"待审核 {onboard_pending - onboard_capped} | 已订阅跳过 {already}")
+    print(
+        f"[本地订阅] 当前已订阅 {cur_sub_count}/{_AUTO_SUBSCRIBE_CAP} | "
+        f"新候选 {onboard_new} | 自动接入 {onboard_sub} | 达上限转pending {onboard_capped} | "
+        f"待审核 {onboard_pending - onboard_capped} | 已订阅跳过 {already}"
+    )
 
     output = {
         "generated_at": datetime.now().isoformat(),
@@ -528,10 +554,16 @@ def discover() -> dict:
 if __name__ == "__main__":
     result = discover()
     top = result["candidates"][:20]
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"发现 {result['total_candidates']} 个候选，{result['with_hit_rate']} 个有初步命中率")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for r in top:
-        hr = f"{r['hit_rate']}%" if r['hit_rate'] is not None else "N/A"
-        icon = "⭐" if r['hit_rate'] and r['hit_rate'] >= 60 else ("✅" if r['hit_rate'] and r['hit_rate'] >= 40 else "⚪")
-        print(f"  {icon} {r['name']:20s} 命中{hr:>6s}  ({r['direction_correct']}/{r['stocks_verified']}) 文章{r['articles']}篇")
+        hr = f"{r['hit_rate']}%" if r["hit_rate"] is not None else "N/A"
+        icon = (
+            "⭐"
+            if r["hit_rate"] and r["hit_rate"] >= 60
+            else ("✅" if r["hit_rate"] and r["hit_rate"] >= 40 else "⚪")
+        )
+        print(
+            f"  {icon} {r['name']:20s} 命中{hr:>6s}  ({r['direction_correct']}/{r['stocks_verified']}) 文章{r['articles']}篇"
+        )

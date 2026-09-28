@@ -28,6 +28,7 @@ from pathlib import Path
 
 logger = logging.getLogger("run_debate")
 
+
 # ── Claw 根目录解析：兼容 scripts/ 与 .workbuddy/scripts/ 两种位置 ──
 # 9-21 去重后将 run_debate.py 从 scripts/ 移到 .workbuddy/scripts/，
 # 原 parent.parent / "src" 会错指 .workbuddy/src（不存在）→ ModuleNotFoundError: No module named 'claw'，

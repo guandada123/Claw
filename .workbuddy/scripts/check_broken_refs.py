@@ -15,6 +15,7 @@
 
 退出: 0=无断链 / 1=发现断链 / 2=用法或 IO 错.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -41,9 +42,7 @@ def resolve_repo(repo: str | None) -> Path:
 
 def load_automations(db: Path) -> list[tuple]:
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-    rows = con.execute(
-        "SELECT id,name,status,deleted_at,prompt FROM automations"
-    ).fetchall()
+    rows = con.execute("SELECT id,name,status,deleted_at,prompt FROM automations").fetchall()
     con.close()
     return rows
 
@@ -54,16 +53,16 @@ def is_external_scope(prompt: str, ext_envs: set[str]) -> bool:
         return True
     # 仓库切换至已知外部仓库: `cd $QTS` 之后裸 `scripts/X.py` 解析到该 repo
     # (只认已知外部 env, 避免误伤 cd $CLAW / cd $SCRIPTS 等 Claw 本地切换)
-    if ext_envs and re.search(
-        r"\bcd\s+\$(" + "|".join(re.escape(e) for e in ext_envs) + r")\b", prompt
-    ):
-        return True
-    return False
+    return bool(
+        ext_envs
+        and re.search(r"\bcd\s+\$(" + "|".join(re.escape(e) for e in ext_envs) + r")\b", prompt)
+    )
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="双副本审计哨兵: 检测真·断链 scripts/X.py 引用(排除外部仓库/死引用)")
+        description="双副本审计哨兵: 检测真·断链 scripts/X.py 引用(排除外部仓库/死引用)"
+    )
     ap.add_argument("--repo", default=None)
     ap.add_argument("--db", default=None, help="自动化库路径(默认 ~/.workbuddy/workbuddy.db)")
     ap.add_argument("--include-paused", action="store_true", help="也纳入 PAUSED 自动化(默认排除)")
@@ -83,13 +82,15 @@ def main() -> int:
         print(f"❌ 自动化库缺失: {db}", file=sys.stderr)
         return 2
 
-    ext_envs = DEFAULT_EXT_ENV | {e.strip().upper() for e in args.external_envs.split(",") if e.strip()}
+    ext_envs = DEFAULT_EXT_ENV | {
+        e.strip().upper() for e in args.external_envs.split(",") if e.strip()
+    }
 
-    broken: list[tuple] = []        # (script, aid, name, status)
+    broken: list[tuple] = []  # (script, aid, name, status)
     ext_skipped: set[str] = set()
     dead_excluded = 0
 
-    for (aid, name, status, deleted_at, prompt) in load_automations(db):
+    for aid, name, status, deleted_at, prompt in load_automations(db):
         if deleted_at not in (None, 0, "0", ""):
             continue  # DELETED 永远排除
         if status != "ACTIVE" and not (args.include_paused and status == "PAUSED"):
@@ -108,13 +109,13 @@ def main() -> int:
 
     # 按脚本聚合
     agg: dict[str, list] = {}
-    for (s, aid, name, status) in broken:
+    for s, aid, name, status in broken:
         agg.setdefault(s, []).append({"id": aid, "name": name, "status": status})
 
     if args.json:
         out = {
             "clean": len(agg) == 0,
-            "broken": {s: v for s, v in sorted(agg.items())},
+            "broken": dict(sorted(agg.items())),
             "external_skipped": sorted(ext_skipped),
             "paused_or_dead_excluded": dead_excluded,
         }
@@ -141,12 +142,18 @@ def main() -> int:
     #    → 委托给专用扫描器（单一实现，不在这里再写一份正则）。
     bare = _scan_bare_import_breaks()
     if bare:
-        print(f"\n🔴 另有 {len(bare)} 个模块是「scripts/ 注入 + 裸 import」式断链"
-              f"（本哨兵旧正则的盲区，已补）：")
+        print(
+            f"\n🔴 另有 {len(bare)} 个模块是「scripts/ 注入 + 裸 import」式断链"
+            f"（本哨兵旧正则的盲区，已补）："
+        )
         for mod, hits in sorted(bare.items()):
-            print(f"  - {mod}.py  (被 {len(hits)} 个 ACTIVE 自动化引用: "
-                  f"{', '.join(h['id'][:14] for h in hits)})")
-        print("建议: 用 safe_dedup.FORWARDER_TPL 在 scripts/ 补薄壳（真身留在 .workbuddy/scripts/）。")
+            print(
+                f"  - {mod}.py  (被 {len(hits)} 个 ACTIVE 自动化引用: "
+                f"{', '.join(h['id'][:14] for h in hits)})"
+            )
+        print(
+            "建议: 用 safe_dedup.FORWARDER_TPL 在 scripts/ 补薄壳（真身留在 .workbuddy/scripts/）。"
+        )
         return 1
     return 1 if agg else 0
 

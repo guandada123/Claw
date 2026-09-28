@@ -129,6 +129,7 @@ def _sanity_guard(code: str, price: float) -> dict:
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         from price_sanity import check as _ps_check
+
         res = _ps_check(code, float(price))
         if not res["ok"]:
             return {
@@ -332,7 +333,9 @@ def calc_combined_metrics(sim_positions: dict, user_holdings: list):
     # ── 关联性链风险 ──
     for chain_name, chain in CHAIN_MAP.items():  # type: ignore[assignment]
         chain_mv = sum(
-            combined_by_industry.get(g, 0) for g in chain["groups"] if g in combined_by_industry  # type: ignore[index]
+            combined_by_industry.get(g, 0)
+            for g in chain["groups"]
+            if g in combined_by_industry  # type: ignore[index]
         )
         chain_pct = round(chain_mv / total_market_value * 100, 1) if total_market_value else 0
         max_pct = chain["max_pct"]  # type: ignore[index]

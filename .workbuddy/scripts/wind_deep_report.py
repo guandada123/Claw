@@ -193,11 +193,7 @@ def render_stock(code: str, name: str, bucket: str) -> list:
     )
     if tech:
         row = tech[0]
-        kv = [
-            f"{clean_label(k)}={v}{u_tech.get(k, '%')}"
-            for k, v in row.items()
-            if "涨跌幅" in k
-        ]
+        kv = [f"{clean_label(k)}={v}{u_tech.get(k, '%')}" for k, v in row.items() if "涨跌幅" in k]
         lines.append("- 技术: " + " ｜ ".join(kv))
     else:
         lines.append("- 技术: （获取失败）")

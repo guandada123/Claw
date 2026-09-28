@@ -62,8 +62,7 @@ def _load_article_signals() -> list[dict]:
         return []
 
 
-def validate_qts_signals(data: dict, max_age_hours: int = 8,
-                         max_report_age_days: int = 10) -> dict:
+def validate_qts_signals(data: dict, max_age_hours: int = 8, max_report_age_days: int = 10) -> dict:
     """校验 QTS 跨项目契约（Claw↔QTS）的有效性与时效性。
 
     生产者 pull_qts_signals.py 写入 report_date / generated_at；
@@ -90,11 +89,20 @@ def validate_qts_signals(data: dict, max_age_hours: int = 8,
     返回: {"ok", "stale", "report_stale", "report_age_days",
            "report_date", "generated_at", "signals", "msg"}
     """
-    def _fail(msg: str, report_date: Any = None, generated_at: Any = None,
-              signals: int = 0) -> dict:
-        return {"ok": False, "stale": False, "report_stale": False,
-                "report_age_days": None, "report_date": report_date,
-                "generated_at": generated_at, "signals": signals, "msg": msg}
+
+    def _fail(
+        msg: str, report_date: Any = None, generated_at: Any = None, signals: int = 0
+    ) -> dict:
+        return {
+            "ok": False,
+            "stale": False,
+            "report_stale": False,
+            "report_age_days": None,
+            "report_date": report_date,
+            "generated_at": generated_at,
+            "signals": signals,
+            "msg": msg,
+        }
 
     if not isinstance(data, dict):
         return _fail("契约格式错误：非 JSON 对象")
@@ -102,13 +110,13 @@ def validate_qts_signals(data: dict, max_age_hours: int = 8,
     generated_at = data.get("generated_at")
     n_signals = len(data.get("signals", []))
     if not report_date or not generated_at:
-        return _fail("契约缺字段：report_date / generated_at 缺失",
-                     report_date, generated_at, n_signals)
+        return _fail(
+            "契约缺字段：report_date / generated_at 缺失", report_date, generated_at, n_signals
+        )
     try:
         gen = datetime.fromisoformat(str(generated_at).replace("Z", "+00:00"))
     except (ValueError, TypeError):
-        return _fail(f"generated_at 格式非法: {generated_at}",
-                     report_date, generated_at, n_signals)
+        return _fail(f"generated_at 格式非法: {generated_at}", report_date, generated_at, n_signals)
     # 时区归一化：无 tzinfo → 假定 Asia/Shanghai；有 tzinfo → 转为 Asia/Shanghai
     gen = gen.replace(tzinfo=_TZ) if gen.tzinfo is None else gen.astimezone(_TZ)
     now = datetime.now(_TZ)
@@ -120,16 +128,17 @@ def validate_qts_signals(data: dict, max_age_hours: int = 8,
     try:
         rep_date = datetime.fromisoformat(str(report_date).strip()[:10]).date()
     except (ValueError, TypeError):
-        return _fail(f"report_date 格式非法: {report_date}",
-                     report_date, generated_at, n_signals)
+        return _fail(f"report_date 格式非法: {report_date}", report_date, generated_at, n_signals)
     report_age_days = (now.date() - rep_date).days
     # 负值＝日报日期落在未来（时钟漂移/写错），同样不可信
     report_stale = report_age_days > max_report_age_days or report_age_days < 0
 
     if report_stale:
-        msg = (f"⚠️ 回测日报本体过期（report_date={report_date}，"
-               f"距今 {report_age_days} 天 > {max_report_age_days} 天）"
-               f"—— QTS 日报可能已断更，信号不可信")
+        msg = (
+            f"⚠️ 回测日报本体过期（report_date={report_date}，"
+            f"距今 {report_age_days} 天 > {max_report_age_days} 天）"
+            f"—— QTS 日报可能已断更，信号不可信"
+        )
     elif stale:
         msg = "⚠️ 数据已过期（STALE）"
     else:
@@ -272,7 +281,9 @@ def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
         gzh_directions = [s.get("signal", "neutral") for s in gzh_list]
         bullish = gzh_directions.count("bullish")
         bearish = gzh_directions.count("bearish")
-        gzh_direction = "bullish" if bullish > bearish else ("bearish" if bearish > bullish else "neutral")
+        gzh_direction = (
+            "bullish" if bullish > bearish else ("bearish" if bearish > bullish else "neutral")
+        )
 
         # QTS 方向（从 strategy 推断：breakout/ma-cross 偏看多）
         qts_direction = None
@@ -311,8 +322,7 @@ def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
 
         # 权重计算：信源加权 × 共识系数
         account_weights = [
-            effective_weights.get(a, effective_weights["_default"])
-            for a in gzh_accounts
+            effective_weights.get(a, effective_weights["_default"]) for a in gzh_accounts
         ]
         gzh_avg_weight = sum(account_weights) / max(len(account_weights), 1)
 
@@ -320,33 +330,46 @@ def compute_consensus(today_str: str | None = None) -> dict[str, Any]:
         if qts and qts.get("wf_passed"):
             qts_weight *= 1.3  # WF 验证通过的信源额外加 30%
 
-        combined_weight = (gzh_avg_weight + qts_weight) / 2 if (gzh_list and qts) else (gzh_avg_weight if gzh_list else qts_weight)
+        combined_weight = (
+            (gzh_avg_weight + qts_weight) / 2
+            if (gzh_list and qts)
+            else (gzh_avg_weight if gzh_list else qts_weight)
+        )
         final_weight = round(combined_weight * (1 + 0.15 * consensus_score), 2)
 
-        pairs.append({
-            "code": code,
-            "name": (gzh_names[0] if gzh_names else qts.get("ts_code", "") if qts else ""),
-            "qts_signal": {
-                "strategy": qts_strategy,
-                "sharpe": qts.get("sharpe") if qts else None,
-                "wf_stability": qts.get("wf_stability") if qts else None,
-                "wf_passed": qts.get("wf_passed") if qts else None,
-                "direction": qts_direction,
-                "weight": round(qts_weight, 2),
-            } if qts else None,
-            "gzh_signals": [{
-                "account": s.get("account", ""),
-                "direction": s.get("signal", "neutral"),
-                "confidence": s.get("confidence", 0),
-                "weight": effective_weights.get(s.get("account", ""), effective_weights["_default"]),
-            } for s in gzh_list],
-            "gzh_direction": gzh_direction,
-            "gzh_accounts": gzh_accounts,
-            "consensus_score": consensus_score,
-            "consensus_label": consensus_label,
-            "consensus_detail": " | ".join(detail_parts),
-            "combined_weight": final_weight,
-        })
+        pairs.append(
+            {
+                "code": code,
+                "name": (gzh_names[0] if gzh_names else qts.get("ts_code", "") if qts else ""),
+                "qts_signal": {
+                    "strategy": qts_strategy,
+                    "sharpe": qts.get("sharpe") if qts else None,
+                    "wf_stability": qts.get("wf_stability") if qts else None,
+                    "wf_passed": qts.get("wf_passed") if qts else None,
+                    "direction": qts_direction,
+                    "weight": round(qts_weight, 2),
+                }
+                if qts
+                else None,
+                "gzh_signals": [
+                    {
+                        "account": s.get("account", ""),
+                        "direction": s.get("signal", "neutral"),
+                        "confidence": s.get("confidence", 0),
+                        "weight": effective_weights.get(
+                            s.get("account", ""), effective_weights["_default"]
+                        ),
+                    }
+                    for s in gzh_list
+                ],
+                "gzh_direction": gzh_direction,
+                "gzh_accounts": gzh_accounts,
+                "consensus_score": consensus_score,
+                "consensus_label": consensus_label,
+                "consensus_detail": " | ".join(detail_parts),
+                "combined_weight": final_weight,
+            }
+        )
 
     # 按最终权重排序
     pairs.sort(key=lambda x: -x["combined_weight"])
@@ -381,9 +404,13 @@ if __name__ == "__main__":
     result = compute_consensus()
     s = result["summary"]
     print("✅ 信号共识计算完成")
-    print(f"   总配对: {s['total_pairs']} | 双源: {s['dual_source']} | "
-          f"强共识: {s['strong_consensus']} | 分歧: {s['conflict']}")
+    print(
+        f"   总配对: {s['total_pairs']} | 双源: {s['dual_source']} | "
+        f"强共识: {s['strong_consensus']} | 分歧: {s['conflict']}"
+    )
     print()
     for p in result["pairs"][:10]:
-        print(f"  {p['consensus_label']:8s} {p['code']:8s} {p.get('name',''):10s} "
-              f"权重={p['combined_weight']:.2f} | {p['consensus_detail']}")
+        print(
+            f"  {p['consensus_label']:8s} {p['code']:8s} {p.get('name', ''):10s} "
+            f"权重={p['combined_weight']:.2f} | {p['consensus_detail']}"
+        )

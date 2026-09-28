@@ -7,6 +7,9 @@
 > 复现方法：拿注入块末尾原文串回文件做字节定位（见 skill `context-health-cleanup` 第零节脚本）。
 > 用法：命中主题 → `grep -n "<关键词>" $CLAW/.workbuddy/memory/MEMORY.md` → Read 该行前后 30 行。
 > 纪律：新增高价值规则 → **同步更新本索引 + 写靠前位置**，不要只 append 到末尾（末尾=不可见=白写）。
+> 🔴 **结构（09-28 分层重构，零删除）**：`## 🔴 不可违反铁律` = **规则层**（58 条各一行，**全部落在可见区内**）；
+> 各条的事故复现/取证细节 → 文末 **`## 📎 铁律证据库`**（原文逐字，`grep -n "── 证据 N ──"` 取用，N=规则层第 N 条）。
+> 新增铁律**只写一行命令**进规则层 —— 原病根：铁律段 23.3KB 里大半是证据叙述，把规则挤出了可见区。
 
 **A 铁律(渠道/文件/数据/推送)**：`不可违反铁律` · `oc_9ee5303497f5e0e71666b610d6bdc346` · `先复制` · `get_effective_capital` · `push_card` · `cost_tracker` · `qt.gtimg.cn`
 **B 防错(股价/推荐)**：`price_sanity` · `check-entry` · `_apply_sanity` · `_sanity_guard` · `reliable_current_price` · `sanity_failed`
@@ -18,72 +21,65 @@
 **H 运维/技术债**：`实盘同步管线已死` · `ths_account_sync` · `1785421201464` · `ZHITAI` · `ruff` · `Colima` · `QTS日线`/`qfqday`
 **I 记忆/协作**：`记忆维护规则` · `domain_expertise_map` · `运行态目录版本控制` · `SAFE-MODE 重建` · `memory-consistency-audit` · `context-health-cleanup`
 
-## 🔴 不可违反铁律
+## 🔴 不可违反铁律（规则层 · 58 条一览 · 证据正文见文末「铁律证据库」）
 - 渠道：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346(免审直推)；维护类默认不推仅⚠️/🔴异常推；前缀📈投顾操盘/📊炒股助理/🇺🇸美股监控
 - 删/移文件须「先复制→验证→再删源」+ 删前用户确认
-- 数据文件改动：data/字段增删改须先确认；总本金¥50,000权威(=¥30,000+加仓¥20,000@07-14，记config.capital_additions)，sim_trade.py 用 get_effective_capital() 勿硬编码；例外：实时价刷新可直拉(标来源+时间)
+- 数据文件改动
 - 飞书推送卡片化：统一 push_card.py(interactive)禁--text降级；lark-cli≥1.0.76；notify_center已委托push_card；改脚本先--dry-run
 - 成本：cost_tracker.py(数据层)/cost_monitor.py(报告层)被cost_dashboard_feishu依赖；监控自动化=1782002819199
-- 自动化调LLM必走本地代理:9999：provider≠deepseek/catrouter(如local_proxy)+base_url="http://127.0.0.1:9999/v1"；preamble内置ensure_proxy(:9999 DOWN自动load两plist自愈)
-- 实时价铁律(07-29)：盘中/监控/信号取价**必须走腾讯 qt.gtimg.cn**，Wind仅降级兜底；wind_quote.py已改「腾讯优先→Wind降级」DO NOT REVERT；新取价脚本禁直接wind优先
-
-### 股价与推荐防错铁律（08-07·根因=8/6早报选股价数量级错误）：报告/选股/持仓中所有股价与买区不允许出错
-- ①选股段价位必须由 advisor_rules.py check-entry --code X 脚本取价(gtimg实时+MA20+52周)，禁AI手填；②scripts/price_sanity.py 三闸门(G1实时偏差>30%/G2 52周区间/G3 MA20偏离>60%)任一失败→SANITY_FAIL+改用可信价；支持美股(--market us走Yahoo,G3跳过)；③check_entry外部价必经sanity，失败→blocked=True不输出离谱买区；④早报1782741941693+晚报1782741945710/1782817769722 prompt已嵌防错，price_sanity.ok=false标的标「🚫价格校验失败，已拦截」
-- ⑤盘中监控全覆盖：fetch_holdings_quotes.py 加 `_apply_sanity()`(实盘/模拟盘每只current_price必经sanity，失败标price_sanity_fail+回填reliable_current_price，顶层sanity_failed计数)；6个盘中自动化(实盘1784039316540+投顾5策略1784506600526/634/523/665/706) prompt加「现价防错铁律」
+- 自动化调LLM必走本地代理:9999：provider≠deepseek/catrouter(如local_proxy)+base_url="http://127.0.0.1:9999/v1"
+- 实时价铁律(07-29)：盘中/监控/信号取价必须走腾讯 qt.gtimg.cn，Wind仅降级兜底；wind_quote.py已改「腾讯优先→Wind降级」DO NOT REVERT；新取价脚本禁直接wind优先
+- ①选股段价位必须由 advisor_rules.py check-entry --code X 脚本取价(gtimg实时+MA20+52周)，禁AI手填
+- ⑤盘中监控全覆盖：fetch_holdings_quotes.py 加 `_apply_sanity()`(实盘/模拟盘每只current_price必经sanity
 - ⑥美股监控1780615006148：AAPL/TSLA/NVDA收盘价必过 price_sanity --market us，FAIL→标「🚫价格校验失败，已隔离」+重搜；禁手填美股价
-- ⑦跨盘监控 cross_portfolio_monitor.py 二次校验：_sanity_guard()对portfolio.json current_price做sanity，失败→隔离错误价(不计入总市值)+sanity_failed计数
+- ⑦跨盘监控 cross_portfolio_monitor.py 二次校验：_sanity_guard()对portfolio.json current_price做sanity
 - ⑧工程质量周报1782002834355 PHASE2.5 加 tests/test_price_sanity.py(12用例)+跨盘测试回归门禁
-- ⑨sim_trade.py交易执行校验(最高优先级)：_sanity_check_price()在cmd_update_price/cmd_update_all_prices(错误价拒绝写入保留旧价)+cmd_buy/cmd_sell(错误成交价拒绝交易)四入口拦截；auto_check_all_positions判定前硬断言(失败→continue跳过不误卖+ERROR日志)
-- ⑩drill_assistant_monitor.py消费sanity：PHASE3分级前过滤price_sanity_fail=true→隔离告警+不参与止损盈亏判定+市值汇总排除。DO NOT REVERT：禁回退"AI直接写买区/现价"旧逻辑
-
-### 自动化排程与 rrule 铁律
+- ⑨sim_trade.py交易执行校验(最高优先级)：_sanity_check_price()在cmd_update_price/cmd_update_all_prices(错误价拒绝写入保留旧价)+cmd_buy/c
+- ⑩drill_assistant_monitor.py消费sanity：PHASE3分级前过滤price_sanity_fail=true→隔离告警+不参与止损盈亏判定+市值汇总排除。
 - 🔴🔴 单RRULE禁多BYHOUR(只触发首个匹配小时，余槽静默丢无日志)→多时段拆多条单BYHOUR
-- 🔴🔴 创建/修改rrule强制自检gate(08-07二次踩坑固化)：凡automation_update创建/更新或直写db automations表且rrule含BYHOUR多值→必load automation-rrule-safety-check skill走Gate1-4(禁多BYHOUR拆多条/备份/创建后验证创建数+单BYHOUR+告知用户当天剩余时段能否排上/回溯查昨天同坑一并修)。信任红线，复发即严重失职
-- 已拆：助理实盘1784039316540=9 + 1785123941471/596/709/786(10/11/13/14)；信号溯源1780964240621=5 + 1785284629106(15:00)；原隐患1783310235388已删
-- 🔴🔴 锁「活/死」两查法(09-24固化)：`check_schedule <name>` **只在有 `done_schedule` 写锁时才生效**；只 check 不 done = **死守卫**（恒放行）。判据①`grep -n "done_schedule\|schedule_utils.py done" <prompt>` ②`ls /tmp/claw_lock_<name>_*`。踩坑实录：知识库挖掘被误判为"日锁生效、6h 的 4 槽只跑首个"，实为 4 槽全跑。另：`--interval-hours N` 的锁写在**完成时刻**、槽=`[小时//N]`，故 N 须保证相邻触发点不同槽且前次不越界写进后次槽（三槽 00:50/03:20/05:50 用 **N=1**；N=2 会被 03:20 越界锁死 05:50）
-- 知识库精读=三槽 `00:50 automation-1782137216020` / `03:20 11a78567-823d-4d13-970b-42ed417e9b5f` / `05:50 0d18c526-eab5-4402-b949-b9439eb682e1`（DAILY 单BYHOUR，`--max 15`×3=≤45 篇/天，全在 Hy4 免费窗口）；**三条共用同一份正文，改正文须三处同步**；宿主 cwds=`/Users/guan/WorkBuddy/automation-2026-09-21-13-02-04`
-- 🔴 `automation_update` 的 cwds：create 时**不认传入值**（自动塞临时目录），update 时可改；但 update **拒绝 cwds=`/Users/guan/WorkBuddy/Claw`**（报 cannot host automations）→ Claw 内自动化只能改 prompt/rrule，需换宿主时用 automation-2026-09-21-13-02-04
+- 🔴🔴 创建/修改rrule强制自检gate(08-07二次踩坑固化)：凡automation_update创建/更新或直写db automations表且rrule含BYHOUR多值→必load automation-rrul
+- 已拆：助理实盘1784039316540=9 + 1785123941471/596/709/786(10/11/13/14)
+- 🔴🔴 锁「活/死」两查法(09-24固化)：`check_schedule <name>` 只在有 `done_schedule` 写锁时才生效；只 check 不 done = 死守卫（恒放行）。
+- 知识库精读=三槽 `00:50 automation-1782137216020` / `03:20 11a78567-823d-4d13-970b-42ed417e9b5f` / `05:50 0d18c526-eab
+- 🔴 `automation_update` 的 cwds：create 时不认传入值（自动塞临时目录），update 时可改
 - Sidecar守护唯一执行方=com.workbuddy.memwatch(阈值RSS_RESTART_MB=10000MB，08-06由6000上调)；禁依赖看门狗兜底关键自动化
-- 🔴🔴 automation_update 的 id **必须带 `automation-` 前缀**(08-24实锤)：传裸数字ID不报错而是**静默新建影子记录**并把改动写进影子，真实记录毫发无损→PAUSE/改配置全成假成功(工具连返success仍ACTIVE在跑)。识破线索=①返回cwds与DB该记录不符(影子为临时目录`WorkBuddy/automation-<日期>`)②view传裸ID报not found但update却"成功"③按`name LIKE`查出同名双记录。铁律：**任何status/rrule变更后必readback** `SELECT status,updated_at FROM automations WHERE id='automation-<x>'` 才算成功；写操作与查automation_runs同一前缀规则
-
-### 统一巡检中枢(08-06接管)
-- unified_ops_center.py(宿主QTS自动化1785982929477每小时)；复用专项脚本(automation_health/self_heal/qts_pmf_guard/disk/feishu_channel)不重写；Runbook自愈白名单=memwatch_threshold_bump+docker_restart_container；审计unified_self_heal_log.json
-- 被接管已PAUSED：综合健康1781780654327/跨项目1785918166172/多项目1785928720152；保留独立：watchdog失败扫表1785506975961、飞书自检1784084428353；飞书告知结构化卡，全绿SILENT
-- 🔴 **真值纪律(09-24固化)**：scheduler DB(`~/.workbuddy/workbuddy.db`)=**唯一真值**，`.workbuddy/inspection_hub/registry.json`=**只读镜像**。发现漂移一律 **DB→校正镜像**，绝不反向改 DB。skill 定义=`.workbuddy/skills/unified-inspection-hub/SKILL.md`（v1.1）
-- 对账器 **`hub_reconcile.py`**：observe(DB 只读URI)→diff(vs registry)→act(**只写镜像**)。漂移 **D1**镜像漂移(`--fix`自愈)/**D2**声明悬空/**D3**未纳管/**D4**心跳超时/**D5**文档漂移/**D6**待办逾期/**D7**契约盲区/**D8**跨项目闭环；心跳阈值=`周期+max(3h,周期×25%)`；退出码 **0干净/10仅D1/20须人**，且 **rc 同时写进 JSON**（`out.rc` 与进程退出码同源，消费方不必两条路各读一次）；开关 `--json`/`--brief`/`--fix`/`--doc`/`--no-doc`/`--cross-state`
-- 🔴🔴 **错误 ≠ 通过；缺键 ≠ 空集(09-24三次审计固化)**：任何"校验器 → 消费方"的链路，**退出码必须区分「通过 / 有问题 / 输入不可信」**（0/1/2），且输入不可信时**所有可求值键显式置 `null`**（绝不能留 `violations: []` 这种"看起来像空集"的形状）。实例：`doc_apply_parity.py` 读不出 registry 时 `return 0` 且无 `violations` 键 → 切换守卫判据 `violations == []` 求值为 undefined → **"读不到"被读成"没有越界" → 可能放行生产 mode 切 live**。修法三处同时改：脚本 rc=2+置 null / 契约判据首条加 `parity.ok == true` / prompt 明确"先看退出码"。原语：**错误 ≠ 通过；缺键 ≠ 空集。**
-- 🔴🔴 **看门狗不得静默消失(09-24三次审计)**：`wb_health_check.sh` 第 5 节原为**合取条件** `[ -x $PY ] && [ -f $RECON ] && [ -r $DB ]` —— 任一不成立就**整节无声跳过**（无日志无告警）。"Never rely on the AI to report its own death" 那层被反向击穿。且 `rc<20` 一律记"正常" → 对账器崩溃(rc=1)/用法错误(rc=2) 被当健康。**修法**：输入缺失 → 显式告警并**列出缺哪个**（24h 冷却）；退出码改**白名单**（0/10/20，其余=执行异常→告警）。**任何"看门狗/巡检"都要能被"它自己的输入消失"这件事触发告警。**
-- 🔴 **D7 契约盲区(09-24三次审计，hub_reconcile 第 7 类漂移)**：D1–D6 全建立在"声明完整且指向的东西还在"这个假设上；假设一破，检查器**不报错、报 clean** —— **空声明与零漂移在输出上完全一样**。D7 自检：scope/清单/契约文档列表非空、每份契约文档至少一类判据、`autonomy_methods.ladder` 存在、`precondition_verifier` 脚本存在且**不依赖 cwd**、`preconditions` 含 `ok==true`、条件标识符能在校验器源码里找到。**上线首跑即从自己 registry 抓出 6 条真问题。**
-- 🔴 **同一事实只允许一处自由(09-24三次审计)**：其余副本必须是**枚举 + 机器交叉核对**，不许是自由文本。三处实例：①SKILL.md 同时写"跃迁必须人点头"与 `auto_switch=true`（同文档两条相反铁律）②PA-001 `default_if_no_action` 自由文本"保持 calibrate" vs 真值自动切 live ③diag prompt 的 D5 清单/判据条数已过期。修法：`default_if_no_action` → **`if_no_action` 枚举**（`auto_switch_to_live|keep_calibrate|keep_as_is|escalate`）+ D7 与 `auto_switch` 交叉核对。
-- **声明里的路径/命令必须 cwd 无关(09-24)**：`python3 .workbuddy/scripts/x.py` 换个目录就 No such file，而**没人会知道守卫已失效** → 一律写 `$CLAW/...` 或绝对路径（D7 会报相对路径）。
-- **自动化 prompt 里的声明不在 D5 覆盖内(09-24，已登记 known_failure_modes)**：prompt 写的文档清单/判据条数/状态字样会静默腐烂（实测 diag prompt 滞后两轮）。后续可把 prompt 当"虚拟文档"纳入契约（读 DB `prompt` 列做 K1/K2）。
-- **"在生产里看起来没问题" ≠ "这条分支被验证过"(09-24)**：D4 的 PAUSED 修复生产环境**没有样本**（71 ACTIVE / 0 声明项为 PAUSED）→ 只能**合成调度库**（`--db` 参数）才验得了。测不到的修复等于没验。
-
-- **D5 文档漂移(v1.1.1)**：`registry.doc_contract` 声明「本部 SKILL.md 里哪些时段/键名/id 必须与真值一致」。**真值现算**（`rrule_times()` 从 DB 的 BYHOUR/BYMINUTE 推 HH:MM），**绝不写死在契约里**（写死=第三份会腐烂且自证的副本）。判据 K1 时段不一致/K1' **`anchor_dangling`**（锚点源非活跃→原为静默跳过=死守卫，已改报）/K2 契约键未提及/K3 注册表表格双向校验/K4 引用不存在 id（跳过含 `http` 行，防 bittide 文章号子串误报）。**文档腐烂 ≡ 镜像漂移，同一类病（都是声明的副本）**。多文档：`docs[]` 字符串继承默认/对象逐项覆盖；扩容只收"被中枢治理且文档写死真值"者（不收叙事报告）
-- 🔴 **通用铁律(09-24 三度踩坑固化)**：**凡"检查需要有输入"的机制，必须自检"输入还在不在"** —— 同族三例：①锁只 check 不 done（锁文件永不产生）②契约锚点指向已删自动化（静默 continue）③看门狗读空目录。三者形态都"看着在跑"，实际恒放行。**第四例(二次审计)：`--doc` 覆盖只继承顶层默认 → 取证通道静默失效**
-- 🔴 **观测不得污染生产(09-24 二次审计)**：只读/试跑用的参数（`--mode`、`--doc`）**绝不许回写生产状态**，也**不许写进权威产物/证据链**（曾：`--mode live` 试跑把 registry.mode 永久翻成 live + 往 parity.json 写伪造 live 记录 + 覆盖当日校准报告）。试跑一律写 `_probe`/临时区
-- 🔴 **审计必须复核上一次的修复(09-24 二次审计)**：第二轮审计找到的缺陷**全是第一轮"修完之后新引入"的** → 用"能证伪它的实验"再测一遍上一轮的改动，否则**修复本身成为新的腐烂源**
-- 🔴 **compile 通过 ≠ 能跑**：Edit 时 old_string 含某行而 new_string 漏带 → 整行被删，`py_compile` 不报（NameError 是运行时的）→ **改完脚本必须真执行一次**
-- 🔴 **回滚点必须是真 commit**：声明的 `rollback_point` 要用 `git cat-file -t <sha>` 验到，否则"一键回滚"是谎话
-- **D6 待办逾期(v1.2)**：`pending_actions[].due < 今天` 且 status ∉ {done,completed,cancelled,closed,skipped} → 报逾期天数/owner/`if_no_action`（原字段名 `default_if_no_action` 已废，见上"同一事实只允许一处自由"）。**"过期本身不是故障，没人知道它过期了才是"**
-- **PA-001 = 守卫式自动切换（用户 09-24 全授权）**：`doc_apply.auto_switch=true` + `switch_guard`（前置=满14天∧0越界（parity 机器判定）；每候选自审=宿主存在/**纯增量**/来源已登记；**前 3 批 live 必推卡**；落地后复跑 parity+对账，越界/提交失败→自动 `git revert`+mode 退回 calibrate）。定性 **supervised**（非 auto）→ 人从"切换前点头"改为"切换后抽查"
-- 🔴 **改名纪律**：自动化名/prompt 里**不写死状态字样**（如"（校准期）"）—— 状态只在 `registry.doc_apply.mode`。改名须同步 registry `night_slots` 键 + `free_window_decisions` + 文档；`_state_sync_notes` 里的历史记录**不改**（改了就是伪造历史）
-- 🔴 **改长 prompt 的安全姿势**：调度库只读导出备份(`/tmp/autoprompt_<id>.bak-<date>`) → `assert old in src` 锚点替换生成 `.new`（不命中即中止）→ `diff` 看改动面 → `automation_update` 写入 → **逐字节比对 DB 与 `.new`**（平台会剥尾换行）+ 回归 `rrule/status` 未动
-- 纳管范围由 **`registry.automation_scope`**(include/exclude 名称规则) 声明，**不手写全量**（库里71条约50条是业务/投研类=噪音）。范围内未登记→报 D3；新增治理类自动化会自动被抓出
-- 🔴 **D9 同组槽位配置不一致(09-25，hub_reconcile 第 9 类漂移)**：铁律「单 RRULE 禁多 BYHOUR」要求多时刻**拆成多条独立自动化**，而 **`automation_update` 改不了** `model_id`/`model_is_thinking`/`expert_id`/`permission_mode`/`push_to_wechat` → **拆槽时新建的那几条只会拿到平台默认值**。实测知识库精读三槽（prompt 自述「共用同一份正文」）：槽1 = hy3+thinking+EquityResearchExpert，槽2/3 = 默认 flash+无专家 → 同一件事每天 2/3 的产出被静默降档。**这不是配置疏漏，是拆分动作的系统性副作用（拆一次复发一次）**。判据来自 `registry.consistency_groups[]`（成员 `ids` + 必须一致的 `keys` + **有意差异也要声明**）。退化形态不许静默：`group_no_keys`/`group_member_missing`/`group_too_small`。修好后自动转静默（七连测 7/7）。已记 `known_failure_modes: slot-split-resets-config`。
-- 🔴 **报告粒度要对齐人的决策粒度(09-25)**：D9 初版对「一个键不一致」逐成员各报一条（3 成员 → 6 条），简报里读不出重点 → 改为一键一条、差异成员并列写一行。**把一个事实拆成 N 条噪音，等于让读的人替我做聚合。**
-- 🔴 **写死日期的测试 = 会腐烂的声明(09-25)**：QTS `TestLocalDbFreshnessTruncation` 用写死的 `2026-09-04`，而判据是 `effective >= today - 5天` → 09-09 后必然转红，**与代码无关**；它不再验证"新鲜/截断"，只在验证"今天离写测试那天多远"。同族三例：相对时间的交接项（"明日开盘前"）、契约里写死真值、**写死日期的测试**。→ 一律相对化，判据本身由专门用例钉住。
-- 🔴 **哨兵盲区：只覆盖"路径式引用"，漏了"sys.path 注入式引用"(09-25)**：`restore_forwarders.py` 与 `check_broken_refs.py` 的正则只认 `scripts/X.py` 字面串，而 prompt 里还有 `sys.path.insert(0,'scripts')` + **裸** `import X` 这种形态 → 两道哨兵**双双报「✅ 健康」**，实际 import 直接 ModuleNotFoundError（📊微信早报 / 📊收盘晚报 静默降级）。→ 新增 `find_syspath_bareimport_breaks.py` 并**委托**接入 check_broken_refs（单一实现）。**盲区不是"没查"，是查了一个自以为完备的子集。**
-- 🔴 **技能/声明类"没用"的三条判据(09-25 技能库审计固化)**：①**能不能被触发** —— 没有 frontmatter 就拿不到 `description`，**语义匹配不到 = 装了等于没装**（比"没装"更糟：照样占技能列表的位置）。②**是不是被取代** —— 新技能 description 写"基于旧技能扩展"时，旧的应**退役**而非并存。③**运行时依赖还在不在** —— 逐个探测技能里写的脚本/目录/CLI。**同时必须避开四类误判**：CLI 不在 PATH ≠ 依赖缺失（`pinchtab` 二进制在 `binaries/`、`tushare` 是 Python 包）；自己解析器读不了多行 YAML 块 ≠ 技能 description 为空；引用 `~/.openclaw`·`~/.claude` 的多半是**安装说明/示例**不是运行时依赖；与插件同名时先比体量（用户级可能更全）。**处置一律"隔离不删除"**：`.quarantine-<date>/` + MANIFEST（含"为什么移出"与恢复命令），并有"删前确认"这道铁律。
-- 🔴 **自报结果不能代替外部复核(09-25)**：写盘的脚本被重复执行 + 中途异常退出 → 留下「6 个已移走 / 1 个没移走 / MANIFEST 记 0」的半成品，**而脚本输出还在报成功**。只有拿"移动前记录的基线（文件数+哈希）"独立复核才发现。→ 同「检查器空转」家族：**凡是会写盘且自报结果的动作，事后必须自己重新数一遍。**
-- 🔴🔴 **判据要测产出，不只测存活(09-25，第五例「看着在跑其实没在跑」)**：`💓中枢存活看门狗` 连跑 **48 次 0 成功**（`cwds` 双重 JSON 编码 → 工作目录不存在 → `automation-workspace-unavailable`），而它**在 registry 里是已声明的 ACTIVE 项**、`last_run` 每 2h 刷新 → **D4 判它健康、静默通过**：D4 只读 `last_run`（跑没跑），不读 `result_success`（跑成没有）。→ 新增 **D4'**：最近 3 次全失败报 `never_succeeds`（样本<3 不判；有 1 次成功即静默，避免永久红灯）。**前四例（D7 声明空了报 clean / 守卫被错误放行 / 看门狗静默消失 / 输入缺失静默跳过）都是输入或输出坏了；这一例是判据本身选错了指标 —— 测存活，不测产出。**→ 凡是「巡检 / 心跳 / 存活」类判据，都要再问一句：**它测的是不是我想知道的那个东西？**
-- 🔴 **自动化 `cwds` 可能被双重 JSON 编码(09-25，已记 known_failure_modes)**：存成 `["[\"/Users/...\"]"]` → 运行时解析成带方括号的字面量 → 目录不存在 → **该自动化 100% 起不来**。全库 74 条里 3 条中招（全是治理类）。复扫：`json.loads(cwds)` 后逐元素查 `os.path.isdir`；元素以 `[`/`{` 开头或含引号即中招。修复用 `automation_update` 写回干净**项目目录**；⚠️ 该工具**拒绝**把 Claw 设为自动化工作区（`cannot host automations`），尽管 DB 里有 42 条 `cwds=Claw` 且运行正常 —— **工具校验与运行时不一致**，别被这条错误挡住（那些 prompt 自带 `cd $CLAW`，cwd 不影响功能）。
-- 🔴 **外部死信层(09-24)**：AI 看门狗守中枢有**双死盲区**(中枢死→看门狗同死)→ 给**无LLM的 launchd 看门狗** `~/.local/bin/wb_health_check.sh`(30min) 加第5检查段调 `hub_reconcile.py`，rc≥20→飞书(6h冷却,锚`~/.local/etc/wb_health/…/hub_alert_ts`)。**绝不让 AI 报告自己的死**
-- 🔴 **D8 跨项目闭环(09-24，「所有项目都要闭环」轮，hub_reconcile 第 8 类漂移)**：D1–D7 全部只覆盖 Claw 一个项目，而"闭环"是**跨项目**概念 —— 7 个项目的闭环状态写在 `~/.workbuddy/cross_project_state.json`，**此前不在任何机器检查覆盖内**：其 `handoff` 里 08-04 写的「明日开盘前」**静默躺了 50 天**（相对时间从写下那一刻就不可判定）。D8 K1 cwd/cwds 悬挂 / K2 磁盘真实 git 仓库未登记（**按 realpath 去重**，`~/WorkBuddy` 整树是软链→同目录两路径可见，不去重全是假阳性）/ K3 无 surfaces 健康声明 / K4 `updated_at` 与 mtime 差>24h（**写者只改子节点不 bump 顶层 → 「最后更新」这个字段在说谎 6.4 天**）/ K5 handoff 逾期 / K6 相对时间·未结构化·无 due。**判据：闭环 = 有声明 + 有覆盖 + 有留痕 + 有期限（且期限机器可判定）；休眠 ≠ 无主。**
-- 🔴🔴 **新检查的第一条判据必须是"输入自证"(09-24 D8 自查，第四次踩同一个坑)**：D8 初版只写 `if not cs:` 就报"状态锚不存在" → 文件明明在、内容为 `{}` 时**输出在说谎**；更危险的是把「读不出来」和「没有跨项目问题」混成一个结果。修法：`state_anchor_missing`（不在）/`state_anchor_unreadable`（在但读不出=输入不可信）/`state_anchor_empty`（空对象）/`no_active_projects`（空 → K1/K3/K5 全空转）/`scan_root_missing`（`~/WorkBuddy` 不可访问 → K2 一条都不查，须明写"本次 D8=0 不代表没有漏项"）**五种各报各的**。→ 已把 K0 输入自证写进 skill 的 D8 判据清单：**「错误 ≠ 通过；缺键 ≠ 空集」要成为每条新检查的起手式。**
-- 🔴 **记忆层是同一事实的第三份副本，同样会腐烂(09-24)**：`MEMORY.md` 曾写"不设自动切换(`auto_switch=false`)"，而 registry 真值早已是 `true`（PA-001 守卫式自动切换）—— D7 只能核对 registry 内部自洽，**管不到 MEMORY.md 里的自由文本副本**。修法：本文件里"状态/开关/条数"类事实**只写指针（指 registry 键）**，不复述具体值；D5 契约目前只收 SKILL.md 与季度巡检文档，**MEMORY.md 尚未纳入**（记为可扩展方向）。
-- 🔴 **被排除的点也必须声明出来(09-24 v1.5)**：D5 K3 表校验的例外（`table_keys_expected_exclude` + 新增 `..._exclude_prefixes: ["_"]`）**声明在 registry 里，不许硬写进代码** —— 硬写 = 看着在查、其实默默少查一批键（死守卫家族）。`_` 前缀（`_history`/`_state_sync_notes`）= 元数据/审计痕迹，不是配置。
-- 落地通道 `doc_apply`：开关与状态**一律查 `registry.doc_apply`**（`mode`/`auto_switch`/`calibrate_until`），本文件不复述具体值 →superseded by 2026-09-24（原文写"不设自动切换(`auto_switch=false`)"，而真值已是 `true`：PA-001 守卫式自动切换；见上条"记忆层是第三份副本"）；对账器 `doc_apply_parity.py` + 账本 `calibration/parity.json`
+- 🔴🔴 automation_update 的 id 必须带 `automation-` 前缀(08-24实锤)：传裸数字ID不报错而是静默新建影子记录并把改动写进影子
+- unified_ops_center.py(宿主QTS自动化1785982929477每小时)
+- 被接管已PAUSED：综合健康1781780654327/跨项目1785918166172/多项目1785928720152
+- 🔴 真值纪律(09-24固化)：scheduler DB(`~/.workbuddy/workbuddy.db`)=唯一真值，`.workbuddy/inspection_hub/registry.json`=只读镜像。
+- 对账器 `hub_reconcile.py`：observe(DB 只读URI)→diff(vs registry)→act(只写镜像)。
+- 🔴🔴 错误 ≠ 通过
+- 🔴🔴 看门狗不得静默消失(09-24三次审计)：`wb_health_check.sh` 第 5 节原为合取条件 `[ -x $PY ] && [ -f $RECON ] && [ -r $DB ]` —— 任一不成立就整节无
+- 🔴 D7 契约盲区(09-24三次审计，hub_reconcile 第 7 类漂移)：D1–D6 全建立在"声明完整且指向的东西还在"这个假设上；假设一破，检查器不报错、报 clean —— 空声明与零漂移在输出上完全一样。
+- 🔴 同一事实只允许一处自由(09-24三次审计)：其余副本必须是枚举 + 机器交叉核对，不许是自由文本。
+- 声明里的路径/命令必须 cwd 无关(09-24)：`python3 .workbuddy/scripts/x.py` 换个目录就 No such file
+- 自动化 prompt 里的声明不在 D5 覆盖内(09-24，已登记 known_failure_modes)：prompt 写的文档清单/判据条数/状态字样会静默腐烂（实测 diag prompt 滞后两轮）。
+- "在生产里看起来没问题" ≠ "这条分支被验证过"(09-24)：D4 的 PAUSED 修复生产环境没有样本（71 ACTIVE / 0 声明项为 PAUSED）→ 只能合成调度库（`--db` 参数）才验得了。
+- D5 文档漂移(v1.1.1)：`registry.doc_contract` 声明「本部 SKILL.md 里哪些时段/键名/id 必须与真值一致」。
+- 🔴 通用铁律(09-24 三度踩坑固化)：凡"检查需要有输入"的机制，必须自检"输入还在不在" —— 同族三例：①锁只 check 不 done（锁文件永不产生）②契约锚点指向已删自动化（静默 continue）③看门狗读空
+- 🔴 观测不得污染生产(09-24 二次审计)：只读/试跑用的参数（`--mode`、`--doc`）绝不许回写生产状态
+- 🔴 审计必须复核上一次的修复(09-24 二次审计)：第二轮审计找到的缺陷全是第一轮"修完之后新引入"的 → 用"能证伪它的实验"再测一遍上一轮的改动，否则修复本身成为新的腐烂源
+- 🔴 compile 通过 ≠ 能跑：Edit 时 old_string 含某行而 new_string 漏带 → 整行被删，`py_compile` 不报（NameError 是运行时的）→ 改完脚本必须真执行一次
+- 🔴 回滚点必须是真 commit：声明的 `rollback_point` 要用 `git cat-file -t <sha>` 验到，否则"一键回滚"是谎话
+- D6 待办逾期(v1.2)：`pending_actions[].due < 今天` 且 status ∉ {done,completed,cancelled,closed
+- PA-001 = 守卫式自动切换（用户 09-24 全授权）：`doc_apply.auto_switch=true` + `switch_guard`（前置=满14天∧0越界（parity 机器判定）
+- 🔴 改名纪律：自动化名/prompt 里不写死状态字样（如"（校准期）"）—— 状态只在 `registry.doc_apply.mode`。
+- 🔴 改长 prompt 的安全姿势：调度库只读导出备份(`/tmp/autoprompt_<id>.bak-<date>`) → `assert old in src` 锚点替换生成 `.new`（不命中即中止）→ `dif
+- 纳管范围由 `registry.automation_scope`(include/exclude 名称规则) 声明，不手写全量（库里71条约50条是业务/投研类=噪音）。
+- 🔴 D9 同组槽位配置不一致(09-25，hub_reconcile 第 9 类漂移)：铁律「单 RRULE 禁多 BYHOUR」要求多时刻拆成多条独立自动化
+- 🔴 报告粒度要对齐人的决策粒度(09-25)：D9 初版对「一个键不一致」逐成员各报一条（3 成员 → 6 条），简报里读不出重点 → 改为一键一条、差异成员并列写一行。
+- 🔴 写死日期的测试 = 会腐烂的声明(09-25)：QTS `TestLocalDbFreshnessTruncation` 用写死的 `2026-09-04`
+- 🔴 哨兵盲区：只覆盖"路径式引用"，漏了"sys.path 注入式引用"(09-25)：`restore_forwarders.py` 与 `check_broken_refs.py` 的正则只认 `scripts/X.py
+- 🔴 技能/声明类"没用"的三条判据(09-25 技能库审计固化)：①能不能被触发 —— 没有 frontmatter 就拿不到 `description`
+- 🔴 自报结果不能代替外部复核(09-25)：写盘的脚本被重复执行 + 中途异常退出 → 留下「6 个已移走 / 1 个没移走 / MANIFEST 记 0」的半成品，而脚本输出还在报成功。
+- 🔴🔴 判据要测产出，不只测存活(09-25，第五例「看着在跑其实没在跑」)：`💓中枢存活看门狗` 连跑 48 次 0 成功（`cwds` 双重 JSON 编码 → 工作目录不存在 → `automation-workspace
+- 🔴 自动化 `cwds` 可能被双重 JSON 编码(09-25，已记 known_failure_modes)：存成 `["[\"/Users/...\"]"]` → 运行时解析成带方括号的字面量 → 目录不存在 → 该自
+- 🔴 外部死信层(09-24)：AI 看门狗守中枢有双死盲区(中枢死→看门狗同死)→ 给无LLM的 launchd 看门狗 `~/.local/bin/wb_health_check.sh`(30min) 加第5检查段调 `h
+- 🔴 D8 跨项目闭环(09-24，「所有项目都要闭环」轮，hub_reconcile 第 8 类漂移)：D1–D7 全部只覆盖 Claw 一个项目
+- 🔴🔴 新检查的第一条判据必须是"输入自证"(09-24 D8 自查，第四次踩同一个坑)：D8 初版只写 `if not cs:` 就报"状态锚不存在" → 文件明明在、内容为 `{}` 时输出在说谎
+- 🔴 记忆层是同一事实的第三份副本，同样会腐烂(09-24)：`MEMORY.md` 曾写"不设自动切换(`auto_switch=false`)"
+- 🔴 被排除的点也必须声明出来(09-24 v1.5)：D5 K3 表校验的例外（`table_keys_expected_exclude` + 新增 `..._exclude_prefixes: ["_"]`）声明在 reg
+- 落地通道 `doc_apply`：开关与状态一律查 `registry.doc_apply`（`mode`/`auto_switch`/`calibrate_until`）
 
 ## 三系统边界（数据隔离）
 - 📈投顾→.workbuddy/.workbuddy/data/simulation/portfolio.json(全权只给结果)｜📊助理→.workbuddy/.workbuddy/data/user/portfolio.json(国金)｜🇺🇸美股；持仓同步(07-15)：用户发持仓截图→先diff再分析
@@ -156,3 +152,187 @@
 - 🔴 **10个缺失脚本已重建(2026-09-21)**：is_trading_day/cost_tracker/calc_rsi/workspace_scan/skill_hygiene 为忠实实现；advisor_rules/run_debate/discover_gzh/merge_signal/subscription_brief 为 SAFE-MODE 重建(头部标注 reconstruction, 不编造确定性买卖/成本/多空共识)。discover_gzh 依赖外部「红狐API」仍不可用→空结果；advisor_rules/run_debate 仅保守默认。原脚本逻辑与外部API凭证未恢复, 调用方勿当权威使用, 必要时补回原实现或凭证。
 - 🔴 **运行态目录版本控制策略(09-21 用户授权 agent 代决)**：`.workbuddy/memory/automations/`(B,0 tracked/46文件756K纯生成态)整目录 gitignore；`.workbuddy/automations/`(A)保留29个历史 tracked 文件(msg_content.json/dedup_*.json/.backups)，仅忽略新增噪声(signal_trace_*.md/.archive/)+沿用既有 `*/memory.md` 忽略；自动化定义真相源 `registry.json` 已 tracked，运行记忆不入库。理由：避免每次运行产生 git churn 与跨机克隆冲突；显式忽略+文档说明不构成盲区(文件仍在磁盘,巡检读运行时态而非 git)。禁止巡检自动化擅自改动此策略。
 - 🔴 **领域分工与共同盲区台账见 `domain_expertise_map.md`(09-21 建)**：金融=用户领衔(专家)、CS/模型/AI=agent 领衔+译术语；用户具「技术读写能力」(读得懂论证、能就技术议题拍板)，故 CS 域是术语翻译非降智科普。共同盲区(外部API凭证/券商终端对接/细分合规)与外部依赖台账见该文件。协作校准总纲见跨项目 `~/.workbuddy/MEMORY.md` 的「沟通姿态校准 / 领域分区」条。
+
+## 📎 铁律证据库（逐条复现与取证 · 由 split_memory_layers.py 从规则层剥离，**正文逐字未改**）
+> 用法：`grep -n "── 证据 37 ──" /Users/guan/WorkBuddy/Claw/.workbuddy/memory/MEMORY.md`；**证据编号 = 规则层第 N 条**（同序）。
+> 共 58 条，默认不可见，按需检索。
+
+**── 证据 1 ──**
+- 渠道：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346(免审直推)；维护类默认不推仅⚠️/🔴异常推；前缀📈投顾操盘/📊炒股助理/🇺🇸美股监控
+
+**── 证据 2 ──**
+- 删/移文件须「先复制→验证→再删源」+ 删前用户确认
+
+**── 证据 3 ──**
+- 数据文件改动：data/字段增删改须先确认；总本金¥50,000权威(=¥30,000+加仓¥20,000@07-14，记config.capital_additions)，sim_trade.py 用 get_effective_capital() 勿硬编码；例外：实时价刷新可直拉(标来源+时间)
+
+**── 证据 4 ──**
+- 飞书推送卡片化：统一 push_card.py(interactive)禁--text降级；lark-cli≥1.0.76；notify_center已委托push_card；改脚本先--dry-run
+
+**── 证据 5 ──**
+- 成本：cost_tracker.py(数据层)/cost_monitor.py(报告层)被cost_dashboard_feishu依赖；监控自动化=1782002819199
+
+**── 证据 6 ──**
+- 自动化调LLM必走本地代理:9999：provider≠deepseek/catrouter(如local_proxy)+base_url="http://127.0.0.1:9999/v1"；preamble内置ensure_proxy(:9999 DOWN自动load两plist自愈)
+
+**── 证据 7 ──**
+- 实时价铁律(07-29)：盘中/监控/信号取价**必须走腾讯 qt.gtimg.cn**，Wind仅降级兜底；wind_quote.py已改「腾讯优先→Wind降级」DO NOT REVERT；新取价脚本禁直接wind优先
+
+### 股价与推荐防错铁律（08-07·根因=8/6早报选股价数量级错误）：报告/选股/持仓中所有股价与买区不允许出错
+
+**── 证据 8 ──**
+- ①选股段价位必须由 advisor_rules.py check-entry --code X 脚本取价(gtimg实时+MA20+52周)，禁AI手填；②scripts/price_sanity.py 三闸门(G1实时偏差>30%/G2 52周区间/G3 MA20偏离>60%)任一失败→SANITY_FAIL+改用可信价；支持美股(--market us走Yahoo,G3跳过)；③check_entry外部价必经sanity，失败→blocked=True不输出离谱买区；④早报1782741941693+晚报1782741945710/1782817769722 prompt已嵌防错，price_sanity.ok=false标的标「🚫价格校验失败，已拦截」
+
+**── 证据 9 ──**
+- ⑤盘中监控全覆盖：fetch_holdings_quotes.py 加 `_apply_sanity()`(实盘/模拟盘每只current_price必经sanity，失败标price_sanity_fail+回填reliable_current_price，顶层sanity_failed计数)；6个盘中自动化(实盘1784039316540+投顾5策略1784506600526/634/523/665/706) prompt加「现价防错铁律」
+
+**── 证据 10 ──**
+- ⑥美股监控1780615006148：AAPL/TSLA/NVDA收盘价必过 price_sanity --market us，FAIL→标「🚫价格校验失败，已隔离」+重搜；禁手填美股价
+
+**── 证据 11 ──**
+- ⑦跨盘监控 cross_portfolio_monitor.py 二次校验：_sanity_guard()对portfolio.json current_price做sanity，失败→隔离错误价(不计入总市值)+sanity_failed计数
+
+**── 证据 12 ──**
+- ⑧工程质量周报1782002834355 PHASE2.5 加 tests/test_price_sanity.py(12用例)+跨盘测试回归门禁
+
+**── 证据 13 ──**
+- ⑨sim_trade.py交易执行校验(最高优先级)：_sanity_check_price()在cmd_update_price/cmd_update_all_prices(错误价拒绝写入保留旧价)+cmd_buy/cmd_sell(错误成交价拒绝交易)四入口拦截；auto_check_all_positions判定前硬断言(失败→continue跳过不误卖+ERROR日志)
+
+**── 证据 14 ──**
+- ⑩drill_assistant_monitor.py消费sanity：PHASE3分级前过滤price_sanity_fail=true→隔离告警+不参与止损盈亏判定+市值汇总排除。DO NOT REVERT：禁回退"AI直接写买区/现价"旧逻辑
+
+### 自动化排程与 rrule 铁律
+
+**── 证据 15 ──**
+- 🔴🔴 单RRULE禁多BYHOUR(只触发首个匹配小时，余槽静默丢无日志)→多时段拆多条单BYHOUR
+
+**── 证据 16 ──**
+- 🔴🔴 创建/修改rrule强制自检gate(08-07二次踩坑固化)：凡automation_update创建/更新或直写db automations表且rrule含BYHOUR多值→必load automation-rrule-safety-check skill走Gate1-4(禁多BYHOUR拆多条/备份/创建后验证创建数+单BYHOUR+告知用户当天剩余时段能否排上/回溯查昨天同坑一并修)。信任红线，复发即严重失职
+
+**── 证据 17 ──**
+- 已拆：助理实盘1784039316540=9 + 1785123941471/596/709/786(10/11/13/14)；信号溯源1780964240621=5 + 1785284629106(15:00)；原隐患1783310235388已删
+
+**── 证据 18 ──**
+- 🔴🔴 锁「活/死」两查法(09-24固化)：`check_schedule <name>` **只在有 `done_schedule` 写锁时才生效**；只 check 不 done = **死守卫**（恒放行）。判据①`grep -n "done_schedule\|schedule_utils.py done" <prompt>` ②`ls /tmp/claw_lock_<name>_*`。踩坑实录：知识库挖掘被误判为"日锁生效、6h 的 4 槽只跑首个"，实为 4 槽全跑。另：`--interval-hours N` 的锁写在**完成时刻**、槽=`[小时//N]`，故 N 须保证相邻触发点不同槽且前次不越界写进后次槽（三槽 00:50/03:20/05:50 用 **N=1**；N=2 会被 03:20 越界锁死 05:50）
+
+**── 证据 19 ──**
+- 知识库精读=三槽 `00:50 automation-1782137216020` / `03:20 11a78567-823d-4d13-970b-42ed417e9b5f` / `05:50 0d18c526-eab5-4402-b949-b9439eb682e1`（DAILY 单BYHOUR，`--max 15`×3=≤45 篇/天，全在 Hy4 免费窗口）；**三条共用同一份正文，改正文须三处同步**；宿主 cwds=`/Users/guan/WorkBuddy/automation-2026-09-21-13-02-04`
+
+**── 证据 20 ──**
+- 🔴 `automation_update` 的 cwds：create 时**不认传入值**（自动塞临时目录），update 时可改；但 update **拒绝 cwds=`/Users/guan/WorkBuddy/Claw`**（报 cannot host automations）→ Claw 内自动化只能改 prompt/rrule，需换宿主时用 automation-2026-09-21-13-02-04
+
+**── 证据 21 ──**
+- Sidecar守护唯一执行方=com.workbuddy.memwatch(阈值RSS_RESTART_MB=10000MB，08-06由6000上调)；禁依赖看门狗兜底关键自动化
+
+**── 证据 22 ──**
+- 🔴🔴 automation_update 的 id **必须带 `automation-` 前缀**(08-24实锤)：传裸数字ID不报错而是**静默新建影子记录**并把改动写进影子，真实记录毫发无损→PAUSE/改配置全成假成功(工具连返success仍ACTIVE在跑)。识破线索=①返回cwds与DB该记录不符(影子为临时目录`WorkBuddy/automation-<日期>`)②view传裸ID报not found但update却"成功"③按`name LIKE`查出同名双记录。铁律：**任何status/rrule变更后必readback** `SELECT status,updated_at FROM automations WHERE id='automation-<x>'` 才算成功；写操作与查automation_runs同一前缀规则
+
+### 统一巡检中枢(08-06接管)
+
+**── 证据 23 ──**
+- unified_ops_center.py(宿主QTS自动化1785982929477每小时)；复用专项脚本(automation_health/self_heal/qts_pmf_guard/disk/feishu_channel)不重写；Runbook自愈白名单=memwatch_threshold_bump+docker_restart_container；审计unified_self_heal_log.json
+
+**── 证据 24 ──**
+- 被接管已PAUSED：综合健康1781780654327/跨项目1785918166172/多项目1785928720152；保留独立：watchdog失败扫表1785506975961、飞书自检1784084428353；飞书告知结构化卡，全绿SILENT
+
+**── 证据 25 ──**
+- 🔴 **真值纪律(09-24固化)**：scheduler DB(`~/.workbuddy/workbuddy.db`)=**唯一真值**，`.workbuddy/inspection_hub/registry.json`=**只读镜像**。发现漂移一律 **DB→校正镜像**，绝不反向改 DB。skill 定义=`.workbuddy/skills/unified-inspection-hub/SKILL.md`（v1.1）
+
+**── 证据 26 ──**
+- 对账器 **`hub_reconcile.py`**：observe(DB 只读URI)→diff(vs registry)→act(**只写镜像**)。漂移 **D1**镜像漂移(`--fix`自愈)/**D2**声明悬空/**D3**未纳管/**D4**心跳超时/**D5**文档漂移/**D6**待办逾期/**D7**契约盲区/**D8**跨项目闭环；心跳阈值=`周期+max(3h,周期×25%)`；退出码 **0干净/10仅D1/20须人**，且 **rc 同时写进 JSON**（`out.rc` 与进程退出码同源，消费方不必两条路各读一次）；开关 `--json`/`--brief`/`--fix`/`--doc`/`--no-doc`/`--cross-state`
+
+**── 证据 27 ──**
+- 🔴🔴 **错误 ≠ 通过；缺键 ≠ 空集(09-24三次审计固化)**：任何"校验器 → 消费方"的链路，**退出码必须区分「通过 / 有问题 / 输入不可信」**（0/1/2），且输入不可信时**所有可求值键显式置 `null`**（绝不能留 `violations: []` 这种"看起来像空集"的形状）。实例：`doc_apply_parity.py` 读不出 registry 时 `return 0` 且无 `violations` 键 → 切换守卫判据 `violations == []` 求值为 undefined → **"读不到"被读成"没有越界" → 可能放行生产 mode 切 live**。修法三处同时改：脚本 rc=2+置 null / 契约判据首条加 `parity.ok == true` / prompt 明确"先看退出码"。原语：**错误 ≠ 通过；缺键 ≠ 空集。**
+
+**── 证据 28 ──**
+- 🔴🔴 **看门狗不得静默消失(09-24三次审计)**：`wb_health_check.sh` 第 5 节原为**合取条件** `[ -x $PY ] && [ -f $RECON ] && [ -r $DB ]` —— 任一不成立就**整节无声跳过**（无日志无告警）。"Never rely on the AI to report its own death" 那层被反向击穿。且 `rc<20` 一律记"正常" → 对账器崩溃(rc=1)/用法错误(rc=2) 被当健康。**修法**：输入缺失 → 显式告警并**列出缺哪个**（24h 冷却）；退出码改**白名单**（0/10/20，其余=执行异常→告警）。**任何"看门狗/巡检"都要能被"它自己的输入消失"这件事触发告警。**
+
+**── 证据 29 ──**
+- 🔴 **D7 契约盲区(09-24三次审计，hub_reconcile 第 7 类漂移)**：D1–D6 全建立在"声明完整且指向的东西还在"这个假设上；假设一破，检查器**不报错、报 clean** —— **空声明与零漂移在输出上完全一样**。D7 自检：scope/清单/契约文档列表非空、每份契约文档至少一类判据、`autonomy_methods.ladder` 存在、`precondition_verifier` 脚本存在且**不依赖 cwd**、`preconditions` 含 `ok==true`、条件标识符能在校验器源码里找到。**上线首跑即从自己 registry 抓出 6 条真问题。**
+
+**── 证据 30 ──**
+- 🔴 **同一事实只允许一处自由(09-24三次审计)**：其余副本必须是**枚举 + 机器交叉核对**，不许是自由文本。三处实例：①SKILL.md 同时写"跃迁必须人点头"与 `auto_switch=true`（同文档两条相反铁律）②PA-001 `default_if_no_action` 自由文本"保持 calibrate" vs 真值自动切 live ③diag prompt 的 D5 清单/判据条数已过期。修法：`default_if_no_action` → **`if_no_action` 枚举**（`auto_switch_to_live|keep_calibrate|keep_as_is|escalate`）+ D7 与 `auto_switch` 交叉核对。
+
+**── 证据 31 ──**
+- **声明里的路径/命令必须 cwd 无关(09-24)**：`python3 .workbuddy/scripts/x.py` 换个目录就 No such file，而**没人会知道守卫已失效** → 一律写 `$CLAW/...` 或绝对路径（D7 会报相对路径）。
+
+**── 证据 32 ──**
+- **自动化 prompt 里的声明不在 D5 覆盖内(09-24，已登记 known_failure_modes)**：prompt 写的文档清单/判据条数/状态字样会静默腐烂（实测 diag prompt 滞后两轮）。后续可把 prompt 当"虚拟文档"纳入契约（读 DB `prompt` 列做 K1/K2）。
+
+**── 证据 33 ──**
+- **"在生产里看起来没问题" ≠ "这条分支被验证过"(09-24)**：D4 的 PAUSED 修复生产环境**没有样本**（71 ACTIVE / 0 声明项为 PAUSED）→ 只能**合成调度库**（`--db` 参数）才验得了。测不到的修复等于没验。
+
+**── 证据 34 ──**
+- **D5 文档漂移(v1.1.1)**：`registry.doc_contract` 声明「本部 SKILL.md 里哪些时段/键名/id 必须与真值一致」。**真值现算**（`rrule_times()` 从 DB 的 BYHOUR/BYMINUTE 推 HH:MM），**绝不写死在契约里**（写死=第三份会腐烂且自证的副本）。判据 K1 时段不一致/K1' **`anchor_dangling`**（锚点源非活跃→原为静默跳过=死守卫，已改报）/K2 契约键未提及/K3 注册表表格双向校验/K4 引用不存在 id（跳过含 `http` 行，防 bittide 文章号子串误报）。**文档腐烂 ≡ 镜像漂移，同一类病（都是声明的副本）**。多文档：`docs[]` 字符串继承默认/对象逐项覆盖；扩容只收"被中枢治理且文档写死真值"者（不收叙事报告）
+
+**── 证据 35 ──**
+- 🔴 **通用铁律(09-24 三度踩坑固化)**：**凡"检查需要有输入"的机制，必须自检"输入还在不在"** —— 同族三例：①锁只 check 不 done（锁文件永不产生）②契约锚点指向已删自动化（静默 continue）③看门狗读空目录。三者形态都"看着在跑"，实际恒放行。**第四例(二次审计)：`--doc` 覆盖只继承顶层默认 → 取证通道静默失效**
+
+**── 证据 36 ──**
+- 🔴 **观测不得污染生产(09-24 二次审计)**：只读/试跑用的参数（`--mode`、`--doc`）**绝不许回写生产状态**，也**不许写进权威产物/证据链**（曾：`--mode live` 试跑把 registry.mode 永久翻成 live + 往 parity.json 写伪造 live 记录 + 覆盖当日校准报告）。试跑一律写 `_probe`/临时区
+
+**── 证据 37 ──**
+- 🔴 **审计必须复核上一次的修复(09-24 二次审计)**：第二轮审计找到的缺陷**全是第一轮"修完之后新引入"的** → 用"能证伪它的实验"再测一遍上一轮的改动，否则**修复本身成为新的腐烂源**
+
+**── 证据 38 ──**
+- 🔴 **compile 通过 ≠ 能跑**：Edit 时 old_string 含某行而 new_string 漏带 → 整行被删，`py_compile` 不报（NameError 是运行时的）→ **改完脚本必须真执行一次**
+
+**── 证据 39 ──**
+- 🔴 **回滚点必须是真 commit**：声明的 `rollback_point` 要用 `git cat-file -t <sha>` 验到，否则"一键回滚"是谎话
+
+**── 证据 40 ──**
+- **D6 待办逾期(v1.2)**：`pending_actions[].due < 今天` 且 status ∉ {done,completed,cancelled,closed,skipped} → 报逾期天数/owner/`if_no_action`（原字段名 `default_if_no_action` 已废，见上"同一事实只允许一处自由"）。**"过期本身不是故障，没人知道它过期了才是"**
+
+**── 证据 41 ──**
+- **PA-001 = 守卫式自动切换（用户 09-24 全授权）**：`doc_apply.auto_switch=true` + `switch_guard`（前置=满14天∧0越界（parity 机器判定）；每候选自审=宿主存在/**纯增量**/来源已登记；**前 3 批 live 必推卡**；落地后复跑 parity+对账，越界/提交失败→自动 `git revert`+mode 退回 calibrate）。定性 **supervised**（非 auto）→ 人从"切换前点头"改为"切换后抽查"
+
+**── 证据 42 ──**
+- 🔴 **改名纪律**：自动化名/prompt 里**不写死状态字样**（如"（校准期）"）—— 状态只在 `registry.doc_apply.mode`。改名须同步 registry `night_slots` 键 + `free_window_decisions` + 文档；`_state_sync_notes` 里的历史记录**不改**（改了就是伪造历史）
+
+**── 证据 43 ──**
+- 🔴 **改长 prompt 的安全姿势**：调度库只读导出备份(`/tmp/autoprompt_<id>.bak-<date>`) → `assert old in src` 锚点替换生成 `.new`（不命中即中止）→ `diff` 看改动面 → `automation_update` 写入 → **逐字节比对 DB 与 `.new`**（平台会剥尾换行）+ 回归 `rrule/status` 未动
+
+**── 证据 44 ──**
+- 纳管范围由 **`registry.automation_scope`**(include/exclude 名称规则) 声明，**不手写全量**（库里71条约50条是业务/投研类=噪音）。范围内未登记→报 D3；新增治理类自动化会自动被抓出
+
+**── 证据 45 ──**
+- 🔴 **D9 同组槽位配置不一致(09-25，hub_reconcile 第 9 类漂移)**：铁律「单 RRULE 禁多 BYHOUR」要求多时刻**拆成多条独立自动化**，而 **`automation_update` 改不了** `model_id`/`model_is_thinking`/`expert_id`/`permission_mode`/`push_to_wechat` → **拆槽时新建的那几条只会拿到平台默认值**。实测知识库精读三槽（prompt 自述「共用同一份正文」）：槽1 = hy3+thinking+EquityResearchExpert，槽2/3 = 默认 flash+无专家 → 同一件事每天 2/3 的产出被静默降档。**这不是配置疏漏，是拆分动作的系统性副作用（拆一次复发一次）**。判据来自 `registry.consistency_groups[]`（成员 `ids` + 必须一致的 `keys` + **有意差异也要声明**）。退化形态不许静默：`group_no_keys`/`group_member_missing`/`group_too_small`。修好后自动转静默（七连测 7/7）。已记 `known_failure_modes: slot-split-resets-config`。
+
+**── 证据 46 ──**
+- 🔴 **报告粒度要对齐人的决策粒度(09-25)**：D9 初版对「一个键不一致」逐成员各报一条（3 成员 → 6 条），简报里读不出重点 → 改为一键一条、差异成员并列写一行。**把一个事实拆成 N 条噪音，等于让读的人替我做聚合。**
+
+**── 证据 47 ──**
+- 🔴 **写死日期的测试 = 会腐烂的声明(09-25)**：QTS `TestLocalDbFreshnessTruncation` 用写死的 `2026-09-04`，而判据是 `effective >= today - 5天` → 09-09 后必然转红，**与代码无关**；它不再验证"新鲜/截断"，只在验证"今天离写测试那天多远"。同族三例：相对时间的交接项（"明日开盘前"）、契约里写死真值、**写死日期的测试**。→ 一律相对化，判据本身由专门用例钉住。
+
+**── 证据 48 ──**
+- 🔴 **哨兵盲区：只覆盖"路径式引用"，漏了"sys.path 注入式引用"(09-25)**：`restore_forwarders.py` 与 `check_broken_refs.py` 的正则只认 `scripts/X.py` 字面串，而 prompt 里还有 `sys.path.insert(0,'scripts')` + **裸** `import X` 这种形态 → 两道哨兵**双双报「✅ 健康」**，实际 import 直接 ModuleNotFoundError（📊微信早报 / 📊收盘晚报 静默降级）。→ 新增 `find_syspath_bareimport_breaks.py` 并**委托**接入 check_broken_refs（单一实现）。**盲区不是"没查"，是查了一个自以为完备的子集。**
+
+**── 证据 49 ──**
+- 🔴 **技能/声明类"没用"的三条判据(09-25 技能库审计固化)**：①**能不能被触发** —— 没有 frontmatter 就拿不到 `description`，**语义匹配不到 = 装了等于没装**（比"没装"更糟：照样占技能列表的位置）。②**是不是被取代** —— 新技能 description 写"基于旧技能扩展"时，旧的应**退役**而非并存。③**运行时依赖还在不在** —— 逐个探测技能里写的脚本/目录/CLI。**同时必须避开四类误判**：CLI 不在 PATH ≠ 依赖缺失（`pinchtab` 二进制在 `binaries/`、`tushare` 是 Python 包）；自己解析器读不了多行 YAML 块 ≠ 技能 description 为空；引用 `~/.openclaw`·`~/.claude` 的多半是**安装说明/示例**不是运行时依赖；与插件同名时先比体量（用户级可能更全）。**处置一律"隔离不删除"**：`.quarantine-<date>/` + MANIFEST（含"为什么移出"与恢复命令），并有"删前确认"这道铁律。
+
+**── 证据 50 ──**
+- 🔴 **自报结果不能代替外部复核(09-25)**：写盘的脚本被重复执行 + 中途异常退出 → 留下「6 个已移走 / 1 个没移走 / MANIFEST 记 0」的半成品，**而脚本输出还在报成功**。只有拿"移动前记录的基线（文件数+哈希）"独立复核才发现。→ 同「检查器空转」家族：**凡是会写盘且自报结果的动作，事后必须自己重新数一遍。**
+
+**── 证据 51 ──**
+- 🔴🔴 **判据要测产出，不只测存活(09-25，第五例「看着在跑其实没在跑」)**：`💓中枢存活看门狗` 连跑 **48 次 0 成功**（`cwds` 双重 JSON 编码 → 工作目录不存在 → `automation-workspace-unavailable`），而它**在 registry 里是已声明的 ACTIVE 项**、`last_run` 每 2h 刷新 → **D4 判它健康、静默通过**：D4 只读 `last_run`（跑没跑），不读 `result_success`（跑成没有）。→ 新增 **D4'**：最近 3 次全失败报 `never_succeeds`（样本<3 不判；有 1 次成功即静默，避免永久红灯）。**前四例（D7 声明空了报 clean / 守卫被错误放行 / 看门狗静默消失 / 输入缺失静默跳过）都是输入或输出坏了；这一例是判据本身选错了指标 —— 测存活，不测产出。**→ 凡是「巡检 / 心跳 / 存活」类判据，都要再问一句：**它测的是不是我想知道的那个东西？**
+
+**── 证据 52 ──**
+- 🔴 **自动化 `cwds` 可能被双重 JSON 编码(09-25，已记 known_failure_modes)**：存成 `["[\"/Users/...\"]"]` → 运行时解析成带方括号的字面量 → 目录不存在 → **该自动化 100% 起不来**。全库 74 条里 3 条中招（全是治理类）。复扫：`json.loads(cwds)` 后逐元素查 `os.path.isdir`；元素以 `[`/`{` 开头或含引号即中招。修复用 `automation_update` 写回干净**项目目录**；⚠️ 该工具**拒绝**把 Claw 设为自动化工作区（`cannot host automations`），尽管 DB 里有 42 条 `cwds=Claw` 且运行正常 —— **工具校验与运行时不一致**，别被这条错误挡住（那些 prompt 自带 `cd $CLAW`，cwd 不影响功能）。
+
+**── 证据 53 ──**
+- 🔴 **外部死信层(09-24)**：AI 看门狗守中枢有**双死盲区**(中枢死→看门狗同死)→ 给**无LLM的 launchd 看门狗** `~/.local/bin/wb_health_check.sh`(30min) 加第5检查段调 `hub_reconcile.py`，rc≥20→飞书(6h冷却,锚`~/.local/etc/wb_health/…/hub_alert_ts`)。**绝不让 AI 报告自己的死**
+
+**── 证据 54 ──**
+- 🔴 **D8 跨项目闭环(09-24，「所有项目都要闭环」轮，hub_reconcile 第 8 类漂移)**：D1–D7 全部只覆盖 Claw 一个项目，而"闭环"是**跨项目**概念 —— 7 个项目的闭环状态写在 `~/.workbuddy/cross_project_state.json`，**此前不在任何机器检查覆盖内**：其 `handoff` 里 08-04 写的「明日开盘前」**静默躺了 50 天**（相对时间从写下那一刻就不可判定）。D8 K1 cwd/cwds 悬挂 / K2 磁盘真实 git 仓库未登记（**按 realpath 去重**，`~/WorkBuddy` 整树是软链→同目录两路径可见，不去重全是假阳性）/ K3 无 surfaces 健康声明 / K4 `updated_at` 与 mtime 差>24h（**写者只改子节点不 bump 顶层 → 「最后更新」这个字段在说谎 6.4 天**）/ K5 handoff 逾期 / K6 相对时间·未结构化·无 due。**判据：闭环 = 有声明 + 有覆盖 + 有留痕 + 有期限（且期限机器可判定）；休眠 ≠ 无主。**
+
+**── 证据 55 ──**
+- 🔴🔴 **新检查的第一条判据必须是"输入自证"(09-24 D8 自查，第四次踩同一个坑)**：D8 初版只写 `if not cs:` 就报"状态锚不存在" → 文件明明在、内容为 `{}` 时**输出在说谎**；更危险的是把「读不出来」和「没有跨项目问题」混成一个结果。修法：`state_anchor_missing`（不在）/`state_anchor_unreadable`（在但读不出=输入不可信）/`state_anchor_empty`（空对象）/`no_active_projects`（空 → K1/K3/K5 全空转）/`scan_root_missing`（`~/WorkBuddy` 不可访问 → K2 一条都不查，须明写"本次 D8=0 不代表没有漏项"）**五种各报各的**。→ 已把 K0 输入自证写进 skill 的 D8 判据清单：**「错误 ≠ 通过；缺键 ≠ 空集」要成为每条新检查的起手式。**
+
+**── 证据 56 ──**
+- 🔴 **记忆层是同一事实的第三份副本，同样会腐烂(09-24)**：`MEMORY.md` 曾写"不设自动切换(`auto_switch=false`)"，而 registry 真值早已是 `true`（PA-001 守卫式自动切换）—— D7 只能核对 registry 内部自洽，**管不到 MEMORY.md 里的自由文本副本**。修法：本文件里"状态/开关/条数"类事实**只写指针（指 registry 键）**，不复述具体值；D5 契约目前只收 SKILL.md 与季度巡检文档，**MEMORY.md 尚未纳入**（记为可扩展方向）。
+
+**── 证据 57 ──**
+- 🔴 **被排除的点也必须声明出来(09-24 v1.5)**：D5 K3 表校验的例外（`table_keys_expected_exclude` + 新增 `..._exclude_prefixes: ["_"]`）**声明在 registry 里，不许硬写进代码** —— 硬写 = 看着在查、其实默默少查一批键（死守卫家族）。`_` 前缀（`_history`/`_state_sync_notes`）= 元数据/审计痕迹，不是配置。
+
+**── 证据 58 ──**
+- 落地通道 `doc_apply`：开关与状态**一律查 `registry.doc_apply`**（`mode`/`auto_switch`/`calibrate_until`），本文件不复述具体值 →superseded by 2026-09-24（原文写"不设自动切换(`auto_switch=false`)"，而真值已是 `true`：PA-001 守卫式自动切换；见上条"记忆层是第三份副本"）；对账器 `doc_apply_parity.py` + 账本 `calibration/parity.json`

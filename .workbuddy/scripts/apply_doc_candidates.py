@@ -18,6 +18,7 @@ Mode B（2026-09-24 定案）：每日发现 → 当日落地文档类 → 周�
 
 退出码：0=正常跑完（含"过闸 0 条"这种正常的 SILENT）；2=输入不可读/不可信（不等于无候选）
 """
+
 from __future__ import annotations
 
 import argparse
@@ -92,12 +93,10 @@ def quality_gate(c: dict, cfg: dict, skills_dir: Path) -> tuple[bool, str]:
     if c.get("risk") not in g.get("risk_max", []):
         return False, f"risk={c.get('risk')} 高于阈"
     skill = c.get("skill") or ""
-    if g.get("require_host", True):
-        if not skill or not (skills_dir / skill).is_dir():
-            return False, f"承载方缺失: {skill or '(空)'}"
-    if g.get("require_doc_target", True):
-        if not doc_target(c):
-            return False, "无文档落地目标(references/README/CHANGELOG)"
+    if g.get("require_host", True) and (not skill or not (skills_dir / skill).is_dir()):
+        return False, f"承载方缺失: {skill or '(空)'}"
+    if g.get("require_doc_target", True) and not doc_target(c):
+        return False, "无文档落地目标(references/README/CHANGELOG)"
     return True, "pass"
 
 
@@ -119,7 +118,9 @@ def select(reg: dict, cfg: dict, skills_dir: Path) -> tuple[list[dict], list[dic
     return sel, dropped
 
 
-def write_calibration_report(sel: list[dict], dropped: list[dict], mode: str, suffix: str = "") -> Path:
+def write_calibration_report(
+    sel: list[dict], dropped: list[dict], mode: str, suffix: str = ""
+) -> Path:
     # 探测（--mode 覆盖）报告写进 probe/ 子目录：calibration/ 是**证据目录**，
     # 观测行为不该在证据目录里留同名文件（三次审计 S6，与二次审计"试跑污染账本"同族）。
     d = CALIBRATION_DIR / "probe" if suffix else CALIBRATION_DIR
@@ -176,8 +177,14 @@ def write_parity_ledger(sel: list[dict], mode: str, report: Path) -> Path:
         "mode": mode,
         "report": str(report.relative_to(CLAW)),
         "selected": [
-            {"id": c.get("id"), "skill": c.get("skill"), "target": doc_target(c),
-             "value": c.get("value"), "risk": c.get("risk"), "url": c.get("url")}
+            {
+                "id": c.get("id"),
+                "skill": c.get("skill"),
+                "target": doc_target(c),
+                "value": c.get("value"),
+                "risk": c.get("risk"),
+                "url": c.get("url"),
+            }
             for c in sel
         ],
     }
@@ -204,9 +211,14 @@ def main() -> int:
         # ⚠️ 三次审计 S5：原实现 return 0 —— 落地自动化只看退出码，会把"读不出 registry"
         #    当成"跑完了、没事"，于是**当天静默不落地且没人知道**。
         #    现在退出码 2（1 留给"有候选但被闸门全滤掉"这类正常业务结果）。
-        out = {"ok": False, "error": reg["_error"], "mode": None, "selected": [],
-               "silent": None,
-               "note": "退出码 2 = 输入不可读/不可信，**不等于「无候选」**；不得据此静默"}
+        out = {
+            "ok": False,
+            "error": reg["_error"],
+            "mode": None,
+            "selected": [],
+            "silent": None,
+            "note": "退出码 2 = 输入不可读/不可信，**不等于「无候选」**；不得据此静默",
+        }
         if args.json:
             print(json.dumps(out, ensure_ascii=False))
         else:
@@ -234,9 +246,12 @@ def main() -> int:
     override = args.mode is not None
     report = write_calibration_report(sel, dropped, mode, "_probe" if override else "")
     if override:
-        print(f"[apply_doc] 注意：--mode {mode} 仅本次运行生效 → 报告写 {report.name}（probe 后缀），"
-              f"**不写权威账本、不回写 registry**（registry 现有 mode={reg.get('doc_apply', {}).get('mode')}）；"
-              f"切 mode 请走 1c 自动化或人工显式改 registry", file=sys.stderr)
+        print(
+            f"[apply_doc] 注意：--mode {mode} 仅本次运行生效 → 报告写 {report.name}（probe 后缀），"
+            f"**不写权威账本、不回写 registry**（registry 现有 mode={reg.get('doc_apply', {}).get('mode')}）；"
+            f"切 mode 请走 1c 自动化或人工显式改 registry",
+            file=sys.stderr,
+        )
     else:
         write_parity_ledger(sel, mode, report)
         da = reg.setdefault("doc_apply", {})
@@ -258,8 +273,13 @@ def main() -> int:
         "mode": mode,
         "mode_source": "cli-override(不回写)" if override else "registry",
         "selected": [
-            {"id": c.get("id"), "skill": c.get("skill"), "target": doc_target(c),
-             "value": c.get("value"), "risk": c.get("risk")}
+            {
+                "id": c.get("id"),
+                "skill": c.get("skill"),
+                "target": doc_target(c),
+                "value": c.get("value"),
+                "risk": c.get("risk"),
+            }
             for c in sel
         ],
         "dropped": dropped,
@@ -269,7 +289,9 @@ def main() -> int:
     if args.json:
         print(json.dumps(out, ensure_ascii=False))
     elif not args.quiet:
-        print(f"[apply_doc] mode={mode} 入选 {len(sel)} 条 / 滤除 {len(dropped)} 条 -> {out['report']}")
+        print(
+            f"[apply_doc] mode={mode} 入选 {len(sel)} 条 / 滤除 {len(dropped)} 条 -> {out['report']}"
+        )
         for c in out["selected"]:
             print(f"  · {c['id']} [{c['skill']}] -> {c['target']}")
         if out["silent"]:

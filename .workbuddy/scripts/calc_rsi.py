@@ -9,6 +9,7 @@
 数据源: Wind 万得(优先) → 腾讯财经前复权日K (web.ifzq.gtimg.cn) → 新浪
 降级: 网络失败/数据不足 → 输出 null + 原因，不抛异常（供自动化安全调用）
 """
+
 from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
 
 import json
@@ -17,6 +18,7 @@ import urllib.request
 
 try:
     import ssl
+
     _CTX = ssl.create_default_context()
     _CTX.check_hostname = False
     _CTX.verify_mode = ssl.CERT_NONE
@@ -28,6 +30,7 @@ try:
     sys.path.insert(0, __file__ + "/../../src")
     from claw.feeds.wind_utils import get_wind_kline, wind_available
 except ImportError:
+
     def wind_available() -> bool:  # type: ignore[misc]
         return False
 
@@ -66,7 +69,7 @@ def fetch_close(code_prefixed: str, n: int = 60) -> list[float]:
     try:
         url = (
             f"https://web.ifzq.gtimg.cn/appstuff/app/fqkline/get"
-            f"?param={code_prefixed},day,,,{n+1},qfq"
+            f"?param={code_prefixed},day,,,{n + 1},qfq"
         )
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         resp = urllib.request.urlopen(req, timeout=6, context=_CTX)  # nosec B310: ifzq.gtimg.cn
@@ -83,7 +86,7 @@ def fetch_close(code_prefixed: str, n: int = 60) -> list[float]:
     sina_code = code_prefixed
     url = (
         f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
-        f"/CN_MarketData.getKLineData?symbol={sina_code}&scale=240&ma=no&datalen={n+1}"
+        f"/CN_MarketData.getKLineData?symbol={sina_code}&scale=240&ma=no&datalen={n + 1}"
     )
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     resp = urllib.request.urlopen(req, timeout=6)  # nosec B310: sina finance

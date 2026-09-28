@@ -22,6 +22,7 @@ sync_lhb_signals.py — 龙虎榜信号接入信号仓库（公众号-independen
   - verified = false (新信号, 待后续回测验证; compute_signal_weights 仅给≥3验证账户算权重, 故龙虎榜暂用 _default=0.5)
   - article_id = md5("LHB|code|date|tab") 按 股+tab 去重(1日/3日同股同tab只留首条)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,8 +33,8 @@ import sys
 from datetime import date
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent          # .workbuddy/scripts
-PROJECT_ROOT = SCRIPT_DIR.parent.parent               # /Users/guan/WorkBuddy/Claw
+SCRIPT_DIR = Path(__file__).resolve().parent  # .workbuddy/scripts
+PROJECT_ROOT = SCRIPT_DIR.parent.parent  # /Users/guan/WorkBuddy/Claw
 SIGNALS_FILE = PROJECT_ROOT / ".workbuddy" / "data" / "article_signals.json"
 SOURCE_WEIGHTS = PROJECT_ROOT / "data" / "source_weights.json"
 DATA_DIR = PROJECT_ROOT / "data"
@@ -83,48 +84,60 @@ def normalize(lhb: dict, trade_date: str) -> list[dict]:
         art_id = hashlib.md5(
             f"LHB|{code}|{trade_date}|{tab}".encode(), usedforsecurity=False
         ).hexdigest()[:12]
-        out.append({
-            "article_id": art_id,
-            "account": ACCOUNT,
-            "title": f"龙虎榜·{signal_kind} {name} {summary}",
-            "stock_code": code,
-            "stock_name": name,
-            "signal": "bullish",
-            "target_price": None,
-            "confidence": conf,
-            "recorded_at": trade_date,
-            "verified": False,
-            "hit_target": None,
-            "hit_stop": None,
-            "final_return_pct": None,
-            "source_file": None,
-            "realtime_chg_pct": None,
-            "realtime_price": None,
-            "hit": None,
-            "verify_note": None,
-            "verify_at": None,
-            "source": ACCOUNT,
-            "code_status": "ok",
-            "_lhb_tab": tab,  # 保留来源 tab, 便于后续审计(不影响消费层)
-        })
+        out.append(
+            {
+                "article_id": art_id,
+                "account": ACCOUNT,
+                "title": f"龙虎榜·{signal_kind} {name} {summary}",
+                "stock_code": code,
+                "stock_name": name,
+                "signal": "bullish",
+                "target_price": None,
+                "confidence": conf,
+                "recorded_at": trade_date,
+                "verified": False,
+                "hit_target": None,
+                "hit_stop": None,
+                "final_return_pct": None,
+                "source_file": None,
+                "realtime_chg_pct": None,
+                "realtime_price": None,
+                "hit": None,
+                "verify_note": None,
+                "verify_at": None,
+                "source": ACCOUNT,
+                "code_status": "ok",
+                "_lhb_tab": tab,  # 保留来源 tab, 便于后续审计(不影响消费层)
+            }
+        )
 
     # 机构榜 (净买为正 = 机构净买入, bullish)
     for r in lhb.get("jg", []) or []:
         net = float(r.get("netBuyAmt") or 0)
         if net <= 0:
             continue
-        add(r.get("code"), r.get("name"), "jg",
-            "机构", conf_jg(r.get("netBuyRate")),
-            f"净买率{r.get('netBuyRate')}%")
+        add(
+            r.get("code"),
+            r.get("name"),
+            "jg",
+            "机构",
+            conf_jg(r.get("netBuyRate")),
+            f"净买率{r.get('netBuyRate')}%",
+        )
 
     # 敢死队/游资买入榜 (净买为正 = bullish)
     for r in lhb.get("gslmr", []) or []:
         net = float(r.get("netAmt") or 0)
         if net <= 0:
             continue
-        add(r.get("code"), r.get("name"), "gslmr",
-            "游资", conf_gslmr(r.get("winNum"), r.get("upRate")),
-            f"净买+{r.get('upRate')}%")
+        add(
+            r.get("code"),
+            r.get("name"),
+            "gslmr",
+            "游资",
+            conf_gslmr(r.get("winNum"), r.get("upRate")),
+            f"净买+{r.get('upRate')}%",
+        )
 
     return out
 
@@ -139,8 +152,11 @@ def fetch_eastmoney(trade_date: str) -> dict:
     - EXPLAIN 携带席位类型: "机构买入" / "游资买入" / "敢死队买入" / "普通席位买入"
     """
     import urllib.request
-    cols = ("SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,EXPLAIN,CLOSE_PRICE,"
-            "CHANGE_RATE,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT")
+
+    cols = (
+        "SECURITY_CODE,SECURITY_NAME_ABBR,TRADE_DATE,EXPLAIN,CLOSE_PRICE,"
+        "CHANGE_RATE,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT"
+    )
     url = (
         "https://datacenter-web.eastmoney.com/api/data/v1/get"
         f"?reportName=RPT_DAILYBILLBOARD_DETAILS&columns={cols}"
@@ -164,8 +180,16 @@ def fetch_eastmoney(trade_date: str) -> dict:
         explain = str(r.get("EXPLAIN", ""))
         if net <= 0:
             continue
-        rec = {"code": code, "name": name, "tdDays": 1, "netBuyAmt": net,
-               "netAmt": net, "upRate": up, "winNum": 1, "instBuyAmt": net}
+        rec = {
+            "code": code,
+            "name": name,
+            "tdDays": 1,
+            "netBuyAmt": net,
+            "netAmt": net,
+            "upRate": up,
+            "winNum": 1,
+            "instBuyAmt": net,
+        }
         if "机构" in explain:
             rec["netBuyRate"] = round(net / buy * 100, 2) if buy else 0.0
             jg.append(rec)
@@ -249,8 +273,11 @@ def main():
     seen_a = {s.get("article_id") for s in arch_signals}
     merged = list(arch_signals) + [s for s in signals if s["article_id"] not in seen_a]
     archive.write_text(
-        json.dumps({"date": trade_date, "count": len(merged),
-                    "signals": merged}, ensure_ascii=False, indent=2),
+        json.dumps(
+            {"date": trade_date, "count": len(merged), "signals": merged},
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     print(f"[archive] {archive} (merge -> {len(merged)} 条)")

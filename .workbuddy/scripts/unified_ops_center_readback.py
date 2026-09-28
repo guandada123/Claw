@@ -10,6 +10,7 @@
 
 用法：python3 unified_ops_center_readback.py
 """
+
 import datetime as dt
 import json
 import re
@@ -20,8 +21,8 @@ from pathlib import Path
 SCRIPT_DIR = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/scripts")
 ALERTED = SCRIPT_DIR / ".ops_alerted.json"
 CROSS_STATE = Path.home() / ".workbuddy" / "cross_project_state.json"
-DEDUP_TTL_H = 72          # 当前 F3 类告警的去重窗口
-WATCHDOG_MAX_MIN = 180    # 调度活性护栏阈值
+DEDUP_TTL_H = 72  # 当前 F3 类告警的去重窗口
+WATCHDOG_MAX_MIN = 180  # 调度活性护栏阈值
 now = dt.datetime.now()
 now_ts = now.timestamp()
 
@@ -61,10 +62,14 @@ def sec2_anchor():
     if not CROSS_STATE.exists():
         print("  ❌ 文件不存在", CROSS_STATE)
         return
-    a = (json.loads(CROSS_STATE.read_text(encoding="utf-8"))
-         .get("monitoring", {}).get("global", {}).get("unified_ops_center", {}))
+    a = (
+        json.loads(CROSS_STATE.read_text(encoding="utf-8"))
+        .get("monitoring", {})
+        .get("global", {})
+        .get("unified_ops_center", {})
+    )
     lr = a.get("last_run")
-    if isinstance(lr, dict):          # last_run 是 dict，时间在 .ts
+    if isinstance(lr, dict):  # last_run 是 dict，时间在 .ts
         print("  last_run:", json.dumps(lr, ensure_ascii=False))
         ts = _ts(lr.get("ts"))
     else:
@@ -74,30 +79,37 @@ def sec2_anchor():
         print(f"  新鲜度={(now_ts - ts.timestamp()) / 60:.2f}min")
     sh = a.get("self_health", {}) or {}
     im = sh.get("interval_min")
-    print(f"  interval_min={im} (watchdog 阈值 {WATCHDOG_MAX_MIN}min)"
-          f" → {'✅ 未触发' if (im is None or im < WATCHDOG_MAX_MIN) else '❌ 超阈值'}")
+    print(
+        f"  interval_min={im} (watchdog 阈值 {WATCHDOG_MAX_MIN}min)"
+        f" → {'✅ 未触发' if (im is None or im < WATCHDOG_MAX_MIN) else '❌ 超阈值'}"
+    )
     print(f"  known_failure_hits={a.get('known_failure_hits')}")
 
 
 def sec3_wechat():
     print("== 3) 微信通道实锤 ==")
     try:
-        out = subprocess.run(["curl", "-s", "--max-time", "8",
-                              "http://127.0.0.1:5001/api/admin/status"],
-                             capture_output=True, text=True, timeout=15).stdout
+        out = subprocess.run(
+            ["curl", "-s", "--max-time", "8", "http://127.0.0.1:5001/api/admin/status"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout
         d = json.loads(out)
     except Exception as e:
         print("  ❌ 取状态失败:", e)
         return
-    dd = d.get("data") or d                       # 扁平结构：字段在顶层
-    if isinstance(dd.get("data"), dict):          # 兼容双层
+    dd = d.get("data") or d  # 扁平结构：字段在顶层
+    if isinstance(dd.get("data"), dict):  # 兼容双层
         dd = dd["data"]
-    print(f"  loggedIn={dd.get('loggedIn')} isExpired={dd.get('isExpired')} "
-          f"account={dd.get('account')}")
+    print(
+        f"  loggedIn={dd.get('loggedIn')} isExpired={dd.get('isExpired')} "
+        f"account={dd.get('account')}"
+    )
     et = dd.get("expireTime")
     v = None
     if isinstance(et, (int, float)):
-        v = et / 1000 if et > 1e11 else et        # ms 级
+        v = et / 1000 if et > 1e11 else et  # ms 级
     elif isinstance(et, str) and et.isdigit():
         n = int(et)
         v = n / 1000 if n > 1e11 else n
@@ -140,8 +152,11 @@ def sec5_git():
     repo = Path("/Users/guan/WorkBuddy/Claw")
 
     def _gs(*extra):
-        out = subprocess.run(["git", "-C", str(repo), "status", "--porcelain", *extra],
-                             capture_output=True, text=True).stdout
+        out = subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain", *extra],
+            capture_output=True,
+            text=True,
+        ).stdout
         return [l for l in out.splitlines() if l.strip()]
 
     # run#39：git status 默认【折叠未跟踪目录】——一个 "?? 目录名" 藏住里面
@@ -153,8 +168,10 @@ def sec5_git():
     n_col_untr = sum(1 for l in collapsed if l.startswith("??"))
     n_all_untr = sum(1 for l in all_lines if l.startswith("??"))
     if n_all_untr > n_col_untr:
-        print(f"  ⚠️ [折叠低估] 默认 git status 折叠未跟踪目录：报 {n_col_untr} 项 / "
-              f"实际 {n_all_untr} 个文件 —— {n_all_untr - n_col_untr} 个被目录名隐藏")
+        print(
+            f"  ⚠️ [折叠低估] 默认 git status 折叠未跟踪目录：报 {n_col_untr} 项 / "
+            f"实际 {n_all_untr} 个文件 —— {n_all_untr - n_col_untr} 个被目录名隐藏"
+        )
     in_scripts = [l for l in all_lines if ".workbuddy/scripts/" in l]
     outside = [l for l in all_lines if ".workbuddy/scripts/" not in l]
 
@@ -164,8 +181,7 @@ def sec5_git():
 
     # 盲区：scripts 目录之外——修复动作常落到仓库根配置/CI/tests，此前完全不观察
     print(f"  [盲区] scripts 之外未提交 = {len(outside)} 项")
-    ROOT_CFG = (".gitignore", "pyproject.toml", "ruff.toml", "Makefile",
-                "requirements", ".github/")
+    ROOT_CFG = (".gitignore", "pyproject.toml", "ruff.toml", "Makefile", "requirements", ".github/")
     flagged = [l for l in outside if any(p in l for p in ROOT_CFG)]
 
     # run#39：展开模式下项数可能很大（本仓 44），逐条打印既刷屏又淹没重点。

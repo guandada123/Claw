@@ -78,8 +78,12 @@ def _pg():
     global _conn
     if _conn is None or _conn.closed:
         _conn = psycopg2.connect(
-            host=QTS_PG_HOST, port=QTS_PG_PORT, user=QTS_PG_USER,
-            password=QTS_PG_PASS, dbname=QTS_PG_DB, connect_timeout=PG_TIMEOUT,
+            host=QTS_PG_HOST,
+            port=QTS_PG_PORT,
+            user=QTS_PG_USER,
+            password=QTS_PG_PASS,
+            dbname=QTS_PG_DB,
+            connect_timeout=PG_TIMEOUT,
         )
     return _conn
 
@@ -236,9 +240,7 @@ def get_positions() -> list[dict] | None:
 
 def get_stock_pool(limit: int = 5000) -> list[dict] | None:
     """股票池(stock_pool)。"""
-    return _query(
-        "SELECT ts_code, name, industry, list_date FROM stock_pool LIMIT %s", (limit,)
-    )
+    return _query("SELECT ts_code, name, industry, list_date FROM stock_pool LIMIT %s", (limit,))
 
 
 # ── HTTP API（认证可用时）─────────────────────────────────────

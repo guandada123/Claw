@@ -20,6 +20,7 @@
         的同路径同内容副本, 属设计镜像, 不可删(仅作信息展示)。
       * duplicates       — 真正同 store 内的冗余副本, 才可操作清理。
 """
+
 import datetime
 import hashlib
 import json
@@ -41,18 +42,28 @@ INJECTION_PATTERNS = [
 
 # 噪声目录: 跳过, 不计入卫生统计(虚拟环境/缓存/依赖/构建产物/测试桩)
 NOISE_DIRS = {
-    ".venv", "venv", "__pycache__", "node_modules", "site-packages",
-    ".git", "dist", "build", ".tox", ".eggs", ".mypy_cache", ".pytest_cache",
-    ".idea", ".vscode", ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "site-packages",
+    ".git",
+    "dist",
+    "build",
+    ".tox",
+    ".eggs",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".idea",
+    ".vscode",
+    ".ruff_cache",
 }
 SCRIPT_EXTS = (".py", ".sh")
 
 
 def _is_noise(path_str: str) -> bool:
     segs = path_str.split("/")
-    return any(seg in NOISE_DIRS for seg in segs) or any(
-        s.endswith(".egg-info") for s in segs
-    )
+    return any(seg in NOISE_DIRS for seg in segs) or any(s.endswith(".egg-info") for s in segs)
 
 
 def _prune(dirs):
@@ -86,8 +97,8 @@ def scan():
     report = {
         "generated": datetime.datetime.now().isoformat(timespec="seconds"),
         "scanned_skills": 0,
-        "duplicates": [],            # 同 store 内冗余(可操作)
-        "mirror_duplicates": [],     # 跨合法 store 根的同路径镜像(设计如此, 不可删)
+        "duplicates": [],  # 同 store 内冗余(可操作)
+        "mirror_duplicates": [],  # 跨合法 store 根的同路径镜像(设计如此, 不可删)
         "broken_symlinks": [],
         "unused_scripts": [],
         "injection_hits": [],
@@ -165,15 +176,20 @@ def main():
     out = BASE / ".workbuddy" / "data" / "skill_hygiene_report.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(r, ensure_ascii=False, indent=2))
-    print(json.dumps({
-        "scanned_skills": r["scanned_skills"],
-        "duplicates": len(r["duplicates"]),
-        "mirror_duplicates": len(r["mirror_duplicates"]),
-        "broken_symlinks": len(r["broken_symlinks"]),
-        "unused_scripts": len(r["unused_scripts"]),
-        "injection_hits": len(r["injection_hits"]),
-        "report": str(out),
-    }, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "scanned_skills": r["scanned_skills"],
+                "duplicates": len(r["duplicates"]),
+                "mirror_duplicates": len(r["mirror_duplicates"]),
+                "broken_symlinks": len(r["broken_symlinks"]),
+                "unused_scripts": len(r["unused_scripts"]),
+                "injection_hits": len(r["injection_hits"]),
+                "report": str(out),
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 if __name__ == "__main__":

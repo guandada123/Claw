@@ -28,6 +28,7 @@ AI 在 Wind 降级/运行中断时手填了未经校验的错误低价）。
   python3 price_sanity.py --code 600206 --price 49.4 --json
   echo '[{"code":"600206","price":62.34}]' | python3 price_sanity.py --batch
 """
+
 from __future__ import annotations
 
 import argparse
@@ -35,8 +36,8 @@ import json
 import sys
 import urllib.request
 
-DEV_TOLERANCE = 0.30      # G1: 与实时价偏差上限 30%
-MA_DEV = 0.60             # G3: 与 MA20 偏离上限 60%
+DEV_TOLERANCE = 0.30  # G1: 与实时价偏差上限 30%
+MA_DEV = 0.60  # G3: 与 MA20 偏离上限 60%
 TIMEOUT = 10
 
 import re
@@ -107,11 +108,14 @@ def _gtimg_52w_and_ma20(code_prefixed: str) -> dict:
     # 1) 腾讯 ifzq（前复权）
     try:
         import ssl
+
         _ctx = ssl.create_default_context()
         _ctx.check_hostname = False
         _ctx.verify_mode = ssl.CERT_NONE
-        url = (f"https://web.ifzq.gtimg.cn/appstuff/app/fqkline/get"
-               f"?param={code_prefixed},day,,,260,qfq")
+        url = (
+            f"https://web.ifzq.gtimg.cn/appstuff/app/fqkline/get"
+            f"?param={code_prefixed},day,,,260,qfq"
+        )
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=TIMEOUT, context=_ctx) as resp:  # nosec B310
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
@@ -137,8 +141,10 @@ def _gtimg_52w_and_ma20(code_prefixed: str) -> dict:
     if len(closes) < 20:
         try:
             sina = code_prefixed
-            url = (f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
-                   f"/CN_MarketData.getKLineData?symbol={sina}&scale=240&ma=no&datalen=260")
+            url = (
+                f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php"
+                f"/CN_MarketData.getKLineData?symbol={sina}&scale=240&ma=no&datalen=260"
+            )
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:  # nosec B310
                 arr = json.loads(resp.read().decode("utf-8", errors="replace"))
@@ -180,7 +186,7 @@ def check(code: str, price: float, market: str | None = None) -> dict:
         dev = abs(price - live_price) / live_price
         if dev > DEV_TOLERANCE:
             fail_reasons.append(
-                f"G1: 传入价¥{price:.2f} 与{live_label}¥{live_price:.2f} 偏差 {dev*100:.0f}% > {DEV_TOLERANCE*100:.0f}%"
+                f"G1: 传入价¥{price:.2f} 与{live_label}¥{live_price:.2f} 偏差 {dev * 100:.0f}% > {DEV_TOLERANCE * 100:.0f}%"
             )
             verified = live_price
     else:
@@ -203,7 +209,7 @@ def check(code: str, price: float, market: str | None = None) -> dict:
         mdev = abs(price - ma20) / ma20
         if mdev > MA_DEV:
             fail_reasons.append(
-                f"G3: 传入价¥{price:.2f} 与MA20¥{ma20:.2f} 偏离 {mdev*100:.0f}% > {MA_DEV*100:.0f}%"
+                f"G3: 传入价¥{price:.2f} 与MA20¥{ma20:.2f} 偏离 {mdev * 100:.0f}% > {MA_DEV * 100:.0f}%"
             )
             if verified == price and live_price:
                 verified = live_price
@@ -252,7 +258,10 @@ def main() -> int:
         return 0 if all(r["ok"] for r in out) else 1
 
     if not args.code or args.price is None:
-        print("用法: price_sanity.py --code 600206 --price 62.34 [--market us] [--json]", file=sys.stderr)
+        print(
+            "用法: price_sanity.py --code 600206 --price 62.34 [--market us] [--json]",
+            file=sys.stderr,
+        )
         return 2
 
     res = check(args.code, args.price, args.market)
@@ -261,7 +270,9 @@ def main() -> int:
     else:
         status = "✅PASS" if res["ok"] else "🚫FAIL"
         lp = res.get("live_price")
-        print(f"{status} [{res['market']}] {args.code} 传入¥{args.price:.2f} | 实时¥{lp} | 52w[{res['low_52w']},{res['high_52w']}] | MA20={res['ma20']}")
+        print(
+            f"{status} [{res['market']}] {args.code} 传入¥{args.price:.2f} | 实时¥{lp} | 52w[{res['low_52w']},{res['high_52w']}] | MA20={res['ma20']}"
+        )
         if res["fail_reasons"]:
             for r in res["fail_reasons"]:
                 print(f"  - {r}")

@@ -15,6 +15,7 @@
 - westock CLI: npx westock-data-clawhub@1.0.4（Node.js）
 - anysearch-skill: ~/.workbuddy/skills/anysearch/
 """
+
 import json
 import os
 import re
@@ -41,8 +42,8 @@ def _resolve_npx() -> str:
         return found
     # 兜底：扫 managed node 目录，取版本号最高的 npx
     import glob
-    cands = sorted(glob.glob(
-        os.path.expanduser("~/.workbuddy/binaries/node/versions/*/bin/npx")))
+
+    cands = sorted(glob.glob(os.path.expanduser("~/.workbuddy/binaries/node/versions/*/bin/npx")))
     if cands:
         return cands[-1]
     return "npx"
@@ -54,10 +55,29 @@ TIMEOUT_WESTOCK = 60
 TIMEOUT_ANYSEARCH = 40
 
 # 字段名白名单（防止解析到无关内容）
-_QUOTE_FIELDS = ["ts_code", "trade_date", "open", "close", "high", "low",
-                 "pre_close", "change", "pct_chg", "vol", "amount",
-                 "turnover_rate", "pe", "pe_ttm", "pb", "ps", "ps_ttm",
-                 "total_mv", "circ_mv", "dv_ratio", "dv_ttm"]
+_QUOTE_FIELDS = [
+    "ts_code",
+    "trade_date",
+    "open",
+    "close",
+    "high",
+    "low",
+    "pre_close",
+    "change",
+    "pct_chg",
+    "vol",
+    "amount",
+    "turnover_rate",
+    "pe",
+    "pe_ttm",
+    "pb",
+    "ps",
+    "ps_ttm",
+    "total_mv",
+    "circ_mv",
+    "dv_ratio",
+    "dv_ttm",
+]
 
 
 def _westock_available() -> bool:
@@ -74,8 +94,13 @@ def _run_westock(args: list) -> str:
         # 禁用 TLS 校验警告（westock CLI 内部设置，不影响功能）
         env.setdefault("NODE_TLS_REJECT_UNAUTHORIZED", "0")
         cmd = [NODE, "-y", WESTOCK_CLI] + args
-        r = subprocess.run(cmd, capture_output=True, text=True,
-                           timeout=TIMEOUT_WESTOCK, cwd="/Users/guan/WorkBuddy/Claw")
+        r = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT_WESTOCK,
+            cwd="/Users/guan/WorkBuddy/Claw",
+        )
         return r.stdout if r.returncode == 0 else ""
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
         return ""
@@ -87,8 +112,7 @@ def _run_cli(args: list) -> str:
         return ""
     try:
         r = subprocess.run(
-            [PY, SKILL_CLI] + args,
-            capture_output=True, text=True, timeout=TIMEOUT_ANYSEARCH
+            [PY, SKILL_CLI] + args, capture_output=True, text=True, timeout=TIMEOUT_ANYSEARCH
         )
         return r.stdout if r.returncode == 0 else ""
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
@@ -108,7 +132,7 @@ def _extract_first_json_block(text: str) -> dict:
             depth -= 1
             if depth == 0:
                 try:
-                    return json.loads(text[start:i + 1])  # type: ignore[no-any-return]
+                    return json.loads(text[start : i + 1])  # type: ignore[no-any-return]
                 except json.JSONDecodeError:
                     return {}
     return {}
@@ -128,7 +152,7 @@ def _extract_all_json_blocks(text: str) -> list:
             depth -= 1
             if depth == 0 and start != -1:
                 try:
-                    blocks.append(json.loads(text[start:i + 1]))
+                    blocks.append(json.loads(text[start : i + 1]))
                 except json.JSONDecodeError:
                     pass
                 start = -1
@@ -143,12 +167,18 @@ def a_stock_quote(cn_code: str) -> dict:
     Returns:
         dict: 含 ts_code/close/pct_chg/pe/pb 等字段，失败返回 {'error': ...}
     """
-    out = _run_cli([
-        "search", cn_code,
-        "--domain", "finance",
-        "--sub_domain", "finance.quote",
-        "--sub_domain_params", json.dumps({"type": "stock", "cn_code": cn_code, "symbol": ""})
-    ])
+    out = _run_cli(
+        [
+            "search",
+            cn_code,
+            "--domain",
+            "finance",
+            "--sub_domain",
+            "finance.quote",
+            "--sub_domain_params",
+            json.dumps({"type": "stock", "cn_code": cn_code, "symbol": ""}),
+        ]
+    )
     if not out:
         return {"error": "anysearch_unavailable", "ts_code": cn_code}
     block = _extract_first_json_block(out)
@@ -170,12 +200,18 @@ def a_stock_indicator(cn_code: str) -> dict:
     Returns:
         dict: 最新一期财务指标，失败返回 {'error': ...}
     """
-    out = _run_cli([
-        "search", "财务指标",
-        "--domain", "finance",
-        "--sub_domain", "finance.fundamental",
-        "--sub_domain_params", json.dumps({"type": "indicator", "cn_code": cn_code, "symbol": ""})
-    ])
+    out = _run_cli(
+        [
+            "search",
+            "财务指标",
+            "--domain",
+            "finance",
+            "--sub_domain",
+            "finance.fundamental",
+            "--sub_domain_params",
+            json.dumps({"type": "indicator", "cn_code": cn_code, "symbol": ""}),
+        ]
+    )
     if not out:
         return {"error": "anysearch_unavailable", "ts_code": cn_code}
     blocks = _extract_all_json_blocks(out)
@@ -211,12 +247,14 @@ def earnings_calendar(days: int = 7, cn_code: str = "") -> list:
             # 解析 markdown 表格
             rows = _parse_md_table(wout)
             for r in rows:
-                result.append({
-                    "ts_code": cn_code,
-                    "disclosureDate": r.get("disclosureDate", ""),
-                    "disclosureDesc": r.get("disclosureDesc", ""),
-                    "source": "westock",
-                })
+                result.append(
+                    {
+                        "ts_code": cn_code,
+                        "disclosureDate": r.get("disclosureDate", ""),
+                        "disclosureDesc": r.get("disclosureDesc", ""),
+                        "source": "westock",
+                    }
+                )
         if result:
             return result
 
@@ -224,12 +262,18 @@ def earnings_calendar(days: int = 7, cn_code: str = "") -> list:
     sdp = {"type": "earnings"}
     if cn_code:
         sdp["symbol"] = cn_code
-    out = _run_cli([
-        "search", "财报日历",
-        "--domain", "finance",
-        "--sub_domain", "finance.calendar",
-        "--sub_domain_params", json.dumps(sdp)
-    ])
+    out = _run_cli(
+        [
+            "search",
+            "财报日历",
+            "--domain",
+            "finance",
+            "--sub_domain",
+            "finance.calendar",
+            "--sub_domain_params",
+            json.dumps(sdp),
+        ]
+    )
     if not out:
         return result  # 可能已有 westock 部分结果
     blocks = _extract_all_json_blocks(out)
@@ -261,31 +305,44 @@ def macro_indicator(macro_type: str) -> dict:
               不支持/失败返回 {'error': ..., 'type': macro_type}
     """
     if macro_type not in _MACRO_SUPPORTED:
-        return {"error": "unsupported_type", "type": macro_type,
-                "hint": f"AnySearch 仅覆盖 {_MACRO_SUPPORTED}"}
-    out = _run_cli([
-        "search", "宏观",
-        "--domain", "finance",
-        "--sub_domain", "finance.macro",
-        "--sub_domain_params", json.dumps({"type": macro_type}),
-        "--max_results", "10",
-    ])
+        return {
+            "error": "unsupported_type",
+            "type": macro_type,
+            "hint": f"AnySearch 仅覆盖 {_MACRO_SUPPORTED}",
+        }
+    out = _run_cli(
+        [
+            "search",
+            "宏观",
+            "--domain",
+            "finance",
+            "--sub_domain",
+            "finance.macro",
+            "--sub_domain_params",
+            json.dumps({"type": macro_type}),
+            "--max_results",
+            "10",
+        ]
+    )
     if not out:
         return {"error": "anysearch_unavailable", "type": macro_type}
     blocks = _extract_all_json_blocks(out)
     # 过滤掉无日期/无关键字段的脏块（pmi/social_financing 污染时）
-    blocks = [b for b in blocks if any(
-        k in b for k in ("date", "quarter", "month", "gdp", "cpi", "m2", "on", "1y")
-    )]
+    blocks = [
+        b
+        for b in blocks
+        if any(k in b for k in ("date", "quarter", "month", "gdp", "cpi", "m2", "on", "1y"))
+    ]
     if not blocks:
         return {"error": "no_structured_data", "type": macro_type}
     # 取最新一期（按 date/quarter/month 降序）
-    blocks.sort(key=lambda b: str(b.get("date", b.get("quarter", b.get("month", "")))), reverse=True)
+    blocks.sort(
+        key=lambda b: str(b.get("date", b.get("quarter", b.get("month", "")))), reverse=True
+    )
     b = blocks[0]
     b["source"] = "anysearch"
     b["type"] = macro_type
     return b  # type: ignore[no-any-return]
-
 
 
 def _parse_md_table(md: str) -> list:
@@ -320,13 +377,20 @@ def finance_news(src: str = "10jqka", period: str = "1d", limit: int = 8) -> lis
     Returns:
         list[str]: 快讯文本列表，失败返回 []
     """
-    out = _run_cli([
-        "search", "财经快讯",
-        "--domain", "finance",
-        "--sub_domain", "finance.news",
-        "--sub_domain_params", json.dumps({"type": "flash", "news_src": src, "period": period}),
-        "--max_results", str(min(limit, 10))
-    ])
+    out = _run_cli(
+        [
+            "search",
+            "财经快讯",
+            "--domain",
+            "finance",
+            "--sub_domain",
+            "finance.news",
+            "--sub_domain_params",
+            json.dumps({"type": "flash", "news_src": src, "period": period}),
+            "--max_results",
+            str(min(limit, 10)),
+        ]
+    )
     if not out:
         return []
     # 提取 ### N. 开头的快讯文本行
@@ -360,11 +424,22 @@ if __name__ == "__main__":
     test_codes = ["600522.SH", "600206.SH", "000636.SZ"]
     print("=== batch_quotes ===")
     for code, q in batch_quotes(test_codes).items():
-        print(code, "->", {k: q.get(k) for k in ["close", "pct_chg", "pe", "pb"]} if "error" not in q else q)
+        print(
+            code,
+            "->",
+            {k: q.get(k) for k in ["close", "pct_chg", "pe", "pb"]} if "error" not in q else q,
+        )
 
     print("\n=== a_stock_indicator (600206.SH) ===")
     ind = a_stock_indicator("600206.SH")
-    print({k: ind.get(k) for k in ["source", "end_date", "roe", "grossprofit_margin", "debt_to_assets"]} if "error" not in ind else ind)
+    print(
+        {
+            k: ind.get(k)
+            for k in ["source", "end_date", "roe", "grossprofit_margin", "debt_to_assets"]
+        }
+        if "error" not in ind
+        else ind
+    )
 
     print("\n=== earnings_calendar (600522.SH, westock优先) ===")
     cal = earnings_calendar(7, "600522.SH")
@@ -381,4 +456,13 @@ if __name__ == "__main__":
     print("\n=== macro_indicator (lpr / shibor / gdp) ===")
     for mt in ["lpr", "shibor", "gdp", "pmi"]:
         m = macro_indicator(mt)
-        print(mt, "->", {k: m.get(k) for k in ["source", "type", "date", "quarter", "1y", "5y", "on", "gdp_yoy", "error"]} if "error" not in m else m)
+        print(
+            mt,
+            "->",
+            {
+                k: m.get(k)
+                for k in ["source", "type", "date", "quarter", "1y", "5y", "on", "gdp_yoy", "error"]
+            }
+            if "error" not in m
+            else m,
+        )

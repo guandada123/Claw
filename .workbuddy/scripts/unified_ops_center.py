@@ -966,7 +966,7 @@ def _last_expected_refresh(now: datetime.datetime):
         return None, "calendar_empty"
 
     day = now.date()
-    for back in range(0, 30):
+    for back in range(30):
         d = day - datetime.timedelta(days=back)
         if not _itd.is_trading_day(d, holidays):
             continue
@@ -983,8 +983,7 @@ PIPELINE_SLOTS = [(5, 5), (15, 5)]
 PIPELINE_GRACE_MIN = 90
 
 
-def check_data_freshness(now: datetime.datetime | None = None,
-                        root: pathlib.Path | None = None) -> dict:
+def check_data_freshness(now: datetime.datetime | None = None, root: Path | None = None) -> dict:
     """数据管线新鲜度检查（2026-08-06 新增，盲点#1；2026-09-28 改判据）。
 
     中枢 check_docker_self_heal 只查容器存活，不查数据产物新鲜度——
@@ -1019,10 +1018,9 @@ def check_data_freshness(now: datetime.datetime | None = None,
         if expected is not None:
             if mt < expected:
                 stale.append(f"{fn}({age_h:.0f}h前, 早于{how})")
-        else:
-            # 退化判断：日历不可用 → 沿用旧固定窗口，并在文案里标明这是降级结果
-            if mt.date() < now.date() - datetime.timedelta(days=1):
-                stale.append(f"{fn}({age_h:.0f}h前)[降级判断:{how}]")
+        # 退化判断：日历不可用 → 沿用旧固定窗口，并在文案里标明这是降级结果
+        elif mt.date() < now.date() - datetime.timedelta(days=1):
+            stale.append(f"{fn}({age_h:.0f}h前)[降级判断:{how}]")
 
     prefix = "" if expected is not None else f"⚠️ 交易日历不可用（{how}），本次为降级判断："
     if stale:
@@ -1034,11 +1032,12 @@ def check_data_freshness(now: datetime.datetime | None = None,
             ],
             "note": msg,
         }
-    note = (f"数据产物新鲜度: {checked}/{len(WHITELIST)} 全部不早于{how}"
-            if expected is not None
-            else f"{prefix}数据产物新鲜度: {checked}/{len(WHITELIST)}（未按期判定）")
+    note = (
+        f"数据产物新鲜度: {checked}/{len(WHITELIST)} 全部不早于{how}"
+        if expected is not None
+        else f"{prefix}数据产物新鲜度: {checked}/{len(WHITELIST)}（未按期判定）"
+    )
     return {"ok": True, "alerts": [], "note": note}
-
 
 
 WECHAT_FETCH_ANCHOR = SCRIPT_DIR / ".wechat_last_fetch_anchor.json"
@@ -2656,7 +2655,7 @@ def _automation_names(ids: list[str]) -> dict[str, str]:
         try:
             ph = ",".join("?" * len(ids))
             rows = conn.execute(
-                f"SELECT id, name FROM automations WHERE id IN ({ph})",  # noqa: S608
+                f"SELECT id, name FROM automations WHERE id IN ({ph})",  # noqa: S608  # nosec B608
                 ids,  # 占位符仅由 len(ids) 生成，值全部走参数绑定，无注入面
             ).fetchall()
             return {r[0]: (r[1] or r[0]) for r in rows}
@@ -2780,7 +2779,9 @@ def check_automation_queue_backlog() -> dict:
     # ── ① 排队积压：status 停在 QUEUED ──
     queued = [r for r in rows if (r.get("status") or "") == "QUEUED"]
     if queued:
-        waits = sorted((((now_ms - r["created_at"]) / 60000, r) for r in queued), key=lambda x: x[0])
+        waits = sorted(
+            (((now_ms - r["created_at"]) / 60000, r) for r in queued), key=lambda x: x[0]
+        )
         worst_min, worst_row = waits[-1]
         detail = "、".join(f"{label(r)}({m:.0f}min)" for m, r in reversed(waits[:4]))
         if len(queued) >= QUEUE_DEPTH_ALERT or worst_min >= QUEUE_WAIT_ALERT_MIN:

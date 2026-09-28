@@ -21,6 +21,7 @@
     python3 rotate_automation_memory.py --json
 退出码：0 有归档或无需归档；1 有文件被跳过（需人看）。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -57,7 +58,7 @@ def rotate_file(path: pathlib.Path, cutoff: datetime.date, dry_run: bool) -> dic
 
     # **按块切分**（2026-09-28 修）：时间戳行 = 块首，其后无时间戳的行归入同一块。
     # 若按行归档，块结构文件会被"标题进归档、正文留原地"劈成两半。
-    blocks: list[tuple[object, list[str]]] = []      # (date|None, lines)
+    blocks: list[tuple[object, list[str]]] = []  # (date|None, lines)
     for ln in lines:
         d = line_ts(ln)
         if d is not None:
@@ -65,7 +66,7 @@ def rotate_file(path: pathlib.Path, cutoff: datetime.date, dry_run: bool) -> dic
         elif blocks:
             blocks[-1][1].append(ln)
         else:
-            blocks.append((None, [ln]))              # 首个时间戳之前的抬头 → 永久保留
+            blocks.append((None, [ln]))  # 首个时间戳之前的抬头 → 永久保留
     ts_count = sum(1 for d, _ in blocks if d is not None)
 
     older, newer = [], []
@@ -76,17 +77,33 @@ def rotate_file(path: pathlib.Path, cutoff: datetime.date, dry_run: bool) -> dic
 
     before = len(raw.encode())
     if ts_count == 0:
-        return {"file": str(path), "id": path.parent.name, "before": before,
-                "after": before, "archived_lines": 0, "skipped": "no_timestamps"}
+        return {
+            "file": str(path),
+            "id": path.parent.name,
+            "before": before,
+            "after": before,
+            "archived_lines": 0,
+            "skipped": "no_timestamps",
+        }
     if not older:
-        return {"file": str(path), "id": path.parent.name, "before": before,
-                "after": before, "archived_lines": 0, "skipped": "nothing_older_than_cutoff"}
+        return {
+            "file": str(path),
+            "id": path.parent.name,
+            "before": before,
+            "after": before,
+            "archived_lines": 0,
+            "skipped": "nothing_older_than_cutoff",
+        }
 
     archive = path.parent / f"memory_archive_{cutoff.isoformat()}.md"
-    header = (f"<!-- 滚动归档：{cutoff.isoformat()} 之前的条目，共 {len(older)} 行；"
-              f"由 rotate_automation_memory.py 于 {datetime.datetime.now():%Y-%m-%d %H:%M} 移出 -->\n")
-    marker = (f"<!-- {datetime.datetime.now():%Y-%m-%d} 滚动归档：{len(older)} 行（早于 {cutoff.isoformat()}）"
-              f"已移入 {archive.name} -->\n")
+    header = (
+        f"<!-- 滚动归档：{cutoff.isoformat()} 之前的条目，共 {len(older)} 行；"
+        f"由 rotate_automation_memory.py 于 {datetime.datetime.now():%Y-%m-%d %H:%M} 移出 -->\n"
+    )
+    marker = (
+        f"<!-- {datetime.datetime.now():%Y-%m-%d} 滚动归档：{len(older)} 行（早于 {cutoff.isoformat()}）"
+        f"已移入 {archive.name} -->\n"
+    )
     after = len(("".join(newer) + marker).encode())
 
     if not dry_run:
@@ -97,8 +114,15 @@ def rotate_file(path: pathlib.Path, cutoff: datetime.date, dry_run: bool) -> dic
             fh.writelines(older)
         path.write_text(marker + "".join(newer), encoding="utf-8")
 
-    return {"file": str(path), "id": path.parent.name, "before": before, "after": after,
-            "archived_lines": len(older), "archive": str(archive), "skipped": None}
+    return {
+        "file": str(path),
+        "id": path.parent.name,
+        "before": before,
+        "after": after,
+        "archived_lines": len(older),
+        "archive": str(archive),
+        "skipped": None,
+    }
 
 
 def main() -> int:
@@ -121,15 +145,29 @@ def main() -> int:
             (skipped if r["skipped"] else results).append(r)
 
     if args.json:
-        print(json.dumps({"cutoff": cutoff.isoformat(), "dry_run": args.dry_run,
-                          "rotated": results, "skipped": skipped}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "cutoff": cutoff.isoformat(),
+                    "dry_run": args.dry_run,
+                    "rotated": results,
+                    "skipped": skipped,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
     else:
         mode = "[dry-run] " if args.dry_run else ""
-        print(f"{mode}滚动归档 · cutoff={cutoff}（保留最近 {args.keep_days} 天）/ 门槛 {args.min_bytes}B")
+        print(
+            f"{mode}滚动归档 · cutoff={cutoff}（保留最近 {args.keep_days} 天）/ 门槛 {args.min_bytes}B"
+        )
         if not results and not skipped:
             print("  ✅ 无超过门槛的文件")
         for r in results:
-            print(f"  ✅ {r['id']}: {r['before']:,}B → {r['after']:,}B（移出 {r['archived_lines']} 行 → {pathlib.Path(r['archive']).name}）")
+            print(
+                f"  ✅ {r['id']}: {r['before']:,}B → {r['after']:,}B（移出 {r['archived_lines']} 行 → {pathlib.Path(r['archive']).name}）"
+            )
         for r in skipped:
             print(f"  ⚠️ {r['id']}: {r['before']:,}B 跳过（{r['skipped']}）")
 

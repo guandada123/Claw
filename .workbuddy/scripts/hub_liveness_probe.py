@@ -39,7 +39,7 @@ from pathlib import Path
 
 DEFAULT_REGISTRY = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/registry.json")
 DEFAULT_DB = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "workbuddy.db"
-MAX_CADENCE_H = 48.0   # 与 hub_reconcile.HEARTBEAT_MAX_CADENCE_H 一致：长周期项不判心跳
+MAX_CADENCE_H = 48.0  # 与 hub_reconcile.HEARTBEAT_MAX_CADENCE_H 一致：长周期项不判心跳
 
 
 def _load_cadence_helpers():
@@ -49,10 +49,11 @@ def _load_cadence_helpers():
     """
     try:
         import importlib.util
+
         p = Path(__file__).resolve().parent / "hub_reconcile.py"
         spec = importlib.util.spec_from_file_location("_hub_reconcile_for_probe", p)
         m = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-        spec.loader.exec_module(m)                 # type: ignore[union-attr]
+        spec.loader.exec_module(m)  # type: ignore[union-attr]
         return m.cadence_hours, m.stale_threshold_h, None
     except Exception as e:  # noqa: BLE001
         return None, None, f"无法加载 hub_reconcile 的节奏实现({type(e).__name__}: {e})"
@@ -71,8 +72,11 @@ def _load_registry(path: Path) -> tuple[list[dict], str | None]:
     autos = d.get("automations")
     if not isinstance(autos, list):
         return [], "registry.automations 缺失或不是数组（声明被清空 = 不该被读成『没有失联』）"
-    out = [{"id": a.get("id"), "name": a.get("name"), "rrule": a.get("rrule")}
-           for a in autos if isinstance(a, dict) and a.get("id")]
+    out = [
+        {"id": a.get("id"), "name": a.get("name"), "rrule": a.get("rrule")}
+        for a in autos
+        if isinstance(a, dict) and a.get("id")
+    ]
     if not out:
         return [], "registry.automations 为空数组（同上：空声明不是健康）"
     return out, None
@@ -93,8 +97,8 @@ def _to_ms(v) -> float | None:
 
 def _db_last_runs(db: Path) -> tuple[dict[str, float], str | None]:
     """返回 ({automation_id: 最近运行时刻(ms)}, 错误)。取两处证据的较大值：
-       ① automation_runs.created_at —— 每次派发都留一行
-       ② automation_runtime_state.last_run_at —— 平台回写的最近一次完成时刻
+    ① automation_runs.created_at —— 每次派发都留一行
+    ② automation_runtime_state.last_run_at —— 平台回写的最近一次完成时刻
     """
     if not db.exists():
         return {}, f"调度库不存在: {db}"
@@ -105,12 +109,15 @@ def _db_last_runs(db: Path) -> tuple[dict[str, float], str | None]:
     out: dict[str, float] = {}
     try:
         for aid, ts in con.execute(
-                "select automation_id, max(created_at) from automation_runs group by automation_id"):
+            "select automation_id, max(created_at) from automation_runs group by automation_id"
+        ):
             ms = _to_ms(ts)
             if aid and ms:
                 out[aid] = max(out.get(aid, 0.0), ms)
         try:
-            for aid, ts in con.execute("select automation_id, last_run_at from automation_runtime_state"):
+            for aid, ts in con.execute(
+                "select automation_id, last_run_at from automation_runtime_state"
+            ):
                 ms = _to_ms(ts)
                 if aid and ms:
                     out[aid] = max(out.get(aid, 0.0), ms)
@@ -123,8 +130,12 @@ def _db_last_runs(db: Path) -> tuple[dict[str, float], str | None]:
     return out, None
 
 
-def probe(registry: Path, db: Path, now: datetime.datetime | None = None,
-          threshold_override: float | None = None) -> dict:
+def probe(
+    registry: Path,
+    db: Path,
+    now: datetime.datetime | None = None,
+    threshold_override: float | None = None,
+) -> dict:
     """判据 = **每条自己的调度周期 + 宽限**（小时类 +3h / 每日类 +6h），
        与 hub_reconcile 的 D4 心跳判据**共用同一实现**。
 
@@ -144,25 +155,39 @@ def probe(registry: Path, db: Path, now: datetime.datetime | None = None,
         if threshold_override is not None:
             thr, judge = float(threshold_override), "override"
         elif cad is None:
-            thr, judge = None, "cadence_unknown"          # 解析不出周期 → 不判（但如实标注，不当成健康）
+            thr, judge = None, "cadence_unknown"  # 解析不出周期 → 不判（但如实标注，不当成健康）
         elif cad > MAX_CADENCE_H:
-            thr, judge = None, "long_period_skipped"      # 与 D4 一致：>48h 的项不走心跳判据
+            thr, judge = None, "long_period_skipped"  # 与 D4 一致：>48h 的项不走心跳判据
         else:
             thr, judge = stale_threshold_h(cad), "cadence+grace"
 
         ms = last.get(a["id"])
         if ms is None:
-            items.append({**a, "last_run": None, "age_h": None, "threshold_h": thr,
-                          "judge": judge, "stale": False,
-                          "note": "从未运行（视为未初始化，不判失联）"})
+            items.append(
+                {
+                    **a,
+                    "last_run": None,
+                    "age_h": None,
+                    "threshold_h": thr,
+                    "judge": judge,
+                    "stale": False,
+                    "note": "从未运行（视为未初始化，不判失联）",
+                }
+            )
             continue
         age_h = (now.timestamp() * 1000 - ms) / 3600000.0
-        items.append({**a,
-                      "last_run": datetime.datetime.fromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M:%S"),
-                      "age_h": round(age_h, 1),
-                      "threshold_h": round(thr, 1) if thr is not None else None,
-                      "judge": judge,
-                      "stale": bool(thr is not None and age_h > thr)})
+        items.append(
+            {
+                **a,
+                "last_run": datetime.datetime.fromtimestamp(ms / 1000).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                "age_h": round(age_h, 1),
+                "threshold_h": round(thr, 1) if thr is not None else None,
+                "judge": judge,
+                "stale": bool(thr is not None and age_h > thr),
+            }
+        )
 
     stale = [i for i in items if i["stale"]]
     return {
@@ -186,8 +211,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="只读探针：中枢纳管自动化的最后一次真实运行时间")
     ap.add_argument("--registry", default=str(DEFAULT_REGISTRY))
     ap.add_argument("--db", default=str(DEFAULT_DB))
-    ap.add_argument("--threshold-hours", type=float, default=None,
-                    help="强制统一阈值（默认不传 = 按每条自己的调度周期算，推荐）")
+    ap.add_argument(
+        "--threshold-hours",
+        type=float,
+        default=None,
+        help="强制统一阈值（默认不传 = 按每条自己的调度周期算，推荐）",
+    )
     ap.add_argument("--json", action="store_true", help="输出 JSON（默认即 JSON）")
     ap.add_argument("--brief", action="store_true", help="只输出失联项，一行一条")
     args = ap.parse_args()
@@ -199,7 +228,9 @@ def main() -> int:
             print(f"❌ 探针输入不可读：{'; '.join(r['errors'])}")
             return 2
         for i in [x for x in r["items"] if x["stale"]]:
-            print(f"[失联] {i['name']} 上次 {i['last_run']} 已 {i['age_h']}h（阈 {i['threshold_h']}h）")
+            print(
+                f"[失联] {i['name']} 上次 {i['last_run']} 已 {i['age_h']}h（阈 {i['threshold_h']}h）"
+            )
         return 0
 
     print(json.dumps(r, ensure_ascii=False, indent=2))

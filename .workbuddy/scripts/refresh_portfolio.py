@@ -33,6 +33,7 @@ try:
         wind_available,
     )
 except ImportError:
+
     def wind_available() -> bool:  # type: ignore[misc]
         return False
 
@@ -41,6 +42,7 @@ except ImportError:
 
     def plain_code_to_windcode(code: str) -> str:  # type: ignore[misc]
         return code
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PORTFOLIO_PATH = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"

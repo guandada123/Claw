@@ -100,20 +100,27 @@ def compute_weights() -> dict[str, Any]:
         if win_rate is not None:
             weight = _win_rate_to_weight(win_rate, total)
             weights[account] = weight
-            details.append({
-                "account": account,
-                "win_rate": win_rate,
-                "signals": total,
-                "avg_return": round(avg_return, 2),
-                "weight": weight,
-                "rationale": (
-                    f"胜率{win_rate}%/信号{total}条" +
-                    (" → 高信源" if weight >= 1.0 else
-                     " → 中等" if weight >= 0.8 else
-                     " → 低信源" if weight >= 0.5 else
-                     " → 极低（接近反向指标）")
-                ),
-            })
+            details.append(
+                {
+                    "account": account,
+                    "win_rate": win_rate,
+                    "signals": total,
+                    "avg_return": round(avg_return, 2),
+                    "weight": weight,
+                    "rationale": (
+                        f"胜率{win_rate}%/信号{total}条"
+                        + (
+                            " → 高信源"
+                            if weight >= 1.0
+                            else " → 中等"
+                            if weight >= 0.8
+                            else " → 低信源"
+                            if weight >= 0.5
+                            else " → 极低（接近反向指标）"
+                        )
+                    ),
+                }
+            )
 
     # 合并：已验证的用动态权重，未验证的保留默认
     final_weights = dict(base_weights)
@@ -151,7 +158,9 @@ if __name__ == "__main__":
     print(f"✅ 信源权重更新完成: {result['verified_accounts']} 个已验证账号")
     print(f"   数据源: {result['source']}")
     for d in result.get("details", [])[:8]:
-        print(f"   {d['account']:15s} 胜率{d['win_rate']:.1f}% 信号{d['signals']}条 → 权重{d['weight']:.1f} {d['rationale']}")
+        print(
+            f"   {d['account']:15s} 胜率{d['win_rate']:.1f}% 信号{d['signals']}条 → 权重{d['weight']:.1f} {d['rationale']}"
+        )
 
     # 检查有无权重变化（评级阈值: ≥1.0⭐推荐 / ≥0.8✅正常 / ≥0.5⚠️监控 / <0.5极低）
     new_weights = result["weights"]
