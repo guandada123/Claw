@@ -490,6 +490,17 @@ def push_card(title: str, content: str, level: str = "info") -> bool:
 # ════════════════════════════════════════════════════════════════════
 # 专项检查（复用现有脚本，不重写）
 # ════════════════════════════════════════════════════════════════════
+def _skip(reason: str, **extra) -> dict:
+    """显式 skip：**取不到证 ≠ 通过**。
+
+    2026-09-28 修「4 个死检查」时立的语义：异常分支/取数失败一律走这里，
+    渲染成 `⏭` 且**不计入 ✅ 通过数**（此前它们 `except` 里返 `{"ok": True}`，
+    于是"检查自己坏了"与"检查通过"在输出上完全一样）。
+    项目铁律：异常分支一律 fail-safe 返不通过**或显式计 skip**，不许返绿。
+    """
+    return {"ok": None, "alerts": [], "note": reason, "skipped": True, **extra}
+
+
 def check_automation_health() -> dict:
     """复用 automation_health.py --json。返回 {ok, alerts:[]}"""
     try:
@@ -551,7 +562,7 @@ def check_docker_self_heal() -> dict:
         try:
             data = json.loads(out[out.rfind("{") :])
         except Exception:
-            return {"ok": True, "alerts": [], "healed": [], "containers": {}, "raw": out[-300:]}
+            return _skip(f"docker_self_heal 输出无法解析为 JSON（raw 尾部: {out[-300:]!r}）")
         restarted = data.get("restarted") or []
         alerts = data.get("alerts") or []
         # restarted 是 Runbook#3 已完成的自愈（容器重启），作为 healed 上报
@@ -707,20 +718,41 @@ def check_known_failure_modes(all_alerts: list[str]) -> list[dict]:
 def check_schedule_liveness() -> dict:
     """调度活性检查：复用 schedule_utils.py stats（今日锁统计）。
     若今日锁数=0 → 说明今天没有任何自动化完成过，调度系统可能整体挂死 → 告警。
-    这是轻量真实的"调度在跑吗"信号（中枢自身每小时跑会写锁，若连中枢锁都没有必异常）。"""
+
+    🔴 2026-09-28 修「自证循环」：原先直接取 stats 的「今日 N 个」，
+    而**中枢自己每小时跑就会写一个锁** → N 恒 ≥ 1 → 这条检查在原理上**永远不可能**报
+    「调度整体挂死」（它用自己的存在证明调度活着）。现改为**从锁清单里剔除中枢自身**再计数，
+    并把「共几个 / 自身几个」一并带出，便于追溯（原 docstring 想表达的是"连中枢锁都没有必异常"，
+    但那正是把自身计入证据的写法）。
+    """
+    OWN_LOCK = re.compile(r"claw_lock_(unified_ops_center|统一巡检中枢)_\d{8}")
     try:
         r = run_cmd([sys.executable, str(SCRIPT_DIR / "schedule_utils.py"), "stats"], timeout=30)
         out = r.stdout
-        m = re.search(r"今日 (\d+) 个", out)
-        today_n = int(m.group(1)) if m else -1
+        locks = [x.strip().lstrip("🔒").strip() for x in out.splitlines() if "claw_lock_" in x]
+        own = [x for x in locks if OWN_LOCK.search(x)]
+        if not locks:
+            # 连清单都解析不出来 = 取不到证 → 显式 skip（旧实现返 ok=True，等于把"我瞎了"报成"健康"）
+            return _skip("无法从 schedule_utils stats 解析出锁清单（取不到证，不计入通过）")
+        today_n = len(locks) - len(own)
         if today_n == 0:
             return {
                 "ok": False,
-                "alerts": ["今日调度锁数=0（没有任何自动化完成过，调度系统可能整体挂死）"],
+                "alerts": [
+                    f"今日除中枢自身外无任何调度锁（清单 {len(locks)} 个、中枢自身 {len(own)} 个）"
+                    f"→ 调度系统可能整体挂死"
+                ],
+                "today_locks": 0,
+                "own_locks": len(own),
+                "total_locks": len(locks),
             }
-        if today_n < 0:
-            return {"ok": True, "alerts": [], "note": "无法解析调度锁统计"}
-        return {"ok": True, "alerts": [], "today_locks": today_n}
+        return {
+            "ok": True,
+            "alerts": [],
+            "today_locks": today_n,
+            "own_locks": len(own),
+            "total_locks": len(locks),
+        }
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "alerts": [f"schedule_utils 异常: {e}"]}
 
@@ -840,9 +872,9 @@ def check_duplicate_picks() -> dict:
             note = f"选股信号: 今日 {total_picks} 票 | 多源共识 {len(consensus)} 票: {detail}"
         else:
             note = f"选股信号: 今日 {total_picks} 票 | 无多源共识（各源独立）"
-        return {"ok": True, "alerts": [], "note": note}
+        return {"ok": None, "alerts": [], "note": note}
     except Exception as e:  # noqa: BLE001
-        return {"ok": True, "alerts": [], "note": f"选股信号去重检查异常: {e}"}
+        return _skip(f"选股信号去重检查异常，本轮不计入通过: {e}")
 
 
 def _extract_pick_codes(data) -> list[str]:
@@ -1351,14 +1383,9 @@ def check_cost_anomaly() -> dict:
                 )
             return {"ok": True, "alerts": [], "note": note, "kind": "note"}
         # 取数失败：带出 returncode，避免再次静默成「无数字输出()」
-        return {
-            "ok": True,
-            "alerts": [],
-            "note": f"API成本: 取数失败(rc={r.returncode}, out={out[:60]!r})",
-            "kind": "note",
-        }
+        return _skip(f"API成本: 取数失败(rc={r.returncode}, out={out[:60]!r})")
     except Exception as e:  # noqa: BLE001
-        return {"ok": True, "alerts": [], "note": f"API成本检查异常: {e}", "kind": "note"}
+        return _skip(f"API成本检查异常，本轮不计入通过: {e}")
 
 
 def check_dependabot_backlog() -> dict:
@@ -1385,16 +1412,16 @@ def check_dependabot_backlog() -> dict:
             env={**os.environ, "PATH": os.environ.get("PATH", "")},
         )
         if r.returncode != 0:
-            return {"ok": True, "alerts": [], "note": "Dependabot堆积: gh不可用(跳过)"}
+            return _skip("Dependabot堆积: gh不可用（取不到证，不计入通过）")
         n = r.stdout.strip()
         try:
             cnt = int(n)
         except ValueError:
-            return {"ok": True, "alerts": [], "note": f"Dependabot堆积: 解析失败({n})"}
+            return _skip(f"Dependabot堆积: 解析失败({n})（取不到证，不计入通过）")
         flag = " ⚠️堆积>10" if cnt > 10 else ""
-        return {"ok": True, "alerts": [], "note": f"Dependabot堆积: {cnt} 个开放PR{flag}"}
+        return {"ok": None, "alerts": [], "note": f"Dependabot堆积: {cnt} 个开放PR{flag}"}
     except Exception as e:  # noqa: BLE001
-        return {"ok": True, "alerts": [], "note": f"Dependabot检查异常: {e}"}
+        return _skip(f"Dependabot检查异常，本轮不计入通过: {e}")
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -2980,9 +3007,19 @@ def main() -> int:
     }
 
     all_alerts: list[str] = []
+    n_ok = n_bad = n_skip = 0
     for name, res in checks.items():
-        status = "✅" if res["ok"] else "⚠️"
-        print(f"  {status} {name}: {len(res['alerts'])} 项异常")
+        ok = res.get("ok")
+        if ok is None:
+            # ⏭ = 显式 skip（取不到证）。单独一档、**不计入 ✅**（2026-09-28 修 4 个死检查）
+            n_skip += 1
+            print(f"  ⏭ {name}: 跳过 —— 取不到证，不计入通过（{str(res.get('note', ''))[:70]}）")
+        else:
+            if ok:
+                n_ok += 1
+            else:
+                n_bad += 1
+            print(f"  {'✅' if ok else '⚠️'} {name}: {len(res['alerts'])} 项异常")
         # note 出口（2026-09-02 run#63）：此前 note 只进字典、从不输出，
         # 于是「低于阈值不推送」「双导入门禁 PASS」「成本监控」这类**只有 note 没有 alert**
         # 的检查，17 项里长期有 6~8 项信息量全部沉底。巡检日志是唯一能看见它们的地方，
@@ -3004,6 +3041,13 @@ def main() -> int:
                 print(f"       alert: {a if len(a) <= 220 else a[:220] + '…'}")
                 all_alerts.append(f"[{name}] {a}")
                 log_action("detect", name, a, "alert")
+
+    # 汇总口径显式化（2026-09-28）：把「跳过」单独报出来，
+    # 否则"17 项全 ✅"这种句子会一直掩盖"其中 4 项其实什么都没查"。
+    print(
+        f"[ops-center] 检查 {len(checks)} 项：✅ {n_ok} / ⚠️ {n_bad} / ⏭ {n_skip}"
+        f"（⏭ = 取不到证，不计入通过）"
+    )
 
     # 2) 自愈（Runbook 白名单）
     healed = []
