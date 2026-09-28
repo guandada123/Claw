@@ -122,7 +122,7 @@
         "last_run": "2026-08-24T17:29:10.916000",
         "issues": [
           "已暂停",
-          "841h未运行"
+          "845h未运行"
         ],
         "run_count_24h": 0,
         "running": false,
@@ -347,7 +347,7 @@
         "last_run": "2026-09-02T07:30:22.026000",
         "issues": [
           "已暂停",
-          "635h未运行"
+          "639h未运行"
         ],
         "run_count_24h": 0,
         "running": false,
@@ -393,14 +393,12 @@
       {
         "name": "🛡️ 统一巡检中枢（接管所有健康巡检）",
         "status": "ACTIVE",
-        "health": "🔵",
-        "last_run": "2026-09-28T18:36:23.390000",
-        "issues": [
-          "运行中"
-        ],
+        "health": "🟢",
+        "last_run": "2026-09-28T21:45:23.238000",
+        "issues": [],
         "run_count_24h": 5,
-        "running": true,
-        "field_lag_h": 718.2,
+        "running": false,
+        "field_lag_h": 721.4,
         "last_run_interrupted": false
       },
       {
@@ -497,13 +495,11 @@
       {
         "name": "💓 中枢存活看门狗",
         "status": "ACTIVE",
-        "health": "🔵",
-        "last_run": "2026-09-28T18:36:23.389000",
-        "issues": [
-          "运行中"
-        ],
+        "health": "🟢",
+        "last_run": "2026-09-28T22:40:54.007000",
+        "issues": [],
         "run_count_24h": 5,
-        "running": true,
+        "running": false,
         "field_lag_h": 0.0,
         "last_run_interrupted": false
       },
@@ -720,11 +716,11 @@
         "name": "🛡️ 巡检中枢存活看门狗（每6h）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-09-28T16:05:02.989000",
+        "last_run": "2026-09-28T22:07:01.088000",
         "issues": [],
         "run_count_24h": 4,
         "running": false,
-        "field_lag_h": 714.8,
+        "field_lag_h": 720.8,
         "last_run_interrupted": false
       },
       {
@@ -742,11 +738,11 @@
         "name": "🛡️ 自动化失败扫表 watchdog（每小时）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-09-28T16:48:27.674000",
+        "last_run": "2026-09-28T22:52:22.609000",
         "issues": [],
         "run_count_24h": 5,
         "running": false,
-        "field_lag_h": 715.6,
+        "field_lag_h": 721.7,
         "last_run_interrupted": false
       },
       {
@@ -817,5 +813,5 @@
       }
     ]
   },
-  "generated_at": "2026-09-28T18:36:50.463618"
+  "generated_at": "2026-09-28T22:57:44.587007"
 }
