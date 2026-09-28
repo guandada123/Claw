@@ -10,7 +10,8 @@ import pathlib
 
 import pytest
 
-SC = pathlib.Path("/Users/guan/WorkBuddy/Claw/.workbuddy/scripts/rotate_automation_memory.py")
+# 相对定位（不要写死本机绝对路径 —— CI runner 上没有 /Users/guan，collection 直接报错）
+SC = pathlib.Path(__file__).resolve().parent.parent / ".workbuddy" / "scripts" / "rotate_automation_memory.py"
 spec = importlib.util.spec_from_file_location("rot", SC)
 rot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rot)

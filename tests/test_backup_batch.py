@@ -1,5 +1,6 @@
 """test_backup_batch.py — 批量覆盖 backup_data + heartbeat + mass_update。"""
 
+from pathlib import Path
 
 import backup_data as bd
 import mass_update_automations as mua
@@ -17,9 +18,10 @@ def test_changes_count():
 
 # ── backup_data ──
 def test_find_project_from_scripts_dir():
-    result = bd._find_project_dir("/Volumes/ZHITAI/WorkBuddy/Claw/scripts")
-    assert "Claw" in result
-    assert result is not None
+    # 相对本文件定位仓库根（不写死本机绝对路径，CI runner 上没有 /Volumes、/Users）
+    root = Path(__file__).resolve().parent.parent
+    result = bd._find_project_dir(str(root / "scripts"))
+    assert Path(result).resolve() == root
 
 
 def test_find_project_at_root_fallback():

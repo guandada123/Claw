@@ -1,5 +1,6 @@
 """test_backup_data_more.py — backup_data 额外函数测试。"""
 
+from pathlib import Path
 from unittest.mock import patch
 
 import backup_data as bd
@@ -18,6 +19,7 @@ def test_mkdir_uses_exist_ok(mock_mkdir):
 
 
 def test_find_project_dir_from_root():
-    """从项目根目录能找到自身"""
-    result = bd._find_project_dir("/Volumes/ZHITAI/WorkBuddy/Claw")
-    assert "Claw" in result
+    """从项目根目录能找到自身（相对本文件定位，不写死本机绝对路径）"""
+    root = Path(__file__).resolve().parent.parent
+    result = bd._find_project_dir(str(root))
+    assert Path(result).resolve() == root
