@@ -3,7 +3,7 @@
 > 架构：本文件=FACT层(铁律/技术决策)，变更→原条目加 `→superseded by <日期>` 可回溯，禁平行堆重复。SCHEMA.md=L5｜INTENT.md=L6｜CHRONICLE.md=编年史｜日日志=RAW+SUMMARY(首行记原始指令)。检索：先Grep日日志标题+MEMORY/INTENT/SCHEMA关键词再Read；L3仅具体数据才Read(≤3文件)；审计→memory-consistency-audit；蒸馏：日日志>30天→蒸馏进对应层→源移`.backups/`；单文件>15KB优先蒸馏；豁免🔴铁律+演化链段。
 
 ## 🧭 注入上限与速查索引（09-25 建 · 每日记忆维护自动核对）
-> ⚠️ **本文件注入上下文有字节上限 ≈16.5KB**（09-25 实测 26,710B→截断 16,983B；09-26 复测 34,164B→截断 ≈16,220B；**09-27 复测 34,264B→截断 ≈16,487B，可见 48.1%，截断点第 70 行/共 138 行**）→ **第 71–138 行模型默认读不到，且随文件增长不断下移**。
+> ⚠️ **本文件注入上下文有字节上限 ≈16.5KB**（09-25 实测 26,710B→截断 16,983B；09-26 复测 34,164B→截断 ≈16,220B；09-27 复测 34,264B→截断 ≈16,487B，可见 48.1%，截断点第 70 行/共 138 行；**09-28 复测 34,869B→截断 ≈16,474B，可见 47.2%，截断点第 53 行/共 139 行**）→ **第 54–139 行模型默认读不到，且随文件增长不断下移**。
 > 复现方法：拿注入块末尾原文串回文件做字节定位（见 skill `context-health-cleanup` 第零节脚本）。
 > 用法：命中主题 → `grep -n "<关键词>" $CLAW/.workbuddy/memory/MEMORY.md` → Read 该行前后 30 行。
 > 纪律：新增高价值规则 → **同步更新本索引 + 写靠前位置**，不要只 append 到末尾（末尾=不可见=白写）。
@@ -112,6 +112,20 @@
 - 🔴 公众号双轨状态(08-06)：付费云停更(07-29起)；本地 wechat-download-api 登录有效(isExpired=false)但**轮询器卡07-20**。决策：sync_wx_articles.py 暂保持 --source cloud，待轮询器恢复过07-29再切local
 
 ## 运维/技术债
+- **⚠️ 本机装了两份 WorkBuddy.app，`/Applications` 那份是旧的**（2026-09-28 实测）：
+  `/Applications/WorkBuddy.app` = **5.0.5**（2026-06 的残留，**缺 `electron_browser_workbuddy_storage` native 绑定**）；
+  `~/Desktop/WorkBuddy.app` = **5.6.2**（在用的那个）。**凡是自动发现客户端可执行文件的工具都会挑错**
+  （多数实现只扫 `/Applications` 与 `~/Applications`）→ 报 `RUNTIME_UNAVAILABLE` 之类的"客户端不支持"。
+  遇到这类错误先比对两份版本，再用 `WORKBUDDY_EXE=<路径>` 指到 5.6.2。别急着删 /Applications 那份（没用它，但删了没收益、有风险）。
+- **签到的正解是官方接口，不是 GUI 自动化**（2026-09-28）：`/Users/guan/.local/bin/wb-signin`
+  （包住第三方 `88lin/workbuddy-auto-signin`，MIT，装在 `~/Library/Application Support/workbuddy-auto-signin`）
+  ＋ 两条 launchd 任务 `com.workbuddy.auto-signin`（每天 00:05）/ `com.workbuddy.signin-poll`（每 4h）。
+  **零 Token、不开显示器**，且覆盖 签到 + 旅行礼物 + 派 Buddy + 补登 + 连登兑换 + 盲盒。
+  旧的 GUI 方案（`2026-09-23-21-55-37/scripts/wb_checkin.sh` / `wb_travel.sh`）**要求显示器开着**，
+  09-26 就是这么断签的 → 已标注停用、保留供参考。检查器 `wb-signin-check`（**测产出不测存活**：
+  读日志最后一行的时刻+result），已接进外部看门狗 `wb_health_check.sh` 第 6 段（24h 冷却告警）。
+  接口是逆向所得，**腾讯改版就会失效** → 失效时 `git -C "$HOME/Library/Application Support/workbuddy-auto-signin" pull`。
+- **大疆素材：用户明确「不管」**（2026-09-27）：`/Volumes/ZHITAI/_dlog_stage`（342 文件 / 31G）不再作为问题提案。唯一可能报它的机检是「💽磁盘空间巡检（周日）」，而它只报**挂载点使用率**、不细到目录 → 不会打扰。
 - 已裁维护推送(07-17)：7维护自动化「默认不推仅异常推」；保留1782035436209/1783742027380
 - 🔴 发布类授权升级(08-06)：发布前必 gh pr diff 全量审计+git fetch 比对head+确认mergeable且合并后main CI变绿；已合并分支被保护规则拒删→保留孤儿分支标注MERGED待清理；实盘下单/对外发布仍归用户
 - $SCRIPTS=.workbuddy/scripts(preamble:10)；主脚本 cd $CLAW && python3 scripts/xxx.py；westock CLI代码带sh/sz前缀
