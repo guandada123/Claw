@@ -959,8 +959,17 @@ def _last_expected_refresh(now: datetime.datetime):
             _sys.path.insert(0, str(SCRIPT_DIR))
         import is_trading_day as _itd
 
+        # 日历文件缺失是「取不到依据」最常见的形态（fresh clone / 外置盘未挂载 / CI runner）：
+        # 先显式判定，好过让下游 `sys.exit` 把整条链路带走。
+        cal = getattr(_itd, "HOLIDAYS_FILE", None)
+        if cal and not Path(cal).exists():
+            return None, f"calendar_file_missing({Path(cal).name})"
+
         holidays = _itd.load_holidays()
-    except Exception as exc:  # noqa: BLE001
+    except (Exception, SystemExit) as exc:  # noqa: BLE001
+        # ⚠️ 必须带 SystemExit：is_trading_day.load_holidays() 在文件缺失/JSON 坏时**调 sys.exit(2)**，
+        #    而 SystemExit 继承自 BaseException 不是 Exception → 只写 `except Exception` 接不住，
+        #    会把整个中枢进程带走（2026-09-28 CI 实测：fresh clone 无 data/astock_holidays.json）。
         return None, f"calendar_unavailable({type(exc).__name__})"
     if not isinstance(holidays, dict) or not holidays.get("dates"):
         return None, "calendar_empty"

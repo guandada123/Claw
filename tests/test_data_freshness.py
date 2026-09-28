@@ -10,6 +10,8 @@
 import datetime
 import importlib.util
 import pathlib
+import sys
+import types
 
 import pytest
 
@@ -21,6 +23,25 @@ spec.loader.exec_module(uoc)
 
 WHITELIST = ["qts_daily_signals.json", "qts_regime.json",
              "signal_consensus.json", "source_weights.json"]
+
+# 固定休市日历（含 2026-09-25 中秋节）。
+# 刻意**不读仓库里的 .workbuddy/data/astock_holidays.json**：该文件被 .gitignore 排除，
+# CI / fresh clone 上没有 → 读它等于让测试只在开发机通过（2026-09-28 CI 实测 6 例全红）。
+CAL = {"dates": {"2026-09-25"}, "names": {"2026-09-25": "中秋节"}}
+
+
+@pytest.fixture(autouse=True)
+def fake_calendar(monkeypatch):
+    """注入日历来源：**只替换 load_holidays，交易日判定仍走真实现**（不测替身）。"""
+    scripts = str(UOC.parent)
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    real = importlib.import_module("is_trading_day")
+    stub = types.ModuleType("is_trading_day")
+    stub.load_holidays = lambda *a, **k: dict(CAL)
+    stub.is_trading_day = real.is_trading_day
+    monkeypatch.setitem(sys.modules, "is_trading_day", stub)
+    return stub
 
 
 def make_root(tmp_path, mtimes: dict[str, datetime.datetime]):
@@ -105,6 +126,33 @@ def test_calendar_unavailable_is_marked_degraded(tmp_path, monkeypatch):
     r2 = uoc.check_data_freshness(now=T(2026, 9, 28, 3, 16), root=root2)
     assert r2["ok"] is True
     assert "降级判断" in r2["note"], "降级必须留痕：读者要知道这次不是按交易日历判的"
+
+
+# ── ⑦ 日历加载器 sys.exit(2) 时不许把检查器带走（CI 实测踩到）──────────
+def test_calendar_loader_sys_exit_degrades_not_dies(tmp_path, fake_calendar):
+    """`is_trading_day.load_holidays()` 在文件缺失/JSON 坏时**调 sys.exit(2)**。
+
+    SystemExit 继承自 BaseException 而非 Exception → `except Exception` 接不住，
+    会把整个中枢进程带走（2026-09-28 CI：fresh clone 无 astock_holidays.json）。
+    正确行为：降级 + 在文案里标明降级，而不是炸掉调用方。
+    """
+    def boom(*a, **k):  # noqa: ARG001
+        raise SystemExit(2)
+
+    fake_calendar.load_holidays = boom
+    root = make_root(tmp_path, {fn: T(2026, 9, 24, 15, 13) for fn in WHITELIST})
+    r = uoc.check_data_freshness(now=T(2026, 9, 28, 3, 16), root=root)   # 不许抛 SystemExit
+    assert r["ok"] is False
+    assert "降级判断" in r["note"] and "calendar_unavailable(SystemExit)" in r["note"]
+
+
+# ── ⑧ 日历文件缺失：给得出原因，好过让下游 sys.exit ────────────────────
+def test_calendar_file_missing_names_the_reason(tmp_path, fake_calendar):
+    fake_calendar.HOLIDAYS_FILE = str(tmp_path / "astock_holidays.json")   # 故意不存在
+    root = make_root(tmp_path, {fn: T(2026, 9, 24, 15, 13) for fn in WHITELIST})
+    r = uoc.check_data_freshness(now=T(2026, 9, 28, 3, 16), root=root)
+    assert r["ok"] is False
+    assert "calendar_file_missing(astock_holidays.json)" in r["note"]
 
 
 if __name__ == "__main__":
