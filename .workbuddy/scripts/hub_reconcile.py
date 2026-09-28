@@ -681,6 +681,46 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
                 f("handoff_overdue", str(pid),
                   f"{pid}（owner={it.get('owner')}，due {dd}）已逾期 {(now_dt.date() - dd).days} 天"
                   f"，status={it.get('status')}：{it.get('what')}")
+
+    # ---- K7 open_items：跨项目的「开放决策/待办」是否带期限（2026-09-28 新增）----
+    # 存在理由（审计实测）：全部项目的「待决策/待办/后续」合计 ≈1320 行、**仅 6% 带期限**，
+    # 且**只有 Claw 有机器检查**（registry.pending_actions + D6）。H1 实盘止损就是这样静默逾期 54 天。
+    # 政策声明在 state._contract.open_items_policy：`due` = 审计日 + 复核期（不是承诺完成日，
+    # 是「最迟何时必须重新看一眼」）；`evidence` 必填 —— 写「怎么核实的」，不许写「据说/记得」。
+    for pname, pv in (cs.get("active_projects") or {}).items():
+        if not isinstance(pv, dict):
+            continue
+        items = pv.get("open_items")
+        if items is None:
+            # 缺键 ≠ 空集：没声明与「声明了空表」必须区分开，否则「没人整理过」会伪装成「没有问题」
+            f("open_items_undeclared", str(pname),
+              f"项目 `{pname}` 未声明 `open_items` —— 无法区分「真的没有开放项」与「从没人整理过」"
+              f"（审计过的项目应显式写 `open_items: []`）")
+            continue
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            iid = it.get("id") or "?"
+            if str(it.get("status", "open")).lower() in DONE_STATES:
+                continue
+            if not it.get("evidence"):
+                f("open_item_no_evidence", f"{pname}.{iid}",
+                  f"开放项 `{iid}` 缺 `evidence` → 无从核实它是否真的还开放"
+                  f"（政策要求写「怎么核实的」，核不出来就不该进表）")
+            due = it.get("due")
+            if not due:
+                f("open_item_no_due", f"{pname}.{iid}",
+                  f"开放项 `{iid}` 没有 due → 与 H1 同型：不会有人再来问它")
+                continue
+            try:
+                dd = datetime.date.fromisoformat(str(due)[:10])
+            except ValueError:
+                f("open_item_bad_due", f"{pname}.{iid}", f"`due` 不是 ISO 日期：{due}")
+                continue
+            if dd < now_dt.date():
+                f("open_item_overdue", f"{pname}.{iid}",
+                  f"{pname}/{iid}（owner={it.get('owner')}，due {dd}）已逾期 "
+                  f"{(now_dt.date() - dd).days} 天，if_no_action={it.get('if_no_action')}：{it.get('what')}")
     return out
 
 
