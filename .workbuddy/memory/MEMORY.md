@@ -112,6 +112,13 @@
 - 🔴 公众号双轨状态(08-06)：付费云停更(07-29起)；本地 wechat-download-api 登录有效(isExpired=false)但**轮询器卡07-20**。决策：sync_wx_articles.py 暂保持 --source cloud，待轮询器恢复过07-29再切local
 
 ## 运维/技术债
+- 🔴 **跨项目「决策/待办无依据」扫描（09-28）**：把签到那次失效拆成 5 形态（F1 否决未验证 / F2 承诺的验证未做 /
+  F3 否决不留复查点 / F4 待办无期限 / F5 照别人说法下结论）后机械扫描 8 个项目，结论：**病根是 F4，不是 F1**。
+  实测：全部项目「待决策/待办/后续」合计 **≈1320 行，仅 6% 带期限**；**只有 Claw 有机器检查**
+  （`registry.pending_actions` + D6），其余 6 个项目全靠人记 → 任何一条都可能变成下一个静默 54 天的 H1。
+  另：QTS/StockInsight 有 ADR 制度，但「依据」栏无格式约束 → 印象理由（「控制力不足」「轻量优先」）与实测理由同权。
+  报告：`output/same-problem-scan-2026-09-28.md`；扫描器 = skill `decision-evidence-audit/scan.py`（可定期重跑）。
+  **三个提案待用户拍板**：P1 ADR 加「依据/复查点」必填栏 · P2 跨项目开放项统一收进 `handoff.items`（带 due）· P3 微信读书链路自研 or 换上游。
 - **⚠️ 本机装了两份 WorkBuddy.app，`/Applications` 那份是旧的**（2026-09-28 实测）：
   `/Applications/WorkBuddy.app` = **5.0.5**（2026-06 的残留，**缺 `electron_browser_workbuddy_storage` native 绑定**）；
   `~/Desktop/WorkBuddy.app` = **5.6.2**（在用的那个）。**凡是自动发现客户端可执行文件的工具都会挑错**
