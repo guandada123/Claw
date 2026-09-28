@@ -81,6 +81,9 @@
 - 🔴 被排除的点也必须声明出来(09-24 v1.5)：D5 K3 表校验的例外（`table_keys_expected_exclude` + 新增 `..._exclude_prefixes: ["_"]`）声明在 reg
 - 落地通道 `doc_apply`：开关与状态一律查 `registry.doc_apply`（`mode`/`auto_switch`/`calibrate_until`）
 
+- 🔴 **本地全绿 ≠ CI 会绿**：CI 没有 `/Users/guan`、没有 gitignore 掉的数据文件/软链/外置盘 → 推送前**在 `git clone --local` 的「只有 tracked 文件」树里跑一遍**（克隆须同卷，跨卷 hardlink 失败）
+- 🔴 **`except Exception` 接不住 `SystemExit`**：库函数里调 `sys.exit` 的（`load_*`/`ensure_*`/各厂 CLI helper）会让调用方的降级路径**永远走不到** → 捕获 `(Exception, SystemExit)`，或先显式判前置条件（文件在不在）
+
 ## 三系统边界（数据隔离）
 - 📈投顾→.workbuddy/.workbuddy/data/simulation/portfolio.json(全权只给结果)｜📊助理→.workbuddy/.workbuddy/data/user/portfolio.json(国金)｜🇺🇸美股；持仓同步(07-15)：用户发持仓截图→先diff再分析
 - 报告模板(07-13锁)：早/晚/周报走push_*_report.py自建docx+卡片+「📄完整报告」；禁prompt内联/直推stdout；A股红涨绿跌禁反转
@@ -336,3 +339,20 @@
 
 **── 证据 58 ──**
 - 落地通道 `doc_apply`：开关与状态**一律查 `registry.doc_apply`**（`mode`/`auto_switch`/`calibrate_until`），本文件不复述具体值 →superseded by 2026-09-24（原文写"不设自动切换(`auto_switch=false`)"，而真值已是 `true`：PA-001 守卫式自动切换；见上条"记忆层是第三份副本"）；对账器 `doc_apply_parity.py` + 账本 `calibration/parity.json`
+
+**── 证据 59 ──**
+- 🔴 **本地全绿 ≠ CI 会绿（09-28 实锤，两小时内连栽两次）**：先修 lint、再修「测试写死 `/Users/guan` 绝对路径」——两次都是**本地 100% 绿**（本地有那个路径/那个数据文件），CI 上分别是 collection FileNotFoundError 与 6 failed。
+  验证姿势（已写入 `.learnings/2026-09-28-ci-red-masks-downstream-job-and-tests-pin-local-paths.md`）：
+  ```bash
+  git clone --local --quiet /Volumes/ZHITAI/WorkBuddy/Claw /Volumes/ZHITAI/WorkBuddy/.ci-sim-claw  # 必须同卷！
+  cd /Volumes/ZHITAI/WorkBuddy/.ci-sim-claw && python -m pytest tests/ -q   # 克隆里只有 tracked 文件 = CI 的文件面
+  ```
+  本轮 545 passed / 185 passed 之后才推，CI 才一次过。用完 `rm -rf` 克隆（留着会腐烂、会被多副本审计当成第二个仓）。
+  同批抓到：`tests/` 里 3 处 `_find_project_dir("<本机绝对路径>")` + 断言 `"Claw" in result` 在 CI 上**恒真**（该函数找不到根会回退返回入参）→ 断言常量 ≠ 验证行为。已加门禁 `tests/test_ci_hermeticity.py`（含证伪用例）。
+
+**── 证据 60 ──**
+- 🔴 **`except Exception` 接不住 `SystemExit`（09-28 CI 实测，同族第 N 次「降级路径走不到」）**：
+  `check_data_freshness` 的日历来自 `is_trading_day.load_holidays()`，而该函数在日历文件缺失/JSON 坏时**直接 `sys.exit(2)`**；SystemExit 继承 **BaseException** 不是 Exception → `except Exception` 接不住 → **整个中枢进程被带走**。
+  本机有 `.workbuddy/data/astock_holidays.json`（且被 .gitignore 排除）所以 4 周不暴露；CI/fresh clone 没有 → 必炸。
+  修法：① 先显式判日历文件是否存在 → 报出可追因的 `calendar_file_missing(astock_holidays.json)`；② 捕获 `(Exception, SystemExit)` 并注明理由。新增 2 例测试钉住（loader 抛 SystemExit 必须降级 / 文件缺失要报原因）。
+  判据：**任何降级分支都要问一句「触发它的真实条件，落在我捕获的那一类里吗」** —— 同 09-24「错误 ≠ 通过」。
