@@ -27,8 +27,9 @@ NOW = datetime.datetime(2026, 9, 28, 12, 0)
 
 
 def run(cs):
+    """只挑与 open_items 相关的判据（含静音相关的那条）。"""
     return [x for x in hr.check_cross_project(cs, pathlib.Path("/tmp/x.json"), NOW)
-            if x["kind"].startswith("open_item")]
+            if x["kind"].startswith(("open_item", "no_reminder"))]
 
 
 def proj(items):
@@ -70,6 +71,47 @@ def test_undeclared_key_is_reported():
 def test_explicit_empty_is_not_reported():
     """缺键 ≠ 空集：显式 `[]` = 「审计过、确实没有」→ 必须静默。"""
     assert run(proj([])) == []
+
+
+def _handoff(items):
+    return {"handoff": {"items": items}, "active_projects": {"P": {"cwd": "/tmp", "open_items": []}}}
+
+
+def test_k5_silenced_with_reason_is_silent():
+    """用户说「不用提醒」→ 条目**保留**但不再报（删掉会让账本说谎）。"""
+    cs = _handoff([{"id": "H1", "what": "实盘止损", "owner": "human", "due": "2026-08-05",
+                    "status": "overdue_unconfirmed", "no_reminder": True,
+                    "no_reminder_reason": "用户 2026-09-28：实盘止损不用提醒"}])
+    assert [x for x in hr.check_cross_project(cs, pathlib.Path("/tmp/x.json"), NOW)
+            if x["kind"].startswith(("handoff", "no_reminder"))] == []
+
+
+def test_k5_silence_without_reason_does_not_silence():
+    """**缺理由 = 静音不生效**（告警照发）+ 报 `no_reminder_without_reason`。
+
+    语义刻意保守：**一个写坏的静音，绝不能把告警吞掉** —— 否则只要拼错字段名/漏填理由，
+    就能无声地绕过全部检查，那这道守卫就成了后门本身。
+    """
+    cs = _handoff([{"id": "H1", "what": "实盘止损", "owner": "human", "due": "2026-08-05",
+                    "status": "overdue_unconfirmed", "no_reminder": True}])
+    kinds = [x["kind"] for x in hr.check_cross_project(cs, pathlib.Path("/tmp/x.json"), NOW)]
+    assert "no_reminder_without_reason" in kinds
+    assert "handoff_overdue" in kinds, "静音没写理由 → 不该生效，告警必须照发"
+
+
+def test_k7_silenced_with_reason_is_silent():
+    cs = proj([{"id": "A-9", "what": "w", "owner": "human", "due": "2026-01-01",
+                "evidence": "实测", "status": "open", "no_reminder": True,
+                "no_reminder_reason": "用户明确不催"}])
+    assert run(cs) == []
+
+
+def test_k7_silence_without_reason_does_not_silence():
+    """同 K5：缺理由 → 静音不生效，逾期照报 + 额外报缺理由。"""
+    cs = proj([{"id": "A-9", "what": "w", "owner": "human", "due": "2026-01-01",
+                "evidence": "实测", "status": "open", "no_reminder": True}])
+    kinds = sorted(h["kind"] for h in run(cs))
+    assert kinds == ["no_reminder_without_reason", "open_item_overdue"]
 
 
 def test_done_status_skipped():

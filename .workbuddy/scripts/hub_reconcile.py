@@ -328,6 +328,24 @@ def check_doc_drift(reg: dict, live: dict, all_ids: set, now_dt: datetime.dateti
 
 
 DONE_STATES = {"done", "completed", "cancelled", "canceled", "closed", "skipped"}
+
+
+def reminder_off(it: dict) -> tuple[bool, str | None]:
+    """条目级「显式静音」：`no_reminder: true` 必须配 `no_reminder_reason`。
+
+    返回 (是否静音有效, 缺理由时的错误 key)。
+
+    设计取舍（2026-09-28 用户「实盘止损不用提醒」）：
+      · **不删条目** —— 删掉会让账本说谎（看起来"全部结案"）；静音是**有记录的决定**，
+        保留原期限/现状态/关的人与时间，将来仍能回答"这事当时怎么处理的"。
+      · **理由必填** —— 静音是一次「撤销告警」的动作，缺理由时**照报**
+        （`no_reminder_without_reason`），否则「关掉提醒」会变成绕过全部检查的后门。
+    """
+    if not it.get("no_reminder"):
+        return False, None
+    if not str(it.get("no_reminder_reason") or "").strip():
+        return False, "no_reminder_without_reason"
+    return True, None
 IF_NO_ACTION_ENUM = {"auto_switch_to_live", "keep_calibrate", "keep_as_is", "escalate"}
 # 前置条件表达式里的标识符（用于"契约 ↔ 校验器"是否已脱节的机械核对）
 COND_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")
@@ -668,6 +686,13 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
             pid = it.get("id")
             if str(it.get("status", "")).lower() in DONE_STATES:
                 continue
+            _off, _err = reminder_off(it)
+            if _err:
+                f(_err, str(pid),
+                  f"交接项 `{pid}` 声明了 `no_reminder` 但缺 `no_reminder_reason`"
+                  f" → 静音必须留痕（谁/何时/为什么关的），否则它就是个后门")
+            if _off:
+                continue
             due = it.get("due")
             if not due:
                 f("handoff_no_due", str(pid), f"交接项 `{pid}` 没有 due → 无从判断是否已过期")
@@ -702,6 +727,13 @@ def check_cross_project(cs: dict, cs_path: Path, now_dt: datetime.datetime,
                 continue
             iid = it.get("id") or "?"
             if str(it.get("status", "open")).lower() in DONE_STATES:
+                continue
+            _off, _err = reminder_off(it)
+            if _err:
+                f(_err, f"{pname}.{iid}",
+                  f"开放项 `{iid}` 声明了 `no_reminder` 但缺 `no_reminder_reason`"
+                  f" → 静音必须留痕，否则它就是个后门")
+            if _off:
                 continue
             if not it.get("evidence"):
                 f("open_item_no_evidence", f"{pname}.{iid}",
