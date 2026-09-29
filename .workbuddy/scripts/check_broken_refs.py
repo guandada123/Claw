@@ -42,9 +42,28 @@ def resolve_repo(repo: str | None) -> Path:
 
 def load_automations(db: Path) -> list[tuple]:
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-    rows = con.execute("SELECT id,name,status,deleted_at,prompt FROM automations").fetchall()
+    rows = con.execute("SELECT id,name,status,deleted_at,cwds,prompt FROM automations").fetchall()
     con.close()
     return rows
+
+
+def _resolve_cwds(cwds_json) -> list[Path]:
+    """把 automation 的 cwds(JSON 数组/字符串)解析成绝对路径列表; 非法值跳过."""
+    if not cwds_json:
+        return []
+    try:
+        raw = json.loads(cwds_json) if isinstance(cwds_json, str) else cwds_json
+    except Exception:
+        raw = [cwds_json]
+    if isinstance(raw, str):
+        raw = [raw]
+    out: list[Path] = []
+    for c in (raw or []):
+        try:
+            out.append(Path(c).resolve())
+        except Exception:
+            pass
+    return out
 
 
 def is_external_scope(prompt: str, ext_envs: set[str]) -> bool:
@@ -90,7 +109,7 @@ def main() -> int:
     ext_skipped: set[str] = set()
     dead_excluded = 0
 
-    for aid, name, status, deleted_at, prompt in load_automations(db):
+    for aid, name, status, deleted_at, cwds, prompt in load_automations(db):
         if deleted_at not in (None, 0, "0", ""):
             continue  # DELETED 永远排除
         if status != "ACTIVE" and not (args.include_paused and status == "PAUSED"):
@@ -102,9 +121,19 @@ def main() -> int:
             for s in BARE.findall(prompt):
                 ext_skipped.add(s)
             continue
+        # (09-29 补盲区) 真实工作目录(cwds)在外部仓库: 裸 scripts/X.py 解析到该 repo,
+        # 不在 Claw 范围 → 以 cwds 目录为准校验, 命中即视为已解析(外部仓库真身), 不误报.
+        # 例: 📈【QTS】告警生产者 cwds=QuantTradingSystem, 其 scripts/generate_alerts.py 真身在 QTS 仓库.
+        cwds_dirs = _resolve_cwds(cwds)
         for s in BARE.findall(prompt):
             if (scripts_dir / s).is_file() or (wb_dir / s).is_file():
-                continue  # 已解析(薄壳或真身)
+                continue  # 已解析(薄壳或真身, Claw 内)
+            if any(
+                (c / "scripts" / s).is_file() or (c / ".workbuddy" / "scripts" / s).is_file()
+                for c in cwds_dirs
+            ):
+                ext_skipped.add(s)  # 外部仓库 cwds 内有真身 → 排除, 不误报
+                continue
             broken.append((s, aid, name, status))
 
     # 按脚本聚合
