@@ -75,6 +75,8 @@ QTS_AUTH_ANCHOR = SCRIPT_DIR / ".qts_api_auth_401_anchor.json"
 # 每日重复、长期占位并淹没真实可处置告警。此类降为 72h，仍持续提醒但不再日推。
 # 注意：仅登记确无自愈路径的项；自愈类/工程类告警仍严格走 24h，不得加入。
 ALERT_DEDUP_TTL_OVERRIDE_H = {
+    # 2026-09-29：该检查已降级为观测项（ok=None，永不推送）→ 本条 override 实际不再生效。
+    # 保留作**恢复时的依据**（若日后重新启用该告警，72h 降频仍然是对的）。
     "微信公众号通道@wechat-download-api 登录过期": 72,  # 纯人工扫码，中枢不可自愈
 }
 
@@ -1156,6 +1158,13 @@ def _container_last_fetch_ts(container: str, since: str = "2400h"):
 
 def check_wechat_channel() -> dict:
     """微信公众号数据链路检查（2026-08-07 新增，盲点#3）。
+
+    🔴 2026-09-29 **降级为观测项**（返回 ok=None）：不再进飞书告警，只每次打印一行。
+    原因：上游自 07-20 阻断后连续 40+ 天每日报同一条「登录过期」，而本地**没有可执行处置**
+    （扫码重登已被实证无效）。台账原写「无消费方」是**错的**，实测仍有 4 个 ACTIVE 自动化
+    在读落盘池（知识库精读×3 + 微信早报；RSS 同步自动化已 PAUSED）→ 所以是「降级保留可见」
+    而不是删除。详见文末 return 处注释与 hub registry 的 retired/muted 登记。
+
     背景：云RSS(wechatrss) 7/30 因微信关闭文章列表接口停摆(平台重构中)；本地
     wechat-download-api(5001) 08-07 确诊全接口被微信风控(ret=200013 freq control)——
     登录有效(isExpired=false)、轮询器仍在跑(last_poll=当日)但每次 poll 都被 200013 拒，
@@ -1183,7 +1192,7 @@ def check_wechat_channel() -> dict:
         # （见下方 F3 细化）。若抓取远早于过期即停摆，提示"扫码重登"会误导处置。
     except Exception as e:  # noqa: BLE001
         alerts.append(f"本地微信通道不可达(localhost:5001): {e}")
-        return {"ok": False, "alerts": alerts, "note": None}
+        return _skip("微信公众号通道(已降级为观测项，不再推送): " + "; ".join(alerts))
     # 风控铁证：容器日志近 6h 内 200013(freq control) 出现次数（--timestamps 窗口过滤，
     # 避免 300 行短窗口被健康检查日志冲掉、也避免把"历史风控"当"当前风控"）
     freq_cnt = 0
@@ -1279,7 +1288,15 @@ def check_wechat_channel() -> dict:
             notes.append("本地微信订阅列表为空")
     except Exception as e:  # noqa: BLE001
         notes.append(f"订阅列表读取失败: {e}")
-    return {"ok": not alerts, "alerts": alerts, "note": "; ".join(notes) if notes else None}
+    # 2026-09-29 降级为**观测项**（ok=None → 渲染 ⏭、不计入通过、不推送）：
+    # 该通道自 07-20 起由上游阻断（微信关闭文章列表接口 + 本地 200013 风控），
+    # 连续 40+ 天每日报「登录过期」，而本地**无可执行处置**（扫码重登已被实证无效，
+    # 见 2026-08-30 结论）→ 每日推送只会淹没真正可处置的告警。
+    # 保留理由：它并非孤儿 —— 落盘池仍有 4 个 ACTIVE 消费方（知识库精读×3 + 微信早报；
+    # RSS 同步自动化已 PAUSED），池子停更需继续**可见**（每次巡检打印一行），
+    # 只是不再进飞书。周报 D 段仍是该链路的固定出口。
+    # 恢复方式：把本函数两处 `_skip(...)` 改回 `{"ok": False, "alerts": alerts}` 即可。
+    return _skip("微信公众号通道(已降级为观测项，不再推送): " + "; ".join(alerts + notes))
 
 
 # 成本告警的受托自动化：中枢刻意只做 note（不抢推送），把超预算告警委托给它。

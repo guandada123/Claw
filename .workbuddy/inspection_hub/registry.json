@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.9.1",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-28T22:18:35+08:00",
+  "updated_at": "2026-09-29T08:10:58+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -517,6 +517,39 @@
       "suggestion": "对标本地 a-stock-data 的广度：评估补『腾讯 API 多市场(A/HK/US) + adata SDK 板块/资金流/财报』作为补充源/跨市场覆盖；写 references/allstock-adata-compat.md 兼容性对比（文档类 auto_apply，不改动核心流程）。注意 adata 可能需要代理 IP（与 followagents 评测指的『无中国 IP 时 mootdx 超时』同类风险）。",
       "status": "pending",
       "found_at": "2026-09-28"
+    },
+    {
+      "id": "disc-20260929-01",
+      "skill": "majiu-management",
+      "url": "https://github.com/github/agent-governance",
+      "source_summary": "github/agent-governance（Microsoft, 36.2k★, 2026-07, 3/3 安全审计通过）：声明式治理策略框架——GovernancePolicy 可组合序列化对象（allowed/blocked_tools + blocked_patterns + 需人工审批的工具 + 速率上限）；策略组合『最严优先』语义（org→team→agent 层层叠加收紧）；意图分类→策略检查→工具执行→审计日志 闭环。直接对应 majiu-management 的『边界优先+最小权限+可追溯』治理职责。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "强化 majiu-management 的『边界优先/最小权限』治理：引入声明式 GovernancePolicy（allow/deny/review 三态）+ 策略组合最严优先 + 意图分类→策略检查→审计日志闭环到 references/declarative-governance-policy.md（文档类 auto_apply，不改核心流程）。直接对应 registry known_failure_modes 的提示注入/权限威胁面。",
+      "status": "pending",
+      "found_at": "2026-09-29"
+    },
+    {
+      "id": "disc-20260929-02",
+      "skill": "majiu-management",
+      "url": "https://owasp.org/www-project-agentic-skills-top-10",
+      "source_summary": "OWASP Agentic Skills Top 10（AST10，2026 公开评审 v1）：首个覆盖全平台（OpenClaw SKILL.md / Claude Code skill.json / Cursor manifest / VS Code package.json）的 Agent 技能安全标准。披露生态危机实测数据——Snyk ToxicSkills 扫描 3,984 个技能、36.82% 含缺陷、13.4% 关键；ClawHavoc 战役 1,184 个恶意技能；『致命三要素』（私数据+不可信内容+外联能力同时具备）。给出安全清单：安装前扫描、版本钉固、每次版本变更重审计、运行时隔离、审计日志。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "强化 majiu-management 的『技能安全门禁』治理（与 disc-20260928-01 ESR 安全扫描互补，AST10 更偏『Top-10 风险目录 + 注册表/安装期扫描 + 版本变更重审计』）：落地 references/owasp-agentic-skills-top10.md，把『致命三要素』判定 + 安装前扫描/钉版/重审计/隔离 清单纳入治理库（文档类 auto_apply）。直接对应本机 known_failure_modes.ff-hygiene-falsepos 与提示注入威胁面。",
+      "status": "pending",
+      "found_at": "2026-09-29"
+    },
+    {
+      "id": "disc-20260929-03",
+      "skill": "a-stock-data",
+      "url": "https://clawhub.com/skills/akshare-stock ｜ https://clawhub.com/skills/tushare-finance ｜ https://clawhub.com/skills/stock-monitor-skill",
+      "source_summary": "OpenClaw 金融赛道打包技能套件（clawhub install 一行装）：AkShare Stock（A股量化·零Key）+ Tushare Finance（全市场覆盖·需积分）+ Stock Monitor（涨跌停突破自动推送）+ Multi Search + Tavily + Summarize + Office Docs + Self-Improving + News Aggregator + Agent Browser，10 个技能覆盖『数据底座→检索→处理→监控→落地』全流水线。与本地 a-stock-data（单文件 A股专精 34源）是『全家桶流水线』vs『单点专精』两种产品形态。",
+      "value": "medium-high",
+      "risk": "low",
+      "suggestion": "对标本地 a-stock-data 的生态位：评估补『Stock Monitor 涨跌停突破推送』与『Agent Browser 无API网页最后一公里』两类能力（a-stock-data 只取数据不告警不操浏览器）；写 references/openclaw-finance-suite.md 产品形态对比（文档类 auto_apply，不改动核心 SKILL.md/脚本）。提示：clawhub 是曾被 ClawHavoc 投毒污染的注册表（见 OWASP AST10），安装前须过扫描门。",
+      "status": "pending",
+      "found_at": "2026-09-29"
     }
   ],
   "known_failure_modes": [
@@ -610,17 +643,17 @@
     "core_class_channel": "周度审（🧬 技能演进-周度）；核心类永不进每日自动通道",
     "switch_criteria": "校准满14天(至2026-10-08)且对拍无偏差 → mode 置 live",
     "last_calibration": {
-      "ts": "2026-09-28T00:40:38+08:00",
+      "ts": "2026-09-29T00:40:33+08:00",
       "mode": "calibrate",
       "selected": [
         "disc-20260927-01",
         "disc-20260927-02",
         "disc-20260927-03"
       ],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260928.md"
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260929.md"
     },
     "last_live": null,
-    "calibrate_runs": 8,
+    "calibrate_runs": 9,
     "rollback_point": "0540a62",
     "p0_landed_at": "2026-09-24",
     "parity_verifier": ".workbuddy/scripts/doc_apply_parity.py",
@@ -693,7 +726,8 @@
     "2026-09-28 registry → 1.9.0：新增 D8 K7 `open_items` —— 把各项目的**开放决策/待办**纳入每日机器检查（审计实测：全部项目待办 ≈1320 行、仅 6% 带期限，且只有 Claw 有 D6；H1 就是这样静默逾期 54 天）。首批登记 8 条已核实开放项（Claw 2 / QTS 5 / pmf 1）+ 8 条已核实关闭项（进 handoff._resolved 留痕）。同日改掉「记忆维护」自动化的不可达告警口径（MEMORY<2KB → 索引可见性三判据，automation-1780769419635 v9）。",
     "2026-09-28 registry → 1.9.1：K5/K7 支持**条目级显式静音**（`no_reminder` + 必填 `no_reminder_reason`；缺理由则不生效并报 `no_reminder_without_reason`）。首个用例 = H1 实盘止损 —— 用户当日明确「实盘止损不用提醒」，**条目保留不删**（删掉会让账本说谎），只关掉每日催办；去掉两个字段即可重启提醒。",
     "2026-09-28 PA-003.how 补入**已验证的 UI 操作路径**（来源：客户端 app.asar 内 `renderer/assets/automation-*.js` 的代码与注释，非推测）：侧边栏「自动化」tab → 编辑器与聊天框同源的 provider 条（model / skill / expert / connector / workspace）→ 改模型与专家，以槽位1 为参照。",
-    "2026-09-28 新增 known_failure_modes: freshness-check-ignores-holidays（中秋误报「管线停摆」，根因=固定窗口不认交易日历，且 docstring 声称做了）。同时把「记忆维护」自动化升到 v10：① 修正 1c 的**错误路径**（原查 ~/.workbuddy/automations，实测只有 6 个小文件；真位置是 Claw/.workbuddy/memory/automations，49 个、最大 148KB）② 周日新增自动化 memory 滚动归档（确定性脚本 rotate_automation_memory.py；首跑 6 个文件 920KB→211KB，逐文件核对行数守恒）。"
+    "2026-09-28 新增 known_failure_modes: freshness-check-ignores-holidays（中秋误报「管线停摆」，根因=固定窗口不认交易日历，且 docstring 声称做了）。同时把「记忆维护」自动化升到 v10：① 修正 1c 的**错误路径**（原查 ~/.workbuddy/automations，实测只有 6 个小文件；真位置是 Claw/.workbuddy/memory/automations，49 个、最大 148KB）② 周日新增自动化 memory 滚动归档（确定性脚本 rotate_automation_memory.py；首跑 6 个文件 920KB→211KB，逐文件核对行数守恒）。",
+    "2026-09-29 run#5：mode=calibrate（registry 真值）→ 只读对拍，零文档写入、零 commit。闸门 rc=0/ok=true，selected=disc-20260927-01/02/03（连续第 3 日入选，FIFO：这 3 条仍 pending 且 id 最小），dropped=18（含「+6 条过闸但被 top_n 限流」= 09-28×3 + 09-29 当日新产 3 条）。parity rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[]，days_elapsed=5/14 → 三判据 ok✓ / 5<14✗ / violations[]✓ → 不切换、不推送。D7 镜像核对：pending_actions[PA-001].if_no_action=auto_switch_to_live 与 doc_apply.auto_switch=true 一致，未停手。按铁律❼：未回写 automations[].last_run/next_run（09-27 已摘除，本日复核仍为 null，保持不动）。calibrate 零落地 ⇒ 零 applied 回写；9 条 pending（09-27×3 + 09-28×3 + 09-29×3）全部保留。独立核验（防伪 applied）：12 条 applied 的 applied_action 目标文件全部真实存在、size>0（0 缺失）——其中 disc-20260922-03 与 disc-20260923-02 的 applied_action 只写相对短路径（缺 <skill>/ 前缀），属记录瑕疵非文件丢失。复检 hub_reconcile rc=20：D1–D8 全空，仅 D9 kb-read-3slots 槽位 model_id/model_is_thinking 组内不一致（人工作业/UI 决策，与本批无关）。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -823,6 +857,17 @@
         "2026-09-28 用户问「怎么对齐」→ 从客户端 app.asar 取证给出确切 UI 路径（侧边栏『自动化』tab → 编辑器 provider 条里的模型/专家），并核出 3 处非声明差异（权限/工作目录无影响、微信推送疑似有意）",
         "2026-09-28 22:45 代点实测一轮：探明真实 UI 路径（侧栏=定时任务 / 点行进编辑器 / 模型芯片在提示词框右下角），但主区不在 AX 树 + 列表按下次执行重排 → 位置点击不可控；无深链、无 CDP。剩余 30 秒交人点。现场已复原（取消 + 侧栏回「助理」），未留痕迹。"
       ]
+    },
+    {
+      "id": "PA-004",
+      "due": "2026-10-06",
+      "owner": "agent",
+      "title": "3 个知识库精读槽位补「输入新鲜度自检」（落盘池停更 50+ 天仍被当输入消费）",
+      "criteria": "槽位1/2/3 的 prompt 里出现「落盘池最新日期 vs 最近交易日」的比对与 STALE 标注规则，与微信早报 Step 2.5 的做法一致；或在脚本侧给出等价自检。",
+      "status": "open",
+      "verifier": "抽查 3 条自动化的 prompt 文本 + 一次实际运行产物是否带 STALE 标注",
+      "auto_check": null,
+      "why": "2026-09-29 处置 MC-1 时发现：消费者不裸奔的只有微信早报，知识库精读三个槽位没有输入自检 —— 同「检查需要有输入时，必须自检输入还在不在」铁律。"
     }
   ],
   "automation_scope": {
@@ -991,6 +1036,20 @@
       "keys_intentionally_differing_note": "默认空 = 这三项必须一致。permission_mode 不列入（既有中枢自动化同为 NULL 且已稳定运行，无实际权限差异）；push_to_wechat 不列入（若确认「一天只推一次」是有意取舍，再把该键连同理由写进 keys_intentionally_differing —— **有意差异也必须声明**，不声明就是漏查，声明了才可审）。",
       "pending_action": "PA-003",
       "checked_by": "hub_reconcile.py → D9 同组槽位配置一致性"
+    }
+  ],
+  "muted_checks": [
+    {
+      "id": "MC-1",
+      "check": "微信公众号通道（unified_ops_center.check_wechat_channel）",
+      "muted_at": "2026-09-29",
+      "mode": "observation_only",
+      "reason": "上游自 07-20 阻断后连续 40+ 天每日报同一条「登录过期」，而本地**没有可执行处置**（扫码重登已被实证无效）。每日推送只会淹没真正可处置的告警。",
+      "evidence": "本地 5001 /api/admin/status isExpired=true；微信关闭文章列表接口致云 RSS 停摆；落盘池最新文件 2026-08-06（1169 篇存量）；2026-08-30 结论「摘除巡检项，非扫码重登」；历史上该项一度占自愈日志同类条目的 93.5%（187 条）。",
+      "correction": "台账原写「无消费方」**不成立**：实测落盘池仍有 4 个 ACTIVE 消费方（📚知识库精读 槽位1/2/3 + 📊微信早报生成推送），RSS 同步自动化 automation-1785335108360 已 PAUSED。故处置为**降级保留可见**，不是删除。",
+      "consumer_note": "微信早报 prompt 已有「落盘池最新日期 < 最近交易日 → 必须带断供标注」规则 ✓；3 个知识库精读槽位**未见**同类自检 → 见 pending_actions PA-004。",
+      "coverage_now": "周报（automation-1785825576843）D 段「微信公众号数据链路」仍是固定出口。",
+      "restore": "把 check_wechat_channel 里两处 `_skip(...)` 改回 `{\"ok\": False, \"alerts\": alerts}`；ALERT_DEDUP_TTL_OVERRIDE_H 中该条 72h 降频保留未删，恢复即可用。"
     }
   ]
 }
