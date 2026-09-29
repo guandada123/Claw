@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.9.1",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-29T15:20:22+08:00",
+  "updated_at": "2026-09-29T16:00:29+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -1082,12 +1082,13 @@
       "check": "微信公众号通道（unified_ops_center.check_wechat_channel）",
       "muted_at": "2026-09-29",
       "mode": "observation_only",
-      "reason": "上游自 07-20 阻断后连续 40+ 天每日报同一条「登录过期」，而本地**没有可执行处置**（扫码重登已被实证无效）。每日推送只会淹没真正可处置的告警。",
+      "reason": "上游自 07-20 阻断后连续 40+ 天每日报同一条「登录过期」，而本地**没有可执行处置**（扫码重登已被实证无效）。每日推送只会淹没真正可处置的告警。 2026-09-29 用户进一步决定**取消采集路径本身**（见 path_cancelled）→ 落盘池自此永久冻结在存量。",
       "evidence": "本地 5001 /api/admin/status isExpired=true；微信关闭文章列表接口致云 RSS 停摆；落盘池最新文件 2026-08-06（1169 篇存量）；2026-08-30 结论「摘除巡检项，非扫码重登」；历史上该项一度占自愈日志同类条目的 93.5%（187 条）。",
       "correction": "台账原写「无消费方」**不成立**：实测落盘池仍有 4 个 ACTIVE 消费方（📚知识库精读 槽位1/2/3 + 📊微信早报生成推送），RSS 同步自动化 automation-1785335108360 已 PAUSED。故处置为**降级保留可见**，不是删除。",
-      "consumer_note": "微信早报 prompt 已有「落盘池最新日期 < 最近交易日 → 必须带断供标注」规则 ✓；3 个知识库精读槽位**已补**同类规则（PA-004 于 2026-09-29 完成：脚本层 STALE 横幅 + 机器可读 input_stale 字段 + 三槽 prompt 各 4 行强制标注）。",
+      "consumer_note": "微信早报 prompt 已有「落盘池最新日期 < 最近交易日 → 必须带断供标注」规则 ✓；3 个知识库精读槽位**已补**同类规则（PA-004 于 2026-09-29 完成：脚本层 STALE 横幅 + 机器可读 input_stale 字段 + 三槽 prompt 各 4 行强制标注）。 采集路径取消后，落盘池不再增长；消费者（三槽 + 早报）继续按 STALE 规则标注存量口径。",
       "coverage_now": "周报（automation-1785825576843）D 段「微信公众号数据链路」仍是固定出口。",
-      "restore": "把 check_wechat_channel 里两处 `_skip(...)` 改回 `{\"ok\": False, \"alerts\": alerts}`；ALERT_DEDUP_TTL_OVERRIDE_H 中该条 72h 降频保留未删，恢复即可用。"
+      "restore": "本巡检项的恢复：把 check_wechat_channel 里两处 `_skip(...)` 改回 `{\"ok\": False, \"alerts\": alerts}`（72h 降频配置保留未删）。**采集路径的恢复是另一件事**：用户 2026-09-29 已决定取消，恢复需先重新决策（并可从软删行 `3b171320-…` 取回原 prompt 重建自动化）。",
+      "path_cancelled": "2026-09-29 用户决定**取消微信读书采集这条路径**（不再采集、不再扫码提醒）：当日新建的采集自动化 `3b171320-…`（每日 23:30）已用工具删除（DB 里是软删，`deleted_at=2026-09-29 15:48:59`，prompt 1066B 仍留底 → 若日后要恢复，先取回该行再重建）。三个精读槽位 prompt 里对它的引用已同步改成「采集路径已取消」（逐字节回读三槽一致、零残留引用）。"
     }
   ]
 }
