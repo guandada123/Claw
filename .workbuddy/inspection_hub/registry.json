@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.9.1",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-29T16:00:29+08:00",
+  "updated_at": "2026-09-29T20:26:13+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -634,6 +634,15 @@
       "detail": "2026-09-29 实测：直接调 Wind CLI 返回 `{\"ok\": false, \"code\": \"backend_error\", \"message\": \"账户积分余额不足，无法完成当前操作。请提示用户先进行充值。\"}`。**这不是本地限流**：本地日限（原 200→1000 次/日，2026-09-29 已按用户要求取消）只是把它挡住了，于是日报只说「Wind每日1000次上限达→验证报告未刷新」，把账户侧根因误导成阈值问题。另：本地计数器把**失败的调用也计数**，所以「已用 1000 次」≠ 消耗了 1000 次配额，不能当用量看。",
       "detect": "① 日志里出现 `Wind 调用失败 [backend_error]: 账户积分余额不足`（2026-09-29 起会打到 WARNING，早前被 `isError/content` 判定吞掉 → 静默 None）；② `python3 .workbuddy/scripts/wind_quota_report.py` 看 `used`/`fail` 两个数（fail 占比高 = 根本没通）；③ 信号溯源日报出现「验证报告未刷新/连续多日同构」。",
       "fix": "只能账户侧解决：给 Wind 账户充值（`https://market.windalice.com/#/user/credits`）。代码侧已做的是**如实报因**：`src/claw/feeds/wind_utils.py` 现在会解析 CLI 的 `ok/code/message` 并 WARNING，同时在计数文件里记 `fail`（尝试/失败分开，避免再被误读成用量）。若迟迟不充值：建议把两条「信号溯源」自动化（05:00/15:00）的 STEP1 降频或显式标注跳过，别每天白打失败请求。",
+      "since": "2026-09-29"
+    },
+    {
+      "id": "qts-ci-tooling-drift-and-narrow-gate",
+      "severity": "medium",
+      "title": "QTS「Test & Lint」红：依赖漂移(SQLAlchemy 2.1 桩) + 本地门禁扫描面窄于 CI",
+      "detail": "2026-09-29 实查（巡检中枢报 QTS/pmf CI 红灯 1 个）：红灯在 QTS `Test & Lint` 的 **lint + type-check** 两个 job，unit-test/e2e/contract 被 `needs: [lint]` **跳过**（同 09-28 那类「上游红→下游全静默」结构）。① lint：`scripts/verify_kline_consistency.py` 未过 `ruff format --check`，而 QTS 的 `.pre-commit-config.yaml` 把 `scripts/` 排除 → 该文件只在 CI 暴露、本地永远放行。② type-check：10 处 mypy 报错，根因是传递依赖漂移 —— 绿的那次(09-07)装 `sqlalchemy-2.0.52`，红的两天装 `sqlalchemy-2.1.1`；2.1 的桩把 legacy `Column.__eq__`/`>` 标成 bool（本仓模型用 legacy `Column(...)`，非 Mapped）。",
+      "detect": "① lint/type-check 红但功能代码没动 → 先比**工具链版本**：`gh run view <绿run> --log | grep -oE 'sqlalchemy-[0-9.]+|mypy-[0-9.]+'` 与红的那次对比；② 判「是不是我的提交」：`git log --since=<绿run日期> --oneline -- <报错文件>`，无改动即非代码回归；③ 判门禁缺口：比较 CI 的扫描路径（`ruff check .` 全仓）与 `.pre-commit-config.yaml` 的 `exclude`。",
+      "fix": "① 门禁对齐：去掉本地 ruff 钩子对 `scripts/` 的豁免（只留 k8s/helm），使本地=CI；② 类型：**不锁版本掩盖**，按 2.1 的类型事实改代码 —— 加注解、键值显式 `str()`、filter 条件 `cast(Any, ...)`（写出「它是 SQL 表达式」这个事实，而非 `# type: ignore` 把真错误一起吞）、`bool()/str()` 收口 no-any-return；③ **顺手补齐被跳过的下游**：mypy 四个目录一起跑（本次后三个服务各有 1-2 处同源错误，只修第一个 CI 仍是红）；④ 另修 `api/scheduler.py` 的真 bug：stdlib Logger 不收自定义 kwargs → 健康探测时会抛 TypeError。",
       "since": "2026-09-29"
     }
   ],
