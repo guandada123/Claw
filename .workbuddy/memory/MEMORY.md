@@ -299,8 +299,28 @@
 - 纳管范围由 **`registry.automation_scope`**(include/exclude 名称规则) 声明，**不手写全量**（库里71条约50条是业务/投研类=噪音）。范围内未登记→报 D3；新增治理类自动化会自动被抓出
 
 **── 证据 45 ──**
-- 🔴 **D9 同组槽位配置不一致(09-25，hub_reconcile 第 9 类漂移)**：铁律「单 RRULE 禁多 BYHOUR」要求多时刻**拆成多条独立自动化**，而 **`automation_update` 改不了** `model_id`/`model_is_thinking`/`expert_id`/`permission_mode`/`push_to_wechat` → **拆槽时新建的那几条只会拿到平台默认值**。实测知识库精读三槽（prompt 自述「共用同一份正文」）：槽1 = hy3+thinking+EquityResearchExpert，槽2/3 = 默认 flash+无专家 → 同一件事每天 2/3 的产出被静默降档。**这不是配置疏漏，是拆分动作的系统性副作用（拆一次复发一次）**。判据来自 `registry.consistency_groups[]`（成员 `ids` + 必须一致的 `keys` + **有意差异也要声明**）。退化形态不许静默：`group_no_keys`/`group_member_missing`/`group_too_small`。修好后自动转静默（七连测 7/7）。已记 `known_failure_modes: slot-split-resets-config`。
+- 🔴 **D9 同组槽位配置不一致(09-25，hub_reconcile 第 9 类漂移)**：铁律「单 RRULE 禁多 BYHOUR」要求多时刻**拆成多条独立自动化**，而 **`automation_update` 改不了** `model_id`/`model_is_thinking`/`expert_id`/`permission_mode`/`push_to_wechat`（🔴 **09-29 更正：这半句是错的** —— camelCase `modelId`/`modelIsThinking`/`expertId`/`expertMarketplace` 都能改，snake_case 才静默不生效；拆槽后的重置可**一条 update 修回**，见本节末） → **拆槽时新建的那几条默认只会拿到平台默认值**。实测知识库精读三槽（prompt 自述「共用同一份正文」）：槽1 = hy3+thinking+EquityResearchExpert，槽2/3 = 默认 flash+无专家 → 同一件事每天 2/3 的产出被静默降档。**这不是配置疏漏，是拆分动作的系统性副作用（拆一次复发一次）**。判据来自 `registry.consistency_groups[]`（成员 `ids` + 必须一致的 `keys` + **有意差异也要声明**）。退化形态不许静默：`group_no_keys`/`group_member_missing`/`group_too_small`。修好后自动转静默（七连测 7/7）。已记 `known_failure_modes: slot-split-resets-config`。
 
+- 🔴 **「界面/用户说改好了」不等于 DB 改了 + 拆槽配置重置其实是可修的（09-29，修 D9 + 更正两条旧结论）**
+  - 用户报「D9 那项已经修改了」。复核方式（**三个必做**）：① 用**含 `-wal/-shm` 的快照**读库
+    （`cp workbuddy.db{,-wal,-shm} /tmp/snap/` 后再查 —— 只读 `file:...?mode=ro` 可能读不到未 checkpoint 的最新提交，
+    同 09-28 PMF 那个 WAL 坑）；② 与旧备份**逐行 diff** 配置列；③ 看 `updated_at` 是否与某次已知操作对得上。
+    结果：三槽 `model_id/model_is_thinking/expert_id/expert_marketplace` 与 5 天前备份（`…bak-bkup-20260924-165248`）
+    **0 处变化**，三槽 `updated_at` = 09:49:14/09:49:45/09:50:04 → 与我当日改 prompt 的三次调用一一对应。
+    **⇒ 那次「已修改」没落到 scheduler DB**（若非我看错，则界面保存路径存在假成功，值得另案查）。
+  - **修法（本仓旧结论在此更正）**：`automation_update` **可以**改模型/专家，只要用 **camelCase** 字段名：
+    `modelId` / `modelIsThinking` / `expertId` / `expertMarketplace`（snake_case 返回 `success:true` 但静默不生效）。
+    对槽2/槽3 各发一次 update（只带这 4 个字段）→ 回读三槽完全一致 `hy3 / thinking / EquityResearchExpert / official`，
+    且 `prompt` 2618B 未变、rrule 仍 03:20 与 05:50、status=ACTIVE。**故 D9 旧记「工具改不了这几个字段 → 拆一次复发一次」
+    是错的**：拆槽导致的降档可一条 update 修回。D9 检查本身仍要留（它是**发现**这类重置的唯一机器闸）。
+  - **附带发现的半配状态**：槽2/3 的 `expert_marketplace` 原本为空而槽1 是 `official` —— 「有 `expert_id` 却不声明市场」
+    是半配 → 已一并补齐，并把它加入该组对齐范围。
+  - **连带把两处自己造出来的漂移清掉**（对账这才 clean）：`muted_checks` 是新增的声明键但没进 skill 的中央注册表表格
+    （D5 K3 双向校验）→ 补进表格；`PA-004`/`PA-005` 缺 `if_no_action` 枚举（D7）→ 补 `keep_as_is` 并写清「不升级」的理由。
+  - 终态：`hub_reconcile` → `declared=25 observed_live=74 clean=True / rc=0`（D9/D5/D7 全清）。
+    改前留回滚快照 `/tmp/kb3slots.before.json` + `registry.json.bak.20260929-1015`。
+  - 规范提醒：`~/.workbuddy/skills/**`（含统一巡检中枢的 SKILL.md）落在 `/Volumes/ZHITAI/workbuddy_data/skills/`，
+    **不在 Claw 仓的版本控制内** → 改它没有 git 记录，只能靠本节与 registry 留痕。
 **── 证据 46 ──**
 - 🔴 **报告粒度要对齐人的决策粒度(09-25)**：D9 初版对「一个键不一致」逐成员各报一条（3 成员 → 6 条），简报里读不出重点 → 改为一键一条、差异成员并列写一行。**把一个事实拆成 N 条噪音，等于让读的人替我做聚合。**
 

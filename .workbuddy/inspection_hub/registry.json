@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.9.1",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-29T09:50:31+08:00",
+  "updated_at": "2026-09-29T10:20:35+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -817,7 +817,7 @@
       "due": "2026-10-08",
       "owner": "human",
       "title": "同组槽位配置一致性（知识库精读三槽的 model / expert）",
-      "status": "scheduled",
+      "status": "done",
       "criteria": "registry.consistency_groups 声明的同组槽位，其 keys 必须同口径（D9 机器核对）",
       "findings": {
         "槽位1": {
@@ -848,7 +848,7 @@
       },
       "judgement": "① direction：不是「两种口径各有用处」，而是**同一任务被静默降到两套质量**→ 按缺陷处理。② permission_mode=NULL 仍判正常（既有中枢自动化同为 NULL 且稳定运行）。③ 已加 **D9 机器守卫**（registry.consistency_groups → kb-read-3slots）：只要三槽不齐就每天报出来，修好后自动转静默。④ 修复动作只能在 UI 做（工具层改不了这四个字段）。",
       "how": "**只能在自动化管理 UI 改**（工具层改不了这三个字段；2026-09-27 二次实测：传 `model_id`/`model_is_thinking`/`expert_id` 返回 success=true 但 DB 逐字段未变）。\n**操作路径（2026-09-28 从客户端 `app.asar` 代码取证，非猜测）**：\n  ① 左侧边栏 →「**自动化**」tab（客户端代码原文：*是否启用侧边栏「自动化」入口…隐藏侧边栏的自动化 tab*；\n     本机产品配置未关闭该入口）；\n  ② 在列表里找名字带「**· 槽位2**」「**· 槽位3**」的两条，点开编辑（槽位1 名称为 「📚【知识库】全网挖掘+文章精读(LLM)」，无后缀）；\n  ③ 编辑器里有一排与**聊天框同源**的 provider 入口（代码原文：*装配 model / skill / expert / connector / workspace*，\n     *与会话共享同一套模型选择器（思考强度档位、自定义模型入口、动态分组、能力 badge）*）→\n     在其中改 **模型** 与 **专家** 两项；\n  ④ 目标值：**以槽位1 为参照照抄**（模型 `hy3`、思考开、官方专家 `EquityResearchExpert`）。\n     思考无需单独操心：模型选中态 = *id + 思考开关 + 思考强度档位*，随模型一并持久化；\n     客户端按模型能力三态处理——非 reasoning 模型不显示开关、reasoning 且不可关闭时强制常开。\n     ⚠️ 专家的**界面显示名**本地无缓存，无法预先给出 → 用「打开槽位1 看它显示什么就选什么」自验证，别照我猜。\n  ⑤ 两条各改一次并保存；之后 D9 会每日复核，**一致即自动转静默**（无需回头关告警）。\n**顺带发现的三处非声明差异**（已核，供确认）：`permission_mode`（fullAccess vs None）与 `cwds`\n（Claw vs automation-2026-09-21 工作区）**无功能影响**（prompt 写死 `CLAW=` 绝对路径；其它中枢自动化同为 NULL 权限且稳定）；\n`push_to_wechat` 槽1=1、槽2/3=0 —— 看起来正是「一天只推一次」的有意设计，**确认后写进 `keys_intentionally_differing`**（有意差异也要声明，不声明就是漏查）。\n\n---\n**2026-09-28 22:0x~22:4x 代点实测（agent 亲自试过一轮，未完成 —— 卡点是结构性的，不是\"没点对\"）**\n- 环境齐全：屏幕亮、屏幕录制+辅助功能权限都有、AX 树可读（`wbstate`：前台=WorkBuddy、窗口 1920×959@(0,31)）。\n- ✅ 探明的真实路径（比读 app.asar 的推断更准，下次直接用）：\n  ① 侧栏入口在产品 UI 里叫「**定时任务**」，不是代码里的「自动化」；\n  ② **点列表的\"行\"即进入编辑器**；编辑器顶部 `取消`≈逻辑(1785,58)、`保存`≈(1866,58)（像素分析程序算出，实测点通）；\n  ③ 编辑器把 prompt 摊在正文区，**模型芯片在提示词框右下角**（实测槽位1那条显示 `hy3`），底部还有 `工作区 ⌄` 与 `权限 ⌄`；\n     故模型/专家选择器应在提示词框周边（未走完，见下）。\n- ❌ 卡住的结构性原因（两条，叠加导致不可控）：\n  ① **主区列表不在 AX 树里**：遍历 visited=755 而主区 hits=0 → 无法按元素定位，只剩像素点击这一条路；\n  ② **列表按\"下次执行\"动态重排**：间隔几分钟的三张截图里，同一行的逻辑 y 分别是 117 → 141 → …，\n     分组还会变（「运行中」组会插到最前）。已用「暗像素纵向剖面扫描」程序定位行带（间距 40px）\n     并用 AX 已知的侧栏 tab 坐标反证过截图映射（物理=逻辑×2、起点 (0,31)）——**仍在\"扫描→点击\"的几十秒里被搬走**。\n  ③ 另外两条更干净的通道均已排除：**无 automation 深链**（`workbuddy://` 仅 home/chat/task/settings/experts/skills/my-files/…）、\n     **无 CDP 端口**（80237 只监听 127.0.0.1:18488，9222 无响应）。\n- 👉 结论：**剩下这 30 秒得由人点**（点行会因重排漂移，这也是我不硬点的原因）：\n  打开槽位2 → 提示词框右下角模型芯片选 `hy3`、专家选**与槽位1 显示相同**的那一项 → 保存；槽位3 重复一次。\n  点完我这边可立刻 `sqlite3` 回读三字段 + `hub_reconcile.py` 复核 D9 是否转静默（不用你回来告诉我）。\n- 现场已复原：进入编辑器后用「取消」退出，侧栏 tab 已 AXPress 回「助理」，**未留痕迹**；\n  点击全程受护栏保护 —— 检测到\"用户在用机器\"（前台=微信、输入空闲 0s）时**自动放弃注入**（设计如此）。",
-      "if_no_action": "escalate",
+      "if_no_action": "keep_as_is",
       "if_no_action_note": "到期不动 = 继续每天用默认快模型跑 2/3 的知识库精读（产出质量被静默下调），D9 会持续每日报出；这不是「无害保持现状」，故用 escalate 而非 keep_as_is。",
       "_history": [
         "2026-09-24 三次审计：`default_if_no_action`(自由文本 保持现状（差异继续存在，但已在案）…) → `if_no_action` 枚举",
@@ -856,7 +856,10 @@
         "2026-09-27 二次实测：automation_update 传 model_id/model_is_thinking/expert_id → success=true 但 DB 逐字段未变（排除『之前只是没试过』）；并记录平台在用 model_id 清单（无 hy4）",
         "2026-09-28 用户问「怎么对齐」→ 从客户端 app.asar 取证给出确切 UI 路径（侧边栏『自动化』tab → 编辑器 provider 条里的模型/专家），并核出 3 处非声明差异（权限/工作目录无影响、微信推送疑似有意）",
         "2026-09-28 22:45 代点实测一轮：探明真实 UI 路径（侧栏=定时任务 / 点行进编辑器 / 模型芯片在提示词框右下角），但主区不在 AX 树 + 列表按下次执行重排 → 位置点击不可控；无深链、无 CDP。剩余 30 秒交人点。现场已复原（取消 + 侧栏回「助理」），未留痕迹。"
-      ]
+      ],
+      "resolved_at": "2026-09-29T10:16:00+0800",
+      "resolution": "已修（2026-09-29 10:16，工具直改 + 回读验证）。**并且本文档此前的一条前提被证伪**：D9 记的「automation_update 改不了 model_id/model_is_thinking/expert_id」是错的 —— 这四类字段都能改，只是必须走 **camelCase** 字段名（`modelId` / `modelIsThinking` / `expertId` / `expertMarketplace`），snake_case 会返回 `success:true` 但静默不生效（同 `modelId` 的 09-02 实锤）。故「拆槽时新建槽位被重置成平台默认」不再是无解的系统性副作用 → **一条 update 即可修回**。实际动作：对 11a78567 / 0d18c526 各发一次 update（只带这 4 个 camelCase 字段，prompt/rrule/status 全部保留），回读得三槽完全一致：`hy3 / model_is_thinking=1 / EquityResearchExpert / expert_marketplace=official`，且 prompt 长度 2618B 未变、rrule 仍 03:20 与 05:50、status=ACTIVE。附带一并发现在做：槽2/3 的 `expert_marketplace` 原本为空（槽1=official）→ 一并补齐，避免「expert_id 有值但市场没声明」这种半配状态。hub_reconcile 复跑：D9 三项全部转静默。改动前已留回滚快照 /tmp/kb3slots.before.json。",
+      "evidence": " | 2026-09-29 10:16 复核：与 5 天前备份（workbuddy.db.bak-bkup-20260924-165248）逐行对比，model_id/model_is_thinking/expert_id/permission_mode 四列 **0 处变化** （⇒ 界面里的「已修改」未落到 scheduler DB；用含 -wal/-shm 的快照读法复核，排除只读 WAL 读不到最新提交的假象）；三槽行 updated_at 分别为 09:49:14 / 09:49:45 / 09:50:04，与当次 prompt 更新的时刻一一对应。修复后回读：三槽 4 字段完全一致。"
     },
     {
       "id": "PA-004",
@@ -869,7 +872,9 @@
       "auto_check": null,
       "why": "2026-09-29 处置 MC-1 时发现：消费者不裸奔的只有微信早报，知识库精读三个槽位没有输入自检 —— 同「检查需要有输入时，必须自检输入还在不在」铁律。",
       "resolved_at": "2026-09-29T10:00:00+0800",
-      "resolution": "已修，两层落地：① 脚本层（覆盖所有消费方，零 prompt 风险）：read_wx_articles.py 新增 pool_freshness() → 每次运行先打一行 ✅输入新鲜 / ⚠️STALE：落盘池最新 YYYY-MM-DD（N 天前），并把 input_stale / input_stale_days 写进机器可读 SUMMARY（实测 {\"input_stale\": true, \"input_stale_days\": 53}）；② 规范层：三个知识库精读槽位 prompt 各加 4 行（逐字节回读校验），要求 STALE 时产物与推送必须带「基于存量（最新 MM-DD），非当日信号」且不得产出\"当日\"操作建议 —— 与微信早报既有 STALE 规则对齐。"
+      "resolution": "已修，两层落地：① 脚本层（覆盖所有消费方，零 prompt 风险）：read_wx_articles.py 新增 pool_freshness() → 每次运行先打一行 ✅输入新鲜 / ⚠️STALE：落盘池最新 YYYY-MM-DD（N 天前），并把 input_stale / input_stale_days 写进机器可读 SUMMARY（实测 {\"input_stale\": true, \"input_stale_days\": 53}）；② 规范层：三个知识库精读槽位 prompt 各加 4 行（逐字节回读校验），要求 STALE 时产物与推送必须带「基于存量（最新 MM-DD），非当日信号」且不得产出\"当日\"操作建议 —— 与微信早报既有 STALE 规则对齐。",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "到期不动不升级：脚本层 STALE 横幅 + SUMMARY 的 input_stale 字段已覆盖所有消费方，槽位 prompt 的强制标注是第二道闸；本条已 done，留着只为留痕。"
     },
     {
       "id": "PA-005",
@@ -880,7 +885,9 @@
       "status": "open",
       "verifier": "跑 scripts/generate_alerts.py 看是否仍全为「无输入」；核对 accounts 四列是否有非空值",
       "auto_check": "automation 22643b21（工作日 16:30）已内置「连续 3 个交易日无输入就提醒一次」",
-      "why": "2026-09-29 修 QTS-5 时发现：schema/规则/生产者都补齐了，但输入数据本身是空的 —— accounts 的 day_profit_loss_ratio / max_drawdown 全 NULL（无计算方），positions/trades 0 行（无交易活动），且 trades 表没有盈亏字段 → 「连续亏损3次」结构性算不出。这不是引擎没做完，是引擎的下游依赖没做完，需人决定是否补净值/持仓计算管线。"
+      "why": "2026-09-29 修 QTS-5 时发现：schema/规则/生产者都补齐了，但输入数据本身是空的 —— accounts 的 day_profit_loss_ratio / max_drawdown 全 NULL（无计算方），positions/trades 0 行（无交易活动），且 trades 表没有盈亏字段 → 「连续亏损3次」结构性算不出。这不是引擎没做完，是引擎的下游依赖没做完，需人决定是否补净值/持仓计算管线。",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "到期不动不升级：引擎空转的代价是「告警恒为无输入」，而自动化 22643b21（工作日 16:30）已内置「连续 3 个交易日无输入即提醒一次」，可见性有兜底；在无实盘/无模拟成交期间，静默空转是**被接受的**状态，不是事故。"
     }
   ],
   "automation_scope": {
@@ -1046,7 +1053,7 @@
         "expert_id"
       ],
       "keys_intentionally_differing": [],
-      "keys_intentionally_differing_note": "默认空 = 这三项必须一致。permission_mode 不列入（既有中枢自动化同为 NULL 且已稳定运行，无实际权限差异）；push_to_wechat 不列入（若确认「一天只推一次」是有意取舍，再把该键连同理由写进 keys_intentionally_differing —— **有意差异也必须声明**，不声明就是漏查，声明了才可审）。",
+      "keys_intentionally_differing_note": "默认空 = 这四项必须一致。**2026-09-29 更正**：本组此前记「automation_update 改不了 model/expert」是错的 —— camelCase 字段名（modelId / modelIsThinking / expertId / expertMarketplace）可以改，snake_case 只是静默不生效；故「拆槽 → 配置被重置」可一条 update 修回，已实测三槽一致。另：`expert_marketplace` 于同日一并列入对齐范围（槽1=official，槽2/3 原为空 —— 「有 expert_id 却不声明市场」是半配状态）。permission_mode 仍不列入（既有中枢自动化同为 NULL 且已稳定运行，无实际权限差异）；push_to_wechat 仍不列入（若确认「一天只推一次」是有意取舍，再把该键连同理由写进 keys_intentionally_differing —— **有意差异也必须声明**，不声明就是漏查，声明了才可审）。",
       "pending_action": "PA-003",
       "checked_by": "hub_reconcile.py → D9 同组槽位配置一致性"
     }
