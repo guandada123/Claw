@@ -23,13 +23,13 @@ import time
 from pathlib import Path
 
 _HUB = Path(__file__).resolve().parent.parent / ".workbuddy" / "scripts" / "hub_reconcile.py"
-_TMP = Path("/tmp/claw_d4_success_test")
+# 2026-09-29：不再写死 /tmp（S108 的意图是防可预测临时路径被利用）→
+# 这些夹具**真的会落盘**（sqlite 库 + registry json），故改用 pytest 的 `tmp_path`（每例独立、自动清理）。
 
 
-def _mkdb(rows: list[tuple[bool, str | None]]) -> Path:
+def _mkdb(base: Path, rows: list[tuple[bool, str | None]]) -> Path:
     """造一个只有一条自动化 A1 的调度库；rows = 最近若干次运行（新→旧）。"""
-    _TMP.mkdir(exist_ok=True)
-    db = _TMP / "sched.db"
+    db = base / "sched.db"
     db.unlink(missing_ok=True)
     c = sqlite3.connect(db)
     c.execute("""create table automations(
@@ -65,40 +65,40 @@ def _registry(path: Path) -> Path:
     return path
 
 
-def _run(rows) -> list[dict]:
-    db = _mkdb(rows)
-    rp = _registry(_TMP / "reg.json")
+def _run(base: Path, rows) -> list[dict]:
+    db = _mkdb(base, rows)
+    rp = _registry(base / "reg.json")
     p = subprocess.run(
         [sys.executable, str(_HUB), "--json", "--no-doc",
          "--registry", str(rp), "--db", str(db),
-         "--cross-state", str(_TMP / "no_such_cs.json")],
+         "--cross-state", str(base / "no_such_cs.json")],
         capture_output=True, text=True)
     d = json.loads(p.stdout)
     return [x for x in d.get("D4_heartbeat_stale", []) if x.get("kind") == "never_succeeds"]
 
 
-def test_all_failures_are_reported():
-    got = _run([(False, "automation-workspace-unavailable")] * 5)
+def test_all_failures_are_reported(tmp_path):
+    got = _run(tmp_path, [(False, "automation-workspace-unavailable")] * 5)
     assert len(got) == 1
     assert got[0]["runs"] == 3                      # 只看最近 3 次
     assert got[0]["failure_codes"] == ["automation-workspace-unavailable"]
     assert "一次都没成功" in got[0]["detail"]
 
 
-def test_one_success_makes_it_silent():
+def test_one_success_makes_it_silent(tmp_path):
     """最近 3 次里有 1 次成功 → 不算「从未成功」→ 必须静默（否则是永久红灯）。"""
-    assert _run([(False, "x"), (True, None), (False, "x")]) == []
+    assert _run(tmp_path, [(False, "x"), (True, None), (False, "x")]) == []
 
 
-def test_two_runs_is_not_enough_evidence():
+def test_two_runs_is_not_enough_evidence(tmp_path):
     """只跑过 2 次全失败 → 样本不足，不报（单次失败是常态）。"""
-    assert _run([(False, "x"), (False, "x")]) == []
+    assert _run(tmp_path, [(False, "x"), (False, "x")]) == []
 
 
-def test_no_runs_at_all_is_not_this_check():
+def test_no_runs_at_all_is_not_this_check(tmp_path):
     """从未运行 → 归 D4 心跳（该跑没跑），不归「从未成功」→ 这里必须静默。"""
-    assert _run([]) == []
+    assert _run(tmp_path, []) == []
 
 
-def test_all_success_is_silent():
-    assert _run([(True, None)] * 6) == []
+def test_all_success_is_silent(tmp_path):
+    assert _run(tmp_path, [(True, None)] * 6) == []

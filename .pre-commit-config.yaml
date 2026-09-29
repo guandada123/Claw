@@ -29,10 +29,11 @@ repos:
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix, --config, ruff.toml]
-        files: ^\.workbuddy/
+        # 2026-09-29：不再限定 .workbuddy/ —— 全仓 `ruff check .` 实测 0 命中，扩面零风险；
+        # 原范围让 tests/ 的 N802/S108 只能靠"工程质量报告"事后发现（报告发现了也没门禁挡）。
       - id: ruff-format
         args: [--config, ruff.toml]
-        files: ^\.workbuddy/
+        files: ^\.workbuddy/   # format 仍只覆盖 .workbuddy/（全仓有 116 个文件会被重排，属另一件事）
 
   # Conventional Commits 格式校验
   - repo: local

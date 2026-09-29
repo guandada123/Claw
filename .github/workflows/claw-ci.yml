@@ -58,7 +58,11 @@ jobs:
       - name: Install ruff
         run: pip install ruff==0.15.17  # 锁定与本地/根 pre-commit 一致的版本，避免新版规则(如 PLR0917)漂移致 CI 红灯
       - name: Ruff lint
-        run: ruff check .workbuddy/ --config ${{ env.RUFF_CONFIG }}
+        # 2026-09-29：扫描面由 .workbuddy/ 扩到**全仓** —— 工程质量报告已连续在多处发现
+        # tests/ 的 N802/S108（tests/ 从不在门禁内，只在报告里出现 → 靠人记得去改）。
+        # 实测全仓 `ruff check .` 0 命中，扩面零风险；format 仍只扫 .workbuddy/
+        # （全仓有 116 个文件会被重排，那是另一件事，别混进来）。
+        run: ruff check . --config ${{ env.RUFF_CONFIG }}
       - name: Ruff format check
         run: ruff format --check .workbuddy/ --config ${{ env.RUFF_CONFIG }}
 

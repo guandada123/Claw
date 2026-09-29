@@ -58,7 +58,7 @@ def make_root(tmp_path, mtimes: dict[str, datetime.datetime]):
     return root
 
 
-def T(*args) -> datetime.datetime:
+def dt(*args) -> datetime.datetime:
     return datetime.datetime(*args)
 
 
@@ -68,8 +68,8 @@ def test_midautumn_gap_is_not_stale(tmp_path):
 
     这是本次卡片的原样回放：旧判据在这里报「停摆」，新判据应判**正常**。
     """
-    root = make_root(tmp_path, {fn: T(2026, 9, 24, 15, 13) for fn in WHITELIST})
-    r = uoc.check_data_freshness(now=T(2026, 9, 28, 3, 16), root=root)
+    root = make_root(tmp_path, {fn: dt(2026, 9, 24, 15, 13) for fn in WHITELIST})
+    r = uoc.check_data_freshness(now=dt(2026, 9, 28, 3, 16), root=root)
     assert r["ok"] is True, r["note"]
     assert "2026-09-24 15:05" in r["note"]      # 依据可追溯
 
@@ -77,8 +77,8 @@ def test_midautumn_gap_is_not_stale(tmp_path):
 # ── ② 真停摆必须报（修复不能把检查器修成永远绿）──────────────────
 def test_real_stall_still_reported(tmp_path):
     """09-28 16:30（当天 15:05 槽应已跑完）· 产物仍停在 09-24 → **必须报**。"""
-    root = make_root(tmp_path, {fn: T(2026, 9, 24, 15, 13) for fn in WHITELIST})
-    r = uoc.check_data_freshness(now=T(2026, 9, 28, 16, 30), root=root)
+    root = make_root(tmp_path, {fn: dt(2026, 9, 24, 15, 13) for fn in WHITELIST})
+    r = uoc.check_data_freshness(now=dt(2026, 9, 28, 16, 30), root=root)
     assert r["ok"] is False
     assert "陈旧" in r["note"] and "停摆" in r["alerts"][0]
 
@@ -86,15 +86,15 @@ def test_real_stall_still_reported(tmp_path):
 # ── ③ 交易日隔日同刻不报（防把日常节奏当故障）────────────────────
 def test_previous_trading_day_is_fine(tmp_path):
     """09-29 03:16 · 产物 09-28 15:13 → 正常（当天 15:05 槽已跑完，次日 05:05 尚未到）。"""
-    root = make_root(tmp_path, {fn: T(2026, 9, 28, 15, 13) for fn in WHITELIST})
-    assert uoc.check_data_freshness(now=T(2026, 9, 29, 3, 16), root=root)["ok"] is True
+    root = make_root(tmp_path, {fn: dt(2026, 9, 28, 15, 13) for fn in WHITELIST})
+    assert uoc.check_data_freshness(now=dt(2026, 9, 29, 3, 16), root=root)["ok"] is True
 
 
 # ── ④ 缺失文件照旧要报（别被新逻辑吞掉）──────────────────────────
 def test_missing_file_reported(tmp_path):
     root = make_root(tmp_path, {})
     (root / "qts_regime.json").unlink()
-    r = uoc.check_data_freshness(now=T(2026, 9, 28, 16, 30), root=root)
+    r = uoc.check_data_freshness(now=dt(2026, 9, 28, 16, 30), root=root)
     assert r["ok"] is False and "缺失" in r["note"]
 
 
@@ -102,28 +102,28 @@ def test_missing_file_reported(tmp_path):
 def test_grace_period_respected(tmp_path):
     """09-28 05:30 时，今天 05:05 那个槽位刚过 25 分钟（管线要跑 ~9min + 编排抖动）
     → 期望时点仍停在 09-24 15:05，产物 09-24 15:13 判**正常**。"""
-    root = make_root(tmp_path, {fn: T(2026, 9, 24, 15, 13) for fn in WHITELIST})
-    assert uoc.check_data_freshness(now=T(2026, 9, 28, 5, 30), root=root)["ok"] is True
+    root = make_root(tmp_path, {fn: dt(2026, 9, 24, 15, 13) for fn in WHITELIST})
+    assert uoc.check_data_freshness(now=dt(2026, 9, 28, 5, 30), root=root)["ok"] is True
 
 
 def test_after_grace_it_becomes_stale(tmp_path):
     """同一批陈旧产物：到 07:00（05:05 槽已过宽限）就该报 —— 宽限不是无限容忍。"""
-    root = make_root(tmp_path, {fn: T(2026, 9, 24, 15, 13) for fn in WHITELIST})
-    assert uoc.check_data_freshness(now=T(2026, 9, 28, 7, 0), root=root)["ok"] is False
+    root = make_root(tmp_path, {fn: dt(2026, 9, 24, 15, 13) for fn in WHITELIST})
+    assert uoc.check_data_freshness(now=dt(2026, 9, 28, 7, 0), root=root)["ok"] is False
 
 
 # ── ⑥ 日历不可用：降级但**必须标出来**（取不到依据 ≠ 新鲜）────────
 def test_calendar_unavailable_is_marked_degraded(tmp_path, monkeypatch):
     monkeypatch.setattr(uoc, "_last_expected_refresh", lambda now: (None, "calendar_unavailable(ImportError)"))
-    root = make_root(tmp_path, {fn: T(2026, 9, 24, 15, 13) for fn in WHITELIST})
-    r = uoc.check_data_freshness(now=T(2026, 9, 28, 3, 16), root=root)
+    root = make_root(tmp_path, {fn: dt(2026, 9, 24, 15, 13) for fn in WHITELIST})
+    r = uoc.check_data_freshness(now=dt(2026, 9, 28, 3, 16), root=root)
     assert r["ok"] is False                       # 降级窗口下 3 天前 → 仍报
     assert "降级判断" in r["note"] and "日历不可用" in r["note"]
 
     # 降级时不能把「1 天前」误报（沿用旧窗口的容忍度）；
     # 但**必须仍在文案里标明这是降级判断** —— 取不到依据 ≠ 数据新鲜。
-    root2 = make_root(tmp_path / "b", {fn: T(2026, 9, 27, 15, 13) for fn in WHITELIST})
-    r2 = uoc.check_data_freshness(now=T(2026, 9, 28, 3, 16), root=root2)
+    root2 = make_root(tmp_path / "b", {fn: dt(2026, 9, 27, 15, 13) for fn in WHITELIST})
+    r2 = uoc.check_data_freshness(now=dt(2026, 9, 28, 3, 16), root=root2)
     assert r2["ok"] is True
     assert "降级判断" in r2["note"], "降级必须留痕：读者要知道这次不是按交易日历判的"
 
@@ -140,8 +140,8 @@ def test_calendar_loader_sys_exit_degrades_not_dies(tmp_path, fake_calendar):
         raise SystemExit(2)
 
     fake_calendar.load_holidays = boom
-    root = make_root(tmp_path, {fn: T(2026, 9, 24, 15, 13) for fn in WHITELIST})
-    r = uoc.check_data_freshness(now=T(2026, 9, 28, 3, 16), root=root)   # 不许抛 SystemExit
+    root = make_root(tmp_path, {fn: dt(2026, 9, 24, 15, 13) for fn in WHITELIST})
+    r = uoc.check_data_freshness(now=dt(2026, 9, 28, 3, 16), root=root)   # 不许抛 SystemExit
     assert r["ok"] is False
     assert "降级判断" in r["note"] and "calendar_unavailable(SystemExit)" in r["note"]
 
@@ -149,8 +149,8 @@ def test_calendar_loader_sys_exit_degrades_not_dies(tmp_path, fake_calendar):
 # ── ⑧ 日历文件缺失：给得出原因，好过让下游 sys.exit ────────────────────
 def test_calendar_file_missing_names_the_reason(tmp_path, fake_calendar):
     fake_calendar.HOLIDAYS_FILE = str(tmp_path / "astock_holidays.json")   # 故意不存在
-    root = make_root(tmp_path, {fn: T(2026, 9, 24, 15, 13) for fn in WHITELIST})
-    r = uoc.check_data_freshness(now=T(2026, 9, 28, 3, 16), root=root)
+    root = make_root(tmp_path, {fn: dt(2026, 9, 24, 15, 13) for fn in WHITELIST})
+    r = uoc.check_data_freshness(now=dt(2026, 9, 28, 3, 16), root=root)
     assert r["ok"] is False
     assert "calendar_file_missing(astock_holidays.json)" in r["note"]
 

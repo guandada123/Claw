@@ -26,15 +26,24 @@ spec.loader.exec_module(hr)
 
 NOW = datetime.datetime(2026, 9, 28, 12, 0)
 
+# 下面两个路径都是**惰性占位**，不写 /tmp 字面量（S108 的意图是防可预测临时路径被利用，
+# 这里根本没有临时文件）：
+#   · CS_PATH 只被 check_cross_project 用于文案格式化（内部仅 str()，从不读写）；
+#   · CWD 用本仓 tests/ 这个**真实存在**的目录 —— D8 有「声明 cwd 不存在」的判据(K1)，
+#     换成不存在的假路径会把 K1 引进来，属于换错测试对象。
+_TESTS_DIR = pathlib.Path(__file__).resolve().parent
+CS_PATH = _TESTS_DIR / "cross_project_state.fixture.json"
+CWD = str(_TESTS_DIR)
+
 
 def run(cs):
     """只挑与 open_items 相关的判据（含静音相关的那条）。"""
-    return [x for x in hr.check_cross_project(cs, pathlib.Path("/tmp/x.json"), NOW)
+    return [x for x in hr.check_cross_project(cs, CS_PATH, NOW)
             if x["kind"].startswith(("open_item", "no_reminder"))]
 
 
 def proj(items):
-    return {"active_projects": {"P": {"cwd": "/tmp", "open_items": items}}}
+    return {"active_projects": {"P": {"cwd": CWD, "open_items": items}}}
 
 
 def test_healthy_items_are_silent():
@@ -63,7 +72,7 @@ def test_missing_evidence_reported():
 
 
 def test_undeclared_key_is_reported():
-    cs = {"active_projects": {"P": {"cwd": "/tmp"}}}   # 缺 open_items 键
+    cs = {"active_projects": {"P": {"cwd": CWD}}}   # 缺 open_items 键
     hits = run(cs)
     assert [h["kind"] for h in hits] == ["open_items_undeclared"]
     assert "从没人整理过" in hits[0]["detail"]
@@ -75,7 +84,7 @@ def test_explicit_empty_is_not_reported():
 
 
 def _handoff(items):
-    return {"handoff": {"items": items}, "active_projects": {"P": {"cwd": "/tmp", "open_items": []}}}
+    return {"handoff": {"items": items}, "active_projects": {"P": {"cwd": CWD, "open_items": []}}}
 
 
 def test_k5_silenced_with_reason_is_silent():
@@ -83,7 +92,7 @@ def test_k5_silenced_with_reason_is_silent():
     cs = _handoff([{"id": "H1", "what": "实盘止损", "owner": "human", "due": "2026-08-05",
                     "status": "overdue_unconfirmed", "no_reminder": True,
                     "no_reminder_reason": "用户 2026-09-28：实盘止损不用提醒"}])
-    assert [x for x in hr.check_cross_project(cs, pathlib.Path("/tmp/x.json"), NOW)
+    assert [x for x in hr.check_cross_project(cs, CS_PATH, NOW)
             if x["kind"].startswith(("handoff", "no_reminder"))] == []
 
 
@@ -95,7 +104,7 @@ def test_k5_silence_without_reason_does_not_silence():
     """
     cs = _handoff([{"id": "H1", "what": "实盘止损", "owner": "human", "due": "2026-08-05",
                     "status": "overdue_unconfirmed", "no_reminder": True}])
-    kinds = [x["kind"] for x in hr.check_cross_project(cs, pathlib.Path("/tmp/x.json"), NOW)]
+    kinds = [x["kind"] for x in hr.check_cross_project(cs, CS_PATH, NOW)]
     assert "no_reminder_without_reason" in kinds
     assert "handoff_overdue" in kinds, "静音没写理由 → 不该生效，告警必须照发"
 
