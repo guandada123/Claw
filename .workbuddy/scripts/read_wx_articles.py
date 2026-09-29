@@ -445,6 +445,47 @@ def build_digest(new_insights: list, today: str) -> str:
     return "\n".join(lines), resonance
 
 
+def pool_freshness(stale_days_warn: int = 3) -> tuple[str, int | None]:
+    """落盘池新鲜度 → (一行横幅, 距今天数 or None)。
+
+    为什么必须有：铁律「检查/任务只要有输入，就必须自证输入还在不在」。
+    本脚本的输入是 `output/wx_articles`，而该池 **2026-08-06 起停更**（上游微信关闭
+    文章列表接口 + 本地 wechat-download-api 登录过期，见 check_wechat_channel 注释），
+    下游（本脚本 / 早报 / 知识库槽位）曾把存量文章当"当日信号"用。
+    故每次运行先打印新鲜度：陈旧时带 `STALE` 字样 + 强制标注要求，便于自动化与产物沿用。
+
+    口径：取文件名前缀 `YYYYMMDD`（= 文章发布日）最新的那篇，与今天比天数。
+    """
+    newest_ts = None
+    for f in WX_DIR.glob("*.json"):
+        if f.name in (".cache.json", "fetched_cache.json"):
+            continue
+        m = re.match(r"(\d{8})", f.name)
+        if not m:
+            continue
+        try:
+            d = datetime.strptime(m.group(1), "%Y%m%d")
+        except ValueError:
+            continue
+        if newest_ts is None or d > newest_ts:
+            newest_ts = d
+    if newest_ts is None:
+        return "⚠️ STALE：落盘池无法判定新鲜度（无 `YYYYMMDD_` 前缀文件）→ 不得当作当日信号", None
+    days = (datetime.now() - newest_ts).days
+    if days > stale_days_warn:
+        return (
+            f"⚠️ STALE：落盘池最新文章 {newest_ts:%Y-%m-%d}（{days} 天前，阈值 {stale_days_warn} 天）"
+            f"→ 本次精读全为**存量**文章；产物必须标注「基于存量（最新 {newest_ts:%m-%d}），非当日信号」",
+            days,
+        )
+    return f"✅ 输入新鲜：落盘池最新 {newest_ts:%Y-%m-%d}（{days} 天前）", days
+
+
+def pool_freshness_note(stale_days_warn: int = 3) -> str:
+    """只要那一行横幅（人读）。"""
+    return pool_freshness(stale_days_warn)[0]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--max", type=int, default=15, help="本次最多阅读文章数（控成本）")
@@ -458,6 +499,9 @@ def main():
     blacklist = load_blacklist()
     now = datetime.now()
     today = now.strftime("%Y-%m-%d")
+
+    # 输入新鲜度自检（2026-09-29）：陈旧必须显式 STALE，不许把存量当当日信号
+    print(pool_freshness_note())
 
     if args.file:
         files = [Path(args.file)]
@@ -613,6 +657,10 @@ def main():
 
 if __name__ == "__main__":
     summary = main()
+    # 机器可读的陈旧标记（2026-09-29）：下游不必解析自然语言，直接读 SUMMARY 字段
+    _days = pool_freshness()[1]
+    summary["input_stale"] = _days is None or _days > 3
+    summary["input_stale_days"] = _days
     print(
         "\nSUMMARY:",
         json.dumps({k: v for k, v in summary.items() if k != "digest"}, ensure_ascii=False),

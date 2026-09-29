@@ -38,6 +38,53 @@ TARGETS = {
     "猫笔叨": "MP_WXS_3905839574",
 }
 
+# ── 调度组合模式（2026-09-29 加）────────────────────────────────────
+# 背景：本脚本 6-06 之后再没被调用过（3.5 个月；cookie 6-08 过期后**无人知道**），
+# 而落盘池有 4 个活跃消费方 —— 典型「通道需要人动一下，但没人被告知」。
+# 故加 `--daily`：cookie 有效就跑采集；失效则**最多 72h 提醒一次扫码**（避免每日 nagging）。
+NOTIFY_MARKER = os.path.expanduser("~/.workbuddy/auth/weread_login_notify.json")
+NOTIFY_INTERVAL_H = 72
+
+
+def _should_notify() -> bool:
+    """距上次「提示扫码」超过 NOTIFY_INTERVAL_H 小时才再提醒，并记录本次时刻。"""
+    try:
+        with open(NOTIFY_MARKER, encoding="utf-8") as f:
+            last = json.load(f).get("last_notify")
+        if (
+            last
+            and (datetime.now() - datetime.fromisoformat(last)).total_seconds()
+            < NOTIFY_INTERVAL_H * 3600
+        ):
+            return False
+    except (OSError, json.JSONDecodeError, ValueError):
+        pass
+    os.makedirs(os.path.dirname(NOTIFY_MARKER), exist_ok=True)
+    atomic_write_json(Path(NOTIFY_MARKER), {"last_notify": datetime.now().isoformat()})
+    return True
+
+
+def daily_mode() -> int:
+    """`--daily`：给调度用的组合模式。
+
+    退出码语义化（供自动化分流）：0=已执行采集 · 3=需扫码且本次应提醒 · 4=需扫码但 72h 内已提醒过
+    """
+    valid, reason = quick_cookie_check()
+    if valid:
+        main()
+        return 0
+    print(f"COOKIE_INVALID:{reason}")
+    if _should_notify():
+        print(f"NEED_LOGIN：微信读书登录已失效（{reason}），本次应提醒用户扫码")
+        print(f"  1) {AB} --headed open https://weread.qq.com/")
+        print("  2) 在弹出的浏览器里用微信扫码登录")
+        print(f"  3) {AB} state save {STATE_FILE}")
+        print("  4) 完成后本脚本即可自动采集（无需重复登录）")
+        return 3
+    print("NEED_LOGIN_QUIET：72h 内已提醒过，本次静默")
+    return 4
+
+
 # ── agent-browser 封装 ───────────────────────────────────────────────
 
 
@@ -331,4 +378,7 @@ if __name__ == "__main__":
     # 支持 --check-only 快速预检模式
     if len(sys.argv) > 1 and sys.argv[1] == "--check-only":
         sys.exit(check_only_mode())
+    # 调度组合模式：有效则采集，失效则 72h 提醒一次（见 daily_mode docstring）
+    if len(sys.argv) > 1 and sys.argv[1] == "--daily":
+        sys.exit(daily_mode())
     main()

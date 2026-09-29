@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.9.1",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-29T08:10:58+08:00",
+  "updated_at": "2026-09-29T09:50:31+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -864,10 +864,23 @@
       "owner": "agent",
       "title": "3 个知识库精读槽位补「输入新鲜度自检」（落盘池停更 50+ 天仍被当输入消费）",
       "criteria": "槽位1/2/3 的 prompt 里出现「落盘池最新日期 vs 最近交易日」的比对与 STALE 标注规则，与微信早报 Step 2.5 的做法一致；或在脚本侧给出等价自检。",
-      "status": "open",
+      "status": "done",
       "verifier": "抽查 3 条自动化的 prompt 文本 + 一次实际运行产物是否带 STALE 标注",
       "auto_check": null,
-      "why": "2026-09-29 处置 MC-1 时发现：消费者不裸奔的只有微信早报，知识库精读三个槽位没有输入自检 —— 同「检查需要有输入时，必须自检输入还在不在」铁律。"
+      "why": "2026-09-29 处置 MC-1 时发现：消费者不裸奔的只有微信早报，知识库精读三个槽位没有输入自检 —— 同「检查需要有输入时，必须自检输入还在不在」铁律。",
+      "resolved_at": "2026-09-29T10:00:00+0800",
+      "resolution": "已修，两层落地：① 脚本层（覆盖所有消费方，零 prompt 风险）：read_wx_articles.py 新增 pool_freshness() → 每次运行先打一行 ✅输入新鲜 / ⚠️STALE：落盘池最新 YYYY-MM-DD（N 天前），并把 input_stale / input_stale_days 写进机器可读 SUMMARY（实测 {\"input_stale\": true, \"input_stale_days\": 53}）；② 规范层：三个知识库精读槽位 prompt 各加 4 行（逐字节回读校验），要求 STALE 时产物与推送必须带「基于存量（最新 MM-DD），非当日信号」且不得产出\"当日\"操作建议 —— 与微信早报既有 STALE 规则对齐。"
+    },
+    {
+      "id": "PA-005",
+      "due": "2026-10-13",
+      "owner": "human",
+      "title": "告警引擎有生产者但无输入：accounts 指标列无计算方、positions/trades 依赖交易活动才非空",
+      "criteria": "要么有作业把 accounts 的 day_profit_loss_ratio/max_drawdown 算出来（依据持仓与净值序列），要么明确声明这四条规则在无实盘/无模拟成交期间恒为「无输入」并接受引擎空转。",
+      "status": "open",
+      "verifier": "跑 scripts/generate_alerts.py 看是否仍全为「无输入」；核对 accounts 四列是否有非空值",
+      "auto_check": "automation 22643b21（工作日 16:30）已内置「连续 3 个交易日无输入就提醒一次」",
+      "why": "2026-09-29 修 QTS-5 时发现：schema/规则/生产者都补齐了，但输入数据本身是空的 —— accounts 的 day_profit_loss_ratio / max_drawdown 全 NULL（无计算方），positions/trades 0 行（无交易活动），且 trades 表没有盈亏字段 → 「连续亏损3次」结构性算不出。这不是引擎没做完，是引擎的下游依赖没做完，需人决定是否补净值/持仓计算管线。"
     }
   ],
   "automation_scope": {
@@ -1047,7 +1060,7 @@
       "reason": "上游自 07-20 阻断后连续 40+ 天每日报同一条「登录过期」，而本地**没有可执行处置**（扫码重登已被实证无效）。每日推送只会淹没真正可处置的告警。",
       "evidence": "本地 5001 /api/admin/status isExpired=true；微信关闭文章列表接口致云 RSS 停摆；落盘池最新文件 2026-08-06（1169 篇存量）；2026-08-30 结论「摘除巡检项，非扫码重登」；历史上该项一度占自愈日志同类条目的 93.5%（187 条）。",
       "correction": "台账原写「无消费方」**不成立**：实测落盘池仍有 4 个 ACTIVE 消费方（📚知识库精读 槽位1/2/3 + 📊微信早报生成推送），RSS 同步自动化 automation-1785335108360 已 PAUSED。故处置为**降级保留可见**，不是删除。",
-      "consumer_note": "微信早报 prompt 已有「落盘池最新日期 < 最近交易日 → 必须带断供标注」规则 ✓；3 个知识库精读槽位**未见**同类自检 → 见 pending_actions PA-004。",
+      "consumer_note": "微信早报 prompt 已有「落盘池最新日期 < 最近交易日 → 必须带断供标注」规则 ✓；3 个知识库精读槽位**已补**同类规则（PA-004 于 2026-09-29 完成：脚本层 STALE 横幅 + 机器可读 input_stale 字段 + 三槽 prompt 各 4 行强制标注）。",
       "coverage_now": "周报（automation-1785825576843）D 段「微信公众号数据链路」仍是固定出口。",
       "restore": "把 check_wechat_channel 里两处 `_skip(...)` 改回 `{\"ok\": False, \"alerts\": alerts}`；ALERT_DEDUP_TTL_OVERRIDE_H 中该条 72h 降频保留未删，恢复即可用。"
     }
