@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.9.1",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-29T10:55:29+08:00",
+  "updated_at": "2026-09-29T15:20:22+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -625,6 +625,15 @@
       "detail": "用户 2026-09-29 报「D9 知识库三槽配置已修改」，但复核与声明相反：① 含 `-wal/-shm` 的快照读库 → 槽2/3 仍 `deepseek-v4.1-flash`/无专家；② 与 5 天前备份（`workbuddy.db.bak-bkup-20260924-165248`）逐行比 `model_id/model_is_thinking/expert_id/permission_mode` → **0 处变化**；③ 三槽 `updated_at`=09:49:14/09:49:45/09:50:04，与当日改 prompt 的三次调用一一对应，且 app 自 09-27 08:45 起未重启（排除重启丢改动）。⇒ 那次「已修改」没落到 workbuddy.db。**未复现**：不知道操作路径（是否点了保存、点的是哪一条），用户当日明确「以你的（DB）为准、不再复点」→ 不追。⚠️ 与本表既有 `管理面假成功`(08-24) **不是同一个**：那条是 `automation_update` 传裸数字 id 建影子记录（工具参数问题），这条怀疑对象是 GUI 保存路径本身。",
       "detect": "凡「界面上说改了」的复核三件套：① 含 `-wal/-shm` 的快照读库（`mode=ro` 直读可能看不到未 checkpoint 的提交）；② 与旧备份逐行 diff 目标列；③ `updated_at` 归因到某次已知操作。三条任一与声明不符 → **以 DB 为准**。",
       "fix": "改自动化 model/expert 一律走工具 + **camelCase** 字段（`modelId`/`modelIsThinking`/`expertId`/`expertMarketplace`）+ 回读验证（2026-09-29 实测：槽2/3 一条 update 修回，三槽一致，D9 转静默）。若日后要查这个 GUI 假成功：让人在界面点一次保存 → 立刻快照对比库 → 同时抓 app 侧日志（本次未做，留作入口）。",
+      "since": "2026-09-29"
+    },
+    {
+      "id": "wind-account-credits-exhausted",
+      "severity": "medium",
+      "title": "Wind 账户积分用尽 → 行情验证（信号溯源 STEP1）全线不可用，且原因曾被本地日限掩盖",
+      "detail": "2026-09-29 实测：直接调 Wind CLI 返回 `{\"ok\": false, \"code\": \"backend_error\", \"message\": \"账户积分余额不足，无法完成当前操作。请提示用户先进行充值。\"}`。**这不是本地限流**：本地日限（原 200→1000 次/日，2026-09-29 已按用户要求取消）只是把它挡住了，于是日报只说「Wind每日1000次上限达→验证报告未刷新」，把账户侧根因误导成阈值问题。另：本地计数器把**失败的调用也计数**，所以「已用 1000 次」≠ 消耗了 1000 次配额，不能当用量看。",
+      "detect": "① 日志里出现 `Wind 调用失败 [backend_error]: 账户积分余额不足`（2026-09-29 起会打到 WARNING，早前被 `isError/content` 判定吞掉 → 静默 None）；② `python3 .workbuddy/scripts/wind_quota_report.py` 看 `used`/`fail` 两个数（fail 占比高 = 根本没通）；③ 信号溯源日报出现「验证报告未刷新/连续多日同构」。",
+      "fix": "只能账户侧解决：给 Wind 账户充值（`https://market.windalice.com/#/user/credits`）。代码侧已做的是**如实报因**：`src/claw/feeds/wind_utils.py` 现在会解析 CLI 的 `ok/code/message` 并 WARNING，同时在计数文件里记 `fail`（尝试/失败分开，避免再被误读成用量）。若迟迟不充值：建议把两条「信号溯源」自动化（05:00/15:00）的 STEP1 降频或显式标注跳过，别每天白打失败请求。",
       "since": "2026-09-29"
     }
   ],

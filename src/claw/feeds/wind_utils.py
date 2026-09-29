@@ -73,10 +73,16 @@ def plain_code_to_windcode(code: str) -> str:
 # 2026-09-01 解 Wind 日限（用户要求）：
 #   1) 上限由 180 抬至 200，对齐真实配额天花板（200 次简单查询≈1000 积分，无超额风险）。
 #      2026-09-23 用户要求再抬至 1000（"计数器调到1000"）；env CLAW_WIND_DAILY_LIMIT 可继续覆盖。
+#      2026-09-29 用户要求「取消 WIND 限制」→ **默认改为 0 = 不限制**（只计数、不再拦）。
+#        背景：05:00 与 15:00 两条「信号溯源」自动化**共用同一份日计数**，05:00 跑完把 1000 用满
+#        → 15:00 的 STEP1 恒被拦（日报连多日「Wind每日1000次上限达→验证报告未刷新」）。
+#      ⚠️ 外部配额不由本闸控制：Wind 侧仍是「1000 积分/天」，真撞上时由 Wind 返回错误 →
+#        日志会显示调用失败；**先排查是不是积分用尽，别误判成脚本 bug**。
+#      需要恢复硬闸：`export CLAW_WIND_DAILY_LIMIT=<次数>`（>0 即生效，可不改代码回滚）。
 #   2) 新增「同日内查询缓存」——相同 (server,tool,params) 直接返回缓存，不打网络、不计数，
 #      真正释放有效吞吐（根治 signal_verify 逐股重复查 Wind 的浪费），而非单纯抬高数字。
 #   3) 支持环境变量 CLAW_WIND_DAILY_LIMIT 覆盖（用户升级 Wind 套餐后可调高）。
-_DAILY_QUERY_LIMIT = int(os.environ.get("CLAW_WIND_DAILY_LIMIT", "1000"))
+_DAILY_QUERY_LIMIT = int(os.environ.get("CLAW_WIND_DAILY_LIMIT", "0"))  # 0 = 不限制（2026-09-29 用户要求取消）
 _query_lock = threading.Lock()
 _limit_warned = False  # 进程内去重：日限警告仅打印一次，避免 signal_verify 逐股循环刷屏（08-24 修复 25 天刷屏）
 
@@ -92,25 +98,54 @@ _wind_cache: dict[str, Any] = {}
 _wind_cache_date = ""
 
 
-def _load_count() -> tuple[str, int]:
-    """读取持久化计数 (date, count)，文件损坏/缺失返回 ('', 0)"""
+def _load_state() -> dict:
+    """读取持久化计数状态 {date, count, fail}（文件损坏/缺失返回空态）
+
+    `count` = 今日**尝试**次数（含失败）；`fail` = 其中失败次数（2026-09-29 加，见 _note_failure）。
+    ⚠️ `count` 不是"用量"：它在调用前自增、失败也算，别拿它当 Wind 侧配额消耗。
+    """
     try:
         with open(_WIND_COUNT_FILE) as f:
             d = json.load(f)
-        return str(d.get("date", "")), int(d.get("count", 0))
+        return {
+            "date": str(d.get("date", "")),
+            "count": int(d.get("count", 0)),
+            "fail": int(d.get("fail", 0)),
+        }
     except (OSError, ValueError, json.JSONDecodeError):
-        return "", 0
+        return {"date": "", "count": 0, "fail": 0}
 
 
-def _save_count(date: str, count: int) -> None:
-    """原子写入持久化计数（先写临时文件再 rename，避免半写损坏）"""
+def _save_state(state: dict) -> None:
+    """原子写入持久化状态（先写临时文件再 rename，避免半写损坏）"""
     tmp = _WIND_COUNT_FILE + ".tmp"
     try:
         with open(tmp, "w") as f:
-            json.dump({"date": date, "count": count}, f)
+            json.dump(state, f)
         os.replace(tmp, _WIND_COUNT_FILE)
     except OSError as e:
         logger.warning(f"Wind 计数器持久化失败(不影响本次调用): {e}")
+
+
+_failure_warned: set[str] = set()  # 进程内去重：同类失败只 WARNING 一次，避免逐股刷屏
+
+
+def _note_failure(code: str, message: str) -> None:
+    """记录一次失败尝试，并把 **Wind 的真实原因**打到 WARNING（2026-09-29 加）
+
+    背景（本次实测）：Wind CLI 用 `{"ok": false, "code": "backend_error",
+    "message": "账户积分余额不足，无法完成当前操作…"}` 表达业务失败，而原实现只看
+    `isError`/`content` → 真实原因被**静默成 None**，日报里只剩我们自己的"日限已达" →
+    把根因误导成阈值/脚本问题（用户据此来要求取消日限，其实那天**账户积分已经用尽**）。
+    """
+    key = f"{time.strftime('%Y%m%d')}|{code}"
+    if key not in _failure_warned:
+        logger.warning(f"Wind 调用失败 [{code}]: {message[:200]}")
+        _failure_warned.add(key)
+    with _query_lock:
+        st = _load_state()
+        st["fail"] = st.get("fail", 0) + 1
+        _save_state(st)
 
 
 def _check_query_limit() -> bool:
@@ -122,33 +157,43 @@ def _check_query_limit() -> bool:
     global _limit_warned
     with _query_lock:
         today = time.strftime("%Y%m%d")
-        _daily_query_date, _daily_query_count = _load_count()
-        if _daily_query_date != today:
-            _daily_query_count = 0
-            _daily_query_date = today
+        st = _load_state()
+        if st["date"] != today:
+            st = {"date": today, "count": 0, "fail": 0}
             _limit_warned = False  # 跨天重置去重标志
-        if _daily_query_count >= _DAILY_QUERY_LIMIT:
+        # _DAILY_QUERY_LIMIT <= 0 表示「不限制」（2026-09-29 用户要求取消）→ 只计数、不拦
+        if _DAILY_QUERY_LIMIT > 0 and st["count"] >= _DAILY_QUERY_LIMIT:
             if not _limit_warned:
                 logger.warning(
                     f"Wind 每日查询上限已达 ({_DAILY_QUERY_LIMIT}次)，今日暂停"
                 )
                 _limit_warned = True
             return False
-        _daily_query_count += 1
-        _save_count(_daily_query_date, _daily_query_count)
+        st["count"] += 1
+        _save_state(st)
         return True
 
 
 def get_query_stats() -> dict:
-    """查询今日统计 {limit, used, remaining, date}（跨进程线程安全，读落盘值）"""
+    """查询今日统计 {limit, used, fail, remaining, unlimited, date}（读落盘值）
+
+    `limit <= 0` 时 `unlimited=True`、`remaining=None`（2026-09-29 取消日限后仍是**只读观测**：
+    次数照样累计、照样上报，取消的是「拦截」不是「观测」）。
+    `used` = 尝试次数（含失败），`fail` = 其中失败数 —— 两者一起看才知道"到底通没通"。
+    """
     with _query_lock:
         today = time.strftime("%Y%m%d")
-        _daily_query_date, _daily_query_count = _load_count()
-        used = _daily_query_count if _daily_query_date == today else 0
+        st = _load_state()
+        same_day = st["date"] == today
+        used = st["count"] if same_day else 0
+        fail = st["fail"] if same_day else 0
+    unlimited = _DAILY_QUERY_LIMIT <= 0
     return {
         "limit": _DAILY_QUERY_LIMIT,
         "used": used,
-        "remaining": _DAILY_QUERY_LIMIT - used,
+        "fail": fail,
+        "remaining": None if unlimited else _DAILY_QUERY_LIMIT - used,
+        "unlimited": unlimited,
         "date": today,
     }
 
@@ -198,17 +243,36 @@ def call_wind_cli(
             cwd=WIND_SKILL_DIR,
         )
         if result.returncode != 0:
+            # ⚠️ 实测（2026-09-29）：Wind CLI 会把**业务错误**写在 stdout
+            # （`{"ok": false, "code": "backend_error", "message": "账户积分余额不足…"}`）
+            # 并以非 0 退出 → 只看 stderr 会得到空消息、把根因丢掉。故这里也解析 stdout。
+            code = f"exit{result.returncode}"
+            message = (result.stderr or "").strip()
+            try:
+                j = json.loads(result.stdout)
+                if isinstance(j, dict) and j.get("ok") is False:
+                    code = str(j.get("code") or code)
+                    message = str(j.get("message") or message)
+            except (ValueError, TypeError):
+                pass
             logger.debug(
                 f"Wind CLI[{server_type}.{tool_name}] 退出码 {result.returncode}"
             )
+            _note_failure(code, message or (result.stdout or "")[:200])
             return None
 
         out = json.loads(result.stdout)
-        if out.get("isError"):
+        # 2026-09-29：CLI 的业务失败形如 {"ok": false, "code": "backend_error",
+        # "message": "账户积分余额不足…"} —— 必须把 code/message 带出来，否则根因被静默
+        if out.get("ok") is False or out.get("isError"):
+            _note_failure(
+                str(out.get("code") or "isError"), str(out.get("message") or "")
+            )
             return None
 
         text = out.get("content", [{}])[0].get("text", "")
         if not text:
+            _note_failure("empty_content", json.dumps(out, ensure_ascii=False)[:200])
             return None
 
         parsed = json.loads(text)
@@ -262,12 +326,16 @@ def call_wind_cli(
 
     except json.JSONDecodeError as e:
         logger.warning(f"Wind CLI JSON 解析失败: {e}", exc_info=True)
+        _note_failure("json_decode", str(e))
     except FileNotFoundError:
         logger.debug("Wind CLI 不可用: node 未找到")
+        _note_failure("node_missing", WIND_CLI_PATH)
     except subprocess.TimeoutExpired:
         logger.debug(f"Wind CLI[{server_type}.{tool_name}] 超时")
+        _note_failure("timeout", f"{server_type}.{tool_name} > {timeout}s")
     except Exception as e:
         logger.warning(f"Wind CLI[{server_type}.{tool_name}] 异常: {e}", exc_info=True)
+        _note_failure(type(e).__name__, str(e))
     return None
 
 

@@ -75,7 +75,14 @@ def build_report() -> dict:
     else:
         return {"error": "无法获取查询统计", "timestamp": now.isoformat()}
 
-    remaining = total_limit - total_used
+    # 2026-09-29：本地日限已取消（limit<=0 / unlimited=True）→ 仍报用量，但不报"配额紧张"
+    unlimited = bool(primary.get("unlimited")) or not total_limit
+    if unlimited:
+        remaining = None
+        usage_pct = None
+    else:
+        remaining = total_limit - total_used
+        usage_pct = round(total_used / total_limit * 100, 1)
     return {
         "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
         "date": now.strftime("%Y-%m-%d"),
@@ -83,10 +90,14 @@ def build_report() -> dict:
         "quota": {
             "limit": total_limit,
             "used": total_used,
+            "fail": primary.get("fail", 0),
             "remaining": remaining,
-            "usage_pct": round(total_used / total_limit * 100, 1) if total_limit else 0,
+            "usage_pct": usage_pct,
+            "unlimited": unlimited,
         },
-        "status": "🟢" if remaining > 20 else ("🟡" if remaining > 0 else "🔴"),
+        "status": "🟢"
+        if unlimited
+        else ("🟢" if remaining > 20 else ("🟡" if remaining > 0 else "🔴")),
     }
 
 
@@ -96,16 +107,28 @@ def push_to_feishu(report: dict):
         return
     status_emoji = report["status"]
     q = report["quota"]
-    msg = (
-        f"{status_emoji} Wind 查询用量日报\n"
-        f"━━━━━━━━━━━━━\n"
-        f"日期: {report['date']}\n"
-        f"计数器: {report['source']}\n"
-        f"已用: {q['used']} / {q['limit']} 次 ({q['usage_pct']}%)\n"
-        f"剩余: {q['remaining']} 次\n"
-        f"━━━━━━━━━━━━━\n"
-        f"{'⚠️ 配额紧张，注意控制 Wind 调用频率' if q['remaining'] <= 20 else '✅ 配额充足'}"
-    )
+    if q.get("unlimited"):
+        fail_note = f"，其中失败 {q['fail']} 次" if q.get("fail") else ""
+        msg = (
+            f"{status_emoji} Wind 查询用量日报\n"
+            f"━━━━━━━━━━━━━\n"
+            f"日期: {report['date']}\n"
+            f"计数器: {report['source']}\n"
+            f"已用: {q['used']} 次（**本地日限已取消**，2026-09-29 用户要求）{fail_note}\n"
+            f"━━━━━━━━━━━━━\n"
+            f"✅ 不再拦本地日限；外部 Wind 侧配额（1000 积分/天）仍可能返回错误，出现调用失败先查积分\n"
+        )
+    else:
+        msg = (
+            f"{status_emoji} Wind 查询用量日报\n"
+            f"━━━━━━━━━━━━━\n"
+            f"日期: {report['date']}\n"
+            f"计数器: {report['source']}\n"
+            f"已用: {q['used']} / {q['limit']} 次 ({q['usage_pct']}%)\n"
+            f"剩余: {q['remaining']} 次\n"
+            f"━━━━━━━━━━━━━\n"
+            f"{'⚠️ 配额紧张，注意控制 Wind 调用频率' if q['remaining'] <= 20 else '✅ 配额充足'}"
+        )
     try:
         import subprocess
 
@@ -138,10 +161,15 @@ def main():
         print(f"{report['status']} Wind 查询用量 | {report['date']}")
         print("  ─────────────────────────────")
         print(f"  计数器: {report['source']}")
-        print(f"  已用: {q['used']} / {q['limit']} 次 ({q['usage_pct']}%)")
-        print(f"  剩余: {q['remaining']} 次")
-        if q["remaining"] <= 20:
-            print("  ⚠️ 配额紧张！")
+        if q.get("unlimited"):
+            fail_note = f"，其中失败 {q['fail']} 次" if q.get("fail") else ""
+            print(f"  已用: {q['used']} 次（本地日限已取消）{fail_note}")
+            print("  ✅ 不再拦本地日限；外部 Wind 侧配额仍可能返回错误")
+        else:
+            print(f"  已用: {q['used']} / {q['limit']} 次 ({q['usage_pct']}%)")
+            print(f"  剩余: {q['remaining']} 次")
+            if q["remaining"] <= 20:
+                print("  ⚠️ 配额紧张！")
 
     if "--push" in sys.argv:
         push_to_feishu(report)
