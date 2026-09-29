@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.9.1",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-29T10:20:35+08:00",
+  "updated_at": "2026-09-29T10:55:29+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -617,6 +617,15 @@
       "detect": "hub_reconcile D8 无关；此项在中枢 9 项检查里（`unified_ops_center.check_data_freshness`）",
       "fix": "改为按**同一份交易日历**（`is_trading_day.py` + `data/astock_holidays.json`）推算「最近一次应当已完成的刷新时点」（交易日 05:05 / 15:05 槽 + 90min 宽限）；日历不可用时**退回旧窗口并标注 `降级判断`**（取不到依据 ≠ 数据新鲜）。`tests/test_data_freshness.py` 7 用例含**告警现场回放**，并做证伪实验。",
       "since": "2026-09-28"
+    },
+    {
+      "id": "gui-save-may-not-persist-automation-config",
+      "severity": "low",
+      "title": "界面里改自动化配置「保存」可能不落地（本次未复现；用户 09-29 决定不追，以 scheduler DB 为准）",
+      "detail": "用户 2026-09-29 报「D9 知识库三槽配置已修改」，但复核与声明相反：① 含 `-wal/-shm` 的快照读库 → 槽2/3 仍 `deepseek-v4.1-flash`/无专家；② 与 5 天前备份（`workbuddy.db.bak-bkup-20260924-165248`）逐行比 `model_id/model_is_thinking/expert_id/permission_mode` → **0 处变化**；③ 三槽 `updated_at`=09:49:14/09:49:45/09:50:04，与当日改 prompt 的三次调用一一对应，且 app 自 09-27 08:45 起未重启（排除重启丢改动）。⇒ 那次「已修改」没落到 workbuddy.db。**未复现**：不知道操作路径（是否点了保存、点的是哪一条），用户当日明确「以你的（DB）为准、不再复点」→ 不追。⚠️ 与本表既有 `管理面假成功`(08-24) **不是同一个**：那条是 `automation_update` 传裸数字 id 建影子记录（工具参数问题），这条怀疑对象是 GUI 保存路径本身。",
+      "detect": "凡「界面上说改了」的复核三件套：① 含 `-wal/-shm` 的快照读库（`mode=ro` 直读可能看不到未 checkpoint 的提交）；② 与旧备份逐行 diff 目标列；③ `updated_at` 归因到某次已知操作。三条任一与声明不符 → **以 DB 为准**。",
+      "fix": "改自动化 model/expert 一律走工具 + **camelCase** 字段（`modelId`/`modelIsThinking`/`expertId`/`expertMarketplace`）+ 回读验证（2026-09-29 实测：槽2/3 一条 update 修回，三槽一致，D9 转静默）。若日后要查这个 GUI 假成功：让人在界面点一次保存 → 立刻快照对比库 → 同时抓 app 侧日志（本次未做，留作入口）。",
+      "since": "2026-09-29"
     }
   ],
   "doc_apply": {
@@ -858,7 +867,7 @@
         "2026-09-28 22:45 代点实测一轮：探明真实 UI 路径（侧栏=定时任务 / 点行进编辑器 / 模型芯片在提示词框右下角），但主区不在 AX 树 + 列表按下次执行重排 → 位置点击不可控；无深链、无 CDP。剩余 30 秒交人点。现场已复原（取消 + 侧栏回「助理」），未留痕迹。"
       ],
       "resolved_at": "2026-09-29T10:16:00+0800",
-      "resolution": "已修（2026-09-29 10:16，工具直改 + 回读验证）。**并且本文档此前的一条前提被证伪**：D9 记的「automation_update 改不了 model_id/model_is_thinking/expert_id」是错的 —— 这四类字段都能改，只是必须走 **camelCase** 字段名（`modelId` / `modelIsThinking` / `expertId` / `expertMarketplace`），snake_case 会返回 `success:true` 但静默不生效（同 `modelId` 的 09-02 实锤）。故「拆槽时新建槽位被重置成平台默认」不再是无解的系统性副作用 → **一条 update 即可修回**。实际动作：对 11a78567 / 0d18c526 各发一次 update（只带这 4 个 camelCase 字段，prompt/rrule/status 全部保留），回读得三槽完全一致：`hy3 / model_is_thinking=1 / EquityResearchExpert / expert_marketplace=official`，且 prompt 长度 2618B 未变、rrule 仍 03:20 与 05:50、status=ACTIVE。附带一并发现在做：槽2/3 的 `expert_marketplace` 原本为空（槽1=official）→ 一并补齐，避免「expert_id 有值但市场没声明」这种半配状态。hub_reconcile 复跑：D9 三项全部转静默。改动前已留回滚快照 /tmp/kb3slots.before.json。",
+      "resolution": "已修（2026-09-29 10:16，工具直改 + 回读验证）。**并且本文档此前的一条前提被证伪**：D9 记的「automation_update 改不了 model_id/model_is_thinking/expert_id」是错的 —— 这四类字段都能改，只是必须走 **camelCase** 字段名（`modelId` / `modelIsThinking` / `expertId` / `expertMarketplace`），snake_case 会返回 `success:true` 但静默不生效（同 `modelId` 的 09-02 实锤）。故「拆槽时新建槽位被重置成平台默认」不再是无解的系统性副作用 → **一条 update 即可修回**。实际动作：对 11a78567 / 0d18c526 各发一次 update（只带这 4 个 camelCase 字段，prompt/rrule/status 全部保留），回读得三槽完全一致：`hy3 / model_is_thinking=1 / EquityResearchExpert / expert_marketplace=official`，且 prompt 长度 2618B 未变、rrule 仍 03:20 与 05:50、status=ACTIVE。附带一并发现在做：槽2/3 的 `expert_marketplace` 原本为空（槽1=official）→ 一并补齐，避免「expert_id 有值但市场没声明」这种半配状态。hub_reconcile 复跑：D9 三项全部转静默。改动前已留回滚快照 /tmp/kb3slots.before.json。 【2026-09-29 10:5x 追加】用户决定「不点了，以你的（scheduler DB）为准」→ 界面那次修改不再追（已在 `known_failure_modes` 立 `gui-save-may-not-persist-automation-config` 留痕，severity=low、未复现、含日后复核入口），本条到此为止。",
       "evidence": " | 2026-09-29 10:16 复核：与 5 天前备份（workbuddy.db.bak-bkup-20260924-165248）逐行对比，model_id/model_is_thinking/expert_id/permission_mode 四列 **0 处变化** （⇒ 界面里的「已修改」未落到 scheduler DB；用含 -wal/-shm 的快照读法复核，排除只读 WAL 读不到最新提交的假象）；三槽行 updated_at 分别为 09:49:14 / 09:49:45 / 09:50:04，与当次 prompt 更新的时刻一一对应。修复后回读：三槽 4 字段完全一致。"
     },
     {
