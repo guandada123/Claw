@@ -159,9 +159,41 @@
           "url": "http://www.jxxy.net/ai/articles/ah-google-agent-skills-build-test-scale"
         }
       ]
+    },
+    "20260929:calibrate": {
+      "date": "2026-09-29",
+      "ts": "2026-09-29T00:40:33+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260929.md",
+      "selected": [
+        {
+          "id": "disc-20260927-01",
+          "skill": "majiu-management",
+          "target": "references/company-skill-registry.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://luismori.dev/article/how-to-build-company-skill-registry-agent-skills"
+        },
+        {
+          "id": "disc-20260927-02",
+          "skill": "a-stock-data",
+          "target": "references/stoke-rate-limit-healthcheck.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/birdilsss-byte/stoke"
+        },
+        {
+          "id": "disc-20260927-03",
+          "skill": "majiu-management",
+          "target": "references/skill-quality-eval-gate.md",
+          "value": "medium-high",
+          "risk": "low",
+          "url": "http://www.jxxy.net/ai/articles/ah-google-agent-skills-build-test-scale"
+        }
+      ]
     }
   },
-  "updated_at": "2026-09-28T00:40:38+08:00",
+  "updated_at": "2026-09-29T00:40:33+08:00",
   "_notes": [
     "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
   ]
