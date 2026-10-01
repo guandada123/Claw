@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.9.1",
   "created_at": "2026-09-21",
-  "updated_at": "2026-09-29T20:26:13+08:00",
+  "updated_at": "2026-10-01T20:43:47+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -550,6 +550,72 @@
       "suggestion": "对标本地 a-stock-data 的生态位：评估补『Stock Monitor 涨跌停突破推送』与『Agent Browser 无API网页最后一公里』两类能力（a-stock-data 只取数据不告警不操浏览器）；写 references/openclaw-finance-suite.md 产品形态对比（文档类 auto_apply，不改动核心 SKILL.md/脚本）。提示：clawhub 是曾被 ClawHavoc 投毒污染的注册表（见 OWASP AST10），安装前须过扫描门。",
       "status": "pending",
       "found_at": "2026-09-29"
+    },
+    {
+      "id": "disc-20260930-01",
+      "skill": "majiu-management",
+      "url": "https://github.com/addyosmani/agent-skills ｜ https://hysenlabs.com/en/projects/addyosmani-agent-skills",
+      "source_summary": "Addy Osmani 的 agent-skills 框架（98K★，2026-06 后爆发）把软件全生命周期编码成 Agent 技能：6 阶段 Define→Plan→Build→Verify→Review→Ship + 7 个 slash 命令；核心两项可借鉴机制——① Anti-rationalization 护栏：每个技能内置『Agent 常用来跳步的借口表 + 逐条反驳 + Red Flags』，让偷懒比合规更难；② 仓库内置 3 层 eval 框架（结构检查 / 路由与描述词汇 CI 可跑 / 真实执行轨迹评分），是唯一在仓库内做全量技能度量的框架。理念『process over prose』：工作流（带检查点/出口标准）而非漂亮 markdown 文档。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "借鉴 anti-rationalization 到 majiu-management SKILL.md 的『非破坏性纪律』段：为关键步骤列出『常见跳过借口+反驳』，强化 copy-verify-then-delete 纪律的执行；并把 3 层 eval 思路落为 references/skill-eval-checklist.md（文档类 auto_apply，不触碰核心流程）。",
+      "status": "pending",
+      "found_at": "2026-09-30"
+    },
+    {
+      "id": "disc-20260930-02",
+      "skill": "majiu-management",
+      "url": "https://github.com/FrancyJGLisboa/agent-skills-platform",
+      "source_summary": "FrancyJGLisboa/agent-skills-platform 把『受治理的技能生命周期』做成用户自定义市场：evidence（证据）/ discovery / updates / rollback / quarantine（隔离状态）/ 17 平台分发；亮点——① Caliper 可靠性证据：每个技能按平台跑 Caliper 产生 agent-run reliability 证据并认证；② Semantic Recon：涉及 API/DB/MCP/代码库时自动生成并钉固 data contract；③ 受治理维护记录（raw/ 分类运行证据 + wiki/ 规律发现，仅经独立校验的变更才更新可执行技能），非自主自改。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "借鉴 quarantine（隔离状态）+ Caliper 可靠性证据 + Semantic Recon 数据契约 到 majiu-management 的治理注册表：补『隔离/回滚/可靠性证据』维度到 references/skill-lifecycle-registry.md（文档类 auto_apply，不触碰核心流程）。与 disc-20260925-03 治理注册表方向互补但角度不同（本次聚焦 quarantine 状态机 + 可执行可靠性证据）。",
+      "status": "pending",
+      "found_at": "2026-09-30"
+    },
+    {
+      "id": "disc-20260930-03",
+      "skill": "a-stock-data",
+      "url": "https://github.com/ZICXR/A-Stock-Skills",
+      "source_summary": "ZICXR/A-Stock-Skills（Claude Agent Skills）29 个即插即用技能覆盖数据采集/大盘分析/资金流向/涨停追踪/技术面/基本面，集成 akshare/tushare/东方财富；亮点两项本地 a-stock-data（纯数据层）与 Claw 均未内置的可借鉴模式——① trade-journal：记录 AI 给的推荐，30 天后 review 看胜率（把『AI 推荐准确性』变成可度量闭环）；② alerter：监控告警推到钉钉/微信/飞书，其他 Skill 触发时自动推送；另有 watchlist-monitor（持仓实时监控涨5%提醒）。",
+      "value": "medium-high",
+      "risk": "low",
+      "suggestion": "对标本地 a-stock-data 生态位——评估补『trade-journal 推荐胜率追踪』（Claw 已有荐股但缺 30 天胜率闭环）与『alerter 多通道推送』（Claw 已有飞书推送但缺统一 alerter 抽象）两类能力；写 references/a-stock-skills-compare.md 产品形态对比（文档类 auto_apply，不改动核心 SKILL.md/脚本）。",
+      "status": "pending",
+      "found_at": "2026-09-30"
+    },
+    {
+      "id": "disc-20261001-01",
+      "skill": "majiu-management",
+      "url": "https://wellarchitected.github.com/library/governance/recommendations/governing-agents/",
+      "source_summary": "GitHub Well-Architected 团队 2026-04 发布《Governing agents in GitHub Enterprise》企业级智能体治理五策略：① 设最小企业基线（审计日志流+模型限制）后放手，组织层自主决定启用时机与 MCP 配置；② 分层配置（企业基线+仓库级自定义指令），用 rulesets 保护 AGENTS.md/mcp.json/copilot-instructions.md 等配置文件、变更需人工评审；③ 对 Agent 产出施加与人类代码同等的 CI/安全扫描/评审闸门；④ 智能体活动可审计可追溯——审计日志流式入 SIEM（关键字段 agent_session_id / actor_is_agent），高敏仓库定期抽查会话转录；⑤ 规模化前先做成本可预测（按成本中心设支出上限+告警）。与既有 disc-20260929-01(Microsoft 声明式策略)/disc-20260929-02(OWASP AST10) 互补：本源聚焦『审计流式入 SIEM + 成本中心归因 + 配置文件 rulesets 保护』三项本地治理注册表尚未覆盖的硬控制。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "借鉴到 majiu-management 治理注册表（references/skill-lifecycle-registry.md 文档类 auto_apply，不触碰核心流程）：补『审计/可追溯』与『成本归因』两维度（现有注册表只管 ownership/versioning/approval，缺运行态可观测与成本闸门）；并把『rulesets 保护配置类文件+变更人工评审』落成 majiu-management 禁区护栏补充。",
+      "status": "pending",
+      "found_at": "2026-10-01"
+    },
+    {
+      "id": "disc-20261001-02",
+      "skill": "a-stock-data",
+      "url": "https://www.aiexpress.news/89847.html (综述) / global-stock-data 仓库（美股港股版 a-stock-data）",
+      "source_summary": "AI 炒股开源工具综述揭示 stage 演进：01 a-stock-data(A股)→02 global-stock-data(美股/港股版，17 端点 5 源零鉴权，Yahoo cookie/crumb 自动处理、SEC EDGAR 限流内置合规 UA)→03 finance-quant-skills(lzwme，已覆盖 disc-20260924-02)→04 tickflow-stock-panel(本地量化工作台，自我限制仅供学习)。global-stock-data 是 a-stock-data 跨市场兄弟技能，同样零鉴权、Markdown+内嵌 Python 即插即用，覆盖美股港股行情/财务/宏观。",
+      "value": "medium-high",
+      "risk": "low",
+      "suggestion": "对标本地 a-stock-data 生态位——用户同时监控美股(🇺🇸美股监控自动化)，可评估引入 global-stock-data 作港股/美股数据层补充（对标腾讯/东财跨市场能力）；写 references/global-stock-data-compare.md 跨市场覆盖对比（文档类 auto_apply，不改动核心 SKILL.md）。与 disc-20260930-03 的 A-Stock-Skills 29 技能形成『A股专精 vs 跨市场』互补视角。",
+      "status": "pending",
+      "found_at": "2026-10-01"
+    },
+    {
+      "id": "disc-20261001-03",
+      "skill": "majiu-management",
+      "url": "https://www.aimadetools.com/blog/7-github-features-most-devs-never-use/",
+      "source_summary": "《7 GitHub Controls Every Coding-Agent Workflow Should Use》给出可落地的编码型智能体工作流七控制：① rulesets+保护分支（禁直接 push main，需 PR+检查+审批）；② CODEOWNERS 路由高敏路径（AGENTS.md/.github/workflows/ 等）到专人；③ Actions 最小权限（默认 read-only，按需提权）；④ 带人工审批的 environments 隔离生产凭证；⑤ 专属 Agent 身份（GitHub App/bot，不用个人 token）；⑥ 仓库指令+PR 模板（变更原因/测试/回滚/待人工核实项）；⑦ 审计全链路（task→session→branch→PR→checks→审批→部署，保留关联标识）。与既有 agent-governance/OWASP 互补：本源聚焦『PR/仓库机械控制面』，可直接映射为 majiu-management 对自动化 PR 与脚本改动的护栏清单。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "借鉴为 majiu-management 的『自动化改动护栏清单』：把 rulesets 保护+CODEOWNERS 路由+最小权限+专属身份+全链路审计 落成 references/automation-change-guardrails.md（文档类 auto_apply，不触碰核心流程）。与 disc-20261001-01 的『配置文件 rulesets 保护』呼应，本源更偏执行面（PR/部署链路），可合并参考。",
+      "status": "pending",
+      "found_at": "2026-10-01"
     }
   ],
   "known_failure_modes": [
@@ -670,17 +736,17 @@
     "core_class_channel": "周度审（🧬 技能演进-周度）；核心类永不进每日自动通道",
     "switch_criteria": "校准满14天(至2026-10-08)且对拍无偏差 → mode 置 live",
     "last_calibration": {
-      "ts": "2026-09-29T00:40:33+08:00",
+      "ts": "2026-10-01T00:41:01+08:00",
       "mode": "calibrate",
       "selected": [
         "disc-20260927-01",
         "disc-20260927-02",
         "disc-20260927-03"
       ],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260929.md"
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261001.md"
     },
     "last_live": null,
-    "calibrate_runs": 9,
+    "calibrate_runs": 11,
     "rollback_point": "0540a62",
     "p0_landed_at": "2026-09-24",
     "parity_verifier": ".workbuddy/scripts/doc_apply_parity.py",
@@ -754,7 +820,9 @@
     "2026-09-28 registry → 1.9.1：K5/K7 支持**条目级显式静音**（`no_reminder` + 必填 `no_reminder_reason`；缺理由则不生效并报 `no_reminder_without_reason`）。首个用例 = H1 实盘止损 —— 用户当日明确「实盘止损不用提醒」，**条目保留不删**（删掉会让账本说谎），只关掉每日催办；去掉两个字段即可重启提醒。",
     "2026-09-28 PA-003.how 补入**已验证的 UI 操作路径**（来源：客户端 app.asar 内 `renderer/assets/automation-*.js` 的代码与注释，非推测）：侧边栏「自动化」tab → 编辑器与聊天框同源的 provider 条（model / skill / expert / connector / workspace）→ 改模型与专家，以槽位1 为参照。",
     "2026-09-28 新增 known_failure_modes: freshness-check-ignores-holidays（中秋误报「管线停摆」，根因=固定窗口不认交易日历，且 docstring 声称做了）。同时把「记忆维护」自动化升到 v10：① 修正 1c 的**错误路径**（原查 ~/.workbuddy/automations，实测只有 6 个小文件；真位置是 Claw/.workbuddy/memory/automations，49 个、最大 148KB）② 周日新增自动化 memory 滚动归档（确定性脚本 rotate_automation_memory.py；首跑 6 个文件 920KB→211KB，逐文件核对行数守恒）。",
-    "2026-09-29 run#5：mode=calibrate（registry 真值）→ 只读对拍，零文档写入、零 commit。闸门 rc=0/ok=true，selected=disc-20260927-01/02/03（连续第 3 日入选，FIFO：这 3 条仍 pending 且 id 最小），dropped=18（含「+6 条过闸但被 top_n 限流」= 09-28×3 + 09-29 当日新产 3 条）。parity rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[]，days_elapsed=5/14 → 三判据 ok✓ / 5<14✗ / violations[]✓ → 不切换、不推送。D7 镜像核对：pending_actions[PA-001].if_no_action=auto_switch_to_live 与 doc_apply.auto_switch=true 一致，未停手。按铁律❼：未回写 automations[].last_run/next_run（09-27 已摘除，本日复核仍为 null，保持不动）。calibrate 零落地 ⇒ 零 applied 回写；9 条 pending（09-27×3 + 09-28×3 + 09-29×3）全部保留。独立核验（防伪 applied）：12 条 applied 的 applied_action 目标文件全部真实存在、size>0（0 缺失）——其中 disc-20260922-03 与 disc-20260923-02 的 applied_action 只写相对短路径（缺 <skill>/ 前缀），属记录瑕疵非文件丢失。复检 hub_reconcile rc=20：D1–D8 全空，仅 D9 kb-read-3slots 槽位 model_id/model_is_thinking 组内不一致（人工作业/UI 决策，与本批无关）。"
+    "2026-09-29 run#5：mode=calibrate（registry 真值）→ 只读对拍，零文档写入、零 commit。闸门 rc=0/ok=true，selected=disc-20260927-01/02/03（连续第 3 日入选，FIFO：这 3 条仍 pending 且 id 最小），dropped=18（含「+6 条过闸但被 top_n 限流」= 09-28×3 + 09-29 当日新产 3 条）。parity rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[]，days_elapsed=5/14 → 三判据 ok✓ / 5<14✗ / violations[]✓ → 不切换、不推送。D7 镜像核对：pending_actions[PA-001].if_no_action=auto_switch_to_live 与 doc_apply.auto_switch=true 一致，未停手。按铁律❼：未回写 automations[].last_run/next_run（09-27 已摘除，本日复核仍为 null，保持不动）。calibrate 零落地 ⇒ 零 applied 回写；9 条 pending（09-27×3 + 09-28×3 + 09-29×3）全部保留。独立核验（防伪 applied）：12 条 applied 的 applied_action 目标文件全部真实存在、size>0（0 缺失）——其中 disc-20260922-03 与 disc-20260923-02 的 applied_action 只写相对短路径（缺 <skill>/ 前缀），属记录瑕疵非文件丢失。复检 hub_reconcile rc=20：D1–D8 全空，仅 D9 kb-read-3slots 槽位 model_id/model_is_thinking 组内不一致（人工作业/UI 决策，与本批无关）。",
+    "2026-09-30 文档类落地 run#6：mode=calibrate（真值），零文档写入/零 commit；闸门 selected=disc-20260927-01/02/03（连续第4日 FIFO 入选），dropped=18；对拍 rc=0/ok=true/violations=[]/gaps=[]，days_elapsed=6/14；切换判定不满足（时长未满）→ 不切换不推送；D7 镜像一致（PA-001.if_no_action=auto_switch_to_live ↔ doc_apply.auto_switch=true）；hub_reconcile rc=0 全绿（clean=true，needs_human=false）；applied 12 条独立核验目标文件 0 缺失；候选保持 pending（calibrate 零落地 ⇒ 零 applied 回写）",
+    "2026-10-01 文档类落地 run#7：mode=calibrate（真值，registry 1.9.1），零文档写入/零 commit；闸门 rc=0/ok=true，selected=disc-20260927-01/02/03（连续第5日 FIFO 入选：这3条仍 pending 且 id 最小），dropped=18（含「+12 条过闸但被 top_n 限流」= 09-28/09-29/09-30/10-01 各3条）；对拍 rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[]，days_elapsed=7/14（calibrate_runs=11）；切换判定三判据 ok✓ / 7<14✗ / violations[]✓ → 不切换、不推送；D7 镜像一致（pending_actions 是列表，按 id 遍历：PA-001.if_no_action=auto_switch_to_live ↔ doc_apply.auto_switch=true），未停手；hub_reconcile rc=0 全绿（D1–D9 全空，clean=true，needs_human=false）；applied 12 条独立核验目标文件全部存在且 size>0（1037–1808B），0 缺失；候选保持 pending（calibrate 零落地 ⇒ 零 applied 回写）；按铁律❼未回写 automations[].last_run/next_run（条目 keys 仅 id/name/note/rrule/status）。核验方法记录：applied_action 有两种写法——「<skill>/references/x.md」（含前缀）与「references/x.md」（裸短路径）——解析须先试 join(SKILLS, applied_action) 再回落 join(SKILLS, skill, applied_action)，否则 11 条会假报缺失（本日实犯一次，已更正）。唯一持久噪音：run_l3_pre 对 UUID 型 automation id 报「缺少 automation- 前缀」gates_failed=1（非阻断，见 disc-20260925-05 待周度审）。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -1095,9 +1163,9 @@
       "evidence": "本地 5001 /api/admin/status isExpired=true；微信关闭文章列表接口致云 RSS 停摆；落盘池最新文件 2026-08-06（1169 篇存量）；2026-08-30 结论「摘除巡检项，非扫码重登」；历史上该项一度占自愈日志同类条目的 93.5%（187 条）。",
       "correction": "台账原写「无消费方」**不成立**：实测落盘池仍有 4 个 ACTIVE 消费方（📚知识库精读 槽位1/2/3 + 📊微信早报生成推送），RSS 同步自动化 automation-1785335108360 已 PAUSED。故处置为**降级保留可见**，不是删除。",
       "consumer_note": "微信早报 prompt 已有「落盘池最新日期 < 最近交易日 → 必须带断供标注」规则 ✓；3 个知识库精读槽位**已补**同类规则（PA-004 于 2026-09-29 完成：脚本层 STALE 横幅 + 机器可读 input_stale 字段 + 三槽 prompt 各 4 行强制标注）。 采集路径取消后，落盘池不再增长；消费者（三槽 + 早报）继续按 STALE 规则标注存量口径。",
-      "coverage_now": "周报（automation-1785825576843）D 段「微信公众号数据链路」仍是固定出口。",
+      "coverage_now": "① 周报（automation-1785825576843）D 段「微信公众号数据链路」仍是固定出口；② 云 RSS 恢复后：落盘池由 RSS 同步自动化（工作日 07:30）刷新，精读三槽（00:50/03:20/05:50）消费；③ 覆盖边界（2026-10-01 实测）：18 个订阅里**只有 5 个号在更新**（猫笔刀 / 投资明见 / 黄鱼笔记 / 午间明道 / 搬砖小组），其余 13 个号停在 2026-07 下旬（云端尚无采集客户端）。",
       "restore": "本巡检项的恢复：把 check_wechat_channel 里两处 `_skip(...)` 改回 `{\"ok\": False, \"alerts\": alerts}`（72h 降频配置保留未删）。**采集路径的恢复是另一件事**：用户 2026-09-29 已决定取消，恢复需先重新决策（并可从软删行 `3b171320-…` 取回原 prompt 重建自动化）。",
-      "path_cancelled": "2026-09-29 用户决定**取消微信读书采集这条路径**（不再采集、不再扫码提醒）：当日新建的采集自动化 `3b171320-…`（每日 23:30）已用工具删除（DB 里是软删，`deleted_at=2026-09-29 15:48:59`，prompt 1066B 仍留底 → 若日后要恢复，先取回该行再重建）。三个精读槽位 prompt 里对它的引用已同步改成「采集路径已取消」（逐字节回读三槽一致、零残留引用）。"
+      "path_cancelled": "2026-09-29 用户决定**取消微信读书采集这条路径**（不再采集、不再扫码提醒）：当日新建的采集自动化 `3b171320-…`（每日 23:30）已用工具删除（DB 里是软删，`deleted_at=2026-09-29 15:48:59`，prompt 1066B 仍留底 → 若日后要恢复，先取回该行再重建）。三个精读槽位 prompt 里对它的引用已同步改成「采集路径已取消」（逐字节回读三槽一致、零残留引用）。 ⚠️ 2026-10-01 更正：这句话里的「落盘池不再自动刷新」**已不成立** —— 另一条完全独立的路径**云 RSS 已恢复**（根因是认证姿势：`X-API-Key`+`X-API-Secret` 双头，而非 key 失效；见自动化 `automation-1785335108360`「🔄【公众号】RSS文章同步落盘(云轨已修复)」v4，工作日 07:30）。落盘池自 2026-10-01 起重新增长（当日新增 94 篇、最新 pub_time 09-30 14:24），`read_wx_articles.py` 的输入新鲜度自检已由 ⚠️STALE 转为 ✅ 输入新鲜（1 天前）。**取消的只是「微信读书扫码采集」这条备用路径，不是公众号数据本身。**"
     }
   ]
 }
