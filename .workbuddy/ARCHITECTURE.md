@@ -12,7 +12,7 @@ workbuddy-codex/  →  /Users/guan/WorkBuddy/Claw/
 │   │   ├── architecture.rules # 架构索引+铁律总入口（对齐文章规范）
 │   │   ├── MEMORY.md        #   项目铁律+技术决策（FACT层）
 │   │   ├── SCHEMA.md        #   L5行为规律
-│   │   ├── INTENT.md        #   L6前瞻意图
+│   │   ├── INTENT.md        #   L6前瞻意图（⛔2026-10-08 退役·只读历史）
 │   │   ├── CHRONICLE.md     #   编年史
 │   │   └── YYYY-MM-DD.md    #   RAW+SUMMARY 日日志
 │   ├── skills/              # L2: 知识层 Knowledge Layer (38个symlink)
@@ -37,7 +37,7 @@ workbuddy-codex/  →  /Users/guan/WorkBuddy/Claw/
 - **architecture.rules** (NEW): 架构索引 + 不可违反铁律总入口，映射文章 `architecture.rules/global.md/project.md` 三元组
 - **MEMORY.md**: FACT层（铁律+技术决策），80行，>120行才蒸馏
 - **SCHEMA.md**: 行为规律（用户决策风格/技术债优先级/协作模式）
-- **INTENT.md**: 前瞻意图与待决看板
+- **INTENT.md**: ⛔ **已退役（2026-10-08）** —— 待决看板职能由 `inspection_hub/registry.json` → `pending_actions` 接管（带 owner/due/判据/if_no_action，D6 机器盯逾期）；本文件为只读历史，**不要再追加条目**
 - **CHRONICLE.md**: 编年史（重大决策时间线）
 - **日日志**: 15天滚动，>30天蒸馏进分层
 - **检索协议**: L1-L3零Token（Grep→Read→数据三层）

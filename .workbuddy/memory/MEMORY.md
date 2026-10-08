@@ -1,13 +1,13 @@
 # 项目记忆（精炼版）
 
-> 架构：本文件=FACT层(铁律/技术决策)，变更→原条目加 `→superseded by <日期>` 可回溯，禁平行堆重复。SCHEMA.md=L5｜INTENT.md=L6｜CHRONICLE.md=编年史｜日日志=RAW+SUMMARY(首行记原始指令)。检索：先Grep日日志标题+MEMORY/INTENT/SCHEMA关键词再Read；L3仅具体数据才Read(≤3文件)；审计→memory-consistency-audit；蒸馏：日日志>30天→蒸馏进对应层→源移`.backups/`；单文件>15KB优先蒸馏；豁免🔴铁律+演化链段。
+> 架构：本文件=FACT层(铁律/技术决策)，变更→原条目加 `→superseded by <日期>` 可回溯，禁平行堆重复。SCHEMA.md=L5｜INTENT.md=L6(⛔2026-10-08退役·只读历史，待决真值在registry.pending_actions)｜CHRONICLE.md=编年史｜日日志=RAW+SUMMARY(首行记原始指令)。检索：先Grep日日志标题+MEMORY/INTENT/SCHEMA关键词再Read；L3仅具体数据才Read(≤3文件)；审计→memory-consistency-audit；蒸馏：日日志>30天→蒸馏进对应层→源移`.backups/`；单文件>15KB优先蒸馏；豁免🔴铁律+演化链段。
 
 ## 🧭 注入上限与速查索引（09-25 建 · 每日记忆维护自动核对）
-> ⚠️ **本文件注入上下文有字节上限 ≈16.4KB**（09-25 实测 26,710B→截断 16,983B；09-26 复测 34,164B→截断 ≈16,220B；09-27 复测 34,264B→截断 ≈16,487B，可见 48.1%，截断点第 70 行/共 138 行；09-28 复测 34,869B→截断 ≈16,474B，可见 47.2%，截断点第 53 行/共 139 行；**09-29 复测 51,677B→截断 16,354B，可见 31.6%，截断点第 111 行/共 359 行** —— 09-28 分层重构（零删除，证据库落文末）使体积 34.9KB→51.7KB，可见比例 47.2%→31.6%）→ **第 112–359 行模型默认读不到，且随文件增长不断下移**。
+> ⚠️ **本文件注入上下文有字节上限 ≈16.3KB**（10-06 复测 60,650B→截断 ≈16,508B，可见 27.2%，第 109 行/共 412 行；上限非恒定，取当日实测∩脚本内置）→ **第 110–412 行模型默认读不到，且随文件增长不断下移**。
 > 复现方法：拿注入块末尾原文串回文件做字节定位（见 skill `context-health-cleanup` 第零节脚本）。
 > 用法：命中主题 → `grep -n "<关键词>" $CLAW/.workbuddy/memory/MEMORY.md` → Read 该行前后 30 行。
 > 纪律：新增高价值规则 → **同步更新本索引 + 写靠前位置**，不要只 append 到末尾（末尾=不可见=白写）。
-> 🔴 **结构（09-28 分层重构，零删除）**：`## 🔴 不可违反铁律` = **规则层**（60 条各一行，行 24–86，止于 **12,993B**，**全部落在可见区内，余量 ≈3,361B**）；
+> 🔴 **结构（09-28 分层重构，零删除）**：`## 🔴 不可违反铁律` = **规则层**（63 条各一行，行 24–88，止于 **14,101B**，**全部落在可见区内，余量 ≈2,407B**）；
 > 各条的事故复现/取证细节 → 文末 **`## 📎 铁律证据库`**（原文逐字，`grep -n "── 证据 N ──"` 取用，N=规则层第 N 条）。
 > 新增铁律**只写一行命令**进规则层 —— 原病根：铁律段 23.3KB 里大半是证据叙述，把规则挤出了可见区。
 
@@ -21,7 +21,7 @@
 **H 运维/技术债**：`实盘同步管线已死` · `ths_account_sync` · `1785421201464` · `ZHITAI` · `ruff` · `Colima` · `QTS日线`/`qfqday`
 **I 记忆/协作**：`记忆维护规则` · `domain_expertise_map` · `运行态目录版本控制` · `SAFE-MODE 重建` · `memory-consistency-audit` · `context-health-cleanup`
 
-## 🔴 不可违反铁律（规则层 · 60 条一览 · 证据正文见文末「铁律证据库」）
+## 🔴 不可违反铁律（规则层 · 63 条一览 · 证据正文见文末「铁律证据库」）
 - 渠道：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346(免审直推)；维护类默认不推仅⚠️/🔴异常推；前缀📈投顾操盘/📊炒股助理/🇺🇸美股监控
 - 删/移文件须「先复制→验证→再删源」+ 删前用户确认
 - 数据文件改动
@@ -66,7 +66,7 @@
 - 🔴 改名纪律：自动化名/prompt 里不写死状态字样（如"（校准期）"）—— 状态只在 `registry.doc_apply.mode`。
 - 🔴 改长 prompt 的安全姿势：调度库只读导出备份(`/tmp/autoprompt_<id>.bak-<date>`) → `assert old in src` 锚点替换生成 `.new`（不命中即中止）→ `dif
 - 纳管范围由 `registry.automation_scope`(include/exclude 名称规则) 声明，不手写全量（库里71条约50条是业务/投研类=噪音）。
-- 🔴 D9 同组槽位配置不一致(09-25，hub_reconcile 第 9 类漂移)：铁律「单 RRULE 禁多 BYHOUR」要求多时刻拆成多条独立自动化
+- 🔴 D9 同组槽位配置不一致(09-25，hub_reconcile 第 9 类漂移)：铁律「单 RRULE 禁多 BYHOUR」要求多时刻拆成多条独立自动化；「界面说改好了」≠DB 改了，拆槽配置重置可修
 - 🔴 报告粒度要对齐人的决策粒度(09-25)：D9 初版对「一个键不一致」逐成员各报一条（3 成员 → 6 条），简报里读不出重点 → 改为一键一条、差异成员并列写一行。
 - 🔴 写死日期的测试 = 会腐烂的声明(09-25)：QTS `TestLocalDbFreshnessTruncation` 用写死的 `2026-09-04`
 - 🔴 哨兵盲区：只覆盖"路径式引用"，漏了"sys.path 注入式引用"(09-25)：`restore_forwarders.py` 与 `check_broken_refs.py` 的正则只认 `scripts/X.py
@@ -83,9 +83,12 @@
 
 - 🔴 **本地全绿 ≠ CI 会绿**：CI 没有 `/Users/guan`、没有 gitignore 掉的数据文件/软链/外置盘 → 推送前**在 `git clone --local` 的「只有 tracked 文件」树里跑一遍**（克隆须同卷，跨卷 hardlink 失败）
 - 🔴 **`except Exception` 接不住 `SystemExit`**：库函数里调 `sys.exit` 的（`load_*`/`ensure_*`/各厂 CLI helper）会让调用方的降级路径**永远走不到** → 捕获 `(Exception, SystemExit)`，或先显式判前置条件（文件在不在）
+- 🔴 **改 prompt 的备份必须先验证「备份==线上」**（09-29）：`~/.workbuddy/automation-backups/*.json` 会陈旧；直接拿它改写再提交 = **静默回滚**线上后来的改动 → 提交前用 `sqlite3` 只读查 `workbuddy.db` 的 `automations.prompt` 与备份做 `==`/SHA1 比对，不一致就重导备份
+- 🔴 **会写盘的开关，测试必须重定向**（09-29，静默吞内容型）：`--since-last`/seen 状态这类「读起来像查询、实际会写盘」的开关，非 dry-run 试跑一次就把生产状态写脏 → 次日报告**静默吞掉**该时段内容且不报错 → 测试一律 `--dry-run` 或把状态文件 monkeypatch 到 `tempfile.mkdtemp()` 后再验
+- 🔴 **双副本重构后相对路径会静默失配**（10-06）：实现从 `scripts/` 迁到 `.workbuddy/scripts/` 后 `Path(__file__).parent.parent` 少一层 → 写出 `.workbuddy/.workbuddy/…` 影子路径；**读写自洽故不报错**，但外部按文档路径写的数据永远读不到 → 路径算式须层级自证
 
 ## 三系统边界（数据隔离）
-- 📈投顾→.workbuddy/.workbuddy/data/simulation/portfolio.json(全权只给结果)｜📊助理→.workbuddy/.workbuddy/data/user/portfolio.json(国金)｜🇺🇸美股；持仓同步(07-15)：用户发持仓截图→先diff再分析
+- 📈投顾→.workbuddy/data/simulation/portfolio.json(全权只给结果)｜📊助理→.workbuddy/data/user/portfolio.json(国金)｜🇺🇸美股；持仓同步(07-15)：用户发持仓截图→先diff再分析
 - 报告模板(07-13锁)：早/晚/周报走push_*_report.py自建docx+卡片+「📄完整报告」；禁prompt内联/直推stdout；A股红涨绿跌禁反转
 
 ## 模拟炒股+选股
@@ -106,6 +109,7 @@
 - 鱼盆文件名：raw=抓取日期，结构化=表头数据日期，常差1天勿混淆；补抓 fetch_yupen_rss.py --article-id <URL> --date <日>｜鱼盆双源(07-21)：yupen_primary_*=Wind主源(07-23起Wind+雅虎)，yupen_*=RSS OCR兜底；read_yupen_data.py自动merge Wind优先+RSS补缺；v5.1双推已根治：rss_updated==False才推未推进
 
 ## 公众号抓取链（07-31根因修复）
+- 🔴 **外部信息源 InvestorRSS（09-29 接入，09-30 用户确认固化进模板）**：`waytomaster.com` 同族投资信息聚合（财联社电报/深度 + r/StockMarket）。凭据 `~/.workbuddy/auth/investor_rss.sh`(600)；数据层 `.workbuddy/scripts/investor_rss.py`（含单源壳 `scripts/investor_rss.py`）→ `brief --since-last` 已做同事件去重+主题分流。早报 Step 1.7(--hours 16)、晚报 PHASE 0(--hours 8)，渲染进两报「二、」段子块 `📡 外部信息源快讯（InvestorRSS）`；模板 lock #8 已固化该子块（唯一降级=源不可用则省略+标注）。
 - 🔴 付费RSS wechatrss.waytomaster.com/api/article 有服务端防风控限流→请求间隔须≥1.5s｜抓取失败绝不落盘空壳(空壳落盘该文永不重抓、正文永久丢失)→用 fetch_article_content_ex() 返回(content,err)区分限流；禁 except:return "" 吞错
 - 回填 backfill_wx_content.py(幂等)+自动化1785506323216每2h跑40篇，remaining==0才推；processed主键=file_key()=md5(filename)[:12]
 - 🔴 公众号双轨状态(08-06)：付费云停更(07-29起)；本地 wechat-download-api 登录有效(isExpired=false)但**轮询器卡07-20**。决策：sync_wx_articles.py 暂保持 --source cloud，待轮询器恢复过07-29再切local
@@ -138,7 +142,7 @@
 - user/portfolio.json current_price空(仅成本)，诊断实时拉qt.gtimg.cn；健康检查对月/周度误报stale勿自动PAUSED
 - 存储=致态SSD(/Volumes/ZHITAI)+Colima，~/.workbuddy等符号链接禁删/移
 - 断链澄清(07-20误报07-29更正)：1781778427910已DELETED；1782741941693引calc_rsi.py存在无断链；审计须排除DELETED状态
-- proxy看门狗(07-26)：com.workbuddy.proxy-watchdog(StartInterval=30)；launchd后台agent须managed python3直跑.py｜自动化运维排障(08-04)：①查automation_runs表必须用带 automation- 前缀ID；②status恒PENDING_REVIEW属默认记录态非失败；③验真运行看last_run_at/created_at；④新建定时自动化须走 automation API(勿直插DB绕过调度注册)，建后须验证next_run_at+实测触发；盘中监控明确归Claw托管(既有可用)勿迁QTS；git用git -C <abs>
+- proxy看门狗(07-26)：com.workbuddy.proxy-watchdog(StartInterval=30)；launchd后台agent须managed python3直跑.py｜自动化运维排障(08-04)：①查automation_runs表必须用带 automation- 前缀ID；②status恒PENDING_REVIEW属默认记录态非失败；③验真运行看automation_runs(权威,含result_success)/automation_runtime_state；**automations.last_run_at 是死字段(全表最新停在2026-08-29 21:29，70条ACTIVE里12条为NULL却照常跑)，勿作判据**；④新建定时自动化须走 automation API(勿直插DB绕过调度注册)，建后须验证next_run_at+实测触发；盘中监控明确归Claw托管(既有可用)勿迁QTS；git用git -C <abs>
 - 备份清理核实(08-04)：output/.backups/daily/ 15个tar.gz是14天滚动正常(156M预期)；禁自动prune
 - Claw CI全绿(08-04)：ci.yml已删；ruff锁0.15.17；🔐DeepSeek key轮换完成(活跃sk-faaf…2796)
 - 🔴 **实盘同步管线已死(09-04定性)**：`user/portfolio.json` 冻结于 **2026-08-28 15:57**（股数/成本/可用资金全是 08-28 值，只有价格靠 qt 实时重算）。
@@ -158,7 +162,7 @@
 
 ## 📎 铁律证据库（逐条复现与取证 · 由 split_memory_layers.py 从规则层剥离，**正文逐字未改**）
 > 用法：`grep -n "── 证据 37 ──" /Users/guan/WorkBuddy/Claw/.workbuddy/memory/MEMORY.md`；**证据编号 = 规则层第 N 条**（同序）。
-> 共 58 条，默认不可见，按需检索。
+> 共 63 条，默认不可见，按需检索。
 
 **── 证据 1 ──**
 - 渠道：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346(免审直推)；维护类默认不推仅⚠️/🔴异常推；前缀📈投顾操盘/📊炒股助理/🇺🇸美股监控
@@ -376,3 +380,33 @@
   本机有 `.workbuddy/data/astock_holidays.json`（且被 .gitignore 排除）所以 4 周不暴露；CI/fresh clone 没有 → 必炸。
   修法：① 先显式判日历文件是否存在 → 报出可追因的 `calendar_file_missing(astock_holidays.json)`；② 捕获 `(Exception, SystemExit)` 并注明理由。新增 2 例测试钉住（loader 抛 SystemExit 必须降级 / 文件缺失要报原因）。
   判据：**任何降级分支都要问一句「触发它的真实条件，落在我捕获的那一类里吗」** —— 同 09-24「错误 ≠ 通过」。
+
+**── 证据 61 ──**
+- 🔴 **改 prompt 的备份必须先验证「备份==线上」（09-29，InvestorRSS 接入早晚报）**：
+  流程本来是「从 `~/.workbuddy/automation-backups/automation-<id>.json` 取原文 → 锚点追加 → 提交」，但该备份是 **2026-08-28** 的，而线上 prompt 之后还可能被改过 → 直接提交 = 静默回滚线上改动。
+  修法（已固化为 skill `external-source-report-wiring` 的 Step 5）：提交前只读打开 `workbuddy.db`，`SELECT prompt FROM automations WHERE id=?` 与备份做 `==` + SHA1 比对；一致才允许改。改完再用 Write 重建一份 + `diff` 逐字校验（16.6k 字符手抄必错），提交后 DB readback 长度 / `INJECT` 标记数 / 各锁定项关键词。
+  ⚠️ 长度期望值必须在**最后一次编辑文件之后**重测——中途修一个错别字就差 1 字符（本次早报 16636→16635），拿旧期望值会误报失败并诱导你去"修"一个本来就正确的结果。
+  本次落地：早报 15888→16635（+Step 1.7，`brief --hours 16 --since-last`）、晚报 7706→8245（+PHASE 0 采集步）；两个 prompt 均**纯追加**且带 `<!-- INJECT: investor-rss v1 起/止 -->` 回滚标记，段结构未变（9 段 / 11 段）。
+
+**── 证据 62 ──**
+- 🔴 **会写盘的开关，测试必须重定向（09-29，同族「静默吞内容」）**：
+  `investor_rss.py brief --since-last` 读起来像查询，实际会把当前窗口所有 guid 写进 `data/investor_rss_seen.json`。为验「源挂了会不会阻断报告」而跑了一次**非 dry-run** → 当晚 63 条 guid 被标记为「已消费」→ 次日早报（`--hours 16`）会**静默跳过当晚全部新闻**，既不报错也不留痕。危害等同「上游失败 → 下游静默产出旧结论」。
+  处置：`mv` 到 `~/.workbuddy/trash/investor_rss_seen.json.polluted-20260929` 隔离（不硬删），确认目标路径清空后复测干净路径。
+  同批第二个坑：**回退演练用 `ENV=value cmd` 会假通过** —— 凭据文件自带 `export FOO_BASE=...`，`source` 时顶掉外部覆盖 → 测试根本没走到失败分支。正确做法是 monkeypatch 取凭据的函数（`m.load_creds = lambda: ("http://127.0.0.1:9", ...)`），再断言 rc≠0、外层 `|| echo` 后整体 rc=0、且**失败路径不落盘**。
+  判据：**测「读起来像查询」的命令前，先回答「它会不会写盘？写到哪？」**，答不出来就先重定向。
+
+**── 证据 63 ──**
+- 🔴 **双副本重构后相对路径失配（10-06 定位，`.workbuddy/.workbuddy/` 影子目录实锤）**：
+  项目记忆 10-01/10-05 连续登记的「`.workbuddy/.workbuddy/` 双写盘分歧未消」，本轮找到根因：
+  `run_debate.py` 权威实现位于 `.workbuddy/scripts/`（**3 层**），但两处缓存路径写成
+  `Path(__file__).parent.parent / ".workbuddy" / "data" / "debate" / "fundamental_cache.json"` —— 该算式按 **2 层**（`<项目>/scripts/`）推导。
+  实际解析：`.workbuddy/scripts` → `.workbuddy` → 再拼 `.workbuddy/data/…` = `.workbuddy/.workbuddy/data/debate/fundamental_cache.json`
+  （`.workbuddy/.workbuddy/` 目录 09-21 创建、`data` 09-23 创建，与失配时点吻合）。
+  危害形态（**最难发现的一种**）：读与写**用同一个错路径** → 脚本内部完全自洽、不报错、不告警；
+  但文档声明的规范路径 `.workbuddy/data/debate/fundamental_cache.json`（74 只、`_meta.source=wind-finance`、mtime 09-23）
+  **没有任何代码读** → 「持仓变动或定期(周)重抓 wind-finance 覆盖此文件」这条工作流**静默死亡**；
+  而影子文件（38 只、`_meta.source=wind-finance + westock/AnySearch 兜底`、mtime 09-30 15:41）才是活的。
+  取证：`grep -n "fundamental_cache" .workbuddy/scripts/run_debate.py`（读 行 229-231 / 写 行 531-533）+ 两文件 `_meta` 与股票数对比。
+  → 防复犯：① 脚本搬迁后，凡 `Path(__file__).parent…` 算式必须**自证层级**（断言解析结果 == 预期规范路径，不成立就报错，而非静默 `mkdir` 新目录）；
+  ② 目录**被凭空创建**（`mkdir(parents=True, exist_ok=True)`）是失配的强信号，应加「影子路径存在即告警」；
+  ③ 审计「双写盘」时先答「读写是不是同一个错路径」——若是，grep 脚本永远查不出来，必须比对**文档声明的路径**。
