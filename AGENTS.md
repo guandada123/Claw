@@ -67,6 +67,10 @@ ruff check --config ruff.toml <path>          # line-length=100，E501 忽略
 - 自动化**拆槽会静默重置** model / expert / 权限 / 推送（`automation_update` 不支持这几个字段）→ 拆完去 UI 对齐，D9 每天会盯。
 - **声明会腐烂**：写进文档的「每次 X 时同步」这种承诺，必须挂到自动化上，否则 60 天没人执行也没人报警（本仓库已发生过：INTENT.md 声明「每次会话结束前同步状态」，实际停在 08-17）。
 - 断言式「已验证」必须带可复现命令 + 回读到真实值；`rc=0` 不等于成功。
+- **先定位真值来源，再下结论**（10-08 实测）：QTS 里同时躺着三份"账本"——仓库根 `quant_trading.db`（SQLite，**全表 0 行**）、
+  `strategy-service/quant_trading.db`（SQLite，2026-06 的旧数据，且 schema 已与生产分叉：有 `trades.profit_loss`、PG 版没有）、
+  真值是 docker 里的 **Postgres**（`localhost:15432`，脚本走 psycopg2）。判断 QTS 数据状态一律查 Postgres，别信仓库里的 `.db` 文件——
+  照后者下结论会得出完全相反的答案。
 
 ## 4. 去哪查（别重复造，别复制第二份）
 
