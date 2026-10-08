@@ -2964,7 +2964,9 @@ def check_automation_queue_backlog() -> dict:
             )
             if sig.get("stale_unmatched"):
                 # 历史未配对 start 是真事实，但也**不是**"在飞"；显式带出，不许静默吞掉
-                note += f"；另有窗口外未配对 start 累计 {sig['stale_unmatched']} 条（历史残留，非在飞）"
+                note += (
+                    f"；另有窗口外未配对 start 累计 {sig['stale_unmatched']} 条（历史残留，非在飞）"
+                )
             notes.append(note)
 
         # 硬超时：只报锚点之后的新增。阈值=1（单条即代表一次空转 + 产物丢失），
