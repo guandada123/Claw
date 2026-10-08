@@ -937,6 +937,39 @@
       "suggestion": "其「硬风控独立于AI + 权限分级 + 全链路可审计 + 决策可回放」架构直接对应 sim_trade.py/QTS 风控设计；提炼为 references/ 风控架构参考(文档类 auto_apply)，核心流程改动仅提案待审",
       "status": "pending",
       "found_at": "2026-10-08"
+    },
+    {
+      "id": "disc-20261009-01",
+      "skill": "majiu-management",
+      "url": "https://skillrepo.dev/?trk=public_profile__posts-text",
+      "source_summary": "SkillRepo：Agent Skills 的开放分发+治理层；每仓库按批准版本钉版、跨仓库 drift 可视化、坏版本组织级 recall；每份技能经两层分析(静态+AI)产出 A–F 评级(Snyk 2026-02: 36.8% 公开技能含安全缺陷)；GitHub 身份归因+私有默认。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "为 majiu-management 补「分发层+漂移治理+评级」维度：把『每仓库版本钉版 / 跨仓库 drift 检测 / 组织级 recall / A–F 安全评级』作为治理注册表的补充参考(文档类 auto_apply, 落到 references/)；核心流程改动仅提案待审。",
+      "status": "pending",
+      "found_at": "2026-10-09"
+    },
+    {
+      "id": "disc-20261009-02",
+      "skill": "majiu-management",
+      "url": "https://www.toutiao.com/a1870561006274624",
+      "source_summary": "头条《你的Agent装了25个技能,其中18个已经没人维护了》：缺生命周期管控→只做新增无闲置判定/归档；方案=准入管控(绑定维护人+更新周期+废弃标准)、活跃度监控(调用频次/最近调用/报错率, 闲置阈值:连续90天无调用或报错率>30%→归档)、分层分级(核心/临时/废弃)、最小必要精简工具池、废弃回收密钥接口权限。",
+      "value": "high",
+      "risk": "low",
+      "suggestion": "为 majiu-management 补「闲置识别/自动归档」治理维度(现有候选覆盖注册表/安全/版本化/路由, 未覆盖『无人维护判定+归档下线』)：提炼为 references/ 技能生命周期巡检清单(文档类 auto_apply)；核心流程改动仅提案待审。",
+      "status": "pending",
+      "found_at": "2026-10-09"
+    },
+    {
+      "id": "disc-20261009-03",
+      "skill": "a-stock-data",
+      "url": "https://github.com/Alucardzh/mcp-stock-server",
+      "source_summary": "mcp-stock-server：基于 FastMCP 的 A股数据 MCP 服务器, HTTP(Streamable)生产部署; 功能=实时行情+历史K线+技术指标+支撑/压力位自动计算+市场指数+ETF(国家队汇金重仓8只核心宽基, 返回涨跌幅/成交额/规模/主力资金/份额变化)+股票基本信息; 多源(akshare/eastmoney/efinance/yfinance fallback)。",
+      "value": "medium-high",
+      "risk": "low",
+      "suggestion": "对标本地 a-stock-data 数据层缺口：补『支撑/压力位自动计算 + 国家队ETF资金流向 + HTTP生产级MCP部署』维度(既有 MCP 候选聚焦数据广度, 未覆盖技术指标计算与 ETF 资金流)；作为 references/ 补充源笔记(文档类 auto_apply)；核心流程改动仅提案待审。",
+      "status": "pending",
+      "found_at": "2026-10-09"
     }
   ],
   "known_failure_modes": [
@@ -1086,7 +1119,16 @@
       ],
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
-    "last_live": null,
+    "last_live": {
+      "ts": "2026-10-09T00:40:51+08:00",
+      "mode": "live",
+      "selected": [
+        "disc-20261004-01",
+        "disc-20261004-02",
+        "disc-20261005-01"
+      ],
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261009.md"
+    },
     "calibrate_runs": 18,
     "rollback_point": "0540a62",
     "p0_landed_at": "2026-09-24",
@@ -1139,7 +1181,8 @@
         "1": "有越界 → 不得切换",
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
-    }
+    },
+    "live_runs": 1
   },
   "_state_sync_notes": [
     "2026-09-24 巡检发现 registry 记录的 rrule 与 scheduler DB 实际漂移：🧬 技能演进 registry=Sat 10:00 vs DB=FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22；🧹 技能卫生 registry=1日09:00 vs DB=BYHOUR=23;BYMINUTE=44。此处不改既有自动化调度（真值=DB），仅登记待确认意图。",

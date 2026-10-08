@@ -471,9 +471,41 @@
           "url": "https://github.com/agentskills/agentskills/discussions/210"
         }
       ]
+    },
+    "20261009:live": {
+      "date": "2026-10-09",
+      "ts": "2026-10-09T00:40:51+08:00",
+      "mode": "live",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261009.md",
+      "selected": [
+        {
+          "id": "disc-20261004-01",
+          "skill": "majiu-management",
+          "target": "references/skill-effectiveness-benchmark.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/benchflow-ai/skillsbench"
+        },
+        {
+          "id": "disc-20261004-02",
+          "skill": "majiu-management",
+          "target": "references/skill-source-trust.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://www.agensi.io/learn/best-ai-agent-skills-marketplaces-2026"
+        },
+        {
+          "id": "disc-20261005-01",
+          "skill": "majiu-management",
+          "target": "references/skill-package-manifest.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/agentskills/agentskills/discussions/210"
+        }
+      ]
     }
   },
-  "updated_at": "2026-10-08T00:40:48+08:00",
+  "updated_at": "2026-10-09T00:40:51+08:00",
   "_notes": [
     "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
   ]
