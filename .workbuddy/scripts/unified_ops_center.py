@@ -1301,14 +1301,25 @@ def check_wechat_channel() -> dict:
 
 # 成本告警的受托自动化：中枢刻意只做 note（不抢推送），把超预算告警委托给它。
 # 若它被暂停/删除，委托链断裂 → 超预算告警零出口。故每次判定前必须先校验受托方存活。
-COST_ALERT_DELEGATE_ID = "automation-1782002819199"
+#
+# ── 2026-10-08 状态修正：委托**已退役，无继任者** ──
+# 原受托方 automation-1782002819199（💰成本监控(6h)）已于 2026-09-23 软删；
+# 同族 4 条成本类自动化（AI成本监控 06-21、成本仪表盘推送 06-21、成本日报 07-12、
+# 成本看板日报 09-23）**依次软删，均无继任者**。唯一在跑的 🌙积分零成本调度审计 管的是
+# WorkBuddy **积分**（额度+免费期倒计时），**不承接预算告警** —— 把它写成受托方就是造一份假声明。
+# 故此处显式声明「无受托方」：超预算出口**本来就由中枢承担**（不是"兜底"），
+# 文案不再写「委托链已断」这类把"已退役"说成"断链"的措辞。
+COST_ALERT_DELEGATE_ID: str | None = None  # 曾为 "automation-1782002819199"（09-23 软删）
 
 
-def _automation_status(automation_id: str) -> str | None:
+def _automation_status(automation_id: str | None) -> str | None:
     """读取自动化当前状态（ACTIVE / PAUSED / DELETED / None=查不到）。
 
     只读打开 workbuddy.db，任何异常都返回 None（查不到 = 保守判定为「委托不可信」）。
+    `automation_id` 为 None（= 已声明无受托方）时直接返回 None，不发无意义查询。
     """
+    if not automation_id:
+        return None
     db = Path.home() / ".workbuddy" / "workbuddy.db"
     if not db.exists():
         return None
@@ -1385,19 +1396,15 @@ def check_cost_anomaly() -> dict:
                         "alerts": [
                             f"本月累计 ¥{cost:.2f} / 预算 ¥{budget:.0f}，月底预估 {est_txt}"
                             f"（超 ¥{over_amt:.0f}）；"
-                            f"成本监控自动化 {COST_ALERT_DELEGATE_ID} 状态 "
-                            f"{delegate or '查不到（已删除或库不可读）'}、委托链已断，"
-                            f"本条由中枢兜底推送（8月超支¥778.23全程无人告警即因该断链）。"
+                            f"成本告警委托已退役（4 条成本类自动化 06-21 / 07-12 / 09-23 依次软删，"
+                            f"无继任者），超预算出口由中枢承担 —— 本条即出口，不是「断链告警」。"
                             f"处置：执行 budget_guard 降级策略"
                         ],
                         "note": note,
                     }
             elif delegate != "ACTIVE":
                 # 未超预算也留痕：避免「下次超预算时才第一次发现委托是断的」
-                note += (
-                    f" | ⚠️成本告警委托断链({COST_ALERT_DELEGATE_ID}="
-                    f"{delegate or '查不到'})，超预算时由中枢兜底"
-                )
+                note += " | ℹ️成本告警委托已退役（无继任者），超预算出口由中枢承担"
             return {"ok": True, "alerts": [], "note": note, "kind": "note"}
         # 取数失败：带出 returncode，避免再次静默成「无数字输出()」
         return _skip(f"API成本: 取数失败(rc={r.returncode}, out={out[:60]!r})")
