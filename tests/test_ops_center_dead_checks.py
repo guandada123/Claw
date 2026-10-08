@@ -99,3 +99,62 @@ def test_schedule_liveness_skips_when_list_unparsable(monkeypatch):
     monkeypatch.setattr(mod, "run_cmd", lambda *a, **k: fake)
     res = mod.check_schedule_liveness()
     assert res["ok"] is None and res["skipped"] is True, res
+
+
+def _log_line_start(ts_ms: int, run_id: str) -> str:
+    return f"2026-10-08T00:00:00.000Z [INFO] run start: id={run_id}, name=X, nextRunAt=0, startedAt={ts_ms}\n"
+
+
+def _log_line_finish(ts_ms: int, run_id: str) -> str:
+    return (
+        "2026-10-08T00:00:00.000Z [INFO] run finished: "
+        f"id={run_id}, name=X, success=True, finishedAt={ts_ms}\n"
+    )
+
+
+def test_scheduler_inflight_ignores_historical_unmatched_starts(monkeypatch, tmp_path):
+    """「在飞」不许把历史上未配对的 start 一直累加（2026-10-08 口径修正的回归测试）。
+
+    病根：对**整个文件**做 +1/-1 扫描线，而某些 run 的 `finished` 不会落（中断/取消/轮转）→
+    未配对 start 永久累加，「在飞」只增不减（实测爬到 456 而真实在飞是 0），告警每轮必报。
+    要求：只在回看窗口内统计；窗口外的未配对 start 单独计数（stale_unmatched），不掩盖也不冒充在飞。
+    """
+    import datetime
+
+    mod = _load()
+    now_ms = int(datetime.datetime.now().timestamp() * 1000)
+    hour = 3600 * 1000
+
+    lines = ["2026-10-08T00:00:00.000Z [INFO] [LocalAutomationScheduler] started x concurrency=3\n"]
+    # 窗口外：5 条 start 全部没有对应 finished（模拟历史残留）
+    for i in range(5):
+        lines.append(
+            _log_line_start(
+                now_ms - (mod.SCHED_INFLIGHT_WINDOW_H + 100) * hour - i * 1000, f"old{i}"
+            )
+        )
+    # 窗口内：4 条 start / 4 条 finished，峰值并发 2
+    base = now_ms - 2 * hour
+    for i in range(2):
+        lines.append(_log_line_start(base + i * 60000, f"new{i}"))
+    lines.append(_log_line_finish(base + 30 * 60000, "new0"))
+    lines.append(_log_line_finish(base + 90 * 60000, "new1"))
+    for i in range(2):
+        lines.append(_log_line_start(base + (2 + i) * hour, f"new{2 + i}"))
+        lines.append(_log_line_finish(base + (2 + i) * hour + 60000, f"new{2 + i}"))
+
+    log = tmp_path / "automation.log"
+    log.write_text("".join(lines), encoding="utf-8")
+    monkeypatch.setattr(mod, "SCHED_LOG", log)
+
+    sig = mod._scheduler_log_signals()
+    assert sig is not None
+    assert sig["current"] == 0, f"窗口内收支平衡 → 在飞应为 0，实际 {sig['current']}"
+    assert sig["peak"] == 2, f"窗口内真实峰值并发应为 2，实际 {sig['peak']}"
+    assert sig["stale_unmatched"] == 5, (
+        f"窗口外未配对 start 应计 5 条，实际 {sig['stale_unmatched']}"
+    )
+    assert sig["declared"] == 3
+    # 关键：不许把 5 条历史残留算进在飞 —— 全文件净差 = 9 start − 4 finished = 5，
+    # 旧实现会得 5（已逼近阈值 3×2=6），新实现必须是 0。
+    assert sig["current"] != 5, "仍在用全文件净差当在飞（回归）"

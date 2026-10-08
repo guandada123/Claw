@@ -2627,6 +2627,10 @@ INTERRUPT_PENDING_STALE_SECONDS = 24 * 3600
 SCHED_LOG = Path.home() / ".workbuddy" / "logs" / "automation.log"
 SCHED_INFLIGHT_FACTOR = 2  # 当前在飞 ≥ 声明并发 × 该倍数 → 告警（声明 3 → 阈值 6）
 SCHED_TIMEOUT_LOOKBACK_H = 36  # 硬超时回看窗口（小时）
+# 在飞/峰值只在近 N 小时内统计。原口径对**整个文件**做 +1/-1 扫描线，而未配对的 start
+# （被中断/CANCELLED/日志轮转导致 finished 未落）会永久累积 → 「在飞」只增不减，
+# 实测 2026-10-08 全文件净差 455（= 告警里的"在飞 456"），而近 2/6/12/24/36/72h 净差全为 0。
+SCHED_INFLIGHT_WINDOW_H = SCHED_TIMEOUT_LOOKBACK_H  # 与硬超时回看同窗，语义一致
 
 
 def _load_queue_state() -> dict:
@@ -2785,15 +2789,26 @@ def _scheduler_log_signals() -> dict | None:
     if declared is None or not events:
         return None
 
-    events.sort()
+    # ── 在飞/峰值：只在近 SCHED_INFLIGHT_WINDOW_H 小时内做扫描线（2026-10-08 口径修正）──
+    # 旧实现对整个文件 netting，未配对的 start（finished 未落）永久累积 → cur 只增不减，
+    # 自 09-21 起「在飞」从 10 爬到 456 并每轮必报，而真实在飞是 0。
+    # 窗口外的未配对 start 不丢弃、单独计数上报：它是真事实（历史残留），只是不是"在飞"。
+    cutoff_ms = int(datetime.datetime.now().timestamp() * 1000) - (
+        SCHED_INFLIGHT_WINDOW_H * 3600 * 1000
+    )
+    recent = sorted(e for e in events if e[0] >= cutoff_ms)
+    stale_unmatched = sum(delta for ts, delta, _i in events if ts < cutoff_ms)
+
     cur = peak = 0
-    for _ts, delta, _i in events:
+    for _ts, delta, _i in recent:
         cur += delta
         peak = max(peak, cur)
     return {
         "declared": declared,
-        "current": cur,  # 扫描线走完 = 此刻仍在飞
+        "current": max(cur, 0),  # 扫描线走完 = 此刻仍在飞（窗口内）
         "peak": peak,
+        "stale_unmatched": max(stale_unmatched, 0),  # 窗口外未配对 start（历史残留，非在飞）
+        "window_h": SCHED_INFLIGHT_WINDOW_H,
         "timeouts": timeouts,
     }
 
@@ -2938,12 +2953,19 @@ def check_automation_queue_backlog() -> dict:
         limit = declared * SCHED_INFLIGHT_FACTOR
         if cur_fly >= limit:
             alerts.append(
-                f"调度器超发：当前在飞 {cur_fly} 条 ≥ 声明并发 {declared}×{SCHED_INFLIGHT_FACTOR}"
-                f"（日志峰值 {peak}）——`concurrency={declared}` 未被强制执行，"
+                f"调度器超发：近 {sig['window_h']}h 内在飞 {cur_fly} 条 ≥ 声明并发 {declared}×"
+                f"{SCHED_INFLIGHT_FACTOR}（同窗峰值 {peak}）——`concurrency={declared}` 未被强制执行，"
                 "运行相互饿死后会撞硬超时被 [CANCELLED]、产物全丢"
             )
         else:
-            notes.append(f"调度器在飞 {cur_fly} 条 / 声明并发 {declared}（历史峰值 {peak}）")
+            note = (
+                f"调度器在飞 {cur_fly} 条 / 声明并发 {declared}"
+                f"（近 {sig['window_h']}h，同窗峰值 {peak}）"
+            )
+            if sig.get("stale_unmatched"):
+                # 历史未配对 start 是真事实，但也**不是**"在飞"；显式带出，不许静默吞掉
+                note += f"；另有窗口外未配对 start 累计 {sig['stale_unmatched']} 条（历史残留，非在飞）"
+            notes.append(note)
 
         # 硬超时：只报锚点之后的新增。阈值=1（单条即代表一次空转 + 产物丢失），
         # 故告警后推进锚点不会造成 run#63 那种「未达阈值被逐轮吸收」的失明。
