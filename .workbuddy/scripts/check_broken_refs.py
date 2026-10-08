@@ -58,7 +58,7 @@ def _resolve_cwds(cwds_json) -> list[Path]:
     if isinstance(raw, str):
         raw = [raw]
     out: list[Path] = []
-    for c in (raw or []):
+    for c in raw or []:
         try:
             out.append(Path(c).resolve())
         except Exception:
