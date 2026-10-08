@@ -9,7 +9,7 @@
       }
     ],
     "created_at": "2026-07-05",
-    "updated_at": "2026-09-28 09:17:16"
+    "updated_at": "2026-10-08 15:53:43"
   },
   "cash": 44555.18,
   "positions": {
@@ -24,7 +24,7 @@
       "first_buy_date": "2026-07-23",
       "updated": "腾讯qt.gtimg.cn·收盘2026-08-28 15:55",
       "price_source": "腾讯qt.gtimg.cn·收盘2026-08-28 15:55",
-      "mode": "sprint",
+      "mode": "normal",
       "market_value": 8176.0,
       "floating_pnl": 83.0,
       "pnl_pct": 1.07,
@@ -489,6 +489,66 @@
         }
       },
       "time": "2026-09-28 09:17:16"
+    },
+    "2026-09-30": {
+      "total_asset": 52731.18,
+      "cash": 44555.18,
+      "pnl": 2731.18,
+      "pnl_pct": 5.46,
+      "positions": {
+        "600036": {
+          "name": "招商银行",
+          "shares": 200,
+          "price": 40.88,
+          "market_value": 8176.0
+        }
+      },
+      "time": "2026-09-30 09:18:54"
+    },
+    "2026-10-02": {
+      "total_asset": 52731.18,
+      "cash": 44555.18,
+      "pnl": 2731.18,
+      "pnl_pct": 5.46,
+      "positions": {
+        "600036": {
+          "name": "招商银行",
+          "shares": 200,
+          "price": 40.88,
+          "market_value": 8176.0
+        }
+      },
+      "time": "2026-10-02 09:15:19"
+    },
+    "2026-10-05": {
+      "total_asset": 52731.18,
+      "cash": 44555.18,
+      "pnl": 2731.18,
+      "pnl_pct": 5.46,
+      "positions": {
+        "600036": {
+          "name": "招商银行",
+          "shares": 200,
+          "price": 40.88,
+          "market_value": 8176.0
+        }
+      },
+      "time": "2026-10-05 09:17:32"
+    },
+    "2026-10-06": {
+      "total_asset": 52731.18,
+      "cash": 44555.18,
+      "pnl": 2731.18,
+      "pnl_pct": 5.46,
+      "positions": {
+        "600036": {
+          "name": "招商银行",
+          "shares": 200,
+          "price": 40.88,
+          "market_value": 8176.0
+        }
+      },
+      "time": "2026-10-06 09:16:51"
     }
   },
   "initial_capital": 50000.0,

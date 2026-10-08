@@ -333,12 +333,19 @@
     "_source": "akshare"
   },
   "pmi": {
-    "latest_month": "2026年08月份",
-    "pmi_manufacturing": 49.8,
-    "pmi_manufacturing_yoy": 0.8097166,
-    "pmi_non_manufacturing": 49.0,
-    "pmi_non_manufacturing_yoy": -2.58449304,
+    "latest_month": "2026年09月份",
+    "pmi_manufacturing": 50.1,
+    "pmi_manufacturing_yoy": 0.60240964,
+    "pmi_non_manufacturing": 50.2,
+    "pmi_non_manufacturing_yoy": 0.4,
     "history": [
+      {
+        "月份": "2026年09月份",
+        "制造业-指数": 50.1,
+        "制造业-同比增长": 0.60240964,
+        "非制造业-指数": 50.2,
+        "非制造业-同比增长": 0.4
+      },
       {
         "月份": "2026年08月份",
         "制造业-指数": 49.8,
@@ -415,13 +422,6 @@
         "制造业-同比增长": -2.19560878,
         "非制造业-指数": 50.1,
         "非制造业-同比增长": -0.19920319
-      },
-      {
-        "月份": "2025年09月份",
-        "制造业-指数": 49.8,
-        "制造业-同比增长": 0.0,
-        "非制造业-指数": 50.0,
-        "非制造业-同比增长": 0.0
       }
     ],
     "_source": "akshare"
@@ -583,14 +583,14 @@
     "_source": "akshare"
   },
   "shibor": {
-    "latest_date": "2026-09-28",
-    "overnight": 1.361,
-    "week_1": 1.3893,
-    "month_1": 1.4266,
+    "latest_date": "2026-10-08",
+    "overnight": 1.3756,
+    "week_1": 1.39,
+    "month_1": 1.42,
     "month_3": 1.43,
     "month_6": 1.45,
     "year_1": 1.48,
-    "total_days": 2376,
+    "total_days": 2379,
     "_source": "akshare"
   },
   "social_financing": {
@@ -939,16 +939,16 @@
     ]
   },
   "macro_score": {
-    "score": 0,
+    "score": 15,
     "signals": [
-      "PMI收缩(49.8)",
+      "PMI临界(50.1)",
       "紧货币(M2+7.5%)",
       "流动性充裕"
     ],
     "interpretation": "中性"
   },
   "_meta": {
-    "updated_at": "2026-09-29T08:48:09.022831",
+    "updated_at": "2026-10-08T15:56:35.960645",
     "source": "AKShare+AnySearch(降级)",
     "akshare_only": true,
     "anysearch_fallback": [],

@@ -191,9 +191,289 @@
           "url": "http://www.jxxy.net/ai/articles/ah-google-agent-skills-build-test-scale"
         }
       ]
+    },
+    "20260930:calibrate": {
+      "date": "2026-09-30",
+      "ts": "2026-09-30T00:40:56+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20260930.md",
+      "selected": [
+        {
+          "id": "disc-20260927-01",
+          "skill": "majiu-management",
+          "target": "references/company-skill-registry.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://luismori.dev/article/how-to-build-company-skill-registry-agent-skills"
+        },
+        {
+          "id": "disc-20260927-02",
+          "skill": "a-stock-data",
+          "target": "references/stoke-rate-limit-healthcheck.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/birdilsss-byte/stoke"
+        },
+        {
+          "id": "disc-20260927-03",
+          "skill": "majiu-management",
+          "target": "references/skill-quality-eval-gate.md",
+          "value": "medium-high",
+          "risk": "low",
+          "url": "http://www.jxxy.net/ai/articles/ah-google-agent-skills-build-test-scale"
+        }
+      ]
+    },
+    "20261001:calibrate": {
+      "date": "2026-10-01",
+      "ts": "2026-10-01T00:41:01+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261001.md",
+      "selected": [
+        {
+          "id": "disc-20260927-01",
+          "skill": "majiu-management",
+          "target": "references/company-skill-registry.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://luismori.dev/article/how-to-build-company-skill-registry-agent-skills"
+        },
+        {
+          "id": "disc-20260927-02",
+          "skill": "a-stock-data",
+          "target": "references/stoke-rate-limit-healthcheck.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/birdilsss-byte/stoke"
+        },
+        {
+          "id": "disc-20260927-03",
+          "skill": "majiu-management",
+          "target": "references/skill-quality-eval-gate.md",
+          "value": "medium-high",
+          "risk": "low",
+          "url": "http://www.jxxy.net/ai/articles/ah-google-agent-skills-build-test-scale"
+        }
+      ]
+    },
+    "20261002:calibrate": {
+      "date": "2026-10-02",
+      "ts": "2026-10-02T00:40:37+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261002.md",
+      "selected": [
+        {
+          "id": "disc-20260927-01",
+          "skill": "majiu-management",
+          "target": "references/company-skill-registry.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://luismori.dev/article/how-to-build-company-skill-registry-agent-skills"
+        },
+        {
+          "id": "disc-20260927-02",
+          "skill": "a-stock-data",
+          "target": "references/stoke-rate-limit-healthcheck.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/birdilsss-byte/stoke"
+        },
+        {
+          "id": "disc-20260927-03",
+          "skill": "majiu-management",
+          "target": "references/skill-quality-eval-gate.md",
+          "value": "medium-high",
+          "risk": "low",
+          "url": "http://www.jxxy.net/ai/articles/ah-google-agent-skills-build-test-scale"
+        }
+      ]
+    },
+    "20261003:calibrate": {
+      "date": "2026-10-03",
+      "ts": "2026-10-03T00:40:24+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261003.md",
+      "selected": [
+        {
+          "id": "disc-20260927-01",
+          "skill": "majiu-management",
+          "target": "references/company-skill-registry.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://luismori.dev/article/how-to-build-company-skill-registry-agent-skills"
+        },
+        {
+          "id": "disc-20260927-02",
+          "skill": "a-stock-data",
+          "target": "references/stoke-rate-limit-healthcheck.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/birdilsss-byte/stoke"
+        },
+        {
+          "id": "disc-20260927-03",
+          "skill": "majiu-management",
+          "target": "references/skill-quality-eval-gate.md",
+          "value": "medium-high",
+          "risk": "low",
+          "url": "http://www.jxxy.net/ai/articles/ah-google-agent-skills-build-test-scale"
+        }
+      ]
+    },
+    "20261004:calibrate": {
+      "date": "2026-10-04",
+      "ts": "2026-10-04T18:07:37+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261004.md",
+      "selected": [
+        {
+          "id": "disc-20261004-01",
+          "skill": "majiu-management",
+          "target": "references/skill-effectiveness-benchmark.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/benchflow-ai/skillsbench"
+        },
+        {
+          "id": "disc-20261004-02",
+          "skill": "majiu-management",
+          "target": "references/skill-source-trust.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://www.agensi.io/learn/best-ai-agent-skills-marketplaces-2026"
+        }
+      ]
+    },
+    "20261005:calibrate": {
+      "date": "2026-10-05",
+      "ts": "2026-10-05T00:40:51+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261005.md",
+      "selected": [
+        {
+          "id": "disc-20261004-01",
+          "skill": "majiu-management",
+          "target": "references/skill-effectiveness-benchmark.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/benchflow-ai/skillsbench"
+        },
+        {
+          "id": "disc-20261004-02",
+          "skill": "majiu-management",
+          "target": "references/skill-source-trust.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://www.agensi.io/learn/best-ai-agent-skills-marketplaces-2026"
+        },
+        {
+          "id": "disc-20261005-01",
+          "skill": "majiu-management",
+          "target": "references/skill-package-manifest.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/agentskills/agentskills/discussions/210"
+        }
+      ]
+    },
+    "20261006:calibrate": {
+      "date": "2026-10-06",
+      "ts": "2026-10-06T00:40:34+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261006.md",
+      "selected": [
+        {
+          "id": "disc-20261004-01",
+          "skill": "majiu-management",
+          "target": "references/skill-effectiveness-benchmark.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/benchflow-ai/skillsbench"
+        },
+        {
+          "id": "disc-20261004-02",
+          "skill": "majiu-management",
+          "target": "references/skill-source-trust.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://www.agensi.io/learn/best-ai-agent-skills-marketplaces-2026"
+        },
+        {
+          "id": "disc-20261005-01",
+          "skill": "majiu-management",
+          "target": "references/skill-package-manifest.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/agentskills/agentskills/discussions/210"
+        }
+      ]
+    },
+    "20261007:calibrate": {
+      "date": "2026-10-07",
+      "ts": "2026-10-07T00:41:00+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261007.md",
+      "selected": [
+        {
+          "id": "disc-20261004-01",
+          "skill": "majiu-management",
+          "target": "references/skill-effectiveness-benchmark.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/benchflow-ai/skillsbench"
+        },
+        {
+          "id": "disc-20261004-02",
+          "skill": "majiu-management",
+          "target": "references/skill-source-trust.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://www.agensi.io/learn/best-ai-agent-skills-marketplaces-2026"
+        },
+        {
+          "id": "disc-20261005-01",
+          "skill": "majiu-management",
+          "target": "references/skill-package-manifest.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/agentskills/agentskills/discussions/210"
+        }
+      ]
+    },
+    "20261008:calibrate": {
+      "date": "2026-10-08",
+      "ts": "2026-10-08T00:40:48+08:00",
+      "mode": "calibrate",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md",
+      "selected": [
+        {
+          "id": "disc-20261004-01",
+          "skill": "majiu-management",
+          "target": "references/skill-effectiveness-benchmark.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/benchflow-ai/skillsbench"
+        },
+        {
+          "id": "disc-20261004-02",
+          "skill": "majiu-management",
+          "target": "references/skill-source-trust.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://www.agensi.io/learn/best-ai-agent-skills-marketplaces-2026"
+        },
+        {
+          "id": "disc-20261005-01",
+          "skill": "majiu-management",
+          "target": "references/skill-package-manifest.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/agentskills/agentskills/discussions/210"
+        }
+      ]
     }
   },
-  "updated_at": "2026-09-29T00:40:33+08:00",
+  "updated_at": "2026-10-08T00:40:48+08:00",
   "_notes": [
     "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
   ]
