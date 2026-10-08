@@ -35,7 +35,11 @@ jobs:
           pip install safety
       - name: Safety check
         # 新版 safety 中 --full-report 与 --output 互斥（usage error, exit 2），JSON 输出已含完整报告
-        run: safety check --output json > safety-report.json
+        # 2026-10-08: 补 continue-on-error/|| true 与 QTS/StockInsight 的 v2.0 统一标准对齐 ——
+        # 少了它，safety 非零退出（实测 exit 64，且未产出报告）会把整个 Security Scan 打红，
+        # 而它不是本工作流的有效依赖扫描（有效的那个是下面的 pip-audit job）。
+        run: safety check --output json > safety-report.json || true
+        continue-on-error: true
       - name: Upload safety report
         uses: actions/upload-artifact@v7
         with:
@@ -84,6 +88,44 @@ jobs:
           ") || echo "0"
           echo "## Bandit Code Scan" >> $GITHUB_STEP_SUMMARY
           echo "Issues found: **${COUNT:-0}**" >> $GITHUB_STEP_SUMMARY
+
+  pip-audit:
+    name: Dependency Audit (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install deps + pip-audit
+        run: |
+          pip install -e .
+          pip install pip-audit
+      - name: Run pip-audit
+        # 与 QTS/StockInsight 一致：只出报告 + 摘要，不因漏洞数把 job 打红（计数进 Step Summary 供人工看）
+        run: pip-audit --requirement <(pip freeze) --format json > pip-audit-report.json || true
+        continue-on-error: true
+      - name: Upload pip-audit report
+        uses: actions/upload-artifact@v7
+        with:
+          name: claw-pip-audit-report
+          path: pip-audit-report.json
+      - name: Summary
+        run: |
+          echo "## pip-audit Dependency Audit" >> $GITHUB_STEP_SUMMARY
+          if [ -f pip-audit-report.json ]; then
+            COUNT=$(python3 -c "
+          import json
+          with open('pip-audit-report.json') as f:
+              data = json.load(f)
+          print(len(data))
+          ")
+            echo "Vulnerabilities found: **${COUNT}**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No report generated" >> $GITHUB_STEP_SUMMARY
+          fi
 
   secret-scan:
     name: Secret Detection (gitleaks)
