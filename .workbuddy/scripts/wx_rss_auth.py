@@ -82,9 +82,21 @@ _ARTICLE_URL_MAP = {}
 
 
 def _headers() -> dict:
+    """请求头：API Key 认证走 X-API-Key + X-API-Secret 双头。
+
+    🔴 2026-10-01 根因修复（08-19~09-30 断供真因）：
+    旧实现用 `Authorization: Bearer <JWT>`，服务端返回 401「无效的认证凭证」，
+    据此误判为「凭证吊销/套餐到期」并停用整条云轨 42 天。实测真相：
+      - `/api/subscriptions` 只认 **X-API-Key + X-API-Secret** 双头（→ 200，18 个订阅）
+      - 只给 X-API-Key 缺 Secret 时，服务端明确回「还需要 X-API-Secret」
+      - 带上 `Authorization: Bearer` 反而走 JWT 分支并 401（两者同时给也是 401）
+      - `/api/rss/<fakeid>` 仍用 query `?token=<JWT>`（该接口不读这两个头）
+    另注：WX_RSS_API_KEY 值未变，问题 100% 在认证姿势，不在凭证。
+    """
     h = {"Accept": "application/json"}
-    if WX_RSS_TOKEN:
-        h["Authorization"] = f"Bearer {WX_RSS_TOKEN}"
+    if WX_RSS_API_KEY and WX_RSS_API_SECRET:
+        h["X-API-Key"] = WX_RSS_API_KEY
+        h["X-API-Secret"] = WX_RSS_API_SECRET
     return h
 
 
@@ -164,12 +176,17 @@ def _parse_rss_xml(xml_text: str, fakeid: str, limit: int) -> list:
         link_el = item.find("link")
         title_el = item.find("title")
         pub_el = item.find("pubDate")
+        desc_el = item.find("description")
         if link_el is None or not link_el.text:
             continue
 
         link = link_el.text.strip()
         title = (title_el.text or "").strip() if title_el is not None else ""
         art_id = link  # 用文章链接作为稳定 id
+        # 🔴 2026-10-01 实测：云端 feed 的 <description> 就是**完整正文 HTML**
+        #   （实测单篇 1.0w~11w 字符），无需再逐篇 POST /api/article（该接口现返 401）。
+        #   取到即入列表，同步脚本直接落盘，省掉「列表 + 逐篇正文」两段式搬运。
+        content_html = (desc_el.text or "") if desc_el is not None else ""
 
         pub_ts = 0
         if pub_el is not None and pub_el.text:
@@ -190,6 +207,7 @@ def _parse_rss_xml(xml_text: str, fakeid: str, limit: int) -> list:
                 "_fakeid": fakeid,
                 "author": "",  # nickname 由调用方按 fakeid 映射补
                 "link": link,
+                "content_html": content_html,
             }
         )
         if len(arts) >= limit:

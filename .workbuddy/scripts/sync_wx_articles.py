@@ -32,6 +32,7 @@ import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from html import unescape
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent  # /Users/guan/WorkBuddy/Claw
@@ -64,6 +65,24 @@ def _load_source(name: str):
 def _safe_name(s: str, max_len: int = 40) -> str:
     s = re.sub(r"[\\/:*?\"<>|]", "_", s).strip()
     return s[:max_len] or "untitled"
+
+
+def _html_to_text(h: str) -> str:
+    """feed <description> 是完整正文 HTML → 转纯文本（p/br/div 转换行，去标签与实体）。
+
+    2026-10-01：云端 feed 自带全文，正文不再需要逐篇 POST /api/article（该接口已 401）。
+    """
+    if not h:
+        return ""
+    s = re.sub(r"(?i)<\s*br\s*/?\s*>", "\n", h)
+    s = re.sub(r"(?i)</\s*(p|div|section|li|h[1-6]|tr)\s*>", "\n", s)
+    s = re.sub(r"(?s)<(script|style)[^>]*>.*?</\1>", "", s)
+    s = re.sub(r"<[^>]+>", "", s)
+    s = unescape(unescape(s))  # 双重反转义：feed 内是 &amp;lt; 这类嵌套编码
+    s = s.replace("\u200b", "").replace("\xa0", " ")
+    s = re.sub(r"[ \t]+\n", "\n", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
 
 
 def _existing_urls() -> set:
@@ -130,11 +149,17 @@ def main() -> int:
             if url in existing:
                 total_skip += 1
                 continue
-            # 拉正文（2026-07-31：改用 _ex 版本区分「限流失败」与「真无正文」）
-            if url.startswith("http"):
+            # 正文优先取 feed 自带 description（2026-10-01：云端 feed 已含全文，
+            # 且 /api/article 已 401）；feed 无正文时才回落到单篇接口。
+            content_html = art.get("content_html") or ""
+            content = _html_to_text(content_html)
+            if not content.strip() and url.startswith("http"):
                 content, err = src.fetch_article_content_ex(url)
+                content_html = ""
+            elif not content.strip():
+                err = "non_http_url_and_no_feed_content"
             else:
-                content, err = "", "non_http_url"
+                err = ""
 
             title_preview = (art.get("title") or "")[:24]
             if not content.strip():
@@ -164,7 +189,7 @@ def main() -> int:
                 "account": nickname,
                 "pub_time": pub_dt.strftime("%Y-%m-%d %H:%M:%S"),
                 "url": url,
-                "content_html": "",
+                "content_html": content_html,
                 "content_text": content,
                 "content_len": len(content),
                 "images": [],
