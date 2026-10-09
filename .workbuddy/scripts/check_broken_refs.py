@@ -126,6 +126,11 @@ def main() -> int:
         # 例: 📈【QTS】告警生产者 cwds=QuantTradingSystem, 其 scripts/generate_alerts.py 真身在 QTS 仓库.
         cwds_dirs = _resolve_cwds(cwds)
         for s in BARE.findall(prompt):
+            # 单字符占位符(x.py/y.py)属 prompt 行文示例, 非真实脚本引用 → 跳过, 防误报
+            # 例: 自动化 2a404a97「🛡️ 统一发现-每日扫描」prompt 含
+            #     「该事故规则落进 scripts/x.py 且守卫在 CI 生成…」属假想场景描述。
+            if len(s.rsplit("/", 1)[-1].rsplit(".", 1)[0]) <= 1:
+                continue
             if (scripts_dir / s).is_file() or (wb_dir / s).is_file():
                 continue  # 已解析(薄壳或真身, Claw 内)
             if any(
