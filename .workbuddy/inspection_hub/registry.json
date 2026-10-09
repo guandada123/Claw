@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-09T22:20:00+08:00",
+  "updated_at": "2026-10-10",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -1908,6 +1908,53 @@
       "needs_review": false,
       "applied_action": ".gitignore 增凭据段；git rm --cached .neodata_token（盘上保留）；filter-branch 洗全历史 + gc（旧 blob df43070 已不可达）；技能库 sha 全部重写：基线 a5dfedb→7fc1920",
       "resolution": "实测：git rev-list --objects --all 无 neodata_token；旧 blob git cat-file -e 失败；盘上 .neodata_token 仍在（-rw-------,72B）；工作区 clean；391 跟踪文件；skills_vcs.sh head/status/log 三项 rc=0 未受重写影响。顺手核 Claw 仓：.env 已被 .gitignore 覆盖，入库的 secrets_template.py / test_secrets*.py 均为无值模板。"
+    },
+    {
+      "id": "disc-20261010-01",
+      "found_at": "2026-10-10",
+      "status": "pending",
+      "track": "external_trend",
+      "target_project": "Claw",
+      "skill": "unified-inspection-hub",
+      "url": "https://kaxo.io/insights/ai-agent-observability-practitioner-guide",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "Claw 新增 references/silent_failure_guard.md 且该文件被 unified-inspection-hub SKILL.md 通过链接引用其中『下界异常(0.1x)静默死亡检测 + wrapper 记录退出码 + 独立看门狗』三节",
+      "check_cmd": "grep -rq 'silent_failure_guard' /Users/guan/WorkBuddy/Claw/.workbuddy/skills/unified-inspection-hub/SKILL.md && test -f /Users/guan/WorkBuddy/Claw/.workbuddy/skills/unified-inspection-hub/references/silent_failure_guard.md",
+      "doc_target": "references/silent_failure_guard.md",
+      "suggestion": "借鉴 2026 静默失效防护范式（dead-man's-switch + wrapper 记录退出码 + 下界成本/吞吐异常 0.1x 静默死亡检测 + 对『结果』而非『进程』做心跳），落成 Claw references 文档并被 SKILL.md 引用。直击 Claw 头号故障模式（10-09 多条 .learnings：上游修≠链路修、累计净差被当并发、L2/L3 静默失败）——当前 automation_failure_watchdog.py(549行) 无 lower/cost/throughput/anomaly/silent/dead/heartbeat 任何检测。"
+    },
+    {
+      "id": "disc-20261010-02",
+      "found_at": "2026-10-10",
+      "status": "pending",
+      "track": "external_trend",
+      "target_project": "QTS",
+      "skill": "",
+      "class": "core",
+      "needs_review": true,
+      "url": "https://cloud.tencent.com.cn/developer/article/2747829",
+      "value": "medium-high",
+      "risk": "medium",
+      "success_metric": "QTS strategy-service/services/backtest_engine_v2.py 将现有逐行/iterrows 计算改造为向量化(Pandas/NumPy)或内存预加载，且相同全样本回测耗时较改造前下降 >= 50%，同时收益曲线/交易信号不变（有回归测试断言）",
+      "check_cmd": "cd /Users/guan/WorkBuddy/QuantTradingSystem && python -m pytest strategy-service/tests/test_backtest_engine_v2.py -q",
+      "suggestion": "借鉴 A股回测提速范式（向量化替代 for/iterrows、QMT get_market_data_ex 一次性内存预加载、DuckDB/三级缓存、多进程并行），优化 backtest_engine_v2.py 的逐行/iterrows 瓶颈使全样本回测耗时可控。核心改动，走周度人工审（生成 diff 提案待授权）。"
+    },
+    {
+      "id": "disc-20261010-03",
+      "found_at": "2026-10-10",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "QTS",
+      "skill": "",
+      "class": "core",
+      "needs_review": true,
+      "url": "file:///Users/guan/WorkBuddy/QuantTradingSystem/execution-service/services/advanced_risk_rules.py:448",
+      "value": "medium",
+      "risk": "medium",
+      "success_metric": "execution-service/services/advanced_risk_rules.py:448 处的『接入行情数据后实现』stub 已落地（实现该功能）或被替换为带 guard 的显式 deferred 标记；grep 不再命中裸 TODO 字符串且存在对应单测",
+      "check_cmd": "grep -n '接入行情数据后实现' /Users/guan/WorkBuddy/QuantTradingSystem/execution-service/services/advanced_risk_rules.py >/dev/null && exit 1 || exit 0",
+      "suggestion": "补全 execution-service 中 _check_new_high_after_sell 的风险规则 stub（依赖外部行情数据，当前为无实现空函数）。在行情数据接入前，至少改为显式『deferred + guard』，避免空函数被误判为已具备该功能。核心改动，走周度人工审。"
     }
   ],
   "known_failure_modes": [
@@ -2060,14 +2107,14 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-09T19:49:15+08:00",
+      "ts": "2026-10-10T00:40:42+08:00",
       "mode": "live",
       "selected": [
         "disc-20261004-03",
         "disc-20261006-02",
         "disc-20261006-03"
       ],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261009.md"
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261010.md"
     },
     "calibrate_runs": 18,
     "rollback_point": "ffe2a70",
@@ -2122,7 +2169,7 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 12,
+    "live_runs": 13,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7
   },
