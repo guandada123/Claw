@@ -125,7 +125,8 @@ def _market_strong_recovery() -> bool:
         import urllib.request
 
         req = urllib.request.Request(MARKET_INDEX_KLINE_URL, headers={"User-Agent": "Mozilla/5.0"})
-        raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")
+        # URL 是模块级硬编码 https 常量（腾讯 K 线），非用户输入，无 file:/ 自定义 scheme 风险
+        raw = urllib.request.urlopen(req, timeout=8).read().decode("utf-8", "ignore")  # nosec B310
         d = json.loads(raw)
         days = (
             d.get("data", {}).get("sh000001", {}).get("qfqday")
@@ -936,7 +937,21 @@ def _sanity_check_price(code: str, price: float) -> dict:
     return {"ok": True, "reliable_price": price, "reason": ""}
 
 
-def cmd_update_price(code: str, price: float):
+def _stamp_price_source(pos: dict, source: str) -> None:
+    """把「这次取价来自哪、什么时候取的」写进持仓的证据字段。
+
+    2026-10-09 修复：原实现只改 `current_price`，不碰 `updated` / `price_source`
+    → 价格是新的、证据字段却停在旧日期（实测 600036 价已刷新到 41.42，
+    `updated` 仍写「2026-08-28」）。后果是**读文件的人会据此误判价格陈旧**，
+    属「结论字段与证据字段必须一起输出」那一类。
+
+    `source` 为空时退化为 `batch-update·<now>`，至少保证时间戳是当次。
+    """
+    pos["updated"] = f"{source}·{now()}" if source else f"batch-update·{now()}"
+    pos["price_source"] = pos["updated"]
+
+
+def cmd_update_price(code: str, price: float, source: str = ""):
     """更新持仓股票当前价格（带价格防错校验）"""
     pf = load_portfolio()
     if code in pf["positions"]:
@@ -956,12 +971,13 @@ def cmd_update_price(code: str, price: float):
         # 更新最高价
         if price > pf["positions"][code].get("highest_price", price):
             pf["positions"][code]["highest_price"] = price
+        _stamp_price_source(pf["positions"][code], source)
         save_portfolio(pf)
         return {"ok": True, "code": code, "price": price}
     return {"ok": False, "error": f"不持有 {code}"}
 
 
-def cmd_update_all_prices(prices: dict):
+def cmd_update_all_prices(prices: dict, source: str = ""):
     """批量更新价格 {code: price}（带价格防错校验）"""
     pf = load_portfolio()
     updated = []
@@ -985,6 +1001,7 @@ def cmd_update_all_prices(prices: dict):
             # 更新最高价
             if price > pf["positions"][code].get("highest_price", price):
                 pf["positions"][code]["highest_price"] = price
+            _stamp_price_source(pf["positions"][code], source)
             updated.append(code)
     if updated:
         save_portfolio(pf)
@@ -1342,9 +1359,9 @@ def main():
     elif cmd == "snapshot":
         result = cmd_snapshot()
     elif cmd == "update":
-        result = cmd_update_price(sys.argv[2], float(sys.argv[3]))
+        result = cmd_update_price(sys.argv[2], float(sys.argv[3]), sys.argv[4] if len(sys.argv) > 4 else "")
     elif cmd == "batch-update":
-        result = cmd_update_all_prices(json.loads(sys.argv[2]))
+        result = cmd_update_all_prices(json.loads(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else "")
     elif cmd == "report":
         period = sys.argv[2] if len(sys.argv) > 2 else "daily"
         result = cmd_report(period)
