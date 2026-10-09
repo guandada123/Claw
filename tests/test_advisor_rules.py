@@ -425,6 +425,8 @@ def test_check_entry_sector_block_applied(advisor):
                 "reason": "🚫 板块「半导体」持仓占比 64% 超 50% 上限 → 禁止新推荐该板块标的",
             },
         ),
+        # 隔离 price_sanity 实时价校验(腾讯 gtimg 网络调用)：避免实时价偏离>30% 随机注入价格拦截 flag，破坏测试确定性
+        patch("price_sanity.check", return_value={"ok": True}),
     ):
         r = advisor.check_entry("600584", price=80.0)
     assert r["blocked"] is True

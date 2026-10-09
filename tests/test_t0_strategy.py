@@ -349,6 +349,8 @@ def test_check_entry_attaches_t0_suggestion(advisor):
                 "summary": "长电科技 正T | T仓额度¥2400(底仓10%)",
             },
         ),
+        # 隔离 price_sanity 实时价校验(腾讯 gtimg 网络调用)：避免实时价偏离>30% 随机触发价格拦截，使 blocked=True 破坏断言
+        patch("price_sanity.check", return_value={"ok": True}),
     ):
         r = advisor.check_entry("600584", price=80.0)
     assert r["blocked"] is False
