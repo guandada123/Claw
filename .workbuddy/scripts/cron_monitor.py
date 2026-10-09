@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 import urllib.request
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 # 加载 Claw 公共库
@@ -396,6 +396,18 @@ def run_snapshot_only():
             f"  {code} {pos['name']} 收盘 {pos.get('current_price', 0):.2f}  盈亏 {pnl:+,.0f} ({pnl_pct:+.2f}%)"
         )
 
+    # 股债相关性（策略层数据基础设施 · v2.3）—— 仅有告警时写入报告，避免每日噪音；
+    # 取数失败不阻断收盘报告生成，但必须打印可见（禁止静默）。
+    try:
+        corr = check_stock_bond_correlation()
+        if corr.get("alert"):
+            report.append("")
+            report.append(corr["alert"])
+        elif corr.get("source_ok") is False:
+            print(f"[{now_str()}] ⚠️ 股债相关性未计算：{corr.get('message')}")
+    except Exception as exc:  # noqa: BLE001 — 不阻断收盘报告
+        print(f"[{now_str()}] ⚠️ 股债相关性检查异常: {exc}")
+
     report_file = REPORTS_DIR / f"close_{d}.md"
     report_text = "\n".join(report)
     report_file.write_text(report_text)
@@ -410,31 +422,34 @@ CORR_DATA_DIR = PROJECT_DIR / "data" / "correlation"
 
 
 def fetch_csi300_daily() -> list:
-    """获取沪深300日线历史数据（252个交易日以上）"""
-    # 东方财富K线API
-    url = (
-        "https://push2his.eastmoney.com/api/qt/stock/kline/get?"
-        "fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61"
-        "&lmt=300&klt=101&ut=2887a9128e9d96a09a7f33fe1e6097c7&"
-        "secid=1.000300"  # 沪深300
-    )
+    """获取沪深300日线历史数据（≥252 个交易日）。
+
+    数据源：腾讯财经前复权日K（web.ifzq.gtimg.cn）—— 与 Claw 既有约定一致
+    （行情/K线腾讯优先）。原东财 push2his 接口的 ut token 已失效（返回 rc=102、
+    data=null），2026-10-09 实测确认后改源。
+    """
+    url = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh000300,day,,,300,qfq"
     try:
-        result = subprocess.run(["curl", "-s", url], capture_output=True, text=True, timeout=15)
-        data = json.loads(result.stdout)
-        if data.get("rc") != 0 or "data" not in data or not data["data"]:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 — ifzq.gtimg.cn
+            payload = json.loads(resp.read().decode("utf-8", errors="ignore"))
+        node = (payload.get("data") or {}).get("sh000300") or {}
+        klines = node.get("qfqday") or node.get("day") or []
+        if not klines:
+            print(f"[{now_str()}] 沪深300数据为空（腾讯接口未返回 K 线）")
             return []
-        klines = data["data"].get("klines", [])
-        # kline format: "日期,开盘,收盘,最高,最低,成交量,成交额,振幅,涨跌幅,涨跌额,换手率"
+        # 腾讯 K 线项格式: [日期, 开盘, 收盘, 最高, 最低, 成交量]
         daily_returns = []
         prev_close = None
         for k in klines:
-            parts = k.split(",")
-            close_price = float(parts[2])
+            if len(k) < 3:
+                continue
+            close_price = float(k[2])
             if prev_close is not None and prev_close > 0:
                 ret = (close_price - prev_close) / prev_close
             else:
                 ret = 0.0
-            daily_returns.append({"date": parts[0], "return": round(ret, 6)})
+            daily_returns.append({"date": k[0], "return": round(ret, 6)})
             prev_close = close_price
         return daily_returns
     except Exception as e:
@@ -442,26 +457,136 @@ def fetch_csi300_daily() -> list:
         return []
 
 
-def fetch_bond_10y_yield() -> list:
+# ── 中债收益率数据源（中国债券信息网 · 人民银行授权发布）──
+# 2026-10-09 修复：原实现无条件 `return []`（恒空且不报错），消费方无法区分
+# 「源没接上」与「当日无数据」。现接入真实数据源，并以 (series, error) 二元组
+# 显式区分「空」与「失败」。保持纯标准库（urllib + re），不引入 akshare/pandas。
+BOND_YIELD_URL = "https://yield.chinabond.com.cn/cbweb-pbc-web/pbc/historyQuery"
+BOND_YIELD_CURVE = "中债国债收益率曲线"
+BOND_10Y_MIN_POINTS = 252
+BOND_YIELD_WINDOW_DAYS = 400  # 需 ≥252 交易日，故取约 1.5 自然年
+
+
+def _parse_bond_yield_html(html: str) -> list[dict]:
+    """解析 historyQuery 返回的 HTML，取『中债国债收益率曲线』的 10 年期序列。
+
+    返回按日期升序的 [{"date": "YYYY-MM-DD", "yield": float}, ...]。
+    表格结构变动或曲线名缺失时返回 []（属「源可用但无数据」，由调用方区分）。
     """
-    获取10年期国债收益率日频数据。
+    import re
 
-    数据源优先级:
-    1. AKShare bond_china_yield（需 AKShare 安装 + 循环拉取每年数据）
-    2. 东方财富中债收益率曲线（备选）
+    def _text(cell: str) -> str:
+        return re.sub(r"<[^>]+>", "", cell).replace("&nbsp;", " ").strip()
 
-    ⚠️ 当前状态：AKShare 存在架构兼容问题 (x86_64 vs arm64)，
-    此函数在 AKShare 修复前返回空列表，可通过手动下载 CSV 补充。
+    tables: list[list[list[str]]] = []
+    for table in re.findall(r"<table[\s\S]*?</table>", html, re.I):
+        rows: list[list[str]] = []
+        for tr in re.findall(r"<tr[\s\S]*?</tr>", table, re.I):
+            cells = [_text(c) for c in re.findall(r"<t[dh][^>]*>([\s\S]*?)</t[dh]>", tr, re.I)]
+            if cells:
+                rows.append(cells)
+        if rows:
+            tables.append(rows)
+
+    # 页面首个 <table> 是查询表单（其表头同样含「曲线名称」「10年」），
+    # 故从后往前找：要求表头含「日期」且能真正提取到数据行。
+    for rows in reversed(tables):
+        header = next(
+            (r for r in rows if "曲线名称" in r and "日期" in r and "10年" in r),
+            None,
+        )
+        if not header:
+            continue
+        idx_date = header.index("日期")
+        idx_10y = header.index("10年")
+
+        series: list[dict] = []
+        for row in rows:
+            if len(row) <= max(idx_date, idx_10y):
+                continue
+            if row[0].strip() != BOND_YIELD_CURVE:
+                continue
+            try:
+                yield_val = float(row[idx_10y])
+            except (TypeError, ValueError):
+                continue  # 该日 10 年期缺值（源侧 NaN）
+            series.append({"date": row[idx_date], "yield": yield_val})
+        if series:
+            series.sort(key=lambda r: r["date"])
+            return series
+
+    return []
+
+
+def _fetch_bond_yield_window(start: str, end: str) -> list[dict]:
+    """拉取单个时间窗（接口限制单次查询 <1 年）的中债国债收益率曲线数据。"""
+    from urllib.parse import urlencode
+
+    query = urlencode(
+        {
+            "startDate": start,
+            "endDate": end,
+            "gjqx": "0",
+            "qxId": "ycqx",
+            "locale": "cn_ZH",
+        }
+    )
+    req = urllib.request.Request(
+        f"{BOND_YIELD_URL}?{query}",
+        headers={"User-Agent": "Mozilla/5.0 (compatible; ClawMonitor/2.3)"},
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:  # nosec B310: 固定 https 常量
+        status = getattr(resp, "status", 200)
+        if status != 200:
+            raise RuntimeError(f"HTTP {status}")
+        html = resp.read().decode("utf-8", errors="ignore")
+    return _parse_bond_yield_html(html)
+
+
+def fetch_bond_10y_yield() -> tuple[list[dict] | None, str | None]:
+    """获取 10 年期国债收益率日频序列（附日变化 change，单位 bp）。
+
+    数据源：中国债券信息网 · 中债国债收益率曲线（人民银行授权发布）
+    https://yield.chinabond.com.cn/cbweb-pbc-web/pbc/historyQuery
+    单次查询上限 <1 年，故分两段拉取后按日期合并去重。
+
+    返回 (series, error)：
+      - (list, None)   取数成功（列表可能为空 = 源可用但无数据）
+      - (None, "原因")  取数失败（网络 / HTTP / 解析异常）
+    空值与失败可区分：调用方禁止把失败当成「当日无数据」静默吞掉。
     """
-    # AKShare 方案（当前不可用）
-    # import akshare as ak
-    # curve = ak.bond_china_yield(start_date="20250101", end_date="20251231")
-    # yield_10y = curve[curve['曲线名称'] == '中债国债收益率曲线'][['日期', '10年']]
+    today = date.today()
+    start = today - timedelta(days=BOND_YIELD_WINDOW_DAYS)
+    mid = start + timedelta(days=BOND_YIELD_WINDOW_DAYS // 2)
+    windows = [(start, mid), (mid + timedelta(days=1), today)]
 
-    # TODO: 备选方案 — 东方财富中债API
-    # 中国债券信息网每日公布，可通过 https://yield.chinabond.com.cn/ 获取
+    merged: dict[str, float] = {}
+    errors: list[str] = []
+    for w_start, w_end in windows:
+        if w_start > w_end:
+            continue
+        try:
+            for row in _fetch_bond_yield_window(w_start.isoformat(), w_end.isoformat()):
+                merged[row["date"]] = row["yield"]
+        except Exception as exc:  # noqa: BLE001 — 网络/解析异常统一收敛为可见错误
+            errors.append(f"{w_start}~{w_end}: {exc}")
 
-    return []  # 当前无数据源
+    if not merged:
+        detail = "; ".join(errors) if errors else "接口返回空表格（曲线名/表头未匹配）"
+        return None, f"中债收益率源不可用 — {detail}"
+
+    series: list[dict] = []
+    prev: float | None = None
+    for d in sorted(merged):
+        cur = merged[d]
+        if prev is not None:
+            series.append({"date": d, "yield": cur, "change": round((cur - prev) * 100, 4)})
+        prev = cur
+
+    if errors:
+        # 部分窗口失败但仍有数据 —— 降级可见，不静默
+        print(f"[{now_str()}] ⚠️ 中债收益率部分窗口取数失败（已用其余窗口降级）: {'; '.join(errors)}")
+    return series, None
 
 
 def calc_pearson_corr(x: list, y: list) -> float:
@@ -500,12 +625,23 @@ def check_stock_bond_correlation() -> dict:
         }
 
     # 2. 获取10年期国债收益率变化
-    bond_yield = fetch_bond_10y_yield()
-    if not bond_yield or len(bond_yield) < 252:
+    bond_yield, bond_err = fetch_bond_10y_yield()
+    if bond_yield is None:
+        # 取数失败：显式报错（源不可用 ≠ 当日无数据）
         return {
-            "status": "missing_bond_data",
-            "message": "10年期国债收益率数据不可用（AKShare 架构兼容问题），需手动提供债券日频数据",
-            "suggestion": "安装 AKShare arm64 版本 或 手动下载中债收益率CSV",
+            "status": "bond_source_unavailable",
+            "source_ok": False,
+            "error": bond_err,
+            "message": f"10年期国债收益率数据源不可用：{bond_err}",
+            "suggestion": "检查 yield.chinabond.com.cn 可达性；本项已显式报错，不再静默返空",
+        }
+    if len(bond_yield) < BOND_10Y_MIN_POINTS:
+        # 取数成功但样本不足：与「源不可用」区分开
+        return {
+            "status": "insufficient_bond_data",
+            "source_ok": True,
+            "bond_points": len(bond_yield),
+            "message": f"10年期国债收益率仅 {len(bond_yield)} 个交易日，需≥{BOND_10Y_MIN_POINTS}",
         }
 
     # 3. 计算滚动相关系数（252日窗口）
@@ -538,10 +674,12 @@ def check_stock_bond_correlation() -> dict:
 
     return {
         "status": status,
+        "source_ok": True,
         "corr_252d": round(rolling_corr_252d, 3) if rolling_corr_252d else None,
         "corr_126d": round(corr_126d, 3) if corr_126d else None,
         "alert": alert,
         "data_points": len(csi300),
+        "bond_points": len(bond_yield),
     }
 
 
