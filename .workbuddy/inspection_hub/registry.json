@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-09T21:40:00+08:00",
+  "updated_at": "2026-10-09T22:00:00+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -1715,8 +1715,8 @@
       "found_at": "2026-10-09",
       "track": "project_signal",
       "target_project": "meta",
-      "success_metric": "~/.workbuddy/skills 已是 git 仓库且工作区干净；skills_vcs.sh rollback 能把已跟踪文件还原、把未跟踪文件移入 _trash",
-      "check_cmd": "git -C \"$HOME/.workbuddy/skills\" rev-parse --git-dir >/dev/null 2>&1 && [ -z \"$(git -C \"$HOME/.workbuddy/skills\" status --porcelain)\" ] && test -x \"$HOME/WorkBuddy/Claw/.workbuddy/scripts/skills_vcs.sh\"",
+      "success_metric": "~/.workbuddy/skills 是 git 仓库且工作区干净；skills_vcs.sh 可 head/status/log/rollback；且对象库中不存在任何凭据路径（.neodata_token / .env）",
+      "check_cmd": "git -C \"$HOME/.workbuddy/skills\" rev-parse --git-dir >/dev/null 2>&1 && [ -z \"$(git -C \"$HOME/.workbuddy/skills\" status --porcelain)\" ] && test -x \"$HOME/WorkBuddy/Claw/.workbuddy/scripts/skills_vcs.sh\" && ! git -C \"$HOME/.workbuddy/skills\" rev-list --objects --all | grep -qiE \"\\.neodata_token|/\\.env$\"",
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": "2026-10-09",
@@ -1726,7 +1726,7 @@
       "ring": null,
       "ring_prev": null,
       "resolved_at": "2026-10-09",
-      "applied_action": "给 ~/.workbuddy/skills 建独立 git 仓库（基线 a5dfedb）+ 新增 skills_vcs.sh（snapshot/rollback/revert）；落地剧本改为落地前后各打一次快照，回滚由脚本执行",
+      "applied_action": "给 ~/.workbuddy/skills 建独立 git 仓库（基线 7fc1920）+ 新增 skills_vcs.sh（snapshot/rollback/revert）；落地剧本改为落地前后各打一次快照，回滚由脚本执行。【2026-10-09 补】原基线 a5dfedb 因洗历史已变为 7fc1920（见 disc-20261009-08）。",
       "resolution": "技能主产物（references/*.md、SKILL.md）首次拥有真正的回滚点；『每批 1 commit + 1 回滚点』对主产物不再只是名义上的"
     },
     {
@@ -1812,6 +1812,34 @@
       "needs_review": false,
       "applied_action": "fetch_csi300_daily 改腾讯源（urllib，去掉 subprocess+curl）；实测 300 点（2025-07-14~2026-10-09）",
       "resolution": "实测 fetch_csi300_daily()=300 点；与中债 268 点结合算出 corr_252d=-0.067（normal）"
+    },
+    {
+      "id": "disc-20261009-08",
+      "found_at": "2026-10-09",
+      "status": "applied",
+      "track": "project_signal",
+      "target_project": "meta",
+      "skill": "unified-inspection-hub",
+      "url": "file://$HOME/.workbuddy/skills/.gitignore",
+      "value": "medium-high",
+      "risk": "low",
+      "class": "meta",
+      "landing_channel": "weekly-core-review",
+      "source_summary": "v1.10.2 建立技能库 git 基线（a5dfedb）时，.gitignore 只排了构建/缓存/备份三类，漏了凭据 —— 基线快照把 .neodata_token（{\"token\":\"<35B>\",\"saved_at\":...}）一并纳入版本控制。属「建立版本控制」这一动作自身引入的次级缺口。",
+      "suggestion": ".gitignore 增凭据段（.neodata_token / .env / *.pem / *.key / *_token / *token.json，保留 !.env.example）；git rm --cached 保留盘上文件；并用 filter-branch 清历史（本仓库无 remote，可安全重写）",
+      "success_metric": "skills 仓库对象库中不存在 .neodata_token 路径；盘上 .neodata_token 仍存在（技能可读）；工作区 clean",
+      "check_cmd": "! git -C \"$HOME/.workbuddy/skills\" rev-list --objects --all | grep -qi \"neodata_token\" && test -f \"$HOME/.workbuddy/skills/.neodata_token\" && grep -q \"^\\.neodata_token$\" \"$HOME/.workbuddy/skills/.gitignore\"",
+      "metric_baseline": "修复前：a5dfedb 树内含 .neodata_token；对象库含 blob df43070",
+      "recheck_after_days": 7,
+      "landed_at": "2026-10-09",
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": "已即时机器验证（对象库扫描为空 + 旧 blob 不可达 + 盘上文件仍在）；正式回查按 landed_at+7 天",
+      "ring": null,
+      "ring_prev": null,
+      "needs_review": false,
+      "applied_action": ".gitignore 增凭据段；git rm --cached .neodata_token（盘上保留）；filter-branch 洗全历史 + gc（旧 blob df43070 已不可达）；技能库 sha 全部重写：基线 a5dfedb→7fc1920",
+      "resolution": "实测：git rev-list --objects --all 无 neodata_token；旧 blob git cat-file -e 失败；盘上 .neodata_token 仍在（-rw-------,72B）；工作区 clean；391 跟踪文件；skills_vcs.sh head/status/log 三项 rc=0 未受重写影响。顺手核 Claw 仓：.env 已被 .gitignore 覆盖，入库的 secrets_template.py / test_secrets*.py 均为无值模板。"
     }
   ],
   "known_failure_modes": [
