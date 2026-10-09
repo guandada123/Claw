@@ -1,0 +1,405 @@
+{
+  "version": 1,
+  "keys": {
+    "780ba8e65bb7f0ae": {
+      "id": "disc-20260922-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "wb-finance-skill",
+      "also_seen": []
+    },
+    "bff64b7e2aa90b7d": {
+      "id": "disc-20260922-02",
+      "status": "proposed",
+      "target_project": "meta",
+      "skill": "wb-finance-skill",
+      "also_seen": []
+    },
+    "9420ec439308ec3b": {
+      "id": "disc-20260922-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "d4bc4f8700835230": {
+      "id": "disc-20260923-01",
+      "status": "proposed",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "85fc10558eab2c61": {
+      "id": "disc-20260923-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "wb-finance-skill",
+      "also_seen": []
+    },
+    "d4fb4eb266487ae1": {
+      "id": "disc-20260923-03",
+      "status": "proposed",
+      "target_project": "meta",
+      "skill": "wb-finance-skill",
+      "also_seen": []
+    },
+    "1c6c7ca21e41797e": {
+      "id": "disc-20260924-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "e165b5ece173e157": {
+      "id": "disc-20260924-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "0e3901ae0043812f": {
+      "id": "disc-20260924-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "b7427784100e0987": {
+      "id": "disc-20260925-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "cc25f4c9bc183034": {
+      "id": "disc-20260925-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "b7e341a6f9c1add0": {
+      "id": "disc-20260925-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "7010b582af6aea17": {
+      "id": "disc-20260925-04",
+      "status": "proposed",
+      "target_project": "meta",
+      "skill": "unified-inspection-hub",
+      "also_seen": []
+    },
+    "7ed121048cc7997c": {
+      "id": "disc-20260925-05",
+      "status": "proposed",
+      "target_project": "meta",
+      "skill": "unified-inspection-hub",
+      "also_seen": []
+    },
+    "220e91f3676e208c": {
+      "id": "disc-20260926-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "c9058286b22e8c1e": {
+      "id": "disc-20260926-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "c18828eb95a55866": {
+      "id": "disc-20260926-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "648a22d6cc9b970f": {
+      "id": "disc-20260927-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "a88ebc518da90104": {
+      "id": "disc-20260927-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "c8d444ce84f58132": {
+      "id": "disc-20260927-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "37e8fb7c34373843": {
+      "id": "disc-20260928-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "d831443c17e24fb1": {
+      "id": "disc-20260928-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "f1fbf8b6a70a3d94": {
+      "id": "disc-20260928-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "e34c94188ce8d983": {
+      "id": "disc-20260929-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "088f0e80716b5858": {
+      "id": "disc-20260929-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "83387c467f2ea3ea": {
+      "id": "disc-20260929-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "617f9b5ddd09ce7a": {
+      "id": "disc-20260930-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "7e5b53e3c5e87b4e": {
+      "id": "disc-20260930-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "0e113fcfadcc1050": {
+      "id": "disc-20260930-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "06fb5a9beb32be2f": {
+      "id": "disc-20261001-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "9b9984d73d06a5f1": {
+      "id": "disc-20261001-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "90b3b8c3e9a10acd": {
+      "id": "disc-20261001-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "91916e7ed95c7e7c": {
+      "id": "disc-20261002-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "83610ec6223212a4": {
+      "id": "disc-20261002-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "9058a9365ce380c0": {
+      "id": "disc-20261002-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "25dd9e9b46d89777": {
+      "id": "disc-20261003-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "8cd79f9258015919": {
+      "id": "disc-20261003-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "0b068c5b5340390f": {
+      "id": "disc-20261003-03",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "24a9b5d6692cc596": {
+      "id": "disc-20261004-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "8d937064dd59dd50": {
+      "id": "disc-20261004-02",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "943c96e3b1b3c25b": {
+      "id": "disc-20261004-03",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "707048a0fd968d1f": {
+      "id": "disc-20261005-01",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "3f6972147aefb24f": {
+      "id": "disc-20261005-02",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "4466f331bb4701a7": {
+      "id": "disc-20261005-03",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "d4a1daf579a65934": {
+      "id": "disc-20261006-01",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "c02bb8a5c4d236af": {
+      "id": "disc-20261006-02",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "0be9791c573b02de": {
+      "id": "disc-20261006-03",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "968bb6659bbb579f": {
+      "id": "disc-20261007-01",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "a0f0177ce27051ef": {
+      "id": "disc-20261007-02",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "a831fbb097ede199": {
+      "id": "disc-20261007-03",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "b7434b34f8f1f2eb": {
+      "id": "disc-20261008-01",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "f706207d66cdf1a8": {
+      "id": "disc-20261008-02",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "8fe665688f92090c": {
+      "id": "disc-20261008-03",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "28b00714554c7c3e": {
+      "id": "disc-20261009-01",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "152656b5f6c26ee1": {
+      "id": "disc-20261009-02",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
+    },
+    "51fc27437e55bdc9": {
+      "id": "disc-20261009-03",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "also_seen": []
+    },
+    "9237a5c2a36da2b1": {
+      "id": "disc-20261009-04",
+      "status": "proposed",
+      "target_project": "meta",
+      "skill": "unified-inspection-hub",
+      "also_seen": []
+    }
+  },
+  "updated_at": "2026-10-09T18:46:03+08:00"
+}

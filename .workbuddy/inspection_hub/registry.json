@@ -1,8 +1,8 @@
 {
   "hub": "unified-inspection-hub",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-08T17:39:23+08:00",
+  "updated_at": "2026-10-09T18:38:54+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -228,7 +228,19 @@
       "found_at": "2026-09-22",
       "resolved_at": "2026-09-23T14:30:32+0800",
       "resolution": "目标 wb-finance-skill 未安装; 重定向至已装 a-stock-data(文档类 auto_apply), 落地 references/quant-screening-framework.md(UZI-Skill 22维+180规则 个股初筛→风险排查双段式参考).",
-      "applied_action": "a-stock-data/references/quant-screening-framework.md"
+      "applied_action": "a-stock-data/references/quant-screening-framework.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-23",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260922-02",
@@ -242,7 +254,19 @@
       "found_at": "2026-09-22",
       "resolved_at": "2026-09-23T14:30:32+0800",
       "resolution": "TradingAgents 多空辩论+五档评级; 目标 wb-finance-skill 未安装, 且本地对比基线 expert_team_analyst.py/run_debate.py 亦不存在 → 属净新建能力提案, 非增强; 留档待未来若建辩论框架时采纳. a-stock-data 为可能承载方.",
-      "proposal": "新增能力提案：为 wb-finance-skill / a-stock-data 编排层引入『多空辩论 + 五档评级』闭环（对标 TradingAgents）。属核心流程改动 -> 仅提案，待人工授权后落地。当前本地对比基线 expert_team_analyst.py / run_debate.py 不存在，建议先确认是否真需新建辩论框架。"
+      "proposal": "新增能力提案：为 wb-finance-skill / a-stock-data 编排层引入『多空辩论 + 五档评级』闭环（对标 TradingAgents）。属核心流程改动 -> 仅提案，待人工授权后落地。当前本地对比基线 expert_team_analyst.py / run_debate.py 不存在，建议先确认是否真需新建辩论框架。",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Caution",
+      "ring_prev": null
     },
     {
       "id": "disc-20260922-03",
@@ -256,7 +280,19 @@
       "found_at": "2026-09-22",
       "resolved_at": "2026-09-23T14:21:06+0800",
       "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-lifecycle-governance.md",
-      "applied_action": "references/skill-lifecycle-governance.md"
+      "applied_action": "references/skill-lifecycle-governance.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-23",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260923-01",
@@ -272,7 +308,19 @@
       "resolution": "文档类(auto_apply)已落地 majiu-management/references/skill-lifecycle-states.md; SKILL.md version header 部分属核心改动, 仅提案待审(同目录 skill-version-header-proposal.md)",
       "applied_action": "references/skill-lifecycle-states.md",
       "core_change": "proposed (skill-version-header-proposal.md, 未改写 SKILL.md)",
-      "proposal": "核心改动提案：majiu-management/SKILL.md 加 version header + changelog（8 态生命周期治理收尾）。文档部分（skill-lifecycle-states.md）已于 2026-09-23 落地；本提案仅针对 SKILL.md 主流程，未改写。待人工审阅授权。"
+      "proposal": "核心改动提案：majiu-management/SKILL.md 加 version header + changelog（8 态生命周期治理收尾）。文档部分（skill-lifecycle-states.md）已于 2026-09-23 落地；本提案仅针对 SKILL.md 主流程，未改写。待人工审阅授权。",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20260923-02",
@@ -286,7 +334,19 @@
       "found_at": "2026-09-23",
       "resolved_at": "2026-09-23T14:30:32+0800",
       "resolution": "原建议即指向 a-stock-data; 落地 references/data-capability-matrix.md(13源28端点零鉴权基线+同榜竞品盘点).",
-      "applied_action": "a-stock-data/references/data-capability-matrix.md"
+      "applied_action": "a-stock-data/references/data-capability-matrix.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-23",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260923-03",
@@ -300,7 +360,19 @@
       "found_at": "2026-09-23",
       "resolved_at": "2026-09-23T14:30:32+0800",
       "resolution": "TradingAgents-Astock A股生产化变体(多空辩论+五档评级+生产后端); 同上, 目标skill与本地基线均不存在 → 净新建提案; 留档.",
-      "proposal": "新增能力提案：评估 expert_team_analyst.py 7 专家框架补『多空辩论 + 五档评级 + 生产后端』闭环（TradingAgents-Astock A股生产化变体）。属净新建能力 -> 仅提案待审。"
+      "proposal": "新增能力提案：评估 expert_team_analyst.py 7 专家框架补『多空辩论 + 五档评级 + 生产后端』闭环（TradingAgents-Astock A股生产化变体）。属净新建能力 -> 仅提案待审。",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Caution",
+      "ring_prev": null
     },
     {
       "id": "disc-20260924-01",
@@ -314,7 +386,19 @@
       "found_at": "2026-09-24",
       "resolved_at": "2026-09-26T23:22:00+0800",
       "resolution": "文档类(auto_apply)已落地: majiu-management/references/workspace-governance-patterns.md",
-      "applied_action": "majiu-management/references/workspace-governance-patterns.md"
+      "applied_action": "majiu-management/references/workspace-governance-patterns.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-26",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260924-02",
@@ -328,7 +412,19 @@
       "found_at": "2026-09-24",
       "resolved_at": "2026-09-26T23:22:00+0800",
       "resolution": "文档类(auto_apply)已落地: a-stock-data/references/quant-skills-ecosystem.md",
-      "applied_action": "a-stock-data/references/quant-skills-ecosystem.md"
+      "applied_action": "a-stock-data/references/quant-skills-ecosystem.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-26",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260924-03",
@@ -342,7 +438,19 @@
       "found_at": "2026-09-24",
       "resolved_at": "2026-09-26T23:22:00+0800",
       "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-version-lock-eval.md",
-      "applied_action": "majiu-management/references/skill-version-lock-eval.md"
+      "applied_action": "majiu-management/references/skill-version-lock-eval.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-26",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260925-01",
@@ -356,7 +464,19 @@
       "found_at": "2026-09-25",
       "resolved_at": "2026-09-26T23:22:00+0800",
       "resolution": "文档类(auto_apply)已落地: a-stock-data/references/a-stock-zero-auth-endpoints.md",
-      "applied_action": "a-stock-data/references/a-stock-zero-auth-endpoints.md"
+      "applied_action": "a-stock-data/references/a-stock-zero-auth-endpoints.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-26",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260925-02",
@@ -370,7 +490,19 @@
       "found_at": "2026-09-25",
       "resolved_at": "2026-09-26T23:22:00+0800",
       "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-version-pinning.md",
-      "applied_action": "majiu-management/references/skill-version-pinning.md"
+      "applied_action": "majiu-management/references/skill-version-pinning.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-26",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260925-03",
@@ -384,7 +516,19 @@
       "found_at": "2026-09-25",
       "resolved_at": "2026-09-26T23:22:00+0800",
       "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-lifecycle-registry.md",
-      "applied_action": "majiu-management/references/skill-lifecycle-registry.md"
+      "applied_action": "majiu-management/references/skill-lifecycle-registry.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-26",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260925-04",
@@ -396,7 +540,19 @@
       "found_at": "2026-09-25",
       "suggestion": "【本通道自身发现·契约守卫】落地剧本 Step 4『候选 status → applied』未按 mode 区分：mode=calibrate 时照字面回写 applied，会把**未落地**的候选标记为已应用，次日被质量闸（允许集 pending|approved）滤除 → **静默销毁待落地成果**（与 parity.json _notes 记录的『试跑写入伪造 live 记录』同类）。请在 unified-inspection-hub/SKILL.md 落地剧本写明『calibrate 期零落地 ⇒ 零 applied 回写，仅回写 last_run』，并给 apply_doc_candidates.py 加断言。目标含 SKILL.md/脚本 = 核心类 → 仅提案待审(propose_review)，本自动化不改写。",
       "source_summary": "内部发现（非外部来源）：本自动化 2026-09-25 run#1 实测——Step 4 字面指令与 calibrate『只读零写入』语义冲突；旁证 parity.json._notes（2026-09-24 二次审计删除一条 --mode live 试跑写入的伪造记录）。",
-      "proposal": "核心守卫提案：unified-inspection-hub/SKILL.md 落地剧本须写明『calibrate 期零落地 => 零 applied 回写，仅回写 last_run』，并给 apply_doc_candidates.py 加断言。目标含 SKILL.md/脚本 = 核心类 -> 仅提案，本自动化不改写。根因：2026-09-25 run#1 实测 Step 4 字面指令与 calibrate 只读语义冲突，会静默销毁待落地成果。"
+      "proposal": "核心守卫提案：unified-inspection-hub/SKILL.md 落地剧本须写明『calibrate 期零落地 => 零 applied 回写，仅回写 last_run』，并给 apply_doc_candidates.py 加断言。目标含 SKILL.md/脚本 = 核心类 -> 仅提案，本自动化不改写。根因：2026-09-25 run#1 实测 Step 4 字面指令与 calibrate 只读语义冲突，会静默销毁待落地成果。",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Caution",
+      "ring_prev": null
     },
     {
       "id": "disc-20260925-05",
@@ -408,7 +564,19 @@
       "found_at": "2026-09-25",
       "suggestion": "【L3 护栏·误报稀释】pre-task.sh 对**新式 UUID 型** automation id 一律报『格式异常：缺少 automation- 前缀』并使 gates_failed=1（实测本自动化 id 1fd52465-… 命中，非阻断但必报）。新式 id 已是主流 → 每次 pre-hook 恒报 1 个假失败，真失败的信号被稀释（『检测静默失效』同类）。建议把 id 校验放宽为『UUID 或 automation- 前缀』二者皆可。目标 = 脚本(*.sh) = 核心类 → 仅提案待审，本自动化不改写。",
       "source_summary": "内部发现（非外部来源）：2026-09-25 run#1 的 run_l3_pre 输出 `⚠️ Automation ID 格式异常: '1fd52465-899f-4525-a82d-4cc5df01155c'（缺少 automation- 前缀）` + `gates_failed=1`。",
-      "proposal": "脚本误报修复提案：pre-task.sh 对 UUID 型 automation id 一律报『格式异常 + gates_failed=1』，稀释真失败信号。建议把 id 校验放宽为『UUID 或 automation- 前缀』二者皆可。目标 = 脚本(*.sh) = 核心类 -> 仅提案，本自动化不改写。"
+      "proposal": "脚本误报修复提案：pre-task.sh 对 UUID 型 automation id 一律报『格式异常 + gates_failed=1』，稀释真失败信号。建议把 id 校验放宽为『UUID 或 automation- 前缀』二者皆可。目标 = 脚本(*.sh) = 核心类 -> 仅提案，本自动化不改写。",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Caution",
+      "ring_prev": null
     },
     {
       "id": "disc-20260926-01",
@@ -422,7 +590,19 @@
       "found_at": "2026-09-26",
       "resolved_at": "2026-09-26T23:22:00+0800",
       "resolution": "文档类(auto_apply)已落地: a-stock-data/references/tdx-deprecation-fallback.md",
-      "applied_action": "a-stock-data/references/tdx-deprecation-fallback.md"
+      "applied_action": "a-stock-data/references/tdx-deprecation-fallback.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-26",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260926-02",
@@ -436,7 +616,19 @@
       "found_at": "2026-09-26",
       "resolved_at": "2026-09-26T23:22:00+0800",
       "resolution": "文档类(auto_apply)已落地: a-stock-data/references/akshare-skill-compat.md",
-      "applied_action": "a-stock-data/references/akshare-skill-compat.md"
+      "applied_action": "a-stock-data/references/akshare-skill-compat.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-26",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260926-03",
@@ -450,7 +642,19 @@
       "found_at": "2026-09-26",
       "resolved_at": "2026-09-26T23:22:00+0800",
       "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-as-workflow.md",
-      "applied_action": "majiu-management/references/skill-as-workflow.md"
+      "applied_action": "majiu-management/references/skill-as-workflow.md",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-09-26",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260927-01",
@@ -465,7 +669,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/company-skill-registry.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/company-skill-registry.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/company-skill-registry.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260927-02",
@@ -480,7 +696,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "a-stock-data/references/stoke-rate-limit-healthcheck.md",
-      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/stoke-rate-limit-healthcheck.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/stoke-rate-limit-healthcheck.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260927-03",
@@ -495,7 +723,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/skill-quality-eval-gate.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-quality-eval-gate.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-quality-eval-gate.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260928-01",
@@ -510,7 +750,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/skill-registry-security-scan.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-registry-security-scan.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-registry-security-scan.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260928-02",
@@ -525,7 +777,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "a-stock-data/references/tushare-proxy-vs-zeroauth.md",
-      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/tushare-proxy-vs-zeroauth.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/tushare-proxy-vs-zeroauth.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260928-03",
@@ -540,7 +804,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "a-stock-data/references/allstock-adata-compat.md",
-      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/allstock-adata-compat.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/allstock-adata-compat.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260929-01",
@@ -555,7 +831,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/declarative-governance-policy.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/declarative-governance-policy.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/declarative-governance-policy.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260929-02",
@@ -570,7 +858,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/owasp-agentic-skills-top10.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/owasp-agentic-skills-top10.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/owasp-agentic-skills-top10.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260929-03",
@@ -585,7 +885,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "a-stock-data/references/openclaw-finance-suite.md",
-      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/openclaw-finance-suite.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/openclaw-finance-suite.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260930-01",
@@ -600,7 +912,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/skill-eval-checklist.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-eval-checklist.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-eval-checklist.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260930-02",
@@ -615,7 +939,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/skill-lifecycle-registry.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-lifecycle-registry.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-lifecycle-registry.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20260930-03",
@@ -630,7 +966,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "a-stock-data/references/a-stock-skills-compare.md",
-      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/a-stock-skills-compare.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/a-stock-skills-compare.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261001-01",
@@ -645,7 +993,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/skill-lifecycle-registry.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-lifecycle-registry.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-lifecycle-registry.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261001-02",
@@ -660,7 +1020,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "a-stock-data/references/global-stock-data-compare.md",
-      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/global-stock-data-compare.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/global-stock-data-compare.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261001-03",
@@ -675,7 +1047,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/automation-change-guardrails.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/automation-change-guardrails.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/automation-change-guardrails.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261002-01",
@@ -690,7 +1074,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/memory-lifecycle.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/memory-lifecycle.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/memory-lifecycle.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261002-02",
@@ -705,7 +1101,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/skill-lifecycle-ops.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-lifecycle-ops.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/skill-lifecycle-ops.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261002-03",
@@ -720,7 +1128,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "a-stock-data/references/cn-stock-mcp-compare.md",
-      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/cn-stock-mcp-compare.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/cn-stock-mcp-compare.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261003-01",
@@ -735,7 +1155,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/governance-manifest.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/governance-manifest.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/governance-manifest.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261003-02",
@@ -750,7 +1182,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "a-stock-data/references/financemcp-dcths-compare.md",
-      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/financemcp-dcths-compare.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: a-stock-data/references/financemcp-dcths-compare.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261003-03",
@@ -765,7 +1209,19 @@
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
       "applied_action": "majiu-management/references/agent-governance-toolkit.md",
-      "resolution": "文档类(auto_apply)已落地: majiu-management/references/agent-governance-toolkit.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）"
+      "resolution": "文档类(auto_apply)已落地: majiu-management/references/agent-governance-toolkit.md （由「🧬 技能演进-周度」周度审自动应用，不改核心流程/脚本/prompt）",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-04",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261004-01",
@@ -775,9 +1231,24 @@
       "value": "high",
       "risk": "low",
       "suggestion": "借鉴为 majiu-management 的『技能效能基准』：把 with_skill/without_skill A/B 度量法 + oracle-先过-verifier 闸门 落成 references/skill-effectiveness-benchmark.md（文档类 auto_apply，不改动核心 SKILL.md）；补既有 eval/安全候选缺的『可量化增益』维度（与安全扫描互补：一个管质量，一个管安全）。",
-      "status": "pending",
+      "status": "applied",
       "found_at": "2026-10-04",
-      "version": "v1"
+      "version": "v1",
+      "applied_action": "majiu-management/references/skill-effectiveness-benchmark.md",
+      "resolved_at": "2026-10-09T00:45:00+08:00",
+      "resolution": "live 首批落地（每日·文档类落地 automation 1fd52465）：新建 majiu-management/references/skill-effectiveness-benchmark.md（纯增量，未改动 SKILL.md/脚本/prompt）；来源 https://github.com/benchflow-ai/skillsbench；CHANGELOG 已追加 1 行。回滚：删该新文件 + 撤 CHANGELOG 行，registry 回退至提交 ffe2a70 的上一个状态。",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-09",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261004-02",
@@ -787,9 +1258,24 @@
       "value": "high",
       "risk": "low",
       "suggestion": "借鉴为 majiu-management 的『来源信任分级 + 安装审计闸门』：把 8 点安全扫描清单 + ClawHavoc 实证(36% 注入/7.1% 严重漏洞) 落成 references/skill-source-trust.md（文档类 auto_apply，不改动核心 SKILL.md）；与 disc-20260929-02(OWASP AST10) / disc-20260928-01(ESR 安全扫描) 互补——本源提供『市场级实测 prevalence + 可勾选扫描清单』，后者提供『风险分类框架 + 工具』。",
-      "status": "pending",
+      "status": "applied",
       "found_at": "2026-10-04",
-      "version": "v1"
+      "version": "v1",
+      "applied_action": "majiu-management/references/skill-source-trust.md",
+      "resolved_at": "2026-10-09T00:45:00+08:00",
+      "resolution": "live 首批落地（每日·文档类落地 automation 1fd52465）：新建 majiu-management/references/skill-source-trust.md（纯增量，未改动 SKILL.md/脚本/prompt）；来源 https://www.agensi.io/learn/best-ai-agent-skills-marketplaces-2026；CHANGELOG 已追加 1 行。回滚：删该新文件 + 撤 CHANGELOG 行，registry 回退至提交 ffe2a70 的上一个状态。",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-09",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261004-03",
@@ -801,7 +1287,19 @@
       "suggestion": "对标本地 a-stock-data 数据层扩展：在 references/ 增补 realtime-l2-tick.md，记录 mootdx(TDX L2盘口+tick，零鉴权但依赖公共服稳定性) 与 stock-price(腾讯免费 curl，零鉴权，GBK解码) 两个可借鉴源；文档类 auto_apply，不改动核心 SKILL.md。（注：L2/逐笔是日内交易与做T的关键深度数据，本地 a-stock-data 现有源未覆盖；mootdx 公共服曾停服见 disc-20260926-01，须作备用而非唯一源。）",
       "status": "pending",
       "found_at": "2026-10-04",
-      "version": "v1"
+      "version": "v1",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261005-01",
@@ -811,9 +1309,24 @@
       "value": "high",
       "risk": "low",
       "suggestion": "借鉴为 majiu-management 的『技能包清单』：把 skills.json(声明依赖/版本/分发) + skills.lock(钉版校验) 落成 references/skill-package-manifest.md（文档类 auto_apply，不改动核心 SKILL.md）；与 disc-20260925-02(gh skill 钉版+溯源) / disc-20261003-01(zooz manifest owner/pin/scope) 互补——本源提供『跨仓库依赖解析 + lockfile 可复现』的标准提案，后者提供『发布/钉版 CLI』。",
-      "status": "pending",
+      "status": "applied",
       "found_at": "2026-10-05",
-      "version": "v1"
+      "version": "v1",
+      "applied_action": "majiu-management/references/skill-package-manifest.md",
+      "resolved_at": "2026-10-09T00:45:00+08:00",
+      "resolution": "live 首批落地（每日·文档类落地 automation 1fd52465）：新建 majiu-management/references/skill-package-manifest.md（纯增量，未改动 SKILL.md/脚本/prompt）；来源 https://github.com/agentskills/agentskills/discussions/210；CHANGELOG 已追加 1 行。回滚：删该新文件 + 撤 CHANGELOG 行，registry 回退至提交 ffe2a70 的上一个状态。",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": null,
+      "landed_at": "2026-10-09",
+      "impact": "unmeasured",
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null
     },
     {
       "id": "disc-20261005-02",
@@ -825,7 +1338,19 @@
       "suggestion": "对标本地 a-stock-data 能力扩展：在 references/ 增补 tick-stock-panel.md，记录『tick 级回测引擎 + 统一数据抽象 + LLM 策略生成』可作兄弟工作台(非替换单文件 Skill)；文档类 auto_apply，不改动核心 SKILL.md。（注：本地 a-stock-data 已借 mootdx 拿 L2/tick 原始数据见 disc-20261004-03，但缺回测引擎与策略生成闭环，本源正好补该段。）",
       "status": "pending",
       "found_at": "2026-10-05",
-      "version": "v1"
+      "version": "v1",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261005-03",
@@ -837,7 +1362,19 @@
       "suggestion": "借鉴为 majiu-management 的『技能库治理标准』：把注册表最小字段 + T0–T4 风险分级 + 角色 bundle + AI CoE ownership 落成 references/skill-library-governance.md（文档类 auto_apply，不改动核心 SKILL.md）；与 disc-20260929-02(OWASP AST10) / disc-20260928-01(ESR 安全扫描) 互补——本源提供『可填字段模板 + 风险 tier + 角色 bundle』，后者提供『安全分类框架 + 工具』。",
       "status": "pending",
       "found_at": "2026-10-05",
-      "version": "v1"
+      "version": "v1",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261006-01",
@@ -848,7 +1385,19 @@
       "risk": "low",
       "suggestion": "对标本地 a-stock-data（纯数据层）缺口：补『新闻情绪 + 决策仪表盘 + 多渠道推送』闭环。参考其 P0 交易理念（乖离>5% 标记危险、MA 多头排列、精确买卖/止损/目标点位、检查清单）写入 references/llm-stock-decision-dashboard.md（文档类 auto_apply）；其飞书推送范式可直接复用本地 push_feishu.sh 链路",
       "status": "pending",
-      "found_at": "2026-10-06"
+      "found_at": "2026-10-06",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261006-02",
@@ -859,7 +1408,19 @@
       "risk": "low",
       "suggestion": "补本地 a-stock-data 缺的『新闻情绪 + 资金流向』维度（既有 MCP 候选仅覆盖行情/板块数据）：写 references/a-share-sentiment-moneyflow.md 能力对照（多源校验降级 + 情绪 + 资金流），文档类 auto_apply；MCP 交付与本地 Skill 互补，不改动核心",
       "status": "pending",
-      "found_at": "2026-10-06"
+      "found_at": "2026-10-06",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261006-03",
@@ -870,7 +1431,19 @@
       "risk": "low",
       "suggestion": "为 majiu-management 补『技能路由分发』治理维度（既有候选覆盖生命周期/安全/市场/注册表，未覆盖路由）：落地 references/skill-routing-dispatch.md（置信度触发匹配 + skills-index + 降级链 + 路由事件日志），文档类 auto_apply；与本地 skills 索引/自动加载协同",
       "status": "pending",
-      "found_at": "2026-10-06"
+      "found_at": "2026-10-06",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261007-01",
@@ -881,7 +1454,19 @@
       "risk": "low",
       "suggestion": "为 majiu-management 增加『技能安装前评测门禁』参考(with/without A/B+安全探针+公共 dashboard 比对)；落到 references/ 文档后自动应用(auto_apply)，与既有 OWASP AST10/ClawHavoc 形成『安装前校验→运行时防护』闭环。",
       "status": "pending",
-      "found_at": "2026-10-07"
+      "found_at": "2026-10-07",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261007-02",
@@ -892,7 +1477,19 @@
       "risk": "low",
       "suggestion": "作为 a-stock-data 的 MCP 交付补充(本地 Skill 专注零鉴权多源抓取，MCP 层承接实时/历史标准化查询)；参考其『双源自动故障切换+DataFrame 统一输出』增强本地数据层健壮性；文档类可自动应用(auto_apply)。",
       "status": "pending",
-      "found_at": "2026-10-07"
+      "found_at": "2026-10-07",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261007-03",
@@ -903,7 +1500,19 @@
       "risk": "low",
       "suggestion": "补充 majiu-management 现有治理视角(注册表/安全/版本化)未覆盖的『技能组合编排』维度：借鉴能力树+DAG 编排模式设计本地 skill 组合调用参考文档；文档类可自动应用(auto_apply)。",
       "status": "pending",
-      "found_at": "2026-10-07"
+      "found_at": "2026-10-07",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261008-01",
@@ -914,7 +1523,19 @@
       "risk": "low",
       "suggestion": "为 majiu-management 增加「权限契约强制 + 风险感知升级 delta 报告 + fork 血缘/签名」维度，补既有 skills.lock/RFC#210 未覆盖的运行时权限校验与升级可观测性；落到 references/ 文档后自动应用(auto_apply)",
       "status": "pending",
-      "found_at": "2026-10-08"
+      "found_at": "2026-10-08",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261008-02",
@@ -925,7 +1546,19 @@
       "risk": "low",
       "suggestion": "为 a-stock-data 参考其「多Agent辩论+记忆反思闭环+零依赖MCP server」模式，补本地缺的多角色辩论决策链与可交互HTML报告；落到 references/ 文档后自动应用(auto_apply)",
       "status": "pending",
-      "found_at": "2026-10-08"
+      "found_at": "2026-10-08",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261008-03",
@@ -936,7 +1569,19 @@
       "risk": "low",
       "suggestion": "其「硬风控独立于AI + 权限分级 + 全链路可审计 + 决策可回放」架构直接对应 sim_trade.py/QTS 风控设计；提炼为 references/ 风控架构参考(文档类 auto_apply)，核心流程改动仅提案待审",
       "status": "pending",
-      "found_at": "2026-10-08"
+      "found_at": "2026-10-08",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261009-01",
@@ -947,7 +1592,19 @@
       "risk": "low",
       "suggestion": "为 majiu-management 补「分发层+漂移治理+评级」维度：把『每仓库版本钉版 / 跨仓库 drift 检测 / 组织级 recall / A–F 安全评级』作为治理注册表的补充参考(文档类 auto_apply, 落到 references/)；核心流程改动仅提案待审。",
       "status": "pending",
-      "found_at": "2026-10-09"
+      "found_at": "2026-10-09",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261009-02",
@@ -958,7 +1615,19 @@
       "risk": "low",
       "suggestion": "为 majiu-management 补「闲置识别/自动归档」治理维度(现有候选覆盖注册表/安全/版本化/路由, 未覆盖『无人维护判定+归档下线』)：提炼为 references/ 技能生命周期巡检清单(文档类 auto_apply)；核心流程改动仅提案待审。",
       "status": "pending",
-      "found_at": "2026-10-09"
+      "found_at": "2026-10-09",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     },
     {
       "id": "disc-20261009-03",
@@ -969,7 +1638,43 @@
       "risk": "low",
       "suggestion": "对标本地 a-stock-data 数据层缺口：补『支撑/压力位自动计算 + 国家队ETF资金流向 + HTTP生产级MCP部署』维度(既有 MCP 候选聚焦数据广度, 未覆盖技术指标计算与 ETF 资金流)；作为 references/ 补充源笔记(文档类 auto_apply)；核心流程改动仅提案待审。",
       "status": "pending",
-      "found_at": "2026-10-09"
+      "found_at": "2026-10-09",
+      "track": "external_trend",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
+    },
+    {
+      "id": "disc-20261009-04",
+      "skill": "unified-inspection-hub",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/calibration/apply_dryrun_20261009.md",
+      "source_summary": "本通道（📥 每日·文档类落地）自身契约缺口：本批 live 首批落地时实测发现——主产物写在 $HOME/.workbuddy/skills/<skill>/references/*.md，而 `git -C ~/.workbuddy rev-parse --show-toplevel` 报 not a git repository（~/.workbuddy 是指向 /Volumes/ZHITAI/workbuddy_data 的符号链接）→ 这些文件**完全不在版本控制内**；Step 3 的 `cd $CLAW && git add -A` 只能覆盖 registry/parity/报告，覆盖不到 references/*.md。因此铁律❺「1 commit + 1 回滚点，改动可一键回退」对本通道**主产物是名义上的**：`git revert <commit>` / `git reset --hard <rollback_point>` 均无法回退已落地的 references/*.md。次要缺口：Step 4 的 registry 回写（status=applied + rollback_point 更新）发生在 Step 3 commit **之后** → 该状态不在该批 commit 内，长期留在工作区 dirty。",
+      "value": "medium-high",
+      "risk": "low",
+      "suggestion": "核心类改动（仅提案待审）：①在 SKILL.md 落地剧本明确「doc-apply 主产物的回滚 = 删除新增文件 + 撤销 CHANGELOG 行」，并把该逆向操作写进 registry 的 applied 记录（本批已按此写入 resolution）；或②给 ~/.workbuddy/skills 建独立 git 仓库（或把 references/ 纳入 Claw 仓库 via git submodule / 复制），使 references/*.md 真正可一键回退；③把 Step 4 回写前移到 Step 3 commit 之前，使 applied 状态随批入库。",
+      "status": "proposed",
+      "needs_review": true,
+      "found_at": "2026-10-09",
+      "track": "project_signal",
+      "target_project": "meta",
+      "success_metric": null,
+      "check_cmd": null,
+      "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": null,
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": "Assess",
+      "ring_prev": null
     }
   ],
   "known_failure_modes": [
@@ -1104,7 +1809,9 @@
         "low"
       ],
       "require_host": true,
-      "require_doc_target": true
+      "require_doc_target": true,
+      "require_target_project": true,
+      "require_success_metric": true
     },
     "batch_rule": "每批 = 1 commit + 1 行 CHANGELOG + 1 个回滚点；top≤3",
     "core_class_channel": "周度审（🧬 技能演进-周度）；核心类永不进每日自动通道",
@@ -1130,7 +1837,7 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261009.md"
     },
     "calibrate_runs": 18,
-    "rollback_point": "0540a62",
+    "rollback_point": "ffe2a70",
     "p0_landed_at": "2026-09-24",
     "parity_verifier": ".workbuddy/scripts/doc_apply_parity.py",
     "parity_ledger": ".workbuddy/inspection_hub/calibration/parity.json",
@@ -1182,7 +1889,8 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 1
+    "live_runs": 1,
+    "blocked_metric_alert_min": 3
   },
   "_state_sync_notes": [
     "2026-09-24 巡检发现 registry 记录的 rrule 与 scheduler DB 实际漂移：🧬 技能演进 registry=Sat 10:00 vs DB=FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22；🧹 技能卫生 registry=1日09:00 vs DB=BYHOUR=23;BYMINUTE=44。此处不改既有自动化调度（真值=DB），仅登记待确认意图。",
@@ -1213,7 +1921,11 @@
     "2026-10-05 文档类落地 run#11：mode=calibrate（registry 真值 1.9.1）→ 只读对拍，零文档写入、零 commit；闸门 rc=0/ok=true，selected=disc-20261004-01/02 + disc-20261005-01（均 majiu-management/references/*.md，high/low），dropped=42（09-22…10-04 大批量已 applied 被滤除；disc-20261004-03、disc-20261005-02 因『无文档落地目标』设计内过滤；另 +1 条过闸被 top_n 限流）；对拍 rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[]，days_elapsed=11/14（calibrate_runs=15，ready_for_live_by_machine_criteria=false，唯一 blocker=时长未满）；1c 三判据 ok✓ / 11<14✗ / violations[]✓ → 不切换、不推送；D7 镜像一致（pending_actions 为列表，按 id 遍历：PA-001.if_no_action=auto_switch_to_live ↔ doc_apply.auto_switch=true），未停手；独立核验（防伪 applied）：33 条 status=applied 目标文件全部存在且 size 1037–4064B、0 缺失、0 零字节、applied_action 全落 references/README/CHANGELOG 白名单（0 越界）；pending=6（disc-20261004-01/02/03 + disc-20261005-01/02/03）全部保留；proposed=5。⛔ 未写 automations[].last_run/next_run（铁律❼）；⛔ calibrate 零落地 ⇒ 零 applied 回写。距切换窗口(2026-10-08) 3 天。",
     "2026-10-06 文档类落地 run#12：mode=calibrate（registry 真值 1.9.1）→ 只读对拍，零文档写入、零 commit；闸门 rc=0/ok=true，selected=disc-20261004-01/02 + disc-20261005-01（均 majiu-management/references/*.md，high/low），dropped=41（09-22…10-03 大批量已 applied 被滤除；disc-20261004-03、disc-20261005-02 因『无文档落地目标』设计内过滤；另 +4 条过闸被 top_n 限流）；对拍 rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[]，days_elapsed=12/14（calibrate_runs=16，ready_for_live_by_machine_criteria=false，唯一 blocker=时长未满）；1c 三判据 ok✓ / 12<14✗ / violations[]✓ → 不切换、不推送；D7 镜像一致（pending_actions 为列表，按 id 遍历：PA-001.if_no_action=auto_switch_to_live ↔ doc_apply.auto_switch=true），未停手；独立核验（防伪 applied）：33 条 status=applied 目标文件全部存在且 size 1037–4064B、0 缺失、0 零字节、applied_action 全落 references/README/CHANGELOG 白名单（0 越界）；pending=9（disc-20261004-01/02/03 + disc-20261005-01/02/03 + disc-20261006-01/02/03）全部保留；proposed=5。hub_reconcile rc=0、D1–D9 全空、clean=true/needs_human=false。⛔ 未写 automations[].last_run/next_run（铁律❼）；⛔ calibrate 零落地 ⇒ 零 applied 回写。距切换窗口(2026-10-08) 2 天。",
     "2026-10-07 文档类落地 run#13（校准期最后一日）：mode=calibrate（registry 真值 1.9.1）→ 只读对拍，零文档写入、零 commit；闸门 rc=0/ok=true，selected=disc-20261004-01/02 + disc-20261005-01（均 majiu-management/references/*.md，high/low），dropped=44（09-22…10-03 大批量已 applied 被滤除；disc-20261004-03、disc-20261005-02、disc-20261007-01/02/03 因『无文档落地目标』设计内过滤；另 +4 条过闸被 top_n 限流）；对拍 rc=0/ok=true/violations=[]/ledger_vs_registry_gaps=[]，days_elapsed=13/14（calibrate_runs=17，ready_for_live_by_machine_criteria=false，唯一 blocker=时长未满）；1c 三判据 ok✓ / 13<14✗ / violations[]✓ → 不切换、不推送；D7 镜像一致（pending_actions 为列表，按 id 遍历：PA-001.if_no_action=auto_switch_to_live ↔ doc_apply.auto_switch=true），未停手；独立核验（防伪 applied）：33 条 status=applied 目标文件全部存在且 size 1037–4064B、0 缺失、0 零字节、applied_action 全落 references/README/CHANGELOG 白名单（0 越界），解析器双写法+先 probe 自检；pending=12（disc-20261004-01/02/03 + disc-20261005-01/02/03 + disc-20261006-01/02/03 + disc-20261007-01/02/03）全部保留；proposed=5。hub_reconcile rc=0、D1–D9 全空、clean=true/needs_human=false（连续第 3 日全绿）。⛔ 未写 automations[].last_run/next_run（铁律❼）；⛔ calibrate 零落地 ⇒ 零 applied 回写。距切换窗口(2026-10-08) 1 天 → 次日 00:40 命中 days_elapsed=14，三条判据预计全满足，将执行 calibrate→live 自动切换并推飞书告知（回滚点 0540a62），本日不立即落地。",
-    "2026-10-08 自动切换 calibrate→live（evidence: days_elapsed=14/14, violations=0；parity.ok=true；rollback_point=0540a62）。本日不落地，留一个观察日，自 2026-10-09 00:40 起按 live 流程执行。"
+    "2026-10-08 自动切换 calibrate→live（evidence: days_elapsed=14/14, violations=0；parity.ok=true；rollback_point=0540a62）。本日不落地，留一个观察日，自 2026-10-09 00:40 起按 live 流程执行。",
+    "2026-10-09 live 首批落地 3 条：disc-20261004-01/02 + disc-20261005-01 → applied；目标 majiu-management/references/{skill-effectiveness-benchmark,skill-source-trust,skill-package-manifest}.md；parity 复检 rc=0 / ok=true / violations=[]；hub_reconcile rc=0 / clean=true；commit & rollback_point = ffe2a70",
+    "2026-10-09 本通道自身契约缺口登记为 disc-20261009-04（proposed/needs_review）：主产物 references/*.md 不在 git 内 → 铁律❺ 回滚对本通道主产物名义化；Step 4 回写在 commit 之后。走周度审。",
+    "2026-10-09T18:38:54+08:00 v1.10 迁移：候选补 target_project/track/success_metric/impact 等字段（57 条）；新增 discovery_policy, evolution_radar, value_scoreboard；quality_gate 增补 require_target_project, require_success_metric；version 1.9.1→1.10.0",
+    "2026-10-09T18:42:15+08:00 周度统一排序（2026-W41）：待排序 21｜四环 {'Adopt': 0, 'Trial': 0, 'Assess': 17, 'Caution': 4}｜升降环 21"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -1580,5 +2292,282 @@
       "restore": "本巡检项的恢复：把 check_wechat_channel 里两处 `_skip(...)` 改回 `{\"ok\": False, \"alerts\": alerts}`（72h 降频配置保留未删）。**采集路径的恢复是另一件事**：用户 2026-09-29 已决定取消，恢复需先重新决策（并可从软删行 `3b171320-…` 取回原 prompt 重建自动化）。",
       "path_cancelled": "2026-09-29 用户决定**取消微信读书采集这条路径**（不再采集、不再扫码提醒）：当日新建的采集自动化 `3b171320-…`（每日 23:30）已用工具删除（DB 里是软删，`deleted_at=2026-09-29 15:48:59`，prompt 1066B 仍留底 → 若日后要恢复，先取回该行再重建）。三个精读槽位 prompt 里对它的引用已同步改成「采集路径已取消」（逐字节回读三槽一致、零残留引用）。 ⚠️ 2026-10-01 更正：这句话里的「落盘池不再自动刷新」**已不成立** —— 另一条完全独立的路径**云 RSS 已恢复**（根因是认证姿势：`X-API-Key`+`X-API-Secret` 双头，而非 key 失效；见自动化 `automation-1785335108360`「🔄【公众号】RSS文章同步落盘(云轨已修复)」v4，工作日 07:30）。落盘池自 2026-10-01 起重新增长（当日新增 94 篇、最新 pub_time 09-30 14:24），`read_wx_articles.py` 的输入新鲜度自检已由 ⚠️STALE 转为 ✅ 输入新鲜（1 天前）。**取消的只是「微信读书扫码采集」这条备用路径，不是公众号数据本身。**"
     }
-  ]
+  ],
+  "discovery_policy": {
+    "version": 1,
+    "why": "发现回路的病根是「发现面只盯 2 个技能 skill、落地即宣布成功」。本策略把发现面扩到真实项目、并把『优化』定义成可回查的指标（相对数值基线提升，而非看起来更好了）。",
+    "tracks": {
+      "external_trend": "外部同类项目/研究趋势 → 候选（target_project 常为 meta；纯趋势，不硬塞进项目）",
+      "project_signal": "项目自身痛点信号（.learnings 事故 / 失败测试 / CI 红灯 / 性能回归 / TODO / 自身产物缺口）→ 候选（target_project 为真实项目，或 meta=中枢自身）",
+      "hygiene": "技能卫生审计（重复/坏链/未用/prompt-injection）→ 候选"
+    },
+    "project_watch": {
+      "note": "真实项目锚点。发现面必须盯这些项目，否则「对比现有项目统一优化」是空话。路径是数据（非脚本硬编码）。",
+      "anchors": [
+        {
+          "project": "Claw",
+          "root": "$HOME/WorkBuddy/Claw",
+          "learnings_dirs": [
+            "$HOME/WorkBuddy/Claw/.learnings"
+          ],
+          "todo_globs": [
+            "$HOME/WorkBuddy/Claw/scripts/*.py",
+            "$HOME/WorkBuddy/Claw/.workbuddy/scripts/*.py",
+            "$HOME/WorkBuddy/Claw/src/**/*.py"
+          ],
+          "tests_cmd": "cd $HOME/WorkBuddy/Claw && python3 -m pytest -q --maxfail=1 tests 2>&1 | tail -20"
+        },
+        {
+          "project": "QTS",
+          "root": "$HOME/WorkBuddy/QuantTradingSystem",
+          "learnings_dirs": [
+            "$HOME/WorkBuddy/QuantTradingSystem/.learnings"
+          ],
+          "todo_globs": [
+            "$HOME/WorkBuddy/QuantTradingSystem/*.py",
+            "$HOME/WorkBuddy/QuantTradingSystem/**/*.py"
+          ],
+          "tests_cmd": null
+        },
+        {
+          "project": "StockInsight",
+          "root": "$HOME/WorkBuddy/StockInsight",
+          "learnings_dirs": [
+            "$HOME/WorkBuddy/StockInsight/.learnings"
+          ],
+          "todo_globs": [
+            "$HOME/WorkBuddy/StockInsight/*.py",
+            "$HOME/WorkBuddy/StockInsight/backend/**/*.py"
+          ],
+          "tests_cmd": null
+        }
+      ]
+    },
+    "dedup": {
+      "index": ".workbuddy/inspection_hub/discovery_archive/dedup_index.json",
+      "rule": "target_project|skill|归一URL(去协议/query)|归一建议前120字 → sha1；命中索引即视为重复，不再入队",
+      "why": "已实测：同一候选在 applied 列表里重复落地 3 次（skill-lifecycle-registry.md）→ 去重是卫生问题不是优化"
+    },
+    "metric_policy": {
+      "require_success_metric": true,
+      "require_target_project": true,
+      "allowed_targets": [
+        "Claw",
+        "QTS",
+        "StockInsight",
+        "meta",
+        "none"
+      ],
+      "real_project_priority": true,
+      "blocked_metric_alert_min": 3,
+      "why": "没有可判定指标的候选 = 无法证真的『优化』。落地通道只放行带指标的；被指标闸拦下的条数达 block_metric_alert_min 即提示（症状准×药方对：去每日扫描里补 success_metric），避免回路被静默卡死。"
+    },
+    "high_value_bypass": {
+      "enabled": true,
+      "rule": "value=high 且 risk=low 且 target_project ∈ 真实项目 且 success_metric 非空 → 不等周度排序，当日推卡",
+      "why": "对照 Renovate：安全补丁绕排期立即发；高危单独人工批。发现节奏 ≠ 采纳节奏。"
+    },
+    "impact_recheck": {
+      "default_after_days": 7,
+      "allow_check_cmd": true,
+      "cmd_timeout_sec": 60,
+      "why": "落地即宣布成功 = 退化裁判（SEAL 实证：自评维持 90 分、真实部署塌到随机线）。只认外部可验证的结论：有 check_cmd 就跑命令取退出码；没有就报『需裁决』，不许自己给自己打勾。"
+    }
+  },
+  "evolution_radar": {
+    "updated_at": "2026-10-09T18:42:15+08:00",
+    "rings": {
+      "Adopt": [],
+      "Trial": [],
+      "Assess": [
+        "disc-20260923-01",
+        "disc-20261004-03",
+        "disc-20261005-02",
+        "disc-20261005-03",
+        "disc-20261006-01",
+        "disc-20261006-02",
+        "disc-20261006-03",
+        "disc-20261007-01",
+        "disc-20261007-02",
+        "disc-20261007-03",
+        "disc-20261008-01",
+        "disc-20261008-02",
+        "disc-20261008-03",
+        "disc-20261009-01",
+        "disc-20261009-02",
+        "disc-20261009-03",
+        "disc-20261009-04"
+      ],
+      "Caution": [
+        "disc-20260922-02",
+        "disc-20260923-03",
+        "disc-20260925-04",
+        "disc-20260925-05"
+      ]
+    },
+    "history": [
+      {
+        "week": "2026-W41",
+        "ts": "2026-10-09T18:42:15+08:00",
+        "pool": 21,
+        "counts": {
+          "Adopt": 0,
+          "Trial": 0,
+          "Assess": 17,
+          "Caution": 4
+        },
+        "movements": [
+          {
+            "id": "disc-20260922-02",
+            "from": null,
+            "to": "Caution",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20260923-01",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20260923-03",
+            "from": null,
+            "to": "Caution",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20260925-04",
+            "from": null,
+            "to": "Caution",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20260925-05",
+            "from": null,
+            "to": "Caution",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261004-03",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261005-02",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261005-03",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261006-01",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261006-02",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261006-03",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261007-01",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261007-02",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261007-03",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261008-01",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261008-02",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261008-03",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261009-01",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261009-02",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261009-03",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261009-04",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          }
+        ],
+        "real_project_share": {
+          "total": 21,
+          "real_project": 0,
+          "meta": 21,
+          "none": 0,
+          "real_project_share": 0.0
+        },
+        "no_metric_in_assess": 17
+      }
+    ],
+    "note": "周度排序状态：发现节奏 ≠ 采纳节奏。Adopt/Trial/Assess/Caution 四环 + 升降环记录；落地仍逐条增量（禁批量落地）。"
+  },
+  "value_scoreboard": {
+    "updated_at": null,
+    "by_impact": {},
+    "by_project": {},
+    "real_project_share": {
+      "total": 57,
+      "real_project": 0,
+      "meta": 57,
+      "none": 0,
+      "real_project_share": 0.0
+    },
+    "legacy_unmeasured": 36,
+    "note": "收益记分板：只统计可回查的结论（achieved/partial/none）。『优化』= 指标相对基线提升，不是『看起来更好了』。"
+  }
 }

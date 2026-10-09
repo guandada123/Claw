@@ -35,6 +35,17 @@ DEFAULT_REGISTRY = CLAW / ".workbuddy" / "inspection_hub" / "registry.json"
 DEFAULT_SKILLS_DIR = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "skills"
 CALIBRATION_DIR = CLAW / ".workbuddy" / "inspection_hub" / "calibration"
 
+# v1.10：锚点与指标口径从**单一真源**取（防"新增一个项目名，五个脚本各判一次"）
+sys.path.insert(0, str(SCRIPT.parent))
+try:  # pragma: no cover - 降级路径仅为健壮性
+    from discovery_schema import TARGET_PROJECTS as _ALLOWED_TARGETS
+    from discovery_schema import has_metric as _has_metric
+except Exception:  # noqa: BLE001
+    _ALLOWED_TARGETS = ("Claw", "QTS", "StockInsight", "meta", "none")
+    _has_metric = lambda c: bool(str(c.get("success_metric") or "").strip()) or bool(  # noqa: E731
+        str(c.get("check_cmd") or "").strip()
+    )
+
 DEFAULT_CFG = {
     "mode": "calibrate",
     "top_n": 3,
@@ -44,6 +55,10 @@ DEFAULT_CFG = {
         "risk_max": ["low"],
         "require_host": True,
         "require_doc_target": True,
+        # v1.10：没有目标锚点 / 没有可判定指标的候选 = 无法证真的「优化」→ 不进落地通道
+        #   （旧口径的产物：57 条候选 100% 落在技能元层、落地即宣布成功、零收益回查）
+        "require_target_project": True,
+        "require_success_metric": True,
     },
 }
 
@@ -84,37 +99,52 @@ def doc_target(c: dict) -> str | None:
     return m.group(1) if m else None
 
 
-def quality_gate(c: dict, cfg: dict, skills_dir: Path) -> tuple[bool, str]:
+def metric_of(c: dict) -> str:
+    return str(c.get("success_metric") or c.get("check_cmd") or "").strip()
+
+
+def quality_gate(c: dict, cfg: dict, skills_dir: Path) -> tuple[bool, str, str]:
+    """返回 (通过?, 理由, 理由码)。理由码供调用方分类统计（尤其「指标闸拦下」要能单独计数）。
+
+    理由码：pass | status | value | risk | host | doc_target | target_project | success_metric
+    """
     g = cfg.get("quality_gate", DEFAULT_CFG["quality_gate"])
     if c.get("status") not in g.get("allow_status", []):
-        return False, f"status={c.get('status')} 不在允许集"
+        return False, f"status={c.get('status')} 不在允许集", "status"
     if c.get("value") not in g.get("value_min", []):
-        return False, f"value={c.get('value')} 低于阈"
+        return False, f"value={c.get('value')} 低于阈", "value"
     if c.get("risk") not in g.get("risk_max", []):
-        return False, f"risk={c.get('risk')} 高于阈"
+        return False, f"risk={c.get('risk')} 高于阈", "risk"
     skill = c.get("skill") or ""
     if g.get("require_host", True) and (not skill or not (skills_dir / skill).is_dir()):
-        return False, f"承载方缺失: {skill or '(空)'}"
+        return False, f"承载方缺失: {skill or '(空)'}", "host"
     if g.get("require_doc_target", True) and not doc_target(c):
-        return False, "无文档落地目标(references/README/CHANGELOG)"
-    return True, "pass"
+        return False, "无文档落地目标(references/README/CHANGELOG)", "doc_target"
+    # v1.10 新增两道闸（顺序：先锚点后指标 —— 先问"优化谁"，再问"怎么算优化成功"）
+    if g.get("require_target_project", True):
+        tp = str(c.get("target_project") or "").strip()
+        if tp not in _ALLOWED_TARGETS or tp == "none":
+            return False, f"无目标锚点(target_project={tp or '(空)'}) — 不知道优化谁", "target_project"
+    if g.get("require_success_metric", True) and not _has_metric(c):
+        return False, "无可判定指标(success_metric) — 优化无法证真", "success_metric"
+    return True, "pass", "pass"
 
 
 def select(reg: dict, cfg: dict, skills_dir: Path) -> tuple[list[dict], list[dict]]:
     passed, dropped = [], []
     for c in reg.get("discovery_candidates", []) or []:
         try:
-            ok, why = quality_gate(c, cfg, skills_dir)
+            ok, why, code = quality_gate(c, cfg, skills_dir)
         except Exception as e:  # noqa: BLE001
-            ok, why = False, f"gate 异常: {e}"
+            ok, why, code = False, f"gate 异常: {e}", "error"
         if ok:
             passed.append(c)
         else:
-            dropped.append({"id": c.get("id"), "why": why})
+            dropped.append({"id": c.get("id"), "why": why, "code": code})
     top_n = int(cfg.get("top_n", 3))
     sel = passed[:top_n]
     if len(passed) > top_n:
-        dropped.append({"id": f"(+{len(passed) - top_n} 条过闸但被 top_n 限流)", "why": "top_n"})
+        dropped.append({"id": f"(+{len(passed) - top_n} 条过闸但被 top_n 限流)", "why": "top_n", "code": "top_n"})
     return sel, dropped
 
 
@@ -140,13 +170,25 @@ def write_calibration_report(
     for i, c in enumerate(sel, 1):
         lines += [
             f"{i}. `{c.get('id')}` · {c.get('skill')} · 价值={c.get('value')} / 风险={c.get('risk')}",
-            f"   - 目标：`{doc_target(c)}`",
+            f"   - 目标锚点：**{c.get('target_project') or '(空)'}** · 轨道={c.get('track') or '(空)'}",
+            f"   - 目标文件：`{doc_target(c)}`",
+            f"   - 成功指标：{metric_of(c) or '(无)'}",
             f"   - 来源：{c.get('url', '(无)')}",
             f"   - 依据：{c.get('suggestion', '(无)')}",
         ]
+    blocked_metric = [d for d in dropped if d.get("code") == "success_metric"]
+    blocked_anchor = [d for d in dropped if d.get("code") == "target_project"]
     lines += ["", "## 被滤除（质量闸）"]
     for d in dropped:
         lines.append(f"- `{d.get('id')}` — {d.get('why')}")
+    lines += [
+        "",
+        "## v1.10 指标闸（新）",
+        f"- 因**无目标锚点**被拦：{len(blocked_anchor)} 条",
+        f"- 因**无可判定指标**被拦：{len(blocked_metric)} 条",
+        "- 药方：在「🛡️ 统一发现-每日扫描」里给候选补 `target_project` + `success_metric`（可判定、可复核）后才进本通道；",
+        "  补不出指标的 → 在周度排序里落到 `Assess`（先评估）或 `rejected`，**不再默认落地**。",
+    ]
     lines += [
         "",
         "## 说明",
@@ -184,6 +226,9 @@ def write_parity_ledger(sel: list[dict], mode: str, report: Path) -> Path:
                 "value": c.get("value"),
                 "risk": c.get("risk"),
                 "url": c.get("url"),
+                "target_project": c.get("target_project"),
+                "track": c.get("track"),
+                "success_metric": c.get("success_metric"),
             }
             for c in sel
         ],
@@ -268,6 +313,9 @@ def main() -> int:
             da["calibrate_start"] = datetime.datetime.now().strftime("%Y-%m-%d")
         save_registry(Path(args.registry), reg)
 
+    blocked_metric = sum(1 for d in dropped if d.get("code") == "success_metric")
+    blocked_anchor = sum(1 for d in dropped if d.get("code") == "target_project")
+    alert_min = int(reg.get("doc_apply", {}).get("blocked_metric_alert_min", 3))
     out = {
         "ok": True,
         "mode": mode,
@@ -279,10 +327,21 @@ def main() -> int:
                 "target": doc_target(c),
                 "value": c.get("value"),
                 "risk": c.get("risk"),
+                "target_project": c.get("target_project"),
+                "track": c.get("track"),
+                "success_metric": c.get("success_metric"),
             }
             for c in sel
         ],
         "dropped": dropped,
+        "dropped_by_code": {
+            code: sum(1 for d in dropped if d.get("code") == code)
+            for code in sorted({d.get("code") for d in dropped})
+        },
+        "blocked_metric": blocked_metric,
+        "blocked_anchor": blocked_anchor,
+        "metric_alert": blocked_metric >= alert_min,
+        "metric_alert_min": alert_min,
         "report": str(report.relative_to(CLAW)),
         "silent": len(sel) == 0,
     }
@@ -293,9 +352,18 @@ def main() -> int:
             f"[apply_doc] mode={mode} 入选 {len(sel)} 条 / 滤除 {len(dropped)} 条 -> {out['report']}"
         )
         for c in out["selected"]:
-            print(f"  · {c['id']} [{c['skill']}] -> {c['target']}")
+            print(
+                f"  · {c['id']} [{c['skill']}] -> {c['target']}"
+                f"（锚点 {c['target_project']}｜指标 {c['success_metric'] or '(无)'}）"
+            )
         if out["silent"]:
             print("[apply_doc] 无过闸候选 → SILENT")
+        if blocked_metric:
+            flag = "⚠️ 达告警阈" if out["metric_alert"] else "（未达阈）"
+            print(
+                f"[apply_doc] v1.10 指标闸拦下 {blocked_metric} 条（无 success_metric）"
+                f"、锚点闸拦下 {blocked_anchor} 条 {flag}"
+            )
     return 0
 
 
