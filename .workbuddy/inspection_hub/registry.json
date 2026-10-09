@@ -556,7 +556,7 @@
     },
     {
       "id": "disc-20260925-05",
-      "status": "proposed",
+      "status": "applied",
       "core_change": true,
       "skill": "unified-inspection-hub",
       "value": "medium",
@@ -567,16 +567,19 @@
       "proposal": "脚本误报修复提案：pre-task.sh 对 UUID 型 automation id 一律报『格式异常 + gates_failed=1』，稀释真失败信号。建议把 id 校验放宽为『UUID 或 automation- 前缀』二者皆可。目标 = 脚本(*.sh) = 核心类 -> 仅提案，本自动化不改写。",
       "track": "external_trend",
       "target_project": "meta",
-      "success_metric": null,
+      "success_metric": "bash .workbuddy/hooks/pre-task.sh 自检中 UUID 用例输出「✅ 通过(UUID 新式)」",
       "check_cmd": null,
       "metric_baseline": null,
       "recheck_after_days": 7,
-      "landed_at": null,
+      "landed_at": "2026-10-09",
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
       "ring": "Caution",
-      "ring_prev": null
+      "ring_prev": null,
+      "resolved_at": "2026-10-09",
+      "applied_action": "pre-task.sh validate_automation_id 现同时接受 automation-* 与 UUID 形态（v1.10.1, commit 29768c2）；自检新增 UUID 回归用例",
+      "resolution": "L3 护栏对中枢 UUID 型自动化 id 的「误报稀释」已消除：自检 ✔旧式前缀 ✔UUID ✘裸数字"
     },
     {
       "id": "disc-20260926-01",
@@ -1927,7 +1930,8 @@
     "2026-10-09 本通道自身契约缺口登记为 disc-20261009-04（proposed/needs_review）：主产物 references/*.md 不在 git 内 → 铁律❺ 回滚对本通道主产物名义化；Step 4 回写在 commit 之后。走周度审。",
     "2026-10-09T18:38:54+08:00 v1.10 迁移：候选补 target_project/track/success_metric/impact 等字段（57 条）；新增 discovery_policy, evolution_radar, value_scoreboard；quality_gate 增补 require_target_project, require_success_metric；version 1.9.1→1.10.0",
     "2026-10-09T18:42:15+08:00 周度统一排序（2026-W41）：待排序 21｜四环 {'Adopt': 0, 'Trial': 0, 'Assess': 17, 'Caution': 4}｜升降环 21",
-    "2026-10-09T19:34:34+08:00 v1.10.1 修补（自审发现）：重复落地收敛：2 条 → superseded（保留 disc-20260925-03）；QTS 空转 glob 移除：1 条（顶层实际 0 个 py）；doc_apply.metric_alert_min_interval_days=7（防每日告警疲劳）；版本 1.10.0 → 1.10.1"
+    "2026-10-09T19:34:34+08:00 v1.10.1 修补（自审发现）：重复落地收敛：2 条 → superseded（保留 disc-20260925-03）；QTS 空转 glob 移除：1 条（顶层实际 0 个 py）；doc_apply.metric_alert_min_interval_days=7（防每日告警疲劳）；版本 1.10.0 → 1.10.1",
+    "2026-10-09T19:36:13+08:00 状态同步：1 条自身契约缺口候选 → applied（disc-20260925-05，依据 v1.10.1 commit 29768c2）"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
