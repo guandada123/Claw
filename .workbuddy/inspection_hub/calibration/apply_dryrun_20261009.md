@@ -1,22 +1,28 @@
-# 文档类候选落地 · 校准报告 2026-10-09 00:40
+# 文档类候选落地 · 校准报告 2026-10-09 19:49
 
 - 模式：**live**（calibrate=只读零写入；live=产出待执行计划，由 agent 落地）
 - 过闸并入选：3 条（top_n 限流后）
-- 被滤除：50 条
+- 被滤除：56 条
 
 ## 本会改什么（入选）
-1. `disc-20261004-01` · majiu-management · 价值=high / 风险=low
-   - 目标：`references/skill-effectiveness-benchmark.md`
-   - 来源：https://github.com/benchflow-ai/skillsbench
-   - 依据：借鉴为 majiu-management 的『技能效能基准』：把 with_skill/without_skill A/B 度量法 + oracle-先过-verifier 闸门 落成 references/skill-effectiveness-benchmark.md（文档类 auto_apply，不改动核心 SKILL.md）；补既有 eval/安全候选缺的『可量化增益』维度（与安全扫描互补：一个管质量，一个管安全）。
-2. `disc-20261004-02` · majiu-management · 价值=high / 风险=low
-   - 目标：`references/skill-source-trust.md`
-   - 来源：https://www.agensi.io/learn/best-ai-agent-skills-marketplaces-2026
-   - 依据：借鉴为 majiu-management 的『来源信任分级 + 安装审计闸门』：把 8 点安全扫描清单 + ClawHavoc 实证(36% 注入/7.1% 严重漏洞) 落成 references/skill-source-trust.md（文档类 auto_apply，不改动核心 SKILL.md）；与 disc-20260929-02(OWASP AST10) / disc-20260928-01(ESR 安全扫描) 互补——本源提供『市场级实测 prevalence + 可勾选扫描清单』，后者提供『风险分类框架 + 工具』。
-3. `disc-20261005-01` · majiu-management · 价值=high / 风险=low
-   - 目标：`references/skill-package-manifest.md`
-   - 来源：https://github.com/agentskills/agentskills/discussions/210
-   - 依据：借鉴为 majiu-management 的『技能包清单』：把 skills.json(声明依赖/版本/分发) + skills.lock(钉版校验) 落成 references/skill-package-manifest.md（文档类 auto_apply，不改动核心 SKILL.md）；与 disc-20260925-02(gh skill 钉版+溯源) / disc-20261003-01(zooz manifest owner/pin/scope) 互补——本源提供『跨仓库依赖解析 + lockfile 可复现』的标准提案，后者提供『发布/钉版 CLI』。
+1. `disc-20261004-03` · a-stock-data · 价值=medium-high / 风险=low
+   - 目标锚点：**meta** · 轨道=external_trend
+   - 目标文件：`references/realtime-l2-tick.md`
+   - 成功指标：a-stock-data/references/realtime-l2-tick.md 已落地，且含『mootdx』与『腾讯』两个零鉴权 L2 数据源小节
+   - 来源：https://www.toolify.ai/openclaw-skills/a-share-real-time-data-18701
+   - 依据：对标本地 a-stock-data 数据层扩展：在 references/ 增补 realtime-l2-tick.md，记录 mootdx(TDX L2盘口+tick，零鉴权但依赖公共服稳定性) 与 stock-price(腾讯免费 curl，零鉴权，GBK解码) 两个可借鉴源；文档类 auto_apply，不改动核心 SKILL.md。（注：L2/逐笔是日内交易与做T的关键深度数据，本地 a-stock-data 现有源未覆盖；mootdx 公共服曾停服见 disc-20260926-01，须作备用而非唯一源。）
+2. `disc-20261006-02` · a-stock-data · 价值=high / 风险=low
+   - 目标锚点：**meta** · 轨道=external_trend
+   - 目标文件：`references/a-share-sentiment-moneyflow.md`
+   - 成功指标：a-stock-data/references/a-share-sentiment-moneyflow.md 已落地，且含『情绪』与『资金流』两个维度小节
+   - 来源：https://github.com/very99/stock-mcp
+   - 依据：补本地 a-stock-data 缺的『新闻情绪 + 资金流向』维度（既有 MCP 候选仅覆盖行情/板块数据）：写 references/a-share-sentiment-moneyflow.md 能力对照（多源校验降级 + 情绪 + 资金流），文档类 auto_apply；MCP 交付与本地 Skill 互补，不改动核心
+3. `disc-20261006-03` · majiu-management · 价值=high / 风险=low
+   - 目标锚点：**meta** · 轨道=external_trend
+   - 目标文件：`references/skill-routing-dispatch.md`
+   - 成功指标：majiu-management/references/skill-routing-dispatch.md 已落地，且含『置信度』触发与『降级』链两节
+   - 来源：https://github.com/paulpas/agent-skill-router
+   - 依据：为 majiu-management 补『技能路由分发』治理维度（既有候选覆盖生命周期/安全/市场/注册表，未覆盖路由）：落地 references/skill-routing-dispatch.md（置信度触发匹配 + skills-index + 降级链 + 路由事件日志），文档类 auto_apply；与本地 skills 索引/自动加载协同
 
 ## 被滤除（质量闸）
 - `disc-20260922-01` — status=applied 不在允许集
@@ -31,8 +37,8 @@
 - `disc-20260925-01` — status=applied 不在允许集
 - `disc-20260925-02` — status=applied 不在允许集
 - `disc-20260925-03` — status=applied 不在允许集
-- `disc-20260925-04` — status=proposed 不在允许集
-- `disc-20260925-05` — status=proposed 不在允许集
+- `disc-20260925-04` — status=applied 不在允许集
+- `disc-20260925-05` — status=applied 不在允许集
 - `disc-20260926-01` — status=applied 不在允许集
 - `disc-20260926-02` — status=applied 不在允许集
 - `disc-20260926-03` — status=applied 不在允许集
@@ -46,9 +52,9 @@
 - `disc-20260929-02` — status=applied 不在允许集
 - `disc-20260929-03` — status=applied 不在允许集
 - `disc-20260930-01` — status=applied 不在允许集
-- `disc-20260930-02` — status=applied 不在允许集
+- `disc-20260930-02` — status=superseded 不在允许集
 - `disc-20260930-03` — status=applied 不在允许集
-- `disc-20261001-01` — status=applied 不在允许集
+- `disc-20261001-01` — status=superseded 不在允许集
 - `disc-20261001-02` — status=applied 不在允许集
 - `disc-20261001-03` — status=applied 不在允许集
 - `disc-20261002-01` — status=applied 不在允许集
@@ -57,18 +63,30 @@
 - `disc-20261003-01` — status=applied 不在允许集
 - `disc-20261003-02` — status=applied 不在允许集
 - `disc-20261003-03` — status=applied 不在允许集
-- `disc-20261004-03` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261005-02` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261007-01` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261007-02` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261007-03` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261008-01` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261008-02` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261008-03` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261009-01` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261009-02` — 无文档落地目标(references/README/CHANGELOG)
-- `disc-20261009-03` — 无文档落地目标(references/README/CHANGELOG)
-- `(+4 条过闸但被 top_n 限流)` — top_n
+- `disc-20261004-01` — status=applied 不在允许集
+- `disc-20261004-02` — status=applied 不在允许集
+- `disc-20261005-01` — status=applied 不在允许集
+- `disc-20261005-02` — status=rejected 不在允许集
+- `disc-20261005-03` — status=rejected 不在允许集
+- `disc-20261006-01` — status=rejected 不在允许集
+- `disc-20261007-01` — status=rejected 不在允许集
+- `disc-20261007-02` — status=rejected 不在允许集
+- `disc-20261007-03` — status=rejected 不在允许集
+- `disc-20261008-01` — status=rejected 不在允许集
+- `disc-20261008-02` — status=rejected 不在允许集
+- `disc-20261009-01` — status=rejected 不在允许集
+- `disc-20261009-03` — status=rejected 不在允许集
+- `disc-20261009-04` — status=applied 不在允许集
+- `disc-20261009-05` — status=applied 不在允许集
+- `disc-20261009-06` — 承载方缺失: (空)
+- `disc-20261008-03` — top_n 限流（本批配额 3）
+- `disc-20261009-02` — top_n 限流（本批配额 3）
+
+## v1.10 指标闸（新）
+- 因**无目标锚点**被拦：0 条
+- 因**无可判定指标**被拦：0 条
+- 药方：在「🛡️ 统一发现-每日扫描」里给候选补 `target_project` + `success_metric`（可判定、可复核）后才进本通道；
+  补不出指标的 → 在周度排序里落到 `Assess`（先评估）或 `rejected`，**不再默认落地**。
 
 ## 说明
 - 校准期（calibrate）本脚本**不写任何 skill 文档**，仅供对拍「本会改什么」。

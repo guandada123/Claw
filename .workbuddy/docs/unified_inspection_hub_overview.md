@@ -12,8 +12,9 @@
 ## 统一发现（每日脉冲做什么 · v1.10 双轨）
 **双轨发现**（v1.10 起；旧版只搜外网趋势，导致 57 条候选 100% 落在技能元层、真实项目零触达）：
 1. **Track 2 · 项目自身痛点**（新）：`project_signal_collect.py` 扫 Claw/QTS/StockInsight 的 `.learnings` 事故、TODO/FIXME、测试失败 → 候选（target_project 必为真实项目）
+   - ⚠️ 扫描**排除** `.venv`/`site-packages`/`node_modules`/`__pycache__` 等第三方产物，且排除发生在配额计数之前；输出 `per_project[].third_party_excluded` 供对照（「0 信号」与「全被排除」必须可分）
 2. **Track 1 · 内部健康快照**：复用既有脚本 `--json`/`--dry-run`（缺失则降级跳过）
-3. **Track 1 · 外部同类研究**：对 `evolution_watch_skills` 各跑 1 条 curated WebSearch；另对真实项目各补 1 条定向检索
+3. **Track 1 · 外部同类研究**：对 `discovery_policy.trend_watch.skills` 各跑 1 条 curated WebSearch；另对真实项目各补 1 条定向检索
 4. **比对 → 候选**：每条**必须**带 `target_project`（Claw\|QTS\|StockInsight\|meta\|none）+ `success_metric`（可判定指标；可选 `check_cmd`＝退出码 0 即 achieved）
 5. **去重闸**：`discovery_dedup.py` 归一 URL/主张算键，重复项丢弃（已实测同一条重复落地 3 次）
 6. **写回 registry**：`discovery_candidates[]` 状态 pending
@@ -23,14 +24,21 @@
 周度**只排序，不批量落地**（对照技术雷达：发现节奏 ≠ 采纳节奏；对照 AutoResearch：每次只改一处）：
 1. `project_signal_collect.py --days 7` 回看本周项目痛点
 2. `weekly_radar_sort.py --apply` → 四环 **Adopt/Trial/Assess/Caution** + 记**升降环** + 产出价值结论式周报
-3. 按环处置：Adopt→落地通道 / Trial→文档类 / **Assess→补 `success_metric` 或 rejected** / Caution→仅提案待审
+3. 按环处置：**Adopt→分两种落地物**（白名单文档 → 交 00:40；项目代码/`class=core` → 只生成 diff 提案 + `proposed` + 保留 `needs_review` 待授权）/ Trial→文档类 / **Assess→补 `success_metric` 或 rejected** / Caution→仅提案待审
 4. `impact_recheck.py --apply` → 收益回查（有 `check_cmd` 机器判定；无则按指标找库外证据裁决，**不许自己打勾**）
+
+## 技能库版本控制（v1.10.2 · 主产物的真回滚点）
+`~/.workbuddy/skills`（`/Volumes/ZHITAI/workbuddy_data/skills`）**已纳入独立 git 仓库** —— 此前不在任何 git 内，
+导致 `references/*.md`、`SKILL.md` 的演进只能靠手工 `cp *.bak`，铁律「每批 1 commit + 1 回滚点」对主产物只是名义上的。
+- 工具：`.workbuddy/scripts/skills_vcs.sh`（`snapshot` / `rollback <path>` / `revert <sha>` / `status` / `head` / `log` / `diff` / `ensure`）
+- 落地前后各打一次 snapshot；回滚由脚本执行（未跟踪文件移入 `_trash/` 而非删除）
+- `*.bak` / `__pycache__` / `.venv` / `node_modules` 已进 `.gitignore`
 
 ## 统一管理（registry 管什么）
 - `automations[]`：本中枢全部自动化（**只放声明**：id / rrule / status / note —— 运行时间读 DB `automation_runs`）
-- `evolution_watch_skills[]`：纳入演进观察的 skill 子集
-- `discovery_candidates[]`：每日发现队列（pending→approved→applied/rejected）＋ v1.10 的 `track`/`target_project`/`success_metric`/`impact`/`ring`
-- `discovery_policy`（v1.10）：双轨定义 / `project_watch.anchors[]` 真实项目锚点 / `dedup` / `metric_policy`（指标闸）/ `high_value_bypass` / `impact_recheck`
+- ~~`evolution_watch_skills[]`~~：⛔ **v1.10.2 已废弃删除** → 迁入 `discovery_policy.trend_watch.skills[]`（消除双真源）
+- `discovery_candidates[]`：每日发现队列（pending→approved→applied/rejected/superseded）＋ v1.10 的 `track`/`target_project`/`success_metric`/`doc_target`/`landed_at`/`metric_baseline`/`impact`/`ring`
+- `discovery_policy`（v1.10，**观察面单一真源**）：双轨定义 / `trend_watch.skills[]` / `project_watch.anchors[]` 真实项目锚点 / `dedup` / `metric_policy`（指标闸）/ `high_value_bypass` / `impact_recheck`
 - `evolution_radar`（v1.10）：四环状态 + 升降环历史
 - `value_scoreboard`（v1.10）：收益记分板（by_impact / by_project / real_project_share / legacy_unmeasured）
 - `runbook_whitelist[]`：已注册安全动作
@@ -44,9 +52,9 @@
 ## 演进节奏（registry 中状态）
 | 频率 | 自动化 | 状态 |
 |---|---|---|
-| 每日 00:20（免费窗口） | 🛡️ 统一发现-每日扫描 | ✅ ACTIVE v1.3（id `2a404a97-c262-4cad-8a43-3c5a69febfbb`）**双轨**：项目痛点 + 内部健康 + 外部研究 → 带锚点与指标的候选 → 去重闸 |
-| 每日 00:40（免费窗口） | 📥 每日·文档类落地（校准/生效自动） | ✅ ACTIVE v1.5（id `1fd52465-899f-4525-a82d-4cc5df01155c`）质量闸 top≤3 + **指标闸**（无 `success_metric` 不落地）；mode=live |
-| 每周六 23:22 | 🧬 技能演进-周度 | ✅ ACTIVE v1.3（id `0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4`）**统一排序**（四环+升降环）+ 收益回查 |
+| 每日 00:20（免费窗口） | 🛡️ 统一发现-每日扫描 | ✅ ACTIVE v1.4（id `2a404a97-c262-4cad-8a43-3c5a69febfbb`）**双轨**：项目痛点 + 内部健康 + 外部研究 → 带锚点与指标的候选 → 去重闸（趋势轨读 `discovery_policy.trend_watch.skills`） |
+| 每日 00:40（免费窗口） | 📥 每日·文档类落地（校准/生效自动） | ✅ ACTIVE v1.7（id `1fd52465-899f-4525-a82d-4cc5df01155c`）质量闸 top≤3 + **指标闸**（无 `success_metric` 不落地）+ 技能库快照/回滚；`applied` 回写仅 live |
+| 每周六 23:22 | 🧬 技能演进-周度 | ✅ ACTIVE v1.4（id `0dd41dcb-b1b3-4cfd-bd73-75fd7cbf12c4`）**统一排序**（四环+升降环）+ Adopt 分流（文档/核心类）+ 收益回查 |
 | 每月 1 号 23:44 | 🧹 技能卫生审计 | ✅ ACTIVE（id `a0b1b435-225f-43eb-8e9b-a7bb82fde97a`）复用 skill-hygiene（缺失降级只读盘点） |
 | 每季首日 23:49 | 🐴 空间+技能巡检 | ✅ ACTIVE（majiu 季度巡检 id 52db25b4-…） |
 | 每 2h | 💓 中枢存活看门狗 | ✅ ACTIVE（id `337116da-e9b3-46f6-8993-a00b35ad7e86`，cwds=QTS 符合禁托管新规）独立调度 |

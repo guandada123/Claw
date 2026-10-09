@@ -198,3 +198,86 @@ def test_real_project_share_counts_and_legacy_is_empty():
     sh = real_project_share(cands)
     assert (sh["real_project"], sh["meta"], sh["real_project_share"]) == (2, 2, 0.5)
     assert is_real_project("StockInsight") and not is_real_project("meta")
+
+
+# ------------------------------------------------ v1.10.2 自审修复的回归守卫
+def test_doc_target_prefers_explicit_field():
+    """落地目标必须以**显式字段**为准，不能只靠散文正则猜。
+
+    病根：`references/ 增补 xxx.md`（斜杠后带空格）让旧正则匹配不到 → 候选被误判"无文档目标"。
+    """
+    # ① 散文里没有连续路径，但显式字段给了 → 必须认出来
+    c = _cand(suggestion="在 references/ 增补 realtime-l2-tick.md 记录两个源",
+              doc_target="references/realtime-l2-tick.md")
+    assert adc.doc_target(c) == "references/realtime-l2-tick.md"
+
+    # ② metric_target_file 里的绝对/家目录写法也要能归一
+    c2 = _cand(suggestion="no path here",
+               metric_target_file="~/.workbuddy/skills/a-stock-data/references/x.md")
+    assert adc.doc_target(c2) == "references/x.md"
+
+    # ③ 两者都没有 → 退回散文正则（保持旧兼容）
+    c3 = _cand(suggestion="写 references/fallback.md")
+    assert adc.doc_target(c3) == "references/fallback.md"
+
+    # ④ 都没有且散文只有断裂路径 → None（不得臆造目标）
+    c4 = _cand(suggestion="在 references/ 增补 xxx.md")
+    assert adc.doc_target(c4) is None
+
+
+def test_select_expands_top_n_drops_per_candidate(skills_dir):
+    """过闸但被 top_n 限流的，必须**逐条**在 dropped 里，不能压成一条聚合摘要。
+
+    病根：旧写法丢一条 `(+N 条过闸但被 top_n 限流)` → `dropped_by_code` 记「1 条」，
+    读起来像"只挤掉 1 条"，实际挤掉 N 条（聚合值抹平组成变化）。
+    """
+    reg = {"discovery_candidates": [
+        _cand(id=f"disc-20261009-1{i}", target_project="meta", success_metric="m", check_cmd="exit 0")
+        for i in range(5)
+    ]}
+    cfg = {"top_n": 2, "quality_gate": adc.DEFAULT_CFG["quality_gate"]}
+    sel, dropped = adc.select(reg, cfg, skills_dir)
+    assert len(sel) == 2
+    topn = [d for d in dropped if d.get("code") == "top_n"]
+    assert len(topn) == 3 and all(d["id"] != "" for d in topn)
+    assert not any("条过闸" in str(d.get("id")) for d in dropped)
+
+
+def test_exclude_dir_parts_filters_third_party():
+    """第三方/构建产物必须被排除 —— 它们占配额会把真实项目的痛挤没。
+
+    实测病根：QTS 20 条"痛点"100% 来自 `.venv/.../_pytest`，真实项目 279 个 py 一个没扫到。
+    """
+    from pathlib import Path
+
+    import project_signal_collect as psc
+
+    third = [
+        "/p/.venv/lib/python3.13/site-packages/_pytest/code.py",
+        "/p/node_modules/x/y.js",
+        "/p/__pycache__/a.py",
+        "/p/build/lib/a.py",
+        "/p/src/x.egg-info/PKG-INFO",
+    ]
+    for s in third:
+        assert psc._is_excluded(Path(s)), s
+    real = ["/p/services/live_pipeline.py", "/p/src/claw/scripts/x.py", "/p/tests/test_a.py"]
+    for s in real:
+        assert not psc._is_excluded(Path(s)), s
+
+
+def test_collect_todos_excludes_third_party_and_counts_them(tmp_path):
+    """端到端：同一棵树里真实文件与 .venv 都带 TODO，只能回收真实的那条。"""
+    import project_signal_collect as psc
+
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "real.py").write_text("# TODO: 真项目的痛\ndef f(): pass\n", encoding="utf-8")
+    venv = tmp_path / ".venv" / "lib" / "site-packages"
+    venv.mkdir(parents=True)
+    for i in range(30):
+        (venv / f"lib{i}.py").write_text("# XXX: 第三方噪音\ndef g(): pass\n", encoding="utf-8")
+
+    hits, excluded = psc.collect_todos({"todo_globs": [f"{tmp_path}/**/*.py"]}, 120, 20)
+    assert len(hits) == 1 and "真项目的痛" in hits[0]["title"]
+    assert excluded == 30
+    assert not any(".venv" in (h.get("file") or "") for h in hits)

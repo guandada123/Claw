@@ -94,6 +94,24 @@ def save_registry(path: Path, reg: dict) -> bool:
 
 
 def doc_target(c: dict) -> str | None:
+    """落地目标文件的**唯一真源**：显式字段优先，正则仅作兜底。
+
+    病根（2026-10-09 实测）：目标文件原先只从 suggestion/applied_action 散文里正则猜，
+    要求 `references/xxx.md` 斜杠与文件名连续。同一件事写成 `references/ 增补 xxx.md`
+    （斜杠后带空格）就被静默判为「无文档落地目标」→ 候选被质量闸误拦 4 条。
+    目标文件是可声明的结构化事实，不该靠散文解析。
+    """
+    for key in ("doc_target", "metric_target_file"):
+        v = str(c.get(key) or "").strip()
+        if not v:
+            continue
+        m = DOC_TARGET_RE.search(v)
+        if m:
+            return m.group(1)
+        if v.endswith(".md"):
+            # 允许写绝对路径/家目录缩写：只保留 skills/ 之后的部分
+            tail = v.split("skills/", 1)[1] if "skills/" in v else v
+            return tail.lstrip("/")
     blob = " ".join(str(c.get(k, "")) for k in ("suggestion", "applied_action"))
     m = DOC_TARGET_RE.search(blob)
     return m.group(1) if m else None
@@ -143,8 +161,11 @@ def select(reg: dict, cfg: dict, skills_dir: Path) -> tuple[list[dict], list[dic
             dropped.append({"id": c.get("id"), "why": why, "code": code})
     top_n = int(cfg.get("top_n", 3))
     sel = passed[:top_n]
-    if len(passed) > top_n:
-        dropped.append({"id": f"(+{len(passed) - top_n} 条过闸但被 top_n 限流)", "why": "top_n", "code": "top_n"})
+    # v1.10.2：过闸但被 top_n 限流的，**逐条列出并保留 id**。
+    #   旧写法把 N 条压成一条摘要 `(+N 条过闸但被 top_n 限流)` → dropped_by_code 只记「1 条」，
+    #   读起来像「只挤掉 1 条」，实际挤掉 N 条 —— 典型的「聚合值抹平组成变化」。
+    for c in passed[top_n:]:
+        dropped.append({"id": c.get("id"), "why": f"top_n 限流（本批配额 {top_n}）", "code": "top_n"})
     return sel, dropped
 
 

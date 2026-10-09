@@ -44,6 +44,31 @@ TITLE_RE = re.compile(r"^#\s+(.+)$", re.M)
 GRADE_RE = re.compile(r"\*\*等级\*\*[:：]\s*([Pp][0-9])")
 MAX_BYTES_PER_FILE = 200_000
 
+# 必须排除的目录段：第三方/构建产物里的 TODO 不是**本项目的痛**。
+# 病根（2026-10-09 实测）：QTS 锚点 `QuantTradingSystem/**/*.py` 命中 14,343 个 py，
+#   其中 14,064 个在 `.venv/lib/python3.13/site-packages/`（真实项目文件仅 279 个）。
+#   且 sorted() 按字典序把 `.venv` 排在最前 → 20 条 max_hits 配额被 `_pytest` 的 XXX/TODO
+#   全部吃光，真实项目的痛**一条都扫不到** —— 典型「裁剪窗口被单噪声源占满」
+#   （与「数量骤降先怀疑口径」同源：这里反过来，数量虚高同样是口径坏了）。
+EXCLUDE_DIR_PARTS = frozenset(
+    {
+        ".venv", "venv", "env", "site-packages", "dist-packages",
+        "node_modules", ".git", "__pycache__", "build", "dist",
+        ".tox", ".nox", ".eggs", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        ".idea", ".vscode", "vendor", "third_party", "thirdparty", "egg-info",
+    }
+)
+
+
+def _is_excluded(p: Path) -> bool:
+    """路径任一段命中排除集 → 视为第三方/构建产物，不作项目痛点信号。"""
+    for seg in p.parts:
+        if seg in EXCLUDE_DIR_PARTS:
+            return True
+        if seg.endswith(".egg-info"):
+            return True
+    return False
+
 
 def _recent_dated_files(dirs: list[Path], days: int, cap: int = 40) -> list[tuple[Path, str]]:
     out: list[tuple[Path, str]] = []
@@ -111,8 +136,13 @@ def _resolve_glob(pat: str) -> tuple[Path | None, str]:
     return None, ""
 
 
-def collect_todos(anchor: dict, max_files: int, max_hits: int) -> list[dict]:
-    hits, scanned = [], 0
+def collect_todos(anchor: dict, max_files: int, max_hits: int) -> tuple[list[dict], int]:
+    """扫 TODO/FIXME/XXX/HACK。返回 (hits, excluded)。
+
+    ⚠️ 排除必须发生在**计数之前**：第三方/构建产物若先占掉 max_files/max_hits 配额，
+    真实项目的痛就被静默挤没了（见 EXCLUDE_DIR_PARTS 注释里的实测数据）。
+    """
+    hits, scanned, excluded = [], 0, 0
     for pat in anchor.get("todo_globs") or []:
         root, rel = _resolve_glob(pat)
         if root is None:
@@ -124,6 +154,9 @@ def collect_todos(anchor: dict, max_files: int, max_hits: int) -> list[dict]:
         for f in files:
             if scanned >= max_files or len(hits) >= max_hits:
                 break
+            if _is_excluded(f):
+                excluded += 1
+                continue
             if not f.is_file() or f.stat().st_size > MAX_BYTES_PER_FILE:
                 continue
             scanned += 1
@@ -145,7 +178,7 @@ def collect_todos(anchor: dict, max_files: int, max_hits: int) -> list[dict]:
                 )
         if scanned >= max_files or len(hits) >= max_hits:
             break
-    return hits
+    return hits, excluded
 
 
 def run_tests(anchor: dict, timeout: int) -> list[dict]:
@@ -205,7 +238,8 @@ def main() -> int:
             continue
         sig = []
         sig += collect_learnings(a, args.days)
-        sig += collect_todos(a, args.max_files, args.max_hits)
+        todos, excluded = collect_todos(a, args.max_files, args.max_hits)
+        sig += todos
         if args.with_tests:
             sig += run_tests(a, 180)
         for s in sig:
@@ -221,6 +255,7 @@ def main() -> int:
             "root": str(root),
             "signals": len(sig),
             "by_kind": {k: sum(1 for s in sig if s["kind"] == k) for k in sorted({s["kind"] for s in sig})},
+            "third_party_excluded": excluded,
         }
 
     # 排序：先按严重度（P1>P2>无），再按日期新→旧
@@ -243,7 +278,9 @@ def main() -> int:
     else:
         print(f"[signal] 锚点 {len(anchors)}｜信号 {len(signals)}")
         for p, v in per_project.items():
-            print(f"  · {p}: {v.get('signals', 0)} 条 {v.get('by_kind', v.get('error', ''))}")
+            ex = v.get("third_party_excluded")
+            ex_note = f"（另排除第三方/构建产物 {ex} 个文件）" if ex else ""
+            print(f"  · {p}: {v.get('signals', 0)} 条 {v.get('by_kind', v.get('error', ''))}{ex_note}")
         for s in signals[:12]:
             print(f"  - [{s['target_project']}/{s['kind']}/{s.get('severity') or '-'}] {s['title'][:90]}")
     return 0

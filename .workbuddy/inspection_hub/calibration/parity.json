@@ -474,38 +474,47 @@
     },
     "20261009:live": {
       "date": "2026-10-09",
-      "ts": "2026-10-09T00:40:51+08:00",
+      "ts": "2026-10-09T19:49:15+08:00",
       "mode": "live",
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261009.md",
       "selected": [
         {
-          "id": "disc-20261004-01",
-          "skill": "majiu-management",
-          "target": "references/skill-effectiveness-benchmark.md",
-          "value": "high",
+          "id": "disc-20261004-03",
+          "skill": "a-stock-data",
+          "target": "references/realtime-l2-tick.md",
+          "value": "medium-high",
           "risk": "low",
-          "url": "https://github.com/benchflow-ai/skillsbench"
+          "url": "https://www.toolify.ai/openclaw-skills/a-share-real-time-data-18701",
+          "target_project": "meta",
+          "track": "external_trend",
+          "success_metric": "a-stock-data/references/realtime-l2-tick.md 已落地，且含『mootdx』与『腾讯』两个零鉴权 L2 数据源小节"
         },
         {
-          "id": "disc-20261004-02",
-          "skill": "majiu-management",
-          "target": "references/skill-source-trust.md",
+          "id": "disc-20261006-02",
+          "skill": "a-stock-data",
+          "target": "references/a-share-sentiment-moneyflow.md",
           "value": "high",
           "risk": "low",
-          "url": "https://www.agensi.io/learn/best-ai-agent-skills-marketplaces-2026"
+          "url": "https://github.com/very99/stock-mcp",
+          "target_project": "meta",
+          "track": "external_trend",
+          "success_metric": "a-stock-data/references/a-share-sentiment-moneyflow.md 已落地，且含『情绪』与『资金流』两个维度小节"
         },
         {
-          "id": "disc-20261005-01",
+          "id": "disc-20261006-03",
           "skill": "majiu-management",
-          "target": "references/skill-package-manifest.md",
+          "target": "references/skill-routing-dispatch.md",
           "value": "high",
           "risk": "low",
-          "url": "https://github.com/agentskills/agentskills/discussions/210"
+          "url": "https://github.com/paulpas/agent-skill-router",
+          "target_project": "meta",
+          "track": "external_trend",
+          "success_metric": "majiu-management/references/skill-routing-dispatch.md 已落地，且含『置信度』触发与『降级』链两节"
         }
       ]
     }
   },
-  "updated_at": "2026-10-09T00:40:51+08:00",
+  "updated_at": "2026-10-09T19:49:15+08:00",
   "_notes": [
     "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
   ]

@@ -1,6 +1,6 @@
 {
   "hub": "unified-inspection-hub",
-  "version": "1.10.1",
+  "version": "1.10.2",
   "created_at": "2026-09-21",
   "updated_at": "2026-10-09T18:38:54+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
@@ -211,10 +211,6 @@
       "id": "52db25b4-b948-464b-ad62-44b77b875d2a"
     }
   ],
-  "evolution_watch_skills": [
-    "majiu-management",
-    "a-stock-data"
-  ],
   "discovery_candidates": [
     {
       "id": "disc-20260922-01",
@@ -266,7 +262,9 @@
       "impact_checked_at": null,
       "impact_note": null,
       "ring": "Caution",
-      "ring_prev": null
+      "ring_prev": "Caution",
+      "needs_review": true,
+      "parked_reason": "核心类改动（涉及 SKILL.md 主流程 / 跨 skill 编排），仅提案待人工授权；needs_review=true 使其每周被「🧬 技能演进-周度」重新拾取，不再搁浅"
     },
     {
       "id": "disc-20260922-03",
@@ -320,7 +318,9 @@
       "impact_checked_at": null,
       "impact_note": null,
       "ring": "Assess",
-      "ring_prev": null
+      "ring_prev": "Assess",
+      "needs_review": true,
+      "parked_reason": "核心类改动（涉及 SKILL.md 主流程 / 跨 skill 编排），仅提案待人工授权；needs_review=true 使其每周被「🧬 技能演进-周度」重新拾取，不再搁浅"
     },
     {
       "id": "disc-20260923-02",
@@ -372,7 +372,9 @@
       "impact_checked_at": null,
       "impact_note": null,
       "ring": "Caution",
-      "ring_prev": null
+      "ring_prev": "Caution",
+      "needs_review": true,
+      "parked_reason": "核心类改动（涉及 SKILL.md 主流程 / 跨 skill 编排），仅提案待人工授权；needs_review=true 使其每周被「🧬 技能演进-周度」重新拾取，不再搁浅"
     },
     {
       "id": "disc-20260924-01",
@@ -532,7 +534,7 @@
     },
     {
       "id": "disc-20260925-04",
-      "status": "proposed",
+      "status": "applied",
       "core_change": true,
       "skill": "unified-inspection-hub",
       "value": "high",
@@ -543,16 +545,19 @@
       "proposal": "核心守卫提案：unified-inspection-hub/SKILL.md 落地剧本须写明『calibrate 期零落地 => 零 applied 回写，仅回写 last_run』，并给 apply_doc_candidates.py 加断言。目标含 SKILL.md/脚本 = 核心类 -> 仅提案，本自动化不改写。根因：2026-09-25 run#1 实测 Step 4 字面指令与 calibrate 只读语义冲突，会静默销毁待落地成果。",
       "track": "external_trend",
       "target_project": "meta",
-      "success_metric": null,
+      "success_metric": "「📥 每日·文档类落地」prompt Step 4 明确『mode=calibrate ⇒ 零 applied 回写』（仅 live 模式回写候选状态）",
       "check_cmd": null,
       "metric_baseline": null,
       "recheck_after_days": 7,
-      "landed_at": null,
+      "landed_at": "2026-10-09",
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Caution",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "resolved_at": "2026-10-09",
+      "applied_action": "落地剧本 Step 4 改为 mode 感知：仅 mode=live 回写候选 status=applied；calibrate 期只写 _state_sync_notes（v1.10.2，每日落地 prompt v1.7）",
+      "resolution": "契约守卫落地：calibrate 期零落地 ⇒ 零 applied 回写，避免把未落地候选标记为已应用而被质量闸滤除（静默销毁待落地成果）"
     },
     {
       "id": "disc-20260925-05",
@@ -1297,16 +1302,19 @@
       "version": "v1",
       "track": "external_trend",
       "target_project": "meta",
-      "success_metric": null,
-      "check_cmd": null,
+      "success_metric": "a-stock-data/references/realtime-l2-tick.md 已落地，且含『mootdx』与『腾讯』两个零鉴权 L2 数据源小节",
+      "check_cmd": "test -f \"$HOME/.workbuddy/skills/a-stock-data/references/realtime-l2-tick.md\" && grep -q \"mootdx\" \"$HOME/.workbuddy/skills/a-stock-data/references/realtime-l2-tick.md\" && grep -q \"腾讯\" \"$HOME/.workbuddy/skills/a-stock-data/references/realtime-l2-tick.md\"",
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": null,
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": "Trial",
+      "ring_prev": "Trial",
+      "metric_target_file": "~/.workbuddy/skills/a-stock-data/references/realtime-l2-tick.md",
+      "triaged_at": "2026-10-09",
+      "triaged_note": "v1.10.2 人工清账：判为『有可判定指标』→ 进入落地通道（周度重排为 Trial）"
     },
     {
       "id": "disc-20261005-01",
@@ -1343,7 +1351,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "对标本地 a-stock-data 能力扩展：在 references/ 增补 tick-stock-panel.md，记录『tick 级回测引擎 + 统一数据抽象 + LLM 策略生成』可作兄弟工作台(非替换单文件 Skill)；文档类 auto_apply，不改动核心 SKILL.md。（注：本地 a-stock-data 已借 mootdx 拿 L2/tick 原始数据见 disc-20261004-03，但缺回测引擎与策略生成闭环，本源正好补该段。）",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-05",
       "version": "v1",
       "track": "external_trend",
@@ -1356,8 +1364,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "与 disc-20261004-03 同为 tick 能力补录，同一能力重复入队"
     },
     {
       "id": "disc-20261005-03",
@@ -1367,7 +1377,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "借鉴为 majiu-management 的『技能库治理标准』：把注册表最小字段 + T0–T4 风险分级 + 角色 bundle + AI CoE ownership 落成 references/skill-library-governance.md（文档类 auto_apply，不改动核心 SKILL.md）；与 disc-20260929-02(OWASP AST10) / disc-20260928-01(ESR 安全扫描) 互补——本源提供『可填字段模板 + 风险 tier + 角色 bundle』，后者提供『安全分类框架 + 工具』。",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-05",
       "version": "v1",
       "track": "external_trend",
@@ -1380,8 +1390,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "与既有 majiu-management/references/skill-registry-security-scan.md + company-skill-registry.md + owasp-agentic-skills-top10.md 重叠"
     },
     {
       "id": "disc-20261006-01",
@@ -1391,7 +1403,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "对标本地 a-stock-data（纯数据层）缺口：补『新闻情绪 + 决策仪表盘 + 多渠道推送』闭环。参考其 P0 交易理念（乖离>5% 标记危险、MA 多头排列、精确买卖/止损/目标点位、检查清单）写入 references/llm-stock-decision-dashboard.md（文档类 auto_apply）；其飞书推送范式可直接复用本地 push_feishu.sh 链路",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-06",
       "track": "external_trend",
       "target_project": "meta",
@@ -1403,8 +1415,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "『新闻情绪』维度已由 disc-20261006-02 覆盖，本条为重复入队"
     },
     {
       "id": "disc-20261006-02",
@@ -1418,16 +1432,19 @@
       "found_at": "2026-10-06",
       "track": "external_trend",
       "target_project": "meta",
-      "success_metric": null,
-      "check_cmd": null,
+      "success_metric": "a-stock-data/references/a-share-sentiment-moneyflow.md 已落地，且含『情绪』与『资金流』两个维度小节",
+      "check_cmd": "test -f \"$HOME/.workbuddy/skills/a-stock-data/references/a-share-sentiment-moneyflow.md\" && grep -q \"情绪\" \"$HOME/.workbuddy/skills/a-stock-data/references/a-share-sentiment-moneyflow.md\" && grep -q \"资金流\" \"$HOME/.workbuddy/skills/a-stock-data/references/a-share-sentiment-moneyflow.md\"",
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": null,
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": "Trial",
+      "ring_prev": "Trial",
+      "metric_target_file": "~/.workbuddy/skills/a-stock-data/references/a-share-sentiment-moneyflow.md",
+      "triaged_at": "2026-10-09",
+      "triaged_note": "v1.10.2 人工清账：判为『有可判定指标』→ 进入落地通道（周度重排为 Trial）"
     },
     {
       "id": "disc-20261006-03",
@@ -1441,16 +1458,19 @@
       "found_at": "2026-10-06",
       "track": "external_trend",
       "target_project": "meta",
-      "success_metric": null,
-      "check_cmd": null,
+      "success_metric": "majiu-management/references/skill-routing-dispatch.md 已落地，且含『置信度』触发与『降级』链两节",
+      "check_cmd": "test -f \"$HOME/.workbuddy/skills/majiu-management/references/skill-routing-dispatch.md\" && grep -q \"置信度\" \"$HOME/.workbuddy/skills/majiu-management/references/skill-routing-dispatch.md\" && grep -q \"降级\" \"$HOME/.workbuddy/skills/majiu-management/references/skill-routing-dispatch.md\"",
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": null,
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": "Trial",
+      "ring_prev": "Trial",
+      "metric_target_file": "~/.workbuddy/skills/majiu-management/references/skill-routing-dispatch.md",
+      "triaged_at": "2026-10-09",
+      "triaged_note": "v1.10.2 人工清账：判为『有可判定指标』→ 进入落地通道（周度重排为 Trial）"
     },
     {
       "id": "disc-20261007-01",
@@ -1460,7 +1480,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "为 majiu-management 增加『技能安装前评测门禁』参考(with/without A/B+安全探针+公共 dashboard 比对)；落到 references/ 文档后自动应用(auto_apply)，与既有 OWASP AST10/ClawHavoc 形成『安装前校验→运行时防护』闭环。",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-07",
       "track": "external_trend",
       "target_project": "meta",
@@ -1472,8 +1492,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "与既有 references/skill-quality-eval-gate.md + skill-eval-checklist.md + skill-effectiveness-benchmark.md 重叠（安装前评测已有三份）"
     },
     {
       "id": "disc-20261007-02",
@@ -1483,7 +1505,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "作为 a-stock-data 的 MCP 交付补充(本地 Skill 专注零鉴权多源抓取，MCP 层承接实时/历史标准化查询)；参考其『双源自动故障切换+DataFrame 统一输出』增强本地数据层健壮性；文档类可自动应用(auto_apply)。",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-07",
       "track": "external_trend",
       "target_project": "meta",
@@ -1495,8 +1517,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "与既有 references/cn-stock-mcp-compare.md + financemcp-dcths-compare.md 重叠"
     },
     {
       "id": "disc-20261007-03",
@@ -1506,7 +1530,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "补充 majiu-management 现有治理视角(注册表/安全/版本化)未覆盖的『技能组合编排』维度：借鉴能力树+DAG 编排模式设计本地 skill 组合调用参考文档；文档类可自动应用(auto_apply)。",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-07",
       "track": "external_trend",
       "target_project": "meta",
@@ -1518,8 +1542,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "与既有 references/skill-as-workflow.md 重叠"
     },
     {
       "id": "disc-20261008-01",
@@ -1529,7 +1555,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "为 majiu-management 增加「权限契约强制 + 风险感知升级 delta 报告 + fork 血缘/签名」维度，补既有 skills.lock/RFC#210 未覆盖的运行时权限校验与升级可观测性；落到 references/ 文档后自动应用(auto_apply)",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-08",
       "track": "external_trend",
       "target_project": "meta",
@@ -1541,8 +1567,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "与既有 references/skill-source-trust.md + declarative-governance-policy.md 重叠"
     },
     {
       "id": "disc-20261008-02",
@@ -1552,7 +1580,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "为 a-stock-data 参考其「多Agent辩论+记忆反思闭环+零依赖MCP server」模式，补本地缺的多角色辩论决策链与可交互HTML报告；落到 references/ 文档后自动应用(auto_apply)",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-08",
       "track": "external_trend",
       "target_project": "meta",
@@ -1564,8 +1592,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "与 disc-20260922-02 / disc-20260923-03 同主题（多 Agent 辩论链），重复入队"
     },
     {
       "id": "disc-20261008-03",
@@ -1579,16 +1609,19 @@
       "found_at": "2026-10-08",
       "track": "external_trend",
       "target_project": "meta",
-      "success_metric": null,
-      "check_cmd": null,
+      "success_metric": "a-stock-data/references/risk-control-architecture.md 已落地，且含『可回放』与『权限分级』两节（源自 sim_trade.py/QTS 风控设计对标）",
+      "check_cmd": "test -f \"$HOME/.workbuddy/skills/a-stock-data/references/risk-control-architecture.md\" && grep -q \"可回放\" \"$HOME/.workbuddy/skills/a-stock-data/references/risk-control-architecture.md\" && grep -q \"权限分级\" \"$HOME/.workbuddy/skills/a-stock-data/references/risk-control-architecture.md\"",
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": null,
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": "Trial",
+      "ring_prev": "Trial",
+      "metric_target_file": "~/.workbuddy/skills/a-stock-data/references/risk-control-architecture.md",
+      "triaged_at": "2026-10-09",
+      "triaged_note": "v1.10.2 人工清账：判为『有可判定指标』→ 进入落地通道（周度重排为 Trial）"
     },
     {
       "id": "disc-20261009-01",
@@ -1598,7 +1631,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "为 majiu-management 补「分发层+漂移治理+评级」维度：把『每仓库版本钉版 / 跨仓库 drift 检测 / 组织级 recall / A–F 安全评级』作为治理注册表的补充参考(文档类 auto_apply, 落到 references/)；核心流程改动仅提案待审。",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-09",
       "track": "external_trend",
       "target_project": "meta",
@@ -1610,8 +1643,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "与既有 references/skill-version-pinning.md + skill-source-trust.md 重叠"
     },
     {
       "id": "disc-20261009-02",
@@ -1625,16 +1660,19 @@
       "found_at": "2026-10-09",
       "track": "external_trend",
       "target_project": "meta",
-      "success_metric": null,
-      "check_cmd": null,
+      "success_metric": "majiu-management/references/skill-idle-archival.md 已落地，且含『闲置』判定与『归档』下线两节",
+      "check_cmd": "test -f \"$HOME/.workbuddy/skills/majiu-management/references/skill-idle-archival.md\" && grep -q \"闲置\" \"$HOME/.workbuddy/skills/majiu-management/references/skill-idle-archival.md\" && grep -q \"归档\" \"$HOME/.workbuddy/skills/majiu-management/references/skill-idle-archival.md\"",
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": null,
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": "Trial",
+      "ring_prev": "Trial",
+      "metric_target_file": "~/.workbuddy/skills/majiu-management/references/skill-idle-archival.md",
+      "triaged_at": "2026-10-09",
+      "triaged_note": "v1.10.2 人工清账：判为『有可判定指标』→ 进入落地通道（周度重排为 Trial）"
     },
     {
       "id": "disc-20261009-03",
@@ -1644,7 +1682,7 @@
       "value": "medium-high",
       "risk": "low",
       "suggestion": "对标本地 a-stock-data 数据层缺口：补『支撑/压力位自动计算 + 国家队ETF资金流向 + HTTP生产级MCP部署』维度(既有 MCP 候选聚焦数据广度, 未覆盖技术指标计算与 ETF 资金流)；作为 references/ 补充源笔记(文档类 auto_apply)；核心流程改动仅提案待审。",
-      "status": "pending",
+      "status": "rejected",
       "found_at": "2026-10-09",
       "track": "external_trend",
       "target_project": "meta",
@@ -1656,8 +1694,10 @@
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": null,
+      "ring_prev": null,
+      "rejected_at": "2026-10-09",
+      "reject_reason": "与既有 references/a-stock-zero-auth-endpoints.md 部分重叠，且落在『源笔记』层面无可验证收益"
     },
     {
       "id": "disc-20261009-04",
@@ -1667,21 +1707,76 @@
       "value": "medium-high",
       "risk": "low",
       "suggestion": "核心类改动（仅提案待审）：①在 SKILL.md 落地剧本明确「doc-apply 主产物的回滚 = 删除新增文件 + 撤销 CHANGELOG 行」，并把该逆向操作写进 registry 的 applied 记录（本批已按此写入 resolution）；或②给 ~/.workbuddy/skills 建独立 git 仓库（或把 references/ 纳入 Claw 仓库 via git submodule / 复制），使 references/*.md 真正可一键回退；③把 Step 4 回写前移到 Step 3 commit 之前，使 applied 状态随批入库。",
-      "status": "proposed",
-      "needs_review": true,
+      "status": "applied",
       "found_at": "2026-10-09",
       "track": "project_signal",
       "target_project": "meta",
-      "success_metric": null,
-      "check_cmd": null,
+      "success_metric": "~/.workbuddy/skills 已是 git 仓库且工作区干净；skills_vcs.sh rollback 能把已跟踪文件还原、把未跟踪文件移入 _trash",
+      "check_cmd": "git -C \"$HOME/.workbuddy/skills\" rev-parse --git-dir >/dev/null 2>&1 && [ -z \"$(git -C \"$HOME/.workbuddy/skills\" status --porcelain)\" ] && test -x \"$HOME/WorkBuddy/Claw/.workbuddy/scripts/skills_vcs.sh\"",
       "metric_baseline": null,
+      "recheck_after_days": 7,
+      "landed_at": "2026-10-09",
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": null,
+      "resolved_at": "2026-10-09",
+      "applied_action": "给 ~/.workbuddy/skills 建独立 git 仓库（基线 a5dfedb）+ 新增 skills_vcs.sh（snapshot/rollback/revert）；落地剧本改为落地前后各打一次快照，回滚由脚本执行",
+      "resolution": "技能主产物（references/*.md、SKILL.md）首次拥有真正的回滚点；『每批 1 commit + 1 回滚点』对主产物不再只是名义上的"
+    },
+    {
+      "id": "disc-20261009-05",
+      "found_at": "2026-10-09",
+      "status": "applied",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "unified-inspection-hub",
+      "url": "file://$HOME/WorkBuddy/Claw/.workbuddy/scripts/project_signal_collect.py",
+      "value": "high",
+      "risk": "low",
+      "source_summary": "本通道自身发现（读 collector 输出时实证）：QTS 锚点 `QuantTradingSystem/**/*.py` 命中 14,343 个 py，其中 14,064 个在 .venv/lib/python3.13/site-packages/（真实项目文件仅 279 个）；sorted() 按字典序把 .venv 排最前 → 20 条 max_hits 配额被 _pytest 的 XXX/TODO 全部吃光，真实项目痛点一条都扫不到（旧输出 20 条『QTS 痛点』100% 是第三方库噪音）。",
+      "suggestion": "project_signal_collect.py 的 TODO 扫描必须排除第三方/构建产物（.venv / site-packages / node_modules / __pycache__ / build / dist 等），且排除要发生在 max_files/max_hits 计数之前，并把排除数写进 per_project 便于观测（否则『0 信号』与『全被排除』不可区分）。",
+      "success_metric": "project_signal_collect.py --json 输出的 signals 中 0 条来自 site-packages/.venv，且 per_project 暴露 third_party_excluded 计数",
+      "check_cmd": "! python3 \"$HOME/WorkBuddy/Claw/.workbuddy/scripts/project_signal_collect.py\" --json | grep -q \"site-packages\"",
+      "metric_baseline": "修复前：QTS 20/20 信号来自 site-packages；修复后：QTS 1 条真实 TODO，排除 9167 个第三方文件",
+      "recheck_after_days": 7,
+      "landed_at": "2026-10-09",
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": null,
+      "ring": null,
+      "ring_prev": "Adopt",
+      "resolved_at": "2026-10-09",
+      "applied_action": "project_signal_collect.py 新增 EXCLUDE_DIR_PARTS + _is_excluded()，排除发生在配额计数之前；per_project 增 third_party_excluded 供观测",
+      "resolution": "修复后实测：signals 由 31→12，其中 QTS 由 20 条（100% 来自 .venv/site-packages 的 _pytest）→ 1 条真实 TODO，third_party_excluded=9167。『0 信号』与『全被排除』自此可区分。"
+    },
+    {
+      "id": "disc-20261009-06",
+      "found_at": "2026-10-09",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": null,
+      "url": "file://$HOME/WorkBuddy/Claw/.workbuddy/scripts/cron_monitor.py#L461",
+      "value": "high",
+      "risk": "low",
+      "class": "core",
+      "landing_channel": "weekly-core-review",
+      "needs_review": true,
+      "source_summary": "Track 2 项目痛点采集（project_signal_collect.py）实测命中：cron_monitor.py:461 标注 「TODO: 备选方案 — 东方财富中债API」，其上方统一返回 `return []  # 当前无数据源`。即 10 年期中债国债收益率这条监控信号**恒为空**且不报错 —— 静默空返，与铁律「数据层/HTTP 调用禁止静默吞非 200 响应」同源：消费方拿到空列表会当成『当日无数据』，而不是『这条信号根本没接上』。",
+      "suggestion": "为 cron_monitor.py 的 10Y 中债收益率补齐真实数据源（东方财富 / 中国债券信息网 yield.chinabond.com.cn），或在不接源时显式报『源不可用』而非静默空返；两条路都要能被消费方区分。",
+      "success_metric": "cron_monitor.py 不再无条件 `return [] # 当前无数据源`：要么有真实取源分支，要么显式上抛/标注『中债源不可用』（空值与失败可区分）",
+      "check_cmd": "! grep -q \"return \\[\\]  # 当前无数据源\" \"$HOME/WorkBuddy/Claw/.workbuddy/scripts/cron_monitor.py\"",
+      "metric_baseline": "修复前：该函数唯一出口是 `return []`，恒空且无告警",
       "recheck_after_days": 7,
       "landed_at": null,
       "impact": null,
       "impact_checked_at": null,
       "impact_note": null,
-      "ring": "Assess",
-      "ring_prev": null
+      "ring": "Adopt",
+      "ring_prev": null,
+      "suggestion_hint": "核心类（改 Claw 项目脚本）→ 走周度人工审：生成 diff 提案待授权，不进每日文档通道"
     }
   ],
   "known_failure_modes": [
@@ -1834,9 +1929,13 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-09T19:35:39+08:00",
+      "ts": "2026-10-09T19:49:15+08:00",
       "mode": "live",
-      "selected": [],
+      "selected": [
+        "disc-20261004-03",
+        "disc-20261006-02",
+        "disc-20261006-03"
+      ],
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261009.md"
     },
     "calibrate_runs": 18,
@@ -1892,7 +1991,7 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 7,
+    "live_runs": 12,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7
   },
@@ -1931,7 +2030,11 @@
     "2026-10-09T18:38:54+08:00 v1.10 迁移：候选补 target_project/track/success_metric/impact 等字段（57 条）；新增 discovery_policy, evolution_radar, value_scoreboard；quality_gate 增补 require_target_project, require_success_metric；version 1.9.1→1.10.0",
     "2026-10-09T18:42:15+08:00 周度统一排序（2026-W41）：待排序 21｜四环 {'Adopt': 0, 'Trial': 0, 'Assess': 17, 'Caution': 4}｜升降环 21",
     "2026-10-09T19:34:34+08:00 v1.10.1 修补（自审发现）：重复落地收敛：2 条 → superseded（保留 disc-20260925-03）；QTS 空转 glob 移除：1 条（顶层实际 0 个 py）；doc_apply.metric_alert_min_interval_days=7（防每日告警疲劳）；版本 1.10.0 → 1.10.1",
-    "2026-10-09T19:36:13+08:00 状态同步：1 条自身契约缺口候选 → applied（disc-20260925-05，依据 v1.10.1 commit 29768c2）"
+    "2026-10-09T19:36:13+08:00 状态同步：1 条自身契约缺口候选 → applied（disc-20260925-05，依据 v1.10.1 commit 29768c2）",
+    "2026-10-09T19:43:04+08:00 v1.10.2 自审清账：消除双真源：evolution_watch_skills → discovery_policy.trend_watch.skills（2 项）；补指标：5 条（disc-20261004-03, disc-20261006-02, disc-20261006-03, disc-20261008-03, disc-20261009-02）；驳回：10 条（多为与既有 references 重叠的文档通胀）；核心类提案 3 条置 needs_review=true（修『搁浅』：此前 proposed 且 needs_review 为空 = 永不被周度拾取）；disc-20260925-04 → applied（calibrate 期零 applied 回写，已落进 prompt v1.7）；disc-20261009-04 → applied（技能库纳入 git + skills_vcs.sh）；新增 disc-20261009-05（Claw · 信号采集器被第三方产物占满配额）→ 真实项目锚点，供 Adopt 环示范；版本 1.10.1 → 1.10.2",
+    "2026-10-09T19:43:12+08:00 周度统一排序（2026-W41）：待排序 9｜四环 {'Adopt': 1, 'Trial': 5, 'Assess': 1, 'Caution': 2}｜升降环 6",
+    "2026-10-09T19:44:17+08:00 v1.10.2b：disc-20261009-05 → applied（保留 ring_prev=Adopt 取证）；新增 disc-20261009-06（Claw·中债收益率静默空返，Adopt 环 + 核心类通道）",
+    "2026-10-09T19:44:24+08:00 周度统一排序（2026-W41）：待排序 9｜四环 {'Adopt': 1, 'Trial': 5, 'Assess': 1, 'Caution': 2}｜升降环 1"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -2377,37 +2480,35 @@
       "allow_check_cmd": true,
       "cmd_timeout_sec": 60,
       "why": "落地即宣布成功 = 退化裁判（SEAL 实证：自评维持 90 分、真实部署塌到随机线）。只认外部可验证的结论：有 check_cmd 就跑命令取退出码；没有就报『需裁决』，不许自己给自己打勾。"
+    },
+    "trend_watch": {
+      "skills": [
+        "majiu-management",
+        "a-stock-data"
+      ],
+      "why": "单一真源：发现面的两条轨（trend_watch=外部同类研究；project_watch=项目自身痛点）都归 discovery_policy 一处声明。此前 evolution_watch_skills 是独立顶层键，与 discovery_policy 并存 —— 两个『观察谁』的声明、各有各的维护节奏，实际已出现只守 2 个 skill 而项目锚点已扩到 3 个项目的不一致（双真源）。",
+      "note": "原顶层键 evolution_watch_skills 已于 2026-10-09 迁入此处并删除（v1.10.2），不再读取旧键。"
     }
   },
   "evolution_radar": {
-    "updated_at": "2026-10-09T18:42:15+08:00",
+    "updated_at": "2026-10-09T19:44:24+08:00",
     "rings": {
-      "Adopt": [],
-      "Trial": [],
-      "Assess": [
-        "disc-20260923-01",
+      "Adopt": [
+        "disc-20261009-06"
+      ],
+      "Trial": [
         "disc-20261004-03",
-        "disc-20261005-02",
-        "disc-20261005-03",
-        "disc-20261006-01",
         "disc-20261006-02",
         "disc-20261006-03",
-        "disc-20261007-01",
-        "disc-20261007-02",
-        "disc-20261007-03",
-        "disc-20261008-01",
-        "disc-20261008-02",
         "disc-20261008-03",
-        "disc-20261009-01",
-        "disc-20261009-02",
-        "disc-20261009-03",
-        "disc-20261009-04"
+        "disc-20261009-02"
+      ],
+      "Assess": [
+        "disc-20260923-01"
       ],
       "Caution": [
         "disc-20260922-02",
-        "disc-20260923-03",
-        "disc-20260925-04",
-        "disc-20260925-05"
+        "disc-20260923-03"
       ]
     },
     "history": [
@@ -2557,12 +2658,96 @@
           "real_project_share": 0.0
         },
         "no_metric_in_assess": 17
+      },
+      {
+        "week": "2026-W41",
+        "ts": "2026-10-09T19:43:12+08:00",
+        "pool": 9,
+        "counts": {
+          "Adopt": 1,
+          "Trial": 5,
+          "Assess": 1,
+          "Caution": 2
+        },
+        "movements": [
+          {
+            "id": "disc-20261004-03",
+            "from": null,
+            "to": "Trial",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261006-02",
+            "from": null,
+            "to": "Trial",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261006-03",
+            "from": null,
+            "to": "Trial",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261008-03",
+            "from": null,
+            "to": "Trial",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261009-02",
+            "from": null,
+            "to": "Trial",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261009-05",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          }
+        ],
+        "real_project_share": {
+          "total": 9,
+          "real_project": 1,
+          "meta": 8,
+          "none": 0,
+          "real_project_share": 0.1111
+        },
+        "no_metric_in_assess": 1
+      },
+      {
+        "week": "2026-W41",
+        "ts": "2026-10-09T19:44:24+08:00",
+        "pool": 9,
+        "counts": {
+          "Adopt": 1,
+          "Trial": 5,
+          "Assess": 1,
+          "Caution": 2
+        },
+        "movements": [
+          {
+            "id": "disc-20261009-06",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          }
+        ],
+        "real_project_share": {
+          "total": 9,
+          "real_project": 1,
+          "meta": 8,
+          "none": 0,
+          "real_project_share": 0.1111
+        },
+        "no_metric_in_assess": 1
       }
     ],
     "note": "周度排序状态：发现节奏 ≠ 采纳节奏。Adopt/Trial/Assess/Caution 四环 + 升降环记录；落地仍逐条增量（禁批量落地）。"
   },
   "value_scoreboard": {
-    "updated_at": "2026-10-09T19:34:41+08:00",
+    "updated_at": "2026-10-09T19:44:24+08:00",
     "by_impact": {},
     "by_project": {
       "meta": {
@@ -2571,14 +2756,21 @@
         "none": 0,
         "unmeasured": 36,
         "pending": 21
+      },
+      "Claw": {
+        "achieved": 0,
+        "partial": 0,
+        "none": 0,
+        "unmeasured": 0,
+        "pending": 2
       }
     },
     "real_project_share": {
-      "total": 57,
-      "real_project": 0,
+      "total": 59,
+      "real_project": 2,
       "meta": 57,
       "none": 0,
-      "real_project_share": 0.0
+      "real_project_share": 0.0339
     },
     "legacy_unmeasured": 36,
     "note": "收益记分板：只统计可回查的结论（achieved/partial/none）。『优化』= 指标相对基线提升，不是『看起来更好了』。"
