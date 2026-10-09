@@ -93,8 +93,11 @@ def main() -> int:
         return 1
 
     # 写入（确保合法）
+    # 末尾补一个换行：QTS 仓的 pre-commit `end-of-file-fixer` 强制「文件以单个换行结尾」，
+    # 不带换行时每次同步都会被 hook 改写一次 → 该仓提交被拦（hook 改了文件即中断）
+    # + 产生无尽 diff。幂等判定走 JSON 内容比较，不受此影响。
     DST.parent.mkdir(parents=True, exist_ok=True)
-    DST.write_text(json.dumps(src_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    DST.write_text(json.dumps(src_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     # 复验
     try:
