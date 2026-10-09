@@ -315,7 +315,22 @@ def main() -> int:
 
     blocked_metric = sum(1 for d in dropped if d.get("code") == "success_metric")
     blocked_anchor = sum(1 for d in dropped if d.get("code") == "target_project")
-    alert_min = int(reg.get("doc_apply", {}).get("blocked_metric_alert_min", 3))
+    da0 = reg.get("doc_apply", {}) or {}
+    alert_min = int(da0.get("blocked_metric_alert_min", 3))
+    # v1.10.1 节流：存量被拦是「待清账」的稳态，不是每日事件。
+    #   不加节流 → 每天推同一条提示（4 条存量固定被拦）→ 告警疲劳
+    #   （铁律：告警频率须匹配可处置性）。规则：距上次推送不足 N 天 → suppress。
+    throttle_days = int(da0.get("metric_alert_min_interval_days", 7))
+    last_alert = str(da0.get("last_metric_alert_at") or "").strip()
+    throttled = False
+    if last_alert:
+        try:
+            d0 = datetime.date.fromisoformat(last_alert[:10])
+            throttled = (datetime.date.today() - d0).days < throttle_days
+        except ValueError:
+            throttled = False
+    raw_alert = blocked_metric >= alert_min
+    metric_alert = raw_alert and not throttled
     out = {
         "ok": True,
         "mode": mode,
@@ -340,7 +355,11 @@ def main() -> int:
         },
         "blocked_metric": blocked_metric,
         "blocked_anchor": blocked_anchor,
-        "metric_alert": blocked_metric >= alert_min,
+        "metric_alert": metric_alert,
+        "metric_alert_raw": raw_alert,
+        "metric_alert_throttled": throttled,
+        "metric_alert_last_at": last_alert or None,
+        "metric_alert_min_interval_days": throttle_days,
         "metric_alert_min": alert_min,
         "report": str(report.relative_to(CLAW)),
         "silent": len(sel) == 0,
@@ -359,7 +378,12 @@ def main() -> int:
         if out["silent"]:
             print("[apply_doc] 无过闸候选 → SILENT")
         if blocked_metric:
-            flag = "⚠️ 达告警阈" if out["metric_alert"] else "（未达阈）"
+            if metric_alert:
+                flag = "⚠️ 达告警阈 → 今日应推一次"
+            elif raw_alert and throttled:
+                flag = f"（达阈但节流中：上次推送 {last_alert}，间隔<{throttle_days}天）"
+            else:
+                flag = "（未达阈）"
             print(
                 f"[apply_doc] v1.10 指标闸拦下 {blocked_metric} 条（无 success_metric）"
                 f"、锚点闸拦下 {blocked_anchor} 条 {flag}"

@@ -39,18 +39,26 @@ check_rrule_safety() {
     return 0
 }
 
-# --- Gate 2: 自动化 ID 必须带 automation- 前缀 ---
-# 查询 workbuddy.db 时必须用带前缀的 ID，裸 ID 必误报。
+# --- Gate 2: 自动化 ID 格式 ---
+# 平台自动化 id 有两种合法形态：
+#   ① 旧式：automation-<epoch_ms>     如 automation-1785506975961
+#   ② 新式：标准 UUID (8-4-4-4-12)    如 2a404a97-c262-4cad-8a43-3c5a69febfbb（中枢 5 条即此形态）
+# ⚠️ 09-25 教训（disc-20260925-05）：本 gate 曾只认 automation- 前缀 →
+#    新式 UUID 型 id 一律误报「格式异常」并使 gates_failed 递增（中枢自己的 4 条 + 看门狗天天被自己误报，
+#    属「误报稀释」：真违规被淹没在假告警里）。两种形态都必须放行，仅「既非前缀式又非 UUID」才算异常。
+# ⚠️ 旧注释「查询 workbuddy.db 时必须用带前缀的 ID」已过时：DB 两种 id 都存，裸 epoch 数字才需加前缀。
 validate_automation_id() {
     local aid="${1:-}"
     [ -n "$aid" ] || return 0
     case "$aid" in
-        automation-*) return 0 ;;
-        *)
-            echo "$LOG_PREFIX ⚠️ Automation ID 格式异常: '$aid'（缺少 automation- 前缀）"
-            return 1
-            ;;
+        automation-*) return 0 ;;  # ① 旧式前缀
     esac
+    # ② 新式 UUID（8-4-4-4-12 十六进制）
+    if [[ "$aid" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+        return 0
+    fi
+    echo "$LOG_PREFIX ⚠️ Automation ID 格式异常: '$aid'（既非 automation- 前缀，也非 UUID）"
+    return 1
 }
 
 # --- Gate 3: 交易日感知（交易类自动化专用）---
@@ -143,9 +151,10 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "--- 测试 Gate 1: 安全单值 BYHOUR ---"
     check_rrule_safety "FREQ=DAILY;BYHOUR=9;BYMINUTE=0" && echo "✅ 通过" || echo "❌ 误拦"
 
-    echo "--- 测试 Gate 2: ID 格式 ---"
-    validate_automation_id "automation-1785506975961" && echo "✅ 通过" || echo "❌ 误拦"
-    validate_automation_id "1785506975961" && echo "✅ 通过" || echo "❌ 正确拦截"
+    echo "--- 测试 Gate 2: ID 格式（两种合法形态 + 1 个非法）---"
+    validate_automation_id "automation-1785506975961" && echo "✅ 通过(旧式前缀)" || echo "❌ 误拦"
+    validate_automation_id "2a404a97-c262-4cad-8a43-3c5a69febfbb" && echo "✅ 通过(UUID 新式)" || echo "❌ 误拦（09-25 回归项）"
+    validate_automation_id "1785506975961" && echo "❌ 误放行" || echo "✅ 正确拦截(裸数字)"
 
     echo "--- 测试 Gate 4: 当前时间风险 ---"
     check_memwatch_risk

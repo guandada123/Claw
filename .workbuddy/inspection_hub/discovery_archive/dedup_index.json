@@ -192,7 +192,7 @@
     },
     "7e5b53e3c5e87b4e": {
       "id": "disc-20260930-02",
-      "status": "applied",
+      "status": "superseded",
       "target_project": "meta",
       "skill": "majiu-management",
       "also_seen": []
@@ -206,7 +206,7 @@
     },
     "06fb5a9beb32be2f": {
       "id": "disc-20261001-01",
-      "status": "applied",
+      "status": "superseded",
       "target_project": "meta",
       "skill": "majiu-management",
       "also_seen": []
@@ -401,5 +401,5 @@
       "also_seen": []
     }
   },
-  "updated_at": "2026-10-09T18:46:03+08:00"
+  "updated_at": "2026-10-09T19:35:40+08:00"
 }

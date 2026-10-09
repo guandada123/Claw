@@ -179,21 +179,33 @@ def main() -> int:
         "applied": bool(args.apply),
     }
 
-    if args.apply and due:
-        bak = backup_registry(rp, "pre-impact")
-        out["backup"] = str(bak) if bak else None
-        if bak is None:
-            out["ok"] = False
-            out["error"] = "备份失败 → 中止（绝不无备份写盘）"
+    # v1.10.1 修复「记分板空转」：记分板是**累计状态快照**，不是「到期事件的产物」。
+    #   旧写法 `if args.apply and due:` → 无到期项就永不写 → value_scoreboard 长期为 null
+    #   （实测：registry.value_scoreboard.updated_at=null、by_impact={}）→ 周报「收益结论」永远为空，
+    #   与「让优化可见」的初衷正好相反。改为：只要 --apply 就写；但当「无到期项且记分板实质未变」时跳过写盘，
+    #   避免每天无谓备份 + 刷 _state_sync_notes。
+    if args.apply:
+        prev = reg.get(SCOREBOARD_KEY) or {}
+        substantive_keys = ("by_impact", "by_project", "real_project_share", "legacy_unmeasured")
+        unchanged = all(prev.get(k) == scoreboard.get(k) for k in substantive_keys)
+        if unchanged and not due:
+            out["skipped_write"] = "记分板无变化且无到期回查 → 跳过写盘（避免空转备份）"
         else:
-            reg[SCOREBOARD_KEY] = scoreboard
-            reg.setdefault("_state_sync_notes", []).append(
-                f"{now_iso()} 收益回查：到期 {len(due)} 条；机器判定 {len(checked)}、"
-                f"待裁决 {len(needs_adjudication)}；记分板 by_impact={by_impact}"
-            )
-            if not save_registry_atomic(rp, reg):
+            bak = backup_registry(rp, "pre-impact")
+            out["backup"] = str(bak) if bak else None
+            if bak is None:
                 out["ok"] = False
-                out["error"] = "回写失败"
+                out["error"] = "备份失败 → 中止（绝不无备份写盘）"
+            else:
+                reg[SCOREBOARD_KEY] = scoreboard
+                if due:  # 只有真有到期回查时才留痕，避免无到期时空刷 note
+                    reg.setdefault("_state_sync_notes", []).append(
+                        f"{now_iso()} 收益回查：到期 {len(due)} 条；机器判定 {len(checked)}、"
+                        f"待裁决 {len(needs_adjudication)}；记分板 by_impact={by_impact}"
+                    )
+                if not save_registry_atomic(rp, reg):
+                    out["ok"] = False
+                    out["error"] = "回写失败"
 
     if args.json:
         print(json.dumps(out, ensure_ascii=False, indent=2))

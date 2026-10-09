@@ -1,6 +1,6 @@
 {
   "hub": "unified-inspection-hub",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "created_at": "2026-09-21",
   "updated_at": "2026-10-09T18:38:54+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
@@ -934,7 +934,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "借鉴 quarantine（隔离状态）+ Caliper 可靠性证据 + Semantic Recon 数据契约 到 majiu-management 的治理注册表：补『隔离/回滚/可靠性证据』维度到 references/skill-lifecycle-registry.md（文档类 auto_apply，不触碰核心流程）。与 disc-20260925-03 治理注册表方向互补但角度不同（本次聚焦 quarantine 状态机 + 可执行可靠性证据）。",
-      "status": "applied",
+      "status": "superseded",
       "found_at": "2026-09-30",
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
@@ -951,7 +951,9 @@
       "impact_checked_at": null,
       "impact_note": null,
       "ring": null,
-      "ring_prev": null
+      "ring_prev": null,
+      "superseded_by": "disc-20260925-03",
+      "superseded_note": "与 disc-20260925-03 同一落地目标(majiu-management/references/skill-lifecycle-registry.md)：去重闸上线前的重复落地，收敛保留最早一条"
     },
     {
       "id": "disc-20260930-03",
@@ -988,7 +990,7 @@
       "value": "high",
       "risk": "low",
       "suggestion": "借鉴到 majiu-management 治理注册表（references/skill-lifecycle-registry.md 文档类 auto_apply，不触碰核心流程）：补『审计/可追溯』与『成本归因』两维度（现有注册表只管 ownership/versioning/approval，缺运行态可观测与成本闸门）；并把『rulesets 保护配置类文件+变更人工评审』落成 majiu-management 禁区护栏补充。",
-      "status": "applied",
+      "status": "superseded",
       "found_at": "2026-10-01",
       "resolved_at": "2026-10-04T18:02:59+0800",
       "version": "v1",
@@ -1005,7 +1007,9 @@
       "impact_checked_at": null,
       "impact_note": null,
       "ring": null,
-      "ring_prev": null
+      "ring_prev": null,
+      "superseded_by": "disc-20260925-03",
+      "superseded_note": "与 disc-20260925-03 同一落地目标(majiu-management/references/skill-lifecycle-registry.md)：去重闸上线前的重复落地，收敛保留最早一条"
     },
     {
       "id": "disc-20261001-02",
@@ -1827,13 +1831,9 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-09T00:40:51+08:00",
+      "ts": "2026-10-09T19:35:39+08:00",
       "mode": "live",
-      "selected": [
-        "disc-20261004-01",
-        "disc-20261004-02",
-        "disc-20261005-01"
-      ],
+      "selected": [],
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261009.md"
     },
     "calibrate_runs": 18,
@@ -1889,8 +1889,9 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 1,
-    "blocked_metric_alert_min": 3
+    "live_runs": 7,
+    "blocked_metric_alert_min": 3,
+    "metric_alert_min_interval_days": 7
   },
   "_state_sync_notes": [
     "2026-09-24 巡检发现 registry 记录的 rrule 与 scheduler DB 实际漂移：🧬 技能演进 registry=Sat 10:00 vs DB=FREQ=WEEKLY;BYDAY=SA;BYHOUR=23;BYMINUTE=22；🧹 技能卫生 registry=1日09:00 vs DB=BYHOUR=23;BYMINUTE=44。此处不改既有自动化调度（真值=DB），仅登记待确认意图。",
@@ -1925,7 +1926,8 @@
     "2026-10-09 live 首批落地 3 条：disc-20261004-01/02 + disc-20261005-01 → applied；目标 majiu-management/references/{skill-effectiveness-benchmark,skill-source-trust,skill-package-manifest}.md；parity 复检 rc=0 / ok=true / violations=[]；hub_reconcile rc=0 / clean=true；commit & rollback_point = ffe2a70",
     "2026-10-09 本通道自身契约缺口登记为 disc-20261009-04（proposed/needs_review）：主产物 references/*.md 不在 git 内 → 铁律❺ 回滚对本通道主产物名义化；Step 4 回写在 commit 之后。走周度审。",
     "2026-10-09T18:38:54+08:00 v1.10 迁移：候选补 target_project/track/success_metric/impact 等字段（57 条）；新增 discovery_policy, evolution_radar, value_scoreboard；quality_gate 增补 require_target_project, require_success_metric；version 1.9.1→1.10.0",
-    "2026-10-09T18:42:15+08:00 周度统一排序（2026-W41）：待排序 21｜四环 {'Adopt': 0, 'Trial': 0, 'Assess': 17, 'Caution': 4}｜升降环 21"
+    "2026-10-09T18:42:15+08:00 周度统一排序（2026-W41）：待排序 21｜四环 {'Adopt': 0, 'Trial': 0, 'Assess': 17, 'Caution': 4}｜升降环 21",
+    "2026-10-09T19:34:34+08:00 v1.10.1 修补（自审发现）：重复落地收敛：2 条 → superseded（保留 disc-20260925-03）；QTS 空转 glob 移除：1 条（顶层实际 0 个 py）；doc_apply.metric_alert_min_interval_days=7（防每日告警疲劳）；版本 1.10.0 → 1.10.1"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -2324,7 +2326,6 @@
             "$HOME/WorkBuddy/QuantTradingSystem/.learnings"
           ],
           "todo_globs": [
-            "$HOME/WorkBuddy/QuantTradingSystem/*.py",
             "$HOME/WorkBuddy/QuantTradingSystem/**/*.py"
           ],
           "tests_cmd": null
@@ -2557,9 +2558,17 @@
     "note": "周度排序状态：发现节奏 ≠ 采纳节奏。Adopt/Trial/Assess/Caution 四环 + 升降环记录；落地仍逐条增量（禁批量落地）。"
   },
   "value_scoreboard": {
-    "updated_at": null,
+    "updated_at": "2026-10-09T19:34:41+08:00",
     "by_impact": {},
-    "by_project": {},
+    "by_project": {
+      "meta": {
+        "achieved": 0,
+        "partial": 0,
+        "none": 0,
+        "unmeasured": 36,
+        "pending": 21
+      }
+    },
     "real_project_share": {
       "total": 57,
       "real_project": 0,
