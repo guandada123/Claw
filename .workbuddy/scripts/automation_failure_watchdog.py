@@ -302,6 +302,37 @@ def save_alerted(s: set) -> None:
         pass
 
 
+DISPATCH_AUDIT = ROOT / ".workbuddy" / "scripts" / "automation_dispatch_audit.py"
+
+
+def dispatch_audit(hours: int) -> dict:
+    """调用「派发对账」，返回其 JSON 结果；任何异常都不阻断主流程。
+
+    设计要点（2026-10-09）：
+      · **子进程调用**而非 import —— 避免两脚本耦合、避免 sys.path 污染；
+      · 脚本不存在/执行失败 → 返回 {} 并打日志，**绝不 raise**：
+        一个补位检查不该有能力把主 watchdog 拖垮；
+      · 窗口按"天"给，且下限 14 天：小时级窗口对日/周跑自动化无意义
+        （gap 阈值须按 FREQ 分级，分级逻辑在 audit 脚本内部）。
+    """
+    if not DISPATCH_AUDIT.is_file():
+        print(f"[watchdog] ⚠️ 派发对账脚本缺失，跳过: {DISPATCH_AUDIT}")
+        return {}
+    days = max(14, (hours + 23) // 24)
+    try:
+        p = subprocess.run(
+            [sys.executable, str(DISPATCH_AUDIT), "--json", "--days", str(days)],
+            capture_output=True, text=True, timeout=180,
+        )
+        if p.returncode not in (0, 1):        # 0=干净 1=有发现，其余=异常
+            print(f"[watchdog] ⚠️ 派发对账返回码 {p.returncode}: {p.stderr[:200]}")
+            return {}
+        return json.loads(p.stdout)
+    except Exception as e:                     # noqa: BLE001 — 有意宽catch，见 docstring
+        print(f"[watchdog] ⚠️ 派发对账执行失败（不阻断）: {e.__class__.__name__}: {e}")
+        return {}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--hours", type=int, default=24)
@@ -311,6 +342,23 @@ def main() -> int:
     if not DB.exists():
         print(f"⚠️ 数据库不存在: {DB}")
         return 1
+
+    # ── 2026-10-09 新增：派发对账（补一个真实盲区）───────────────────────
+    # 本脚本原只扫 `result_success=0` 的运行记录。而**从不派发**的自动化产生
+    # **0 条运行记录** → 完全不可见。
+    # ⚠️ 口径注意：对账脚本按 `status='ACTIVE' AND deleted_at IS NULL` 取"活跃"。
+    #    只看 status 会把 20 行**已软删除**（deleted_at 非空）误当活跃 → 虚高到 91。
+    #    本机 automations 表是软删除语义：**deleted_at 非空 = 已删除**，status 列不随之改写。
+    # 注意：本步必须放在"无失败即早退"之前，否则最常见的路径（0 失败）根本不会跑到它，
+    #       而它的价值恰恰在于**其它检查全绿时**。
+    alerted = load_alerted()
+    disp = dispatch_audit(args.hours)
+    d_findings = disp.get("zombies", []) + disp.get("once_uncleaned", [])
+    d_new = [it for it in d_findings if f"dispatch:{it['id']}" not in alerted]
+    d_lines = [
+        f"🔴 从不派发/长期静默：{it['name'][:34]}（{it.get('reason', '')}）"
+        for it in sorted(d_findings, key=lambda x: x.get("last_dispatch") or "")
+    ]
 
     since_ms = int((datetime.now() - timedelta(hours=args.hours)).timestamp() * 1000)
     con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
@@ -332,8 +380,28 @@ def main() -> int:
     con.close()
 
     if not rows:
-        print(f"[watchdog] 近 {args.hours}h 无失败记录 → SILENT")
-        print('SUMMARY: {"failed":0,"critical":0,"pushed":false}')
+        print(f"[watchdog] 近 {args.hours}h 无失败记录")
+        pushed_d = False
+        if d_findings:
+            print(f"[watchdog] 派发对账发现 {len(d_findings)} 条（新的 {len(d_new)}）")
+            for ln in d_lines:
+                print(f"  {ln}")
+            if d_new and not args.dry_run:
+                pushed_d = push("自动化派发对账", "\n".join(
+                    [f"发现 {len(d_findings)} 条 ACTIVE 但从不派发的自动化：", *d_lines,
+                     "", "说明：调度器只把 next_run_at 在未来的纳入排程；落在过去即永久不派发，"
+                     "且不会产生运行记录，故此前所有健康检查都看不见它。"]))
+                if pushed_d:
+                    alerted.update(f"dispatch:{it['id']}" for it in d_new)
+                    save_alerted(alerted)
+            elif args.dry_run:
+                print("[watchdog] (dry-run) 派发对账本应告警")
+        else:
+            print("[watchdog] 派发对账无发现 → SILENT")
+        print("SUMMARY: " + json.dumps(
+            {"failed": 0, "critical": 0, "pushed": pushed_d,
+             "dispatch_findings": len(d_findings), "dispatch_new": len(d_new)},
+            ensure_ascii=False))
         return 0
 
     critical, minor = [], []
@@ -349,7 +417,7 @@ def main() -> int:
             minor.append(item)
 
     # 去重：同一条失败 (automation_id@运行时间戳) 已推送过则不再重复轰炸
-    alerted = load_alerted()
+    # （alerted 已在 main 开头载入，此处不再重复读取）
 
     def key_of(it):
         return f"{it['aid']}@{it['ts']}"
@@ -444,6 +512,22 @@ def main() -> int:
     else:
         print("[watchdog] 无关键失败 → SILENT（次要失败不打扰）")
 
+    # ── 派发对账结果并入（与失败巡检同一封推送，避免两封互相淹没）──
+    if d_lines:
+        print(f"[watchdog] 派发对账发现 {len(d_findings)} 条（新的 {len(d_new)}）")
+        for ln in d_lines:
+            print(f"  🔴 {ln}")
+        if d_new and not args.dry_run:
+            ok = push("自动化派发对账",
+                      "\n".join([f"发现 {len(d_findings)} 条 ACTIVE 但从不派发的自动化：",
+                                 *d_lines, "",
+                                 "说明：调度器只把 next_run_at 在未来的纳入排程；落在过去即永久不派发，"
+                                 "且不产生运行记录，故此前所有健康检查都看不见它。"]))
+            if ok:
+                pushed = True
+                alerted.update(f"dispatch:{it['id']}" for it in d_new)
+                save_alerted(alerted)
+
     print(
         "SUMMARY: "
         + json.dumps(
@@ -452,6 +536,8 @@ def main() -> int:
                 "critical": len(critical),
                 "new_critical": len(new_critical),
                 "pushed": pushed,
+                "dispatch_findings": len(d_findings),
+                "dispatch_new": len(d_new),
             },
             ensure_ascii=False,
         )
