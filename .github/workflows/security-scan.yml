@@ -89,6 +89,37 @@ jobs:
           echo "## Bandit Code Scan" >> $GITHUB_STEP_SUMMARY
           echo "Issues found: **${COUNT:-0}**" >> $GITHUB_STEP_SUMMARY
 
+  lock-audit:
+    name: Lock Dependency Audit (blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      # 只依赖标准库（tomllib/urllib），**不装任何第三方包**
+      # —— 刻意不用 pip-audit -r：它会先建 venv(ensurepip) 解析依赖，多一个脆弱点；
+      #    且同一 CVE 会以 GHSA-*/PYSEC-* 双 ID 返回，不去重就是双倍噪音。
+      - name: Audit uv.lock against OSV
+        run: python3 .workbuddy/scripts/audit_locks.py
+      - name: Explain failure mode
+        if: failure()
+        run: |
+          {
+            echo "## 锁文件依赖门禁未通过"
+            echo ""
+            echo "本次判据（刻意「只挡可处置的」）："
+            echo "- **有修复版本**的漏洞 → 挡（这件事你能做）"
+            echo "- **无修复版本** → 只提示不挡（上游没修，红了也变不出补丁）"
+            echo ""
+            echo "两种处置："
+            echo "1. 升级：\`uv lock --upgrade-package <pkg>\`（根与 .workbuddy 两处都要做）"
+            echo "2. 若确有原因暂不升：在 \`.workbuddy/lock_audit_allowlist.json\` 加一条，"
+            echo "   **必须写 reason 与 expires**（到期即失效，逼复审）"
+            echo ""
+            echo "rc=2 表示**无法判定**（OSV 查询失败）—— 重跑即可；持续失败需查 OSV 可用性。"
+          } >> $GITHUB_STEP_SUMMARY
+
   pip-audit:
     name: Dependency Audit (pip-audit)
     runs-on: ubuntu-latest
