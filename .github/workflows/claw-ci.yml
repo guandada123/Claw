@@ -9,8 +9,9 @@ on:
     paths:
       - ".workbuddy/**"
       - "tests/**"
-      - ".github/workflows/**"
-      - "ruff.toml"
+      - ".learnings/**" # 2026-10-10 补：pre-commit 的 end-of-file-fixer/trailing-whitespace
+      - ".github/workflows/**" #   对 .learnings/ 生效，但此前 paths 不含它 →
+      - "ruff.toml" #   只改 learnings 的推送**完全不触发 CI**，破窗无人拦
       - ".pre-commit-config.yaml"
       - "pyproject.toml"
   push:
@@ -18,6 +19,7 @@ on:
     paths:
       - ".workbuddy/**"
       - "tests/**"
+      - ".learnings/**"
       - ".github/workflows/**"
       - "ruff.toml"
       - ".pre-commit-config.yaml"
