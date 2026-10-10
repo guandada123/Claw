@@ -226,9 +226,12 @@ def _load_fundamental_cache() -> dict:
     更新方式：持仓变动或定期(周)重抓 wind-finance 覆盖此文件（脚本不直接调 MCP）。
     任一字段缺失不影响主流程，fundamental 留空由专家基于价格+技术判断。
     """
-    cache_path = (
-        Path(__file__).parent.parent / ".workbuddy" / "data" / "debate" / "fundamental_cache.json"
-    )
+    # 用 _CLAW_ROOT 而不是 Path(__file__).parent.parent ——
+    # 2026-09-21 本脚本从 scripts/ 移到 .workbuddy/scripts/ 后，parent.parent 变成
+    # `.workbuddy/`，再拼 `.workbuddy/data/...` 就指到 `.workbuddy/.workbuddy/data/...`
+    # （双重嵌套的影子目录）。实测该影子目录真实存在且内含 2026-06~07 的独有数据，
+    # 即本 bug 已静默写坏过一次数据。_CLAW_ROOT 由向上回溯定位，两种位置都对。
+    cache_path = _CLAW_ROOT / ".workbuddy" / "data" / "debate" / "fundamental_cache.json"
     try:
         raw = json.loads(cache_path.read_text(encoding="utf-8"))
         return raw
@@ -528,9 +531,12 @@ def _write_fundamental_cache(code: str, fund: dict) -> None:
     """把兜底抓到的基本面回写 fundamental_cache.json（保留 _meta，文件锁防并发）。"""
     import fcntl as _fcntl
 
-    cache_path = (
-        Path(__file__).parent.parent / ".workbuddy" / "data" / "debate" / "fundamental_cache.json"
-    )
+    # 用 _CLAW_ROOT 而不是 Path(__file__).parent.parent ——
+    # 2026-09-21 本脚本从 scripts/ 移到 .workbuddy/scripts/ 后，parent.parent 变成
+    # `.workbuddy/`，再拼 `.workbuddy/data/...` 就指到 `.workbuddy/.workbuddy/data/...`
+    # （双重嵌套的影子目录）。实测该影子目录真实存在且内含 2026-06~07 的独有数据，
+    # 即本 bug 已静默写坏过一次数据。_CLAW_ROOT 由向上回溯定位，两种位置都对。
+    cache_path = _CLAW_ROOT / ".workbuddy" / "data" / "debate" / "fundamental_cache.json"
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = str(cache_path) + ".lock"
     with open(lock_path, "w") as lock_fd:

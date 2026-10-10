@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-10T17:57:02+08:00",
+  "updated_at": "2026-10-10T21:10:00+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2507,6 +2507,28 @@
       "resolved_at": "2026-10-10T17:57:02+08:00",
       "resolution": "选**方案②改积分口径**并已落地（不留双口径）。① 新增 `.workbuddy/scripts/credit_meter.py` 作为**积分读取单源**（只读 workbuddy.db，异常抛 CreditReadError（N818 要求 Error 后缀），绝不静默当 0）；credit_vs_token 与 budget_guard 都改为消费它。② `budget_guard` 升 v3.0：单位改积分，月额度＝套餐月发 + 签到累计（用户 10-10 确认 ¥58 档：基础 2000 + 当期赠送 2000 = 4000，签到 100/天 → 10 月额度 7100；`WB_CREDIT_BUDGET` 可一把覆盖），层级 50%/70%/87.5% 沿用，87.5% 触发 Flash 锁；`verify_call_cost` 按实测 2.68 积分/百万 token 折算，单次上限 30 积分；读数失败与额度<=0 都 fail-closed，但文案区分「故障」与「超支」。③ **删掉日警告线**（原 ¥25/日）：积分侧只有会话级归属，长会话会把多天量落在结束日 → 日数字必然尖峰失真，不做「日增量」告警（要日粒度走 token 侧请求级时间戳）。④ `cost_tracker.py` 不再是任何预算判据，文件头加口径警示并指向 consumption-ledger.md。⑤ 巡检中枢「成本监控」检查更名「积分预算」，输出「积分(本月): 1669/6000（28%）」，不再报 ¥ 与「委托链」。⑥ 文档同步：consumption-ledger.md 实现清单/决策段、routing-rules.md 4 处、router.py 降级文案、AGENTS.md 入口。",
       "evidence": "`python3 .workbuddy/scripts/budget_guard.py status` → 「📊 本月积分：1669.0 / 6000 … 当前层级：full」；`python3 .workbuddy/scripts/unified_ops_center.py --dry-run --no-push` → 检查集含「✅ 积分预算: 0 项异常 | note: 积分(本月): 1669/6000（28%）」（18 项检查 15✅/0⚠️/3⏭，全绿 SILENT）；`pytest tests/test_budget_guard.py -q` → 28 passed（含 fail-closed、读数失败、实测倍率三组新用例）；根 tests/ 592 passed；grep 全仓无残留 `MONTHLY_BUDGET_CNY` 作为预算判据的引用。"
+    },
+    {
+      "id": "PA-010",
+      "due": "2026-12-31",
+      "owner": "auto",
+      "title": "两个 MEMORY.md 是否做「语义去重」—— 已定：不做",
+      "criteria": "逐字重复已为 0 组；剩下的是「意思相近、表述不同」。",
+      "decision": "2026-10-10 决定 **不去重**。理由：两个文件注入范围不同（用户级=所有项目注入；项目级=仅 Claw），**各自必须自洽** ⇒ 规则重叠是必要的冗余，不是浪费。真正该防的不是「重复」而是「同一规则两处写得不一样导致冲突」，而那属编辑判断、无法机械判定，且现有每日检查已覆盖「规则↔证据条数守恒」等结构一致性。",
+      "status": "done",
+      "if_no_action": "keep_as_is",
+      "decided_at": "2026-10-10"
+    },
+    {
+      "id": "PA-011",
+      "due": "2026-10-11",
+      "owner": "auto",
+      "title": "run_debate.py 影子路径 —— 已修，并抢救回被写丢的独有历史",
+      "criteria": "脚本不再向 .workbuddy/.workbuddy/ 写入；该影子目录已归档。",
+      "decision": "2026-10-10 已修。根因：9-21 脚本从 scripts/ 移到 .workbuddy/scripts/ 后，`Path(__file__).parent.parent / '.workbuddy' / ...` 变成双重嵌套 `.workbuddy/.workbuddy/data/...`。改用 `_CLAW_ROOT`（向上回溯定位）。\n实测后果远大于「路径写错」：该影子目录真实存在，内含 **11 份 2026-06~07 的独有日志**（真实目录连 .gz 都没有）+ **8 份独有 automation memory** + 一份基本面缓存。已全部抢救回真实位置（逐份字节校验），两份缓存并集合并（74→98 键），影子目录移入 `.workbuddy/tmp/_shadow_frozen_20261010/`（可逆，非删除）。\n注：.gitignore 第 33 行早就忽略了 `.workbuddy/.workbuddy/` —— 说明此前有人发现过它，但只加了忽略、没修根因，于是它继续静默写数据两个月。",
+      "status": "done",
+      "if_no_action": "keep_as_is",
+      "decided_at": "2026-10-10"
     }
   ],
   "automation_scope": {
