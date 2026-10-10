@@ -361,3 +361,72 @@ def test_sell_then_save_keeps_total_assets_consistent(monkeypatch):
     # 减仓后市值必须减半，不得停在 2000 股估值
     assert pf["positions"]["601668"]["market_value"] == round(1000 * 4.46, 2)
     assert pf["total_assets"] == round(pf["cash"] + 1000 * 4.46, 2)
+
+
+# ── 单一真源 + 落盘形态（2026-10-10 补）─────────────────────────────
+# 背景 A：模拟盘 portfolio.json 里长期并存三份「持仓/资产」表示 ——
+#   positions(dict)（唯一被维护的）、summary、holdings（无写入方、读取方只当兜底），
+#   且互相矛盾（实测 summary.cash=30853.33 vs 顶层 44555.18）。属同语义多真源。
+# 背景 B：该文件被 git 跟踪，而本仓 pre-commit 的 end-of-file-fixer 强制
+#   「文件以单个换行结尾」；若写盘不带换行，每次保存都会让 hook 再改一次。
+
+
+def _tmp_save_env(monkeypatch, tmp_path):
+    """把 PORTFOLIO_FILE 指到临时目录（PortfolioLock 也随之落到那儿），并静音备份。"""
+    target = tmp_path / "portfolio.json"
+    monkeypatch.setattr(st, "PORTFOLIO_FILE", target)
+    return target
+
+
+def test_save_portfolio_strips_legacy_orphan_keys(monkeypatch, tmp_path):
+    import json
+
+    target = _tmp_save_env(monkeypatch, tmp_path)
+    pf = {
+        "config": {"initial_capital": 50000.0},
+        "cash": 1000.0,
+        "positions": {"600036": {"name": "招商银行", "shares": 100, "current_price": 41.0, "avg_cost": 40.0}},
+        "summary": {"cash": 999.0, "total_assets": 111.0},
+        "holdings": [{"name": "遗留副本"}],
+    }
+    st.save_portfolio(pf)
+    assert "summary" not in pf and "holdings" not in pf, "保存时必须剥除遗留的第二/三份表示"
+    saved = json.loads(target.read_text(encoding="utf-8"))
+    assert "summary" not in saved and "holdings" not in saved, "落盘文件里也不得残留"
+    assert saved["total_assets"] == round(1000.0 + 100 * 41.0, 2)
+
+
+def test_save_portfolio_output_ends_with_single_newline(monkeypatch, tmp_path):
+    """end-of-file-fixer 兼容性：落盘必须恰好一个尾换行。"""
+    target = _tmp_save_env(monkeypatch, tmp_path)
+    st.save_portfolio(
+        {
+            "config": {"initial_capital": 50000.0},
+            "cash": 1000.0,
+            "positions": {},
+        }
+    )
+    raw = target.read_bytes()
+    assert raw.endswith(b"\n"), "缺尾换行 → pre-commit 会持续改写该文件"
+    assert not raw.endswith(b"\n\n"), "且只能有一个"
+
+
+def test_save_portfolio_is_stable_across_repeated_saves(monkeypatch, tmp_path):
+    """重复保存不得让尾换行累积。"""
+    target = _tmp_save_env(monkeypatch, tmp_path)
+    pf = {"config": {"initial_capital": 50000.0}, "cash": 0.0, "positions": {}}
+    for _ in range(3):
+        st.save_portfolio(pf)
+    raw = target.read_bytes()
+    assert raw.endswith(b"\n") and not raw.endswith(b"\n\n")
+
+
+def test_save_portfolio_keeps_top_level_updated_in_sync(monkeypatch, tmp_path):
+    """顶层 updated 是 config.updated_at 的派生镜像（原本是无写入方的孤儿，长期陈旧）。"""
+    import json
+
+    target = _tmp_save_env(monkeypatch, tmp_path)
+    st.save_portfolio({"config": {"initial_capital": 50000.0}, "cash": 0.0, "positions": {}})
+    saved = json.loads(target.read_text(encoding="utf-8"))
+    assert saved["updated"] == saved["config"]["updated_at"], "顶层 updated 必须与真源一致"
+    assert saved["updated"] != "2026-09-23", "不得停在旧的孤立值"

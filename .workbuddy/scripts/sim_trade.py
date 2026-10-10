@@ -196,10 +196,24 @@ def load_portfolio() -> dict:
 
 
 def save_portfolio(pf: dict):
+    # 单一真源：模拟盘只保留 positions(dict) + 顶层聚合字段。
+    # `summary` / `holdings` 是历史遗留的第二、三份「持仓/资产」表示 —— 实测
+    # **无任何写入方**（本引擎只维护 positions）、读取方也只把它们当兜底分支
+    # （fetch_holdings_quotes / correlation_monitor / run_debate 均为 positions 优先），
+    # 且长期与顶层字段互相矛盾：2026-10-10 实测 summary.cash=30853.33 vs 顶层 44555.18、
+    # holdings[].updated 停在 2026-09-23，而 positions[].updated 已是当日。
+    # 属「同一语义多真源」→ 保存时一律剥除，防旧脚本把它写回来。
+    for _legacy in ("summary", "holdings"):
+        pf.pop(_legacy, None)
     # 回写展示元字段，避免顶层 total_assets/initial_capital 长期为 None
     # （引擎计算用 get_effective_capital 读 config，此处仅补展示层，与之一致）
     pf["config"]["updated_at"] = now()
     pf["initial_capital"] = get_effective_capital(pf)
+    # 顶层 `updated` 原为**无写入方**的孤儿字段：实测长期停在 2026-09-23，
+    # 而 config.updated_at 已是当日 → 读文件的人会据此误判整份数据陈旧
+    # （2026-10-10 排查模拟盘断链时正是被它误导）。改为**派生镜像**：
+    # 真源仍是 config.updated_at，此处只做同步，不引入第二真源。
+    pf["updated"] = pf["config"]["updated_at"]
     # 2026-09-01 run#49 修复：原实现用 positions[*].market_value（**存储字段**）求和，
     # 但 cmd_sell / cmd_update_all_prices 都只改 shares / current_price，从不回写
     # market_value → 该字段永久停在首次建仓时的值，卖出减仓后尤甚（实测 601668

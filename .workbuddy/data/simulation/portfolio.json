@@ -568,35 +568,6 @@
   },
   "initial_capital": 50000.0,
   "total_assets": 52839.18,
-  "summary": {
-    "total_assets": 53373.33,
-    "total_market_value": 22520.0,
-    "cash": 30853.33,
-    "floating_pnl": -272.81,
-    "updated": "腾讯qt.gtimg.cn·收盘2026-08-28 15:55",
-    "position_pct": 42.19
-  },
-  "holdings": [
-    {
-      "name": "招商银行",
-      "shares": 200,
-      "avg_cost": 38.935,
-      "total_cost": 7787.0,
-      "current_price": 40.78,
-      "highest_price": 40.55,
-      "take_profit_level": 1,
-      "first_buy_date": "2026-07-23",
-      "updated": "live-reconcile-2026-09-23T09:45",
-      "price_source": "腾讯qt.gtimg.cn (fetch_holdings_quotes --sim)",
-      "mode": "sprint",
-      "market_value": 8156.0,
-      "floating_pnl": 369.0,
-      "pnl_pct": 4.74,
-      "pnl": 8156.0,
-      "price_sanity_ok": true,
-      "code": "600036"
-    }
-  ],
   "total_market_value": 8284.0,
   "updated": "2026-09-23"
 }

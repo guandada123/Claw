@@ -161,6 +161,13 @@ class AtomicJSONWriter:
             try:
                 with open(tmp_path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+                    # 末尾补换行：本仓 pre-commit 的 end-of-file-fixer 强制
+                    # 「文件以单个换行结尾」，而不带换行的 JSON 产物每次写盘都会被
+                    # hook 改写一次 → 提交被拦 + 无尽 diff（2026-10-10 实测：
+                    # simulation/portfolio.json、discovery_archive/dedup_index.json
+                    # 都因此让 CI 的 pre-commit job 变红）。json.load 不关心尾空白，
+                    # 故对所有调用方都是无感变更。
+                    f.write("\n")
                 # 验证写入内容可读
                 with open(tmp_path, encoding="utf-8") as f:
                     json.load(f)
