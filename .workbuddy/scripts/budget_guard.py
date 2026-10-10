@@ -37,6 +37,7 @@ v2.x 的 ¥ 口径全部来自 `cost_tracker.MODEL_PRICES`，实测两处硬伤�
 from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
 
 import calendar
+import math
 import os
 import sys
 import time
@@ -113,9 +114,10 @@ def parse_budget(raw: str | None) -> int:
     规则（fail-safe）：
       - None / 空字符串 / 仅空白 → 0
       - 非数字字符串 → 0
+      - 非有限值 NaN → 0（`float("nan")` 能通过 float() 但 int() 会抛错）
       - 小数 → 向下取整
       - 负数 → 0
-      - 超出 MAX_BUDGET_CAP → 截顶为 CAP
+      - 超出 MAX_BUDGET_CAP → 截顶为 CAP（`inf` 走此路）
 
     调用方使用返回值前应检查 `<= 0` → fail-closed。
     """
@@ -127,6 +129,11 @@ def parse_budget(raw: str | None) -> int:
     try:
         val = float(stripped)
     except (ValueError, TypeError):
+        return 0
+    # 🔴 2026-10-10 修复：`float("nan")` 既不 <0 也不 >CAP → 会落到 int(val) 抛
+    # ValueError，违反本函数的 fail-safe 契约；且经 _env_float → monthly_budget_credits
+    # → check_budget_status 传导，使整条 LLM 预算判据崩溃。nan 视为不可解析 → 0。
+    if math.isnan(val):
         return 0
     if val < 0:
         return 0

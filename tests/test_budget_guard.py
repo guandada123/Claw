@@ -211,6 +211,25 @@ def test_parse_budget_at_cap():
     assert bg.parse_budget(str(bg.MAX_BUDGET_CAP)) == bg.MAX_BUDGET_CAP
 
 
+def test_parse_budget_nan_returns_zero():
+    """🔴 2026-10-10 回归：`float("nan")` 既不 <0 也不 >CAP，原实现会落到 int(nan) 抛
+    ValueError，破坏本函数的 fail-safe 契约，并经 _env_float → monthly_budget_credits
+    → check_budget_status 使整条 LLM 预算判据崩溃。nan 必须归零。"""
+    assert bg.parse_budget("nan") == 0
+    assert bg.parse_budget("NaN") == 0
+
+
+def test_parse_budget_inf_clamped_to_cap():
+    assert bg.parse_budget("inf") == bg.MAX_BUDGET_CAP
+    assert bg.parse_budget("-inf") == 0
+
+
+def test_env_float_nan_falls_back_to_default(monkeypatch):
+    """配置写坏（含 nan）必须回退默认值，不得失能。"""
+    monkeypatch.setenv(bg.GRANT_ENV_VAR, "nan")
+    assert bg._env_float(bg.GRANT_ENV_VAR, bg.DEFAULT_MONTHLY_GRANT) == bg.DEFAULT_MONTHLY_GRANT
+
+
 # ============================================================
 # get_allowed_model 补充边界
 # ============================================================
