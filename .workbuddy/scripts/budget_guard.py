@@ -12,10 +12,23 @@ v2.x 的 ¥ 口径全部来自 `cost_tracker.MODEL_PRICES`，实测两处硬伤�
 新口径的数据源：`workbuddy.db → session_usage.credit_json`（只读），
 读取逻辑单源在 `credit_meter.py`（本文件不自己解析 credit_json）。
 
-## 阈值默认值与怎么改
-`WB_CREDIT_BUDGET` 环境变量可覆盖月预算；不设时用 `DEFAULT_MONTHLY_BUDGET_CREDITS`。
-默认值按历史月度积分基线取的整数（06→6676 / 07→5606 / 08→3291 / 09→1442），
-**应改成你的积分套餐额度**——套餐变了就改这一个数。
+## 月额度怎么来的（2026-10-10 用户确认口径：¥58 档 + 历史积分 + 每日签到）
+月可支配额度 = **套餐月度发放 + 签到累计**，不把历史余额算进来（读不到余额，且它是缓冲而非月流量）：
+- 套餐发放：¥58 档（个人专业版/标准版）= **基础 2000 积分/月**；官网当期该档另有
+  「每月赠送 2,000 积分」，故 `DEFAULT_MONTHLY_GRANT = 4000`（赠送一停就改回 2000）；
+- 签到：**100 积分/天**（实测 `wb-signin status` 的 `daily_credit`，Buddy加油站 赛季10）→ 按当月天数计入；
+- 于是 10 月额度 = 4000 + 100×31 = **7100**。
+
+三个旋钮（优先级从高到低）：
+| 环境变量 | 作用 | 默认 |
+| --- | --- | --- |
+| `WB_CREDIT_BUDGET` | 直接指定月额度（覆盖下面两项） | 不设 |
+| `WB_CREDIT_GRANT_MONTHLY` | 套餐月发（基础+赠送） | 4000 |
+| `WB_CREDIT_CHECKIN_DAILY` | 签到日产 | 100 |
+
+⚠️ **读不到余额这件事本身是个已知缺口**：真正的硬约束是「钱包还能撑多久」，
+而客户端只暴露 3 个账务接口（`checkin-activity-status` / `daily-checkin` /
+`get-enterprise-user-usage`），余额类路径实测全部 404 → 只能用「月度流量」近似。
 
 用法：
     from budget_guard import check_budget_status, get_allowed_model, verify_call_cost
@@ -44,8 +57,12 @@ _BUDGET_CACHE_TTL = 60  # 秒
 # ============================================================
 # 预算配置（积分口径）
 # ============================================================
-DEFAULT_MONTHLY_BUDGET_CREDITS = 6000.0  # ≈ 历史峰值月（06 月 6676）的九成
+# 月额度 = 套餐月发 + 签到累计（组成见文件头）；也可用 WB_CREDIT_BUDGET 一把覆盖。
 BUDGET_ENV_VAR = "WB_CREDIT_BUDGET"
+GRANT_ENV_VAR = "WB_CREDIT_GRANT_MONTHLY"
+CHECKIN_ENV_VAR = "WB_CREDIT_CHECKIN_DAILY"
+DEFAULT_MONTHLY_GRANT = 4000.0  # ¥58 档：基础 2000 + 当期活动赠送 2000
+DEFAULT_CHECKIN_DAILY = 100.0  # 实测 wb-signin status → daily_credit
 FLASH_LOCK_PCT = 0.875  # 已用 ≥ 该比例 → 锁定 Flash 模式（沿用 v2.x 的 350/400）
 FLASH_PREFERRED_PCT = 0.7
 NORMAL_PCT = 0.5
@@ -118,13 +135,31 @@ def parse_budget(raw: str | None) -> int:
     return int(val)
 
 
-def monthly_budget_credits() -> float:
-    """当前月预算（积分）。`WB_CREDIT_BUDGET` 覆盖默认值；解析失败走默认值。"""
-    raw = os.environ.get(BUDGET_ENV_VAR)
+def _env_float(name: str, default: float) -> float:
+    """读环境变量的数值；未设/非数字/<=0 一律回退默认值（不让配置写错就失能）。"""
+    raw = os.environ.get(name)
     if raw is None or not str(raw).strip():
-        return DEFAULT_MONTHLY_BUDGET_CREDITS
+        return default
     parsed = parse_budget(raw)
-    return float(parsed) if parsed > 0 else 0.0
+    return float(parsed) if parsed > 0 else default
+
+
+def monthly_budget_credits() -> float:
+    """当前月的可支配额度（积分）。
+
+    优先级：`WB_CREDIT_BUDGET`（直接给额度）> 套餐月发 + 签到×当月天数。
+    `WB_CREDIT_BUDGET` **显式设了但写错**（非数字/<=0）→ 返回 <b>0</b>，
+    由调用方按 fail-closed 处理（沿用 v2.x 的「配置异常即锁 Flash」约定），
+    不静默回退——配置写错必须看得见。
+    """
+    raw = os.environ.get(BUDGET_ENV_VAR)
+    if raw is not None and str(raw).strip():
+        return float(parse_budget(raw))
+    today = date.today()
+    days = calendar.monthrange(today.year, today.month)[1]
+    grant = _env_float(GRANT_ENV_VAR, DEFAULT_MONTHLY_GRANT)
+    daily = _env_float(CHECKIN_ENV_VAR, DEFAULT_CHECKIN_DAILY)
+    return grant + daily * days
 
 
 # ============================================================

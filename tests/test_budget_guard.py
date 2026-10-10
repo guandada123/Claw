@@ -67,10 +67,40 @@ def test_flash_only_at_exact_threshold():
 
 
 def test_default_budget_used_when_env_absent():
-    """未设 WB_CREDIT_BUDGET 时用默认额度（不注入 monthly_budget_credits）。"""
+    """未设任何环境变量 → 用「套餐月发 + 签到×当月天数」组成式额度。"""
+    import calendar
+    import datetime
+
     with patch("budget_guard.total_for_month", return_value=1000.0):
         s = bg.check_budget_status()
-    assert s["remaining"] == pytest.approx(bg.DEFAULT_MONTHLY_BUDGET_CREDITS - 1000.0)
+    days = calendar.monthrange(datetime.date.today().year, datetime.date.today().month)[1]
+    expect = bg.DEFAULT_MONTHLY_GRANT + bg.DEFAULT_CHECKIN_DAILY * days
+    assert s["remaining"] == pytest.approx(expect - 1000.0)
+
+
+def test_budget_override_env_wins(monkeypatch):
+    """WB_CREDIT_BUDGET 一把覆盖组成式。"""
+    monkeypatch.setenv(bg.BUDGET_ENV_VAR, "800")
+    with patch("budget_guard.total_for_month", return_value=100.0):
+        s = bg.check_budget_status()
+    assert s["remaining"] == pytest.approx(700.0)
+
+
+def test_grant_and_checkin_env_compose(monkeypatch):
+    """套餐发放与签到日产可分别覆盖（¥58 档基础 2000，赠送取消时改 grant 即可）。"""
+    import calendar
+    import datetime
+
+    monkeypatch.setenv(bg.GRANT_ENV_VAR, "2000")
+    monkeypatch.setenv(bg.CHECKIN_ENV_VAR, "100")
+    days = calendar.monthrange(datetime.date.today().year, datetime.date.today().month)[1]
+    assert bg.monthly_budget_credits() == pytest.approx(2000 + 100 * days)
+
+
+def test_bad_grant_env_falls_back_to_default(monkeypatch):
+    """发放额写错 → 回退默认（不静默变 0 把额度抹掉）。"""
+    monkeypatch.setenv(bg.GRANT_ENV_VAR, "abc")
+    assert bg.monthly_budget_credits() >= bg.DEFAULT_MONTHLY_GRANT
 
 
 def test_env_overrides_default_budget(monkeypatch):
@@ -80,8 +110,9 @@ def test_env_overrides_default_budget(monkeypatch):
     assert s["remaining"] == pytest.approx(1134.0)
 
 
-def test_budget_zero_fail_closed():
-    # 月额度=0 → 配置异常，fail-closed 锁定 Flash，绝不放行
+def test_budget_zero_fail_closed(monkeypatch):
+    # WB_CREDIT_BUDGET 显式设为 0 → 配置异常，fail-closed 锁定 Flash，绝不放行
+    monkeypatch.setenv(bg.BUDGET_ENV_VAR, "0")
     s = _status(9999.0, budget=0.0)
     assert s["tier"] == "flash_only"
     assert s["pct"] == 1.0

@@ -1393,7 +1393,8 @@ def check_cost_anomaly() -> dict:
                 f"已超 {over:.0f} 积分"
                 + (f"，月底预估 {est:.0f}" if est else "")
                 + f"；判据＝官方积分（唯一真实扣减，单源 credit_meter），"
-                f"额度可用 {budget_guard.BUDGET_ENV_VAR} 调整；"
+                f"额度＝套餐月发+签到累计（可用 {budget_guard.GRANT_ENV_VAR} / "
+                f"{budget_guard.BUDGET_ENV_VAR} 调整）；"
                 f"处置：执行 budget_guard 降级策略或调额度"
             ],
             "note": note,

@@ -30,10 +30,10 @@
 | 自记数据层 | `.workbuddy/scripts/cost_tracker.py`（v2.1） | 自建 JSONL | ⚠️ 半活：仍在被 `read_wx_articles.py` 等插桩写入（**只看得到被插桩的调用**）；2026-10-10 起**不再是任何预算判据**，文件头已加口径警示 |
 | 自记报告层 | `scripts/cost_monitor.py`（daily/monthly/summary/dashboard 四子命令） | cost_tracker | ❌ 死：无 ACTIVE 自动化调用 |
 | 自记可视化 | `scripts/cost_dashboard.py`（899 行 HTML）+ `cost_dashboard_feishu.py` | cost_tracker | ❌ 死：产物最新停在 2026-06-30（`cost_report_*.json`）；飞书推送自动化 1782002819199 已于 09-23 软删 |
-| 预算拦截器 | `.workbuddy/scripts/budget_guard.py`（**v3.0 积分口径**：月额度 `WB_CREDIT_BUDGET`，默认 6000 积分；87.5% 触发 Flash 锁） | B（经 `credit_meter`） | ✅ 活；消费方：巡检中枢「积分预算」检查、`router.py`（当前无 ACTIVE 自动化走 router） |
+| 预算拦截器 | `.workbuddy/scripts/budget_guard.py`（**v3.0 积分口径**：月额度＝套餐月发 4000 + 签到 100×当月天数 = 7100（10 月）；87.5% 触发 Flash 锁） | B（经 `credit_meter`） | ✅ 活；消费方：巡检中枢「积分预算」检查、`router.py`（当前无 ACTIVE 自动化走 router） |
 | 积分错峰审计 | `~/.workbuddy/skills/workbuddy-credit-offpeak-audit` + `WorkBuddy/2026-09-23-21-55-37/` | 调度清单 + 免费窗口 | ✅ 活（每日 03:50，管的是**调度**不是用量） |
 
-## 三条已确认的缺陷
+## 四条已确认的缺陷（前三条是缺陷，第四条是已知缺口）
 
 1. **价目表错两个数量级**（C 单独背）：`cost_tracker.MODEL_PRICES` 以「¥/万 token」标注，
    但数值等于公开「¥/百万」价的 ~200 倍。它算出的一切 ¥ 都不能与看板、与积分并列比较。
@@ -44,6 +44,14 @@
    唯一还在消费 C 的是巡检中枢的 `check_cost_anomaly`（已改文案为「委托已退役」）。
    `MEMORY.md` 里「cost_tracker/cost_monitor 被 cost_dashboard_feishu 依赖」是**历史事实**，
    不是当前活链。
+
+4. **余额不可读**（2026-10-10 实测）：真正的硬约束是「钱包还能撑多久」，
+   但客户端 bundle 只暴露 3 个 `v2/billing/meter/*` 接口（`checkin-activity-status` / `daily-checkin` /
+   `get-enterprise-user-usage`），其余余额/套餐/用量类路径（`get-user-resource-summary`、
+   `get-user-resource-paid-packages`、`billing/pay/get-price` 等）**实测全部 404**，
+   平台库也只有 `session_usage` 一张用量表、无额度表。
+   → 现在只能用「月度流量」近似（`budget_guard`），且**历史余额是缓冲、不计入月额度**。
+   若将来出现余额接口，判据应改成**水位**（余额 < 阈值 → 降级），那比月度流量准确得多。
 
 ## 判断：怎么「融合」
 
@@ -56,8 +64,10 @@
    而不是算钱），任何对外结论都必须带「自记口径、非全量、非实付」。
 
 **已决定并落地（2026-10-10，PA-009 → done）**：`budget_guard` 改**积分口径**（方案②）。
-- 单位：积分；数据源：`credit_meter`（单源读官方积分）；月额度 `WB_CREDIT_BUDGET`（默认 6000 积分
-  ≈ 历史峰值月 06 月 6676 的九成，**应改成你的积分套餐额度**）；
+- 单位：积分；数据源：`credit_meter`（单源读官方积分）；
+- 月额度＝**套餐月发 + 签到累计**（2026-10-10 用户确认：¥58 档 → 基础 2000 + 当期赠送 2000 = 4000；
+  签到 100/天实测自 `wb-signin status`）→ **10 月 = 7100**；两个旋钮 `WB_CREDIT_GRANT_MONTHLY` /
+  `WB_CREDIT_CHECKIN_DAILY`，也可用 `WB_CREDIT_BUDGET` 一把覆盖；历史余额是缓冲、不计入月额度；
   层级阈值沿用 50% / 70% / 87.5%，87.5% 触发 Flash 锁定；
 - 失败语义：读数失败与「额度<=0」都 fail-closed 锁 Flash，但**文案区分「故障」与「超支」**（避免把读不到说成超支）；
 - 单次调用上限折算为 30 积分（实测 2.68 积分/百万 token ≈ 1,120 万 token/次，护栏而非节流器）；
