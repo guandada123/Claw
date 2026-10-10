@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-10T21:10:00+08:00",
+  "updated_at": "2026-10-10T21:13:32+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2140,6 +2140,16 @@
       "detect": "/usr/bin/python3 -c \"import sqlite3;c=sqlite3.connect('file:/Users/guan/.workbuddy/workbuddy.db?mode=ro',uri=True);print('automations.last_run_at 最新:', c.execute('SELECT max(last_run_at) FROM automations').fetchone()[0]);print('runtime_state 最新:', c.execute('SELECT max(last_run_at) FROM automation_runtime_state').fetchone()[0])\" # 只要两者差 >1 天，本 KFM 成立",
       "mitigation": "**真值来源（按需选一个）**：① `automation_runtime_state.last_run_at` —— 每次都刷新，取「最近一次运行时刻」最省；② `automation_runs` —— 每次派发落一行，含 result_success / failure_code，判「跑了没成功」必须用这个。已按此修正全部消费方（2026-10-08 全量扫描确认）：hub_reconcile D4 用 automation_runs、hub_liveness_probe 用 automation_runtime_state、automation_health 取两者 max 且不参与判定、技能 automation-not-firing-diagnostic 的「批量直插签名」与 MEMORY.md 自动化运维排障条目均已改写。⚠️ 不要「修」这个字段本身：它是平台的反规范化副本，直写平台库既越界又会被下一次平台写回覆盖——修消费方，不修字段。",
       "does_not_affect": "调度本身（next_run_at 正常、D1 镜像对账以 automations.rrule/status 为准、实际触发与否看 automation_runs）；只需注意「凡以 last_run_at 为输入的新判据」都会踩。"
+    },
+    {
+      "id": "reusable-workflow-ref-degradation",
+      "area": "GitHub Actions 跨仓库（可复用工作流）",
+      "severity": "low",
+      "since": "2026-10-02",
+      "desc": "`jobs.<id>.uses:` 引用的可复用工作流若指向 **坏 revision**，调用方 run 会 **startup 失败**：`conclusion=failure` 但 **job 数为 0、无任何日志**，页面只提示「likely failed because of a workflow file issue」→ 极易被误判成「本仓代码/测试坏了」。实测根因：engineering-audit-kit 的 `quality-gate.yml@v2` 有一行未加引号的 `description: PHP checks: auto|on|off` → YAML 非法（mapping values are not allowed here）。更坑的是那次「升级」来自 Dependabot 的 v1→v2 bump，而该仓 `v2` 指向的提交(6b346f2)比 `v1`(ae57b18)**更旧**→ 版本号升级实为降级，QuantTradingSystem 的 CI 因此红了 8 天。",
+      "detect": "① `gh api repos/<o>/<r>/actions/runs/<id> -q .conclusion` 为 failure 且 `gh run view <id> --json jobs` 的 jobs 为空 → 直接怀疑引用，别查代码；② 复现一行：docker 不需要，直接解析远端文件——`gh api \"repos/guandada123/engineering-audit-kit/contents/.github/workflows/quality-gate.yml?ref=<ref>\" -q .content | base64 -d | /usr/bin/python3 -c \"import sys,yaml;yaml.safe_load(sys.stdin.read())\"`（非法时抛 mapping values are not allowed here）；③ 交叉验证：同一次 push 的其它工作流（如 test.yml 的 Test & Lint）是否全绿——绿则基本可排除本仓代码。",
+      "mitigation": "已修：QTS 的 ci.yml 引用改 `@v3`（= engineering-audit-kit 当前 main：YAML 已修 + gitleaks 改 Docker 直调 + 补 bandit/pytest）；并在 EAK 侧新增 `Workflow YAML Validate` job（`.github/workflows/**` 变更即触发，解析失败即红）＋ README 写死 tag 版本表。QTS 的 Quality Gate 于 2026-10-10 首次转绿。",
+      "does_not_affect": "本仓代码与测试：同 push 的 Test & Lint 全绿（10 个 job）；且该 run 的失败与提交内容无关，任何提交都会红。另注意：该可复用工作流的 bandit/pytest 步骤以 `|| echo` 收尾（永不失败），**绿灯不等于质量已验证**，真门禁只有 ruff 与 gitleaks。"
     }
   ],
   "doc_apply": {
