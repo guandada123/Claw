@@ -86,7 +86,7 @@ Claude ¥21.6/万 ── ████████████████ ██
            │
            ▼
   ┌─────────────────┐
-  │  7. 预算降级     │ ← budget_guard 覆盖（LOCAL 不受影响）
+  │  7. 积分预算降级 │ ← budget_guard 覆盖（积分口径，LOCAL 不受影响）
   └────────┬────────┘
            │
            ▼
@@ -96,8 +96,8 @@ Claude ¥21.6/万 ── ████████████████ ██
 ### 核心代码位置
 
 - **路由引擎**: `Claw/scripts/router.py` → `route_task()` + `get_model()`
-- **预算守护**: `Claw/scripts/budget_guard.py` → `check_budget_status()` + `get_allowed_model()`
-- **成本追踪**: `Claw/scripts/cost_tracker.py` → `log_call()` + `daily_report()` + `monthly_report()`
+- **预算守护**: `.workbuddy/scripts/budget_guard.py`（v3.0，**积分口径**）→ `check_budget_status()` + `get_allowed_model()`；积分读取单源 `credit_meter.py`，月额度用 `WB_CREDIT_BUDGET` 覆盖（默认 6000 积分）
+- **成本追踪（样本账，非实付）**: `.workbuddy/scripts/cost_tracker.py` → `log_call()` + `daily_report()` + `monthly_report()`；其 ¥ 约为公开牌价的数十倍、只覆盖全量 token 的 0.031%，**不作为预算判据**（口径见 `consumption-ledger.md`）
 - **Prompt优化**: `Claw/scripts/prompt_builder.py` → `build_prompt()` + 分层注入
 - **上下文压缩**: `Claw/scripts/context_compressor.py` → `compress_conversation_history()`
 
@@ -347,7 +347,7 @@ result = call_with_fallback(
 |------|------|---------|
 | `scripts/router.py` | 路由决策 | `python3 router.py [test\|route '<prompt>']` |
 | `scripts/cost_tracker.py` | 成本追踪 | `python3 cost_tracker.py [daily\|monthly\|top [N]\|log ...]` |
-| `scripts/budget_guard.py` | 预算守护 | `python3 budget_guard.py [status\|check <model>\|verify ...]` |
+| `.workbuddy/scripts/budget_guard.py` | 积分预算守护（v3.0） | `python3 budget_guard.py [status\|check <model>\|verify <in> <out> [model]]` |
 | `scripts/prompt_builder.py` | Prompt生成 | `python3 prompt_builder.py [test\|<task_type> '<json>']` |
 | `scripts/context_compressor.py` | 压缩工具 | `python3 context_compressor.py [test\|load_code ...]` |
 | `scripts/cost_monitor.py` | 监控报告 | `python3 cost_monitor.py [daily\|monthly\|summary]` |

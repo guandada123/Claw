@@ -38,7 +38,6 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
-import sqlite3
 import sys
 from pathlib import Path
 
@@ -86,33 +85,28 @@ def load_token_side(dashboard: Path) -> tuple[dict[str, int], dict[str, dict], i
 
 
 def load_credit_side(db: Path) -> dict[str, dict]:
-    """读 session_usage.credit_json → {会话前缀: {credits, ts, keys}}。"""
-    if not db.is_file():
-        print(f"❌ 平台库不存在：{db}", file=sys.stderr)
-        sys.exit(2)
-    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-    out: dict[str, dict] = {}
+    """读官方积分 → {会话前缀: {credits, ts, calls}}。
+
+    解析逻辑**不在本文件**：单源在 `credit_meter.py`（本工作区唯一允许解析
+    `credit_json` 的地方），避免出现第二套积分口径。
+    """
+    sys.path.insert(0, str(Path(__file__).absolute().parent))
+    import credit_meter
+    from credit_meter import CreditReadError
+
     try:
-        rows = con.execute(
-            "SELECT session_id, credit_json, updated_at FROM session_usage "
-            "WHERE credit_json IS NOT NULL AND credit_json != ''"
-        ).fetchall()
-    except sqlite3.Error as e:
-        print(f"❌ 读 session_usage 失败：{e}", file=sys.stderr)
+        rows = credit_meter.load_rows(db)
+    except CreditReadError as e:
+        print(f"❌ 积分侧读数失败：{e}", file=sys.stderr)
         sys.exit(2)
-    finally:
-        con.close()
-    for sid, cj, ts in rows:
-        try:
-            d = json.loads(cj)
-            val = sum(float(v) for v in d.values() if isinstance(v, (int, float)))
-        except (json.JSONDecodeError, TypeError, ValueError):
-            continue
-        key = str(sid)[:SID_PREFIX]
-        rec = out.setdefault(key, {"credits": 0.0, "ts": ts or 0, "calls": 0})
-        rec["credits"] += val
-        rec["calls"] += len(d) if isinstance(d, dict) else 0
-        rec["ts"] = max(rec["ts"], ts or 0)
+
+    out: dict[str, dict] = {}
+    for r in rows:
+        key = str(r["session_id"])[:SID_PREFIX]
+        rec = out.setdefault(key, {"credits": 0.0, "ts": 0, "calls": 0})
+        rec["credits"] += r["credits"]
+        rec["calls"] += r["calls"]
+        rec["ts"] = max(rec["ts"], r["ts_ms"])
     return out
 
 

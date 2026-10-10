@@ -1,106 +1,151 @@
-"""test_budget_guard.py — 预算守护的层级判定 + fail-closed 守卫。
+"""test_budget_guard.py — 预算守护的层级判定 + fail-closed 守卫（v3.0 积分口径）。
 
-用 unittest.mock 替换 cost_tracker 的真实读取，使预算状态完全可注入。
+注入点（都不碰真实平台库）：
+  - `budget_guard.total_for_month`（积分读取单源在 credit_meter，此处整体替换）
+  - `budget_guard.monthly_budget_credits`（月额度，生产环境由 `WB_CREDIT_BUDGET` 决定）
+
+注入统一走 `patch.multiple`：一次 `with` 同时替换两者，
+既避免嵌套 `with`（SIM117），也避免「括号多上下文」写法在 Python 3.9 上的兼容风险。
 """
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import budget_guard as bg
 import pytest
+from credit_meter import CreditReadError
 
 
 @pytest.fixture(autouse=True)
-def _clear_cache():
+def _clear_cache(monkeypatch):
     bg._budget_cache = None
     bg._budget_cache_time = 0
+    monkeypatch.delenv(bg.BUDGET_ENV_VAR, raising=False)
     yield
     bg._budget_cache = None
 
 
-def _status(spent: float, budget: float = 400.0) -> dict:
-    with patch("cost_tracker.get_monthly_spent", return_value=spent), \
-         patch("cost_tracker.MONTHLY_BUDGET_CNY", budget):
+def _ctx(spent, budget=6000.0):
+    """组合注入：本月积分 = spent，月额度 = budget。"""
+    return patch.multiple(
+        "budget_guard",
+        total_for_month=Mock(return_value=spent),
+        monthly_budget_credits=Mock(return_value=budget),
+    )
+
+
+def _status(spent, budget=6000.0):
+    with _ctx(spent, budget):
         return bg.check_budget_status()
 
 
 def test_full_when_low():
-    s = _status(100.0)
+    s = _status(1000.0)
     assert s["tier"] == "full"
-    assert s["remaining"] == pytest.approx(300.0)
-    assert s["pct"] == pytest.approx(0.25)
+    assert s["remaining"] == pytest.approx(5000.0)
+    assert s["pct"] == pytest.approx(1000 / 6000)
+    assert s["unit"] == "credits"
 
 
 def test_normal_at_half():
     # >=50% → normal
-    assert _status(210.0)["tier"] == "normal"
+    assert _status(3300.0)["tier"] == "normal"
 
 
 def test_flash_preferred_at_70pct():
     # >=70% → flash_preferred
-    assert _status(290.0)["tier"] == "flash_preferred"
+    assert _status(4400.0)["tier"] == "flash_preferred"
 
 
 def test_flash_only_at_875pct():
-    # >=87.5% → flash_only (>=350/400)
-    assert _status(360.0)["tier"] == "flash_only"
+    # >=87.5% → flash_only
+    assert _status(5400.0)["tier"] == "flash_only"
 
 
 def test_flash_only_at_exact_threshold():
-    # 恰好 350/400 = 87.5% → flash_only
-    assert _status(350.0)["tier"] == "flash_only"
+    # 恰好 87.5% → flash_only
+    assert _status(5250.0)["tier"] == "flash_only"
+
+
+def test_default_budget_used_when_env_absent():
+    """未设 WB_CREDIT_BUDGET 时用默认额度（不注入 monthly_budget_credits）。"""
+    with patch("budget_guard.total_for_month", return_value=1000.0):
+        s = bg.check_budget_status()
+    assert s["remaining"] == pytest.approx(bg.DEFAULT_MONTHLY_BUDGET_CREDITS - 1000.0)
+
+
+def test_env_overrides_default_budget(monkeypatch):
+    monkeypatch.setenv(bg.BUDGET_ENV_VAR, "1234")
+    with patch("budget_guard.total_for_month", return_value=100.0):
+        s = bg.check_budget_status()
+    assert s["remaining"] == pytest.approx(1134.0)
 
 
 def test_budget_zero_fail_closed():
-    # MONTHLY_BUDGET=0 → 配置异常，fail-closed 锁定 Flash，绝不放行
-    s = _status(999.0, budget=0.0)
+    # 月额度=0 → 配置异常，fail-closed 锁定 Flash，绝不放行
+    s = _status(9999.0, budget=0.0)
     assert s["tier"] == "flash_only"
     assert s["pct"] == 1.0
     assert "⛔" in s["msg"]
 
 
 def test_budget_negative_fail_closed():
-    # MONTHLY_BUDGET 被误改为负数 → 同样 fail-closed
-    s = _status(999.0, budget=-10.0)
+    s = _status(9999.0, budget=-10.0)
     assert s["tier"] == "flash_only"
     assert "⛔" in s["msg"]
 
 
+def test_credit_read_failure_fail_closed():
+    """读数失败 ≠ 消耗为 0：必须 fail-closed，且文案要能区分「故障」与「超支」。"""
+    with patch.multiple(
+        "budget_guard",
+        total_for_month=Mock(side_effect=CreditReadError("库不可读")),
+        monthly_budget_credits=Mock(return_value=6000.0),
+    ):
+        s = bg.check_budget_status()
+    assert s["tier"] == "flash_only"
+    assert "读数失败" in s["msg"]
+    assert "超" not in s["msg"]
+
+
 def test_get_allowed_model_flash_only_downgrades():
-    with patch("cost_tracker.get_monthly_spent", return_value=360.0), \
-         patch("cost_tracker.MONTHLY_BUDGET_CNY", 400.0):
+    with _ctx(5400.0):
         allowed = bg.get_allowed_model("gpt-5", "normal")
     assert allowed == "deepseek-v4-flash"
 
 
 def test_get_allowed_model_full_keeps_intended():
-    with patch("cost_tracker.get_monthly_spent", return_value=100.0), \
-         patch("cost_tracker.MONTHLY_BUDGET_CNY", 400.0):
+    with _ctx(1000.0):
         allowed = bg.get_allowed_model("gpt-5", "normal")
     assert allowed == "gpt-5"
 
 
-def test_verify_call_cost_blocks_over_limit():
-    with patch("cost_tracker.MODEL_PRICES", {"gpt-5": {"input": 100.0, "output": 100.0}}), \
-         patch("cost_tracker._match_model", return_value="gpt-5"):
-        allowed, cost = bg.verify_call_cost(1_000_000, 1_000_000, "gpt-5")
-    assert allowed is False
-    assert cost > 5.0
-
-
-def test_verify_call_cost_allows_under_limit():
-    with patch("cost_tracker.MODEL_PRICES", {"gpt-5": {"input": 0.0, "output": 0.0}}), \
-         patch("cost_tracker._match_model", return_value="gpt-5"):
-        allowed, cost = bg.verify_call_cost(10, 10, "gpt-5")
+def test_verify_call_cost_uses_measured_rate():
+    """单次调用按实测倍率折积分（不再依赖任何 ¥ 价目表）。"""
+    allowed, credits = bg.verify_call_cost(1_000_000, 0, "deepseek-v4-pro")
     assert allowed is True
-    assert cost == 0.0
+    assert credits == pytest.approx(bg.credit_meter.CREDITS_PER_MILLION_TOKENS)
+
+
+def test_verify_call_cost_blocks_over_limit():
+    # 2000 万 token × 2.68/百万 = 53.6 积分 > 30 → 拦截
+    allowed, credits = bg.verify_call_cost(10_000_000, 10_000_000, "deepseek-v4-pro")
+    assert allowed is False
+    assert credits > bg.MAX_SINGLE_CALL_CREDITS
+
+
+def test_verify_call_cost_allows_typical_call():
+    allowed, credits = bg.verify_call_cost(4000, 1200, "deepseek-v4-flash")
+    assert allowed is True
+    assert credits == pytest.approx(5200 / 1_000_000 * bg.credit_meter.CREDITS_PER_MILLION_TOKENS)
 
 
 # ============================================================
-# PR-2: parse_budget 健壮解析
+# parse_budget 健壮解析（单位：积分）
 # ============================================================
+
 
 def test_parse_budget_normal_int():
-    assert bg.parse_budget("400") == 400
+    assert bg.parse_budget("6000") == 6000
 
 
 def test_parse_budget_none_returns_zero():
@@ -136,44 +181,29 @@ def test_parse_budget_at_cap():
 
 
 # ============================================================
-# PR-3: get_allowed_model 补充边界
+# get_allowed_model 补充边界
 # ============================================================
 
 
 def test_get_allowed_model_flash_preferred_downgrades_flagship():
     """flash_preferred 层级下，非关键旗舰任务降为 PRO 模型"""
-    with patch("cost_tracker.get_monthly_spent", return_value=290.0), \
-         patch("cost_tracker.MONTHLY_BUDGET_CNY", 400.0):
+    with _ctx(4400.0):
         allowed = bg.get_allowed_model("gpt-5", "normal")
     assert allowed == "deepseek-v4-pro"
 
 
 def test_get_allowed_model_flash_only_critical_keeps_flagship():
     """flash_only 但 critical 任务 + 旗舰模型仍然允许"""
-    with patch("cost_tracker.get_monthly_spent", return_value=360.0), \
-         patch("cost_tracker.MONTHLY_BUDGET_CNY", 400.0):
+    with _ctx(5400.0):
         allowed = bg.get_allowed_model("gpt-5", "critical")
     assert allowed == "gpt-5"
 
 
 def test_get_allowed_model_flash_only_critical_non_flagship():
-    """flash_only + critical 但非旗舰模型 → 直接返回原模型（不在此列表则放行）"""
-    with patch("cost_tracker.get_monthly_spent", return_value=360.0), \
-         patch("cost_tracker.MONTHLY_BUDGET_CNY", 400.0):
-        # kimi-k2.6 不在 FLAGSHIP_MODELS 内 → 不做豁免
+    """flash_only + critical 但非旗舰模型 → 仍降级为 Flash"""
+    with _ctx(5400.0):
         allowed = bg.get_allowed_model("kimi-k2.6", "critical")
-    # flash_only 对非旗舰仍降级为 FLASH_MODEL
     assert allowed == "deepseek-v4-flash"
-
-
-def test_verify_call_cost_near_limit():
-    """贴近但不超过 MAX_SINGLE_CALL 的单次调用应通过"""
-    with patch("cost_tracker.MODEL_PRICES", {"gpt-5": {"input": 0.5, "output": 0.5}}), \
-         patch("cost_tracker._match_model", return_value="gpt-5"):
-        # 49999 * 0.5 + 49999 * 0.5 = 49999 → /10000 = 4.9999
-        allowed, cost = bg.verify_call_cost(49999, 49999, "gpt-5")
-    assert allowed is True
-    assert cost < bg.MAX_SINGLE_CALL
 
 
 # ============================================================
@@ -182,13 +212,19 @@ def test_verify_call_cost_near_limit():
 
 
 def test_budget_summary_returns_string():
-    """budget_summary 返回非空格式化的预算摘要字符串"""
-    import budget_guard as bg_module
-    with patch("cost_tracker.get_monthly_spent", return_value=100.0), \
-         patch("cost_tracker.MONTHLY_BUDGET_CNY", 400.0), \
-         patch("cost_tracker._load_records", return_value=[]), \
-         patch("cost_tracker.daily_report", return_value={"total": 0, "count": 0}):
-        summary = bg_module.budget_summary()
-        assert "本月预算" in summary
-        assert isinstance(summary, str)
-        assert len(summary) > 50
+    with _ctx(1000.0):
+        summary = bg.budget_summary()
+    assert "本月积分" in summary
+    assert "积分" in summary
+    assert "¥" not in summary  # v3.0 起不再有 ¥ 口径
+    assert len(summary) > 50
+
+
+def test_budget_summary_reports_read_failure():
+    with patch.multiple(
+        "budget_guard",
+        total_for_month=Mock(side_effect=CreditReadError("库被占用")),
+        monthly_budget_credits=Mock(return_value=6000.0),
+    ):
+        summary = bg.budget_summary()
+    assert "读数失败" in summary

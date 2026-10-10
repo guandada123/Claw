@@ -1,13 +1,24 @@
 """
 cost_tracker.py — AI调用成本追踪器（v2.1 + Prompt Cache 支持）
 =====================================
-适用：1-2人小团队，月预算¥400
+适用：1-2人小团队（自付 API 账单时代）
 集成：与 Claw/QTS 项目的 LLM 调用入口无缝对接
 输出：JSONL 日志 → daily_report() / monthly_report()
-预算：¥400/月硬约束，¥350触发Flash锁定
 新增：v2.1 支持 prompt_cache_hit_tokens / prompt_cache_miss_tokens 追踪
 
 版本：v2.1 | 2026-06-14 — 新增 Prompt Cache 指标追踪
+
+⚠️⚠️ 口径警示（2026-10-10，PA-009）——读本文件前必看
+1. 本文件算出的 ¥ **不是实付**，也不是总消耗：
+   - `MODEL_PRICES` 与公开牌价差数十倍（同一批 token 与看板价目表差约 200 倍）；
+   - 只统计**显式插桩**的调用（实测只占全量 token 的 0.031%），
+     且 `log_estimate()` 写入的是 `AUTO_COST_ESTIMATES` 里的**手填估值**，不是实测 token。
+2. **它已不再是任何预算判据**：`budget_guard` v3.0 起改用**积分口径**
+   （`workbuddy.db → session_usage.credit_json`，读取单源 `credit_meter.py`）。
+   本文件保留为「哪条自动化花了多少」的**样本账**（相对归因仍有用）。
+3. 对外一律不要引用本文件的 ¥ 当「花了多少钱」。口径总表：
+   `.workbuddy/docs/consumption-ledger.md`；真实消耗看
+   `.workbuddy/reports/credit-vs-token.md`（官方积分 × token）。
 """
 
 from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
@@ -215,7 +226,11 @@ def _load_records(date_filter: str | None = None) -> list:
 
 
 def get_monthly_spent(month: str | None = None) -> float:
-    """返回指定月份已花费金额（¥），由 budget_guard 调用以避免重复读 JSONL"""
+    """返回指定月份自记插桩账的金额（¥，表价估算）。
+
+    ⚠️ 自 2026-10-10 起**无预算判据消费方**（budget_guard 已改积分口径）；
+    保留此接口供报表/测试使用，引用时务必带上「自记口径、非实付」。
+    """
     month = month or date.today().strftime("%Y-%m")
     records = _load_records(month)
     return sum(r.get("cost_cny", 0) for r in records)  # type: ignore[no-any-return]

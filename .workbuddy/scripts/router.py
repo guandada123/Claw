@@ -293,7 +293,7 @@ def get_model(
             # 已超¥350，锁定Flash（LOCAL仍可用，不受预算约束）
             if tier in (ModelTier.PRO, ModelTier.PREMIUM):
                 print(
-                    f"   ⛔ budget_guard: {tier} 被降级为 Flash（¥{budget_status['spent']:.0f}/¥400已用）"
+                    f"   ⛔ budget_guard: {tier} 被降级为 Flash（积分已用{budget_status['spent']:.0f}）"
                 )
                 tier = ModelTier.FLASH
         elif budget_tier == "flash_preferred":
