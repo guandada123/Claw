@@ -35,7 +35,8 @@ except Exception:
 " 2>/dev/null || echo 9)
 echo -e "${YELLOW}[1/5] 单元测试 + 覆盖率门禁（fail_under=${FAIL_UNDER}%）${NC}"
 cd "$ROOT"
-if $PYTHON -m pytest tests/ --cov=scripts --cov-report=term --cov-report=html:.workbuddy/data/coverage --no-header -q 2>&1; then
+# 口径：真码目录 .workbuddy/scripts（Claw/scripts/ 是转发薄壳目录，统计它无意义、数字虚高）
+if $PYTHON -m pytest tests/ --cov=.workbuddy/scripts --cov-report=term --cov-report=html:.workbuddy/data/coverage --no-header -q 2>&1; then
     echo -e "${GREEN}  ✅ 单测通过${NC}"
 else
     echo -e "${RED}  ❌ 单测失败${NC}"
