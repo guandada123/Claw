@@ -216,6 +216,107 @@ def _parse_rss_xml(xml_text: str, fakeid: str, limit: int) -> list:
     return arts
 
 
+# 来源前缀：wechatrss 生成的标题形如 `[猫笔刀] 服了，还有这种横财`
+# 2026-10-10 实测：18 个标题前缀与 /api/subscriptions 的 18 个 nickname 完全一致；
+# 而 <author> 字段 260/336 为空，不可用 → 还原来源只能靠标题前缀。
+_SOURCE_PREFIX_RE = re.compile(r"^[\[【]([^\]】]{1,20})[\]】]\s*")
+
+
+def _split_source(title: str) -> tuple:
+    """把标题拆成 (来源名, 去前缀标题)。
+
+    🔴 逐源接口 `/api/rss/<fakeid>` 返回的 title **不带**来源前缀，而全量 feed
+    `/api/rss/all` 的 title **带** `[来源名] ` 前缀（该前缀即 nickname）。
+    两条取数路径必须落盘出完全一致的 title → 此处统一剥掉前缀。
+
+    无前缀时返回 ("", 原标题)。
+    """
+    t = title or ""
+    m = _SOURCE_PREFIX_RE.match(t)
+    if not m:
+        return ("", t)
+    return (m.group(1), t[m.end() :].strip())
+
+
+def _group_by_source(arts: list, since: int = 0, limit: int = 200) -> tuple:
+    """按标题来源前缀分组，并剥掉标题前缀。纯函数（不触网），供单测与全量 feed 复用。
+
+    Returns:
+        (groups, stats) — groups 形如 {nickname: [article, ...]}；
+        stats 含 no_source（无前缀被丢弃的条数，单独计数以免污染"解析失败"口径）。
+    """
+    groups: dict = {}
+    stats = {"no_source": 0}
+    for a in arts:
+        src, clean_title = _split_source(a.get("title", ""))
+        if not src:
+            stats["no_source"] += 1
+            continue
+        if since and a.get("publish_time", 0) and a["publish_time"] < since:
+            continue
+        a = dict(a)  # 复制，避免污染调用方对象
+        a["title"] = clean_title  # 剥前缀：与逐源接口的 title 对齐
+        a["_fakeid"] = ""  # 全量 feed 不含 fakeid，来源由前缀还原
+        a["author"] = src
+        g = groups.setdefault(src, [])
+        if len(g) < limit:
+            g.append(a)
+    return groups, stats
+
+
+def fetch_all_articles_grouped(since: int = 0, limit: int = 200) -> tuple:
+    """一次请求 `/api/rss/all` 取回**全部订阅**的文章并按来源分组。
+
+    🔴 存在意义（2026-10-11 增加）：`/api/subscriptions` 依赖**会轮换的 API Key**
+    （2026-10-10 就因 key 轮换导致整条链路 401 断掉），而 `/api/rss/all` 只依赖
+    **不轮换的 JWT**（该 token 无 exp，实测跨凭据轮换后仍有效）。
+    另：N 个来源由「1 次订阅列表 + N 次逐源」压缩为 **1 次请求**。
+
+    Returns:
+        (groups, ok) — ok=False 表示请求失败或解析异常。
+        调用方**必须**显式区分 ok=False 与"今天确实没文章"，不得把源故障静默成空结果。
+    """
+    if not WX_RSS_API_BASE or not WX_RSS_TOKEN:
+        print("  ⚠️ 全量 feed 取数缺少 BASE/TOKEN", file=sys.stderr)
+        return ({}, False)
+
+    try:
+        resp = requests.get(
+            f"{WX_RSS_API_BASE}/api/rss/all",
+            params={"token": WX_RSS_TOKEN},
+            timeout=60,  # 全量 feed 为 7MB 量级，比逐源接口宽松
+            verify=False,  # noqa: S501  # nosec B501 同上：RSS 代理自签证书
+        )
+        resp.raise_for_status()
+        # limit 传"不截断"的大值：必须先解析完全量，才能按来源分组
+        arts = _parse_rss_xml(resp.text, "_all_", 1_000_000_000)
+    except Exception as e:
+        print(f"  ⚠️ 拉取全量 feed 失败: {e}", file=sys.stderr)
+        return ({}, False)
+
+    if not arts:
+        print("  ⚠️ 全量 feed 解析后为空", file=sys.stderr)
+        return ({}, False)
+
+    groups, stats = _group_by_source(arts, since=since, limit=limit)
+    total = len(arts)
+    if total and stats["no_source"] / total > 0.5:
+        # 🔴 护栏：来源识别完全依赖标题前缀。若上游改了标题格式，绝大多数条目会解析不出
+        # 来源 → 必须显式失败，绝不能"部分成功"地静默丢内容（这正是本系统最高频事故类型）。
+        print(
+            f"  ⚠️ 全量 feed 中 {stats['no_source']}/{total} 条无来源前缀（>50%），"
+            "疑似上游标题格式变更 → 视为取数失败，本轮不落盘",
+            file=sys.stderr,
+        )
+        return ({}, False)
+    if stats["no_source"]:
+        print(
+            f"  ℹ️ 全量 feed 中 {stats['no_source']} 条无来源前缀，已跳过",
+            file=sys.stderr,
+        )
+    return (groups, True)
+
+
 _RETRY_SEC_RE = re.compile(r"(\d+)\s*秒后重试")
 
 

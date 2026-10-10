@@ -20,6 +20,9 @@ sync_wx_articles.py — 公众号文章全量同步（落盘 output/wx_articles/
   python3 sync_wx_articles.py --days 7       # 拉最近7天
   python3 sync_wx_articles.py --dry-run      # 只打印不写盘
   python3 sync_wx_articles.py --limit 10     # 每账号最多10篇
+  python3 sync_wx_articles.py --via all      # 单次全量 feed：1 次请求、仅需 JWT
+                                             #（不依赖会轮换的 API Key，2026-10-11 新增）
+  python3 sync_wx_articles.py --selftest     # 不触网，跑纯逻辑断言后退出
 
 依赖：wx_rss_auth（付费云 RSS，凭证 ~/.workbuddy/auth/wx_rss_api.sh）
 """
@@ -102,6 +105,77 @@ def _existing_urls() -> set:
     return urls
 
 
+def _selftest() -> int:
+    """不触网的纯逻辑断言（改解析/分组算法时保证不退化）。"""
+    import wx_rss_auth as _rss
+
+    fails: list[str] = []
+
+    def check(name: str, got, want) -> None:
+        if got != want:
+            fails.append(f"{name}: 期望 {want!r} 实得 {got!r}")
+
+    # ① 标题拆解（来源名, 去前缀标题）—— 正例
+    check(
+        "半角括号+空格",
+        _rss._split_source("[猫笔刀] 服了，还有这种横财"),
+        ("猫笔刀", "服了，还有这种横财"),
+    )
+    check("全角括号", _rss._split_source("【丹木说】周末闲聊"), ("丹木说", "周末闲聊"))
+    check("无空格", _rss._split_source("[黄鱼笔记]海底捞月"), ("黄鱼笔记", "海底捞月"))
+    # ② 反例（真实见过的形态）
+    check(
+        "无前缀",
+        _rss._split_source("徐小明：周五操作策略(1009)"),
+        ("", "徐小明：周五操作策略(1009)"),
+    )
+    check("空标题", _rss._split_source(""), ("", ""))
+    check("空括号", _rss._split_source("[] 标题"), ("", "[] 标题"))
+    check(
+        "超长前缀>20字",
+        _rss._split_source("[这是一个非常长的来源名称超过了二十个字符上限] 标题"),
+        ("", "[这是一个非常长的来源名称超过了二十个字符上限] 标题"),
+    )
+    check(
+        "正文中方括号非开头",
+        _rss._split_source("重磅 [独家] 消息"),
+        ("", "重磅 [独家] 消息"),
+    )
+
+    # ③ 分组 / since 过滤 / limit 截断
+    arts = [
+        {"title": "[猫笔刀] A", "publish_time": 200, "link": "u1"},
+        {"title": "[猫笔刀] B", "publish_time": 100, "link": "u2"},
+        {"title": "[丹木说] C", "publish_time": 200, "link": "u3"},
+        {"title": "无前缀 D", "publish_time": 200, "link": "u4"},
+        {"title": "[丹木说] E", "publish_time": 50, "link": "u5"},
+    ]
+    g, st = _rss._group_by_source(arts, since=150, limit=10)
+    check("分组来源集合", sorted(g), ["丹木说", "猫笔刀"])
+    check("since 过滤 猫笔刀", [a["link"] for a in g["猫笔刀"]], ["u1"])
+    check("since 过滤 丹木说", [a["link"] for a in g["丹木说"]], ["u3"])
+    check("无前缀单独计数", st["no_source"], 1)
+    check("标题已剥前缀", g["猫笔刀"][0]["title"], "A")
+    check("author 回填", g["猫笔刀"][0]["author"], "猫笔刀")
+    check("_fakeid 置空", g["猫笔刀"][0]["_fakeid"], "")
+
+    g2, _ = _rss._group_by_source(arts, since=0, limit=1)
+    check("limit 逐源截断", sum(len(v) for v in g2.values()), 2)
+
+    # ④ 不得污染调用方对象（分组内做的是复制）
+    check("调用方对象未被改动", "_fakeid" in arts[0], False)
+
+    if fails:
+        print("❌ selftest 失败:")
+        for f in fails:
+            print(f"   - {f}")
+        return 1
+    print(
+        "✅ selftest 全绿（标题拆解 8 例 · 分组/since/limit/剥前缀 8 例 · 隔离 1 例；全程不触网）"
+    )
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=3, help="拉取最近N天的文章")
@@ -113,41 +187,35 @@ def main() -> int:
         default="cloud",
         help="数据源：cloud=付费云RSS(默认) | local=本地wechat-download-api",
     )
+    ap.add_argument(
+        "--via",
+        choices=["per-source", "all"],
+        default="per-source",
+        help="取数方式：per-source=逐源(默认，经 /api/subscriptions，依赖会轮换的 API Key) "
+        "| all=单次全量 feed(仅需不轮换的 JWT；仅 --source cloud 支持)",
+    )
+    ap.add_argument("--selftest", action="store_true", help="不触网，跑纯逻辑断言后退出")
     args = ap.parse_args()
+
+    if args.selftest:
+        return _selftest()
 
     src = _load_source(args.source)
     WX_DIR.mkdir(parents=True, exist_ok=True)
     existing = _existing_urls()
-
-    # 订阅列表
-    subs = src.get_subscriptions()
-    accounts = subs.get("subscriptions", []) if isinstance(subs, dict) else []
-    if not accounts:
-        print("⚠️ 无订阅账号（get_subscriptions 空），检查数据源凭证/服务")
-        return 1
-    print(f"[sync] 订阅账号 {len(accounts)} 个，拉最近 {args.days} 天")
-
     since_ts = int((datetime.now(timezone.utc) - timedelta(days=args.days)).timestamp())
-    total_new = 0
-    total_skip = 0
-    total_failed = 0
+
+    stats = {"new": 0, "skip": 0, "failed": 0}
     failed_detail: list[tuple[str, str, str]] = []
 
-    for acc in accounts:
-        fid = acc.get("fakeid", "")
-        nickname = acc.get("nickname", fid[:8])
-        if not fid:
-            continue
-        arts, ok = src.fetch_all_articles(since=since_ts, limit=args.limit, fakeid=fid)
-        if not ok or not arts:
-            print(f"  ⚠️ {nickname}: 拉取失败/空")
-            continue
+    def _process(nickname: str, arts: list) -> None:
+        """增量落盘某来源的文章（两种取数方式共用同一套落盘逻辑）。"""
         for art in arts:
             url = art.get("link") or art.get("id") or ""
             if not url:
                 continue
             if url in existing:
-                total_skip += 1
+                stats["skip"] += 1
                 continue
             # 正文优先取 feed 自带 description（2026-10-01：云端 feed 已含全文，
             # 且 /api/article 已 401）；feed 无正文时才回落到单篇接口。
@@ -165,7 +233,7 @@ def main() -> int:
             if not content.strip():
                 # 🔴 关键修复：抓取失败绝不落盘空壳，否则该 url 进入 existing 集合后
                 #    永远不会被重抓，正文永久丢失（全库 94% 空正文的根因）。
-                total_failed += 1
+                stats["failed"] += 1
                 failed_detail.append((nickname, title_preview, err or "empty_content"))
                 print(
                     f"  ✗ {nickname}《{title_preview}》抓取失败 → {err or 'empty'}（不落盘，留待下轮重抓）"
@@ -201,13 +269,47 @@ def main() -> int:
                 out = WX_DIR / fname
                 out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
                 existing.add(url)
-                total_new += 1
+                stats["new"] += 1
                 print(f"  + {nickname}《{title[:24]}》{len(content)}字")
             # 限流：服务端有防风控（实测 0.3s 必触发「获取过快」），提到 1.5s
             time.sleep(GAP_SEC)
 
+    # ── 取数：两种方式，落盘逻辑共用 _process ──
+    if args.via == "all":
+        if args.source != "cloud":
+            print("⚠️ --via all 仅支持 --source cloud（本地轨无全量 feed 接口）", file=sys.stderr)
+            return 2
+        groups, ok = rss.fetch_all_articles_grouped(since=since_ts, limit=args.limit)
+        if not ok:
+            print("⚠️ 全量 feed 拉取失败（HTTP/解析异常），本轮不落盘", file=sys.stderr)
+            return 1
+        if not groups:
+            print("⚠️ 全量 feed 无有效条目，本轮不落盘", file=sys.stderr)
+            return 1
+        print(f"[sync] 取数方式 = 单次全量 feed | {len(groups)} 个来源，拉最近 {args.days} 天")
+        for nick in sorted(groups):
+            _process(nick, groups[nick])
+    else:
+        # 订阅列表（per-source 模式：惰性逐源请求，保持原有请求间隔特征不变）
+        subs = src.get_subscriptions()
+        accounts = subs.get("subscriptions", []) if isinstance(subs, dict) else []
+        if not accounts:
+            print("⚠️ 无订阅账号（get_subscriptions 空），检查数据源凭证/服务")
+            return 1
+        print(f"[sync] 订阅账号 {len(accounts)} 个，拉最近 {args.days} 天")
+        for acc in accounts:
+            fid = acc.get("fakeid", "")
+            nickname = acc.get("nickname", fid[:8])
+            if not fid:
+                continue
+            arts, ok = src.fetch_all_articles(since=since_ts, limit=args.limit, fakeid=fid)
+            if not ok or not arts:
+                print(f"  ⚠️ {nickname}: 拉取失败/空")
+                continue
+            _process(nickname, arts)
+
     print(
-        f"[sync] 完成 | 新增 {total_new} 篇 | 跳过已存在 {total_skip} 篇 | 抓取失败 {total_failed} 篇"
+        f"[sync] 完成 | 新增 {stats['new']} 篇 | 跳过已存在 {stats['skip']} 篇 | 抓取失败 {stats['failed']} 篇"
         + (" (dry-run)" if args.dry_run else "")
     )
     if failed_detail:
