@@ -48,6 +48,7 @@ except Exception:  # noqa: BLE001
             str(c.get("check_cmd") or "").strip()
         )
 
+
 DEFAULT_CFG = {
     "mode": "calibrate",
     "top_n": 3,
