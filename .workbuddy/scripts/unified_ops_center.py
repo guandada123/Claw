@@ -864,7 +864,10 @@ def check_duplicate_picks() -> dict:
             except Exception:
                 continue
             codes = _extract_pick_codes(data)
-            for c in codes:
+            # 同一源内必须先去重：否则同一代码在该源 JSON 里出现两次（如 picks 里与
+            # 顶层 code 并存、或多子源合并残留）会被计成"两个源"，产出**假的"多源共识"**
+            # （实测 note 会写成 `600036(智能选股+智能选股)`）。共识是增强信号，不能报错。
+            for c in dict.fromkeys(codes):
                 picks.setdefault(c, []).append(src)
         # 共识统计
         consensus = {c: s for c, s in picks.items() if len(s) >= 2}
