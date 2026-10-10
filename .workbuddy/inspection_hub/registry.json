@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-09T23:10:00+08:00",
+  "updated_at": "2026-10-10T07:50:00+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -1998,6 +1998,34 @@
       "needs_review": false,
       "applied_action": "新增 .workbuddy/scripts/scan_repo_credentials.py + tests/test_scan_repo_credentials.py（7 项离线）",
       "resolution": "实测技能库（394 跟踪文件 / 523 对象路径）0 发现；反证仓库同时命中 L1 .env 与 L2 .neodata_token"
+    },
+    {
+      "id": "disc-20261010-04",
+      "found_at": "2026-10-10",
+      "status": "applied",
+      "track": "project_signal",
+      "target_project": "meta",
+      "skill": "context-health-cleanup",
+      "url": "file://$HOME/WorkBuddy/Claw/.workbuddy/scripts/memory_headroom_check.py",
+      "value": "high",
+      "risk": "low",
+      "class": "meta",
+      "landing_channel": "weekly-core-review",
+      "source_summary": "用户级 MEMORY.md 可见余量只剩 359B（上限 7353B / 规则止 6994B），但两边都报通过：每日记忆维护的判据只校验「索引段是否可见」，从不校验「规则层是否全部可见」；而能算出规则止的 check_memory_visibility.py 全平台**零自动化调用**（已配置 ≠ 被读取）。后果是再加铁律会把末尾规则静默挤出可见区 —— 写进去=模型读不到=白写，且无人报警。",
+      "suggestion": "新增 memory_headroom_check.py：复用 check_memory_visibility 的 check() 算「上限-规则止」，余量 < 阈值（默认 500B）告警；接入每日 03:30 记忆维护 PHASE 1a-2",
+      "success_metric": "对用户级/项目级 MEMORY.md 输出可见余量；余量低于阈值 rc=1；检查器不可用/结构解析失败/未被任何 ACTIVE 自动化引用 → rc=2（**不静默放过**）",
+      "check_cmd": "python3 \"$HOME/WorkBuddy/Claw/.workbuddy/scripts/memory_headroom_check.py\" --wired --threshold 1 >/dev/null 2>&1",
+      "metric_baseline": "修复前：可见余量无任何机器判定；余量 359B 无人知；check_memory_visibility 零调度",
+      "recheck_after_days": 7,
+      "landed_at": "2026-10-10",
+      "impact": null,
+      "impact_checked_at": null,
+      "impact_note": "已即时验证：实际输出 用户级 359B（rc=1 告警）/ 项目级 2010B（rc=0）；阈值可调节",
+      "ring": null,
+      "ring_prev": null,
+      "needs_review": false,
+      "applied_action": "新增 .workbuddy/scripts/memory_headroom_check.py + tests（9 项离线）；每日 03:30「记忆+上下文维护」prompt v10→v11 增 PHASE 1a-2 与推送字段",
+      "resolution": "实测：--threshold 500 → rc=1（用户级 359B）；--threshold 300 → rc=0；--wired 报「已接线: 🧹【系统维护】记忆+上下文维护」；needle 换成不存在的名字 → 正确报「没接线」（反证通过）。测试 9→14 项（补接线自检：ACTIVE 才认、软删除/暂停不算、库缺失不放过）。"
     }
   ],
   "known_failure_modes": [
