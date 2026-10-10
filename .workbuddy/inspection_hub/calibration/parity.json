@@ -553,9 +553,50 @@
           "success_metric": "majiu-management/references/skill-routing-dispatch.md 已落地，且含『置信度』触发与『降级』链两节"
         }
       ]
+    },
+    "20261011:live": {
+      "date": "2026-10-11",
+      "ts": "2026-10-11T00:41:08+08:00",
+      "mode": "live",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261011.md",
+      "selected": [
+        {
+          "id": "disc-20261010-01",
+          "skill": "unified-inspection-hub",
+          "target": "references/silent_failure_guard.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://kaxo.io/insights/ai-agent-observability-practitioner-guide",
+          "target_project": "Claw",
+          "track": "external_trend",
+          "success_metric": "Claw 新增 references/silent_failure_guard.md 且该文件被 unified-inspection-hub SKILL.md 通过链接引用其中『下界异常(0.1x)静默死亡检测 + wrapper 记录退出码 + 独立看门狗』三节"
+        },
+        {
+          "id": "disc-20261011-01",
+          "skill": "unified-inspection-hub",
+          "target": "references/work_bearing_heartbeat.md",
+          "value": "high",
+          "risk": "low",
+          "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-09-29-liveness-probe-must-hit-real-endpoint-not-root.md",
+          "target_project": "Claw",
+          "track": "project_signal",
+          "success_metric": "references/work_bearing_heartbeat.md 新增『工作型心跳』小节（心跳须实际调用≥1真实端点/读状态文件/做判断，而非根路径 ping），且 unified_ops_center.py 存活看门狗不再以根路径 HTTP 200 单独判健康；grep 命中 work_bearing 且 tests 覆盖『根路径200但下游死』用例"
+        },
+        {
+          "id": "disc-20261011-03",
+          "skill": "majiu-management",
+          "target": "references/skill_authoring_standard.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://blog.csdn.net/tsh2005974tsh/article/details/162915358",
+          "target_project": "meta",
+          "track": "external_trend",
+          "success_metric": "references/skill_authoring_standard.md 新增『注册三元组』小节（语义描述+参数契约+实现代码 缺一不可），且被 skill-creator 或 majiu-management SKILL.md 引用；grep 命中『注册三元组』即视为落地"
+        }
+      ]
     }
   },
-  "updated_at": "2026-10-10T00:40:42+08:00",
+  "updated_at": "2026-10-11T00:41:08+08:00",
   "_notes": [
     "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
   ]
