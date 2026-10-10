@@ -29,7 +29,9 @@ on:
 env:
   PYTHON_VERSION: "3.12"
   RUFF_CONFIG: ruff.toml
-  COV_FAIL_UNDER: 0  # 仅上报覆盖率，不阻塞（测试面扩大后抬高）
+  # 两个 test job 的覆盖率基准差异大（.workbuddy/tests ≈3%、根 tests ≈20%），
+  # 暂不设统一门禁（仅上报、不阻塞）。抬门禁前须先对齐口径并扩大测试面。
+  COV_FAIL_UNDER: 0
 
 jobs:
   pre-commit:
@@ -119,9 +121,14 @@ jobs:
       - name: Run root tests/ (CI 覆盖补全)
         # 根 tests/ 含 42 个核心逻辑测试（advisor_rules/cost_tracker/price_sanity 等），
         # 此前 CI 未覆盖（仅本地 pytest 跑）。独立进程跑，避免被 test_router 的 sys.modules mock 污染。
+        #
+        # 覆盖率口径：real code 在 .workbuddy/scripts/（脚本层 scripts/ 下同名文件是 30 行
+        # AUTO-GENERATED 转发薄壳，见 safe_dedup.py）。此前此处写 --cov=scripts 且 cwd=仓库根，
+        # 统计到的是 Claw/scripts/ 薄壳目录，与另一个 job（cd .workbuddy && --cov=scripts）
+        # 口径不一致、数字虚高。统一为真码目录。
         run: |
           python -m pytest tests/ -v --tb=short \
-            --cov=scripts \
+            --cov=.workbuddy/scripts \
             --cov-report=term-missing \
             --cov-fail-under=${{ env.COV_FAIL_UNDER }}
 
