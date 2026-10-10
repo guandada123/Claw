@@ -85,6 +85,7 @@ ruff check --config ruff.toml <path>          # line-length=100，E501 忽略
 | 一次事故怎么复盘的 | `.learnings/`（标 ★ 的是升级铁律候选） |
 | 某天做了什么 | `.workbuddy/memory/YYYY-MM-DD.md`（>30 天应蒸馏进分层） |
 | 自动化清单与契约 | `.workbuddy/docs/automation-inventory.md` |
+| **Token / 积分花在哪了** | `.workbuddy/reports/token-dashboard.html`（用量看板）+ `credit-vs-token.md`（官方积分 × token 对齐、实测积分/百万 token）；两者每日 06:30 由「📊 Token 用量看板 + 积分对齐（每日刷新）」自动刷新，也可说一句"看看我的 token 用量" |
 | 技能怎么发现的 | 直接看技能列表；重复/失效用 `skill-library-audit` |
 
 **开工前先读** `registry.json` 的 `pending_actions` —— 那里是唯一活的待决看板。
