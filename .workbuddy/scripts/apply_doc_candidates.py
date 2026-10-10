@@ -42,12 +42,11 @@ try:  # pragma: no cover - 降级路径仅为健壮性
     from discovery_schema import has_metric as _has_metric
 except Exception:  # noqa: BLE001
     _ALLOWED_TARGETS = ("Claw", "QTS", "StockInsight", "meta", "none")
-    _has_metric = lambda c: (
-        bool(str(c.get("success_metric") or "").strip())
-        or bool(  # noqa: E731
+
+    def _has_metric(c):
+        return bool(str(c.get("success_metric") or "").strip()) or bool(
             str(c.get("check_cmd") or "").strip()
         )
-    )
 
 DEFAULT_CFG = {
     "mode": "calibrate",
