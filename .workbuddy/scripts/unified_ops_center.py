@@ -1396,6 +1396,8 @@ def check_cost_anomaly() -> dict:
                         "alerts": [
                             f"本月累计 ¥{cost:.2f} / 预算 ¥{budget:.0f}，月底预估 {est_txt}"
                             f"（超 ¥{over_amt:.0f}）；"
+                            f"⚠️口径：这是 cost_tracker **自记插桩账的表价估算**，只覆盖被插桩的调用、"
+                            f"**不是实付**（实付与实测倍率看 .workbuddy/reports/credit-vs-token.md）；"
                             f"成本告警委托已退役（4 条成本类自动化 06-21 / 07-12 / 09-23 依次软删，"
                             f"无继任者），超预算出口由中枢承担 —— 本条即出口，不是「断链告警」。"
                             f"处置：执行 budget_guard 降级策略"

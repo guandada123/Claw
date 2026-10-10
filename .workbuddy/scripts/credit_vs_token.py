@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""credit_vs_token.py — 把「官方积分」与「Token 用量」对齐（2026-10-10 建）
+"""credit_vs_token.py — 消耗口径台账：Token / 官方积分 / 自记插桩账 三源对齐（2026-10-10 建，同日扩三源）
 
-回答一个问题：**每百万 token 实际扣了多少积分**，以及积分花在哪些会话/哪一天。
+回答一个问题：**每百万 token 实际扣了多少积分**，以及积分花在哪些会话/哪一天；
+顺带把第三个源（`cost_tracker` 自记插桩账）的覆盖与口径摆到同一张表里，防止再把
+「插桩估算的 ¥」误读成「实际花了多少钱」。
 
-## 为什么要单开一个脚本，而不是把两个看板合并
-两者测的是同一笔消耗的**两个投影**，真值地位不同，合并成一个看板会立刻产生
+## 为什么要单开一个脚本，而不是把几个看板合并
+它们测的是同一笔消耗的**不同投影**，真值地位不同，合并成一个看板会立刻产生
 「谁的口径对」的争论：
 
-| | Token 侧 | 积分侧 |
-| --- | --- | --- |
-| 真值来源 | `~/.workbuddy/projects/**/*.jsonl`（平台日志） | `workbuddy.db → session_usage.credit_json`（官方计费） |
-| 粒度 | **请求级**（含模型/时间/缓存） | **会话级**（值是 `{UUID: 积分数}`，不直接带模型名） |
-| 覆盖 | 全量（本机 170+ 天） | 只有实际扣积分的会话（实测约 27%） |
-| 单位 | token | 积分 |
+| | Token 侧 | 积分侧 | 自记插桩账 |
+| --- | --- | --- | --- |
+| 真值来源 | `~/.workbuddy/projects/**/*.jsonl`（平台日志） | `workbuddy.db → session_usage.credit_json`（官方计费） | `~/.ai_cost_log.jsonl`（`cost_tracker.log_call` 写入） |
+| 粒度 | **请求级**（含模型/时间/缓存） | **会话级** | 调用级，但**仅覆盖被显式插桩的调用** |
+| 覆盖 | 全量（本机 170+ 天） | 只有实际扣积分的会话（实测约 27%） | 极小（实测不到全量 token 的 1‰） |
+| 单位 | token | **积分（唯一真实扣减）** | ¥（按 cost_tracker 内置表价估算，**非实付**） |
 
 → 所以正确形态是**对齐（join）**而不是**合并（merge）**：
 Token 当分母、积分当分子，产出一个**实测倍率**，再按会话/按日下钻。
-两边各自仍是各自口径的唯一真值，谁也不覆盖谁。
+三个源各自仍是各自口径的唯一真值，谁也不覆盖谁。
 
 ## 单源约定（重要）
 本脚本**不自己解析会话日志**——那会造出第二个 token 解析器（dual parser）。
@@ -44,6 +46,8 @@ CLAW = Path(__file__).absolute().parent.parent.parent
 DEFAULT_DASHBOARD = CLAW / ".workbuddy" / "reports" / "token-dashboard.html"
 DEFAULT_DB = Path.home() / ".workbuddy" / "workbuddy.db"
 DEFAULT_OUT = CLAW / ".workbuddy" / "reports" / "credit-vs-token.md"
+# 第三源：cost_tracker 的自记插桩账（只覆盖显式 log_call/log_estimate 的调用）
+DEFAULT_COST_LOG = Path.home() / ".ai_cost_log.jsonl"
 # 会话 id 在两侧的表示不同：token 侧是 uuid 前 8 位，积分侧是完整 uuid
 SID_PREFIX = 8
 
@@ -116,10 +120,62 @@ def month_key(ms: int) -> str:
     return datetime.datetime.fromtimestamp(ms / 1000).strftime("%Y-%m")
 
 
+def load_selflogged_side(path: Path, cutoff_ms: int) -> dict:
+    """读 cost_tracker 的自记插桩账 → 按月汇总（调用数 / token / 该表算出的 ¥）。
+
+    ⚠️ 这是**第三源、且是覆盖最小的一个**：只有显式调用 `log_call()` / `log_estimate()`
+    的代码路径才会留下记录（`log_estimate` 写的还是 `AUTO_COST_ESTIMATES` 里的**手填估值**，
+    不是实测 token）。所以它的 token 数只配当「已插桩那部分的样本」，**不能代表总消耗**，
+    它算出的 ¥ 也**不是实付**（表价与公开牌价差两个数量级）。
+    """
+    out = {"available": False, "path": str(path), "calls": 0, "tokens": 0, "cost_cny": 0.0}
+    by_month: dict[str, dict] = {}
+    if not path.is_file():
+        return out | {"by_month": by_month}
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if not line.strip():
+            continue
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        day = str(r.get("date") or "")[:10]
+        if not day:
+            continue
+        try:
+            ts_ms = datetime.datetime.fromisoformat(day).timestamp() * 1000
+        except ValueError:
+            continue
+        if cutoff_ms and ts_ms < cutoff_ms:
+            continue
+        k = day[:7]
+        b = by_month.setdefault(k, {"calls": 0, "tokens": 0, "cost_cny": 0.0})
+        try:
+            tk = int(r.get("input") or 0) + int(r.get("output") or 0)
+            cny = float(r.get("cost_cny") or 0.0)
+        except (TypeError, ValueError):
+            tk, cny = 0, 0.0
+        b["calls"] += 1
+        b["tokens"] += tk
+        b["cost_cny"] += cny
+        out["calls"] += 1
+        out["tokens"] += tk
+        out["cost_cny"] += cny
+    out["available"] = out["calls"] > 0
+    out["cost_cny"] = round(out["cost_cny"], 2)
+    return out | {
+        "by_month": {
+            k: {"calls": v["calls"], "tokens": v["tokens"], "cost_cny": round(v["cost_cny"], 2)}
+            for k, v in sorted(by_month.items())
+        }
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="官方积分 × Token 用量 对齐")
     ap.add_argument("--dashboard", default=str(DEFAULT_DASHBOARD))
     ap.add_argument("--db", default=str(DEFAULT_DB))
+    ap.add_argument("--cost-log", default=str(DEFAULT_COST_LOG), help="cost_tracker 自记插桩账")
     ap.add_argument("--out", default=str(DEFAULT_OUT))
     ap.add_argument("--days", type=int, default=0, help="只统计近 N 天（按积分侧记录时间）")
     ap.add_argument("--json", action="store_true", help="只输出 JSON")
@@ -162,6 +218,11 @@ def main() -> int:
         )
 
     top = sorted(matched, key=lambda x: -x[2]["credits"])[: args.top]
+
+    # 第三源：自记插桩账（覆盖极小 → 只用于「摆口径」，不参与倍率计算）
+    selflog = load_selflogged_side(Path(args.cost_log), cutoff)
+    token_all = sum(tok.values())
+    selflog["token_share_of_all"] = round(selflog["tokens"] / token_all, 6) if token_all else 0.0
 
     result = {
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -207,6 +268,12 @@ def main() -> int:
         "token_side_by_model": dict(
             sorted(per_model.items(), key=lambda kv: -kv[1]["tokens"])[:12]
         ),
+        "self_logged": selflog,
+        "unit_ledger": {
+            "real_unit": "积分（官方计费，唯一真实扣减）",
+            "token_side": "token（消耗量，不是钱）",
+            "self_logged": "¥ 估算（表价与公开牌价差约两个数量级；覆盖不到全量 token 的 1‰）",
+        },
     }
 
     if args.json:
@@ -248,10 +315,23 @@ def main() -> int:
                 f"  ({x['calls']:>3} 次调用)  {x['credits_per_million'] or 0:>7.2f} 积分/M  {x['time']}"
             )
         print()
+        print("第三源（自记插桩账，覆盖最小）:")
+        if selflog["available"]:
+            print(
+                f"  {selflog['calls']:,} 次插桩调用  {selflog['tokens']:,} token  "
+                f"表价估算 ¥{selflog['cost_cny']:,.2f}  —— 仅占平台全量 token 的"
+                f" {selflog['token_share_of_all'] * 100:.3f}%"
+            )
+        else:
+            print(f"  （无记录：{selflog['path']}）")
+        print()
         print("⚠️ 口径提醒：")
         print("  · 积分侧只覆盖「实际扣积分的会话」，故**不能用它对账全量 token 总量**；")
         print("    但命中集内的**倍率**（积分/百万 token）是可信的，可用于横向比模型/比时段。")
         print("  · 积分单位以平台页面显示为准（本脚本只做数值求和，不做单位换算）。")
+        print(
+            "  · 自记插桩账的 ¥ 是表价估算、**不是实付**，且覆盖极小（见上）；三源里只有积分是真的。"
+        )
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -289,11 +369,27 @@ def main() -> int:
         )
     lines += [
         "",
+        "## 三源口径台账（谁是真的）",
+        "",
+        "| 源 | 单位 | 覆盖 | 是不是实付 |",
+        "| --- | --- | --- | --- |",
+        f"| Token（平台日志） | token | 全量 {len(tok):,} 会话 | 否 —— 消耗量，不是钱 |",
+        f"| 积分（官方计费） | 积分 | {len(cred):,} 个扣积分会话（占本机会话约 "
+        f"{len(cred) / max(len(tok), 1) * 100:.0f}%） | **是 —— 唯一真实扣减** |",
+        f"| 自记插桩账（cost_tracker） | ¥（表价估算） | {selflog['calls']:,} 次插桩调用，"
+        f"token 仅占全量 {selflog['token_share_of_all'] * 100:.3f}% | 否 —— 表价约为公开牌价的 "
+        f"200 倍，且 `log_estimate()` 写的是手填估值 |",
+        "",
+        f"- 自记插桩账窗口内合计：**{selflog['tokens']:,} token → 表价 ¥"
+        f"{selflog['cost_cny']:,.2f}**（仅作样本，不代表总消耗，也不代表实付）",
+        "",
         "## 口径提醒",
         "",
         "- 积分侧只覆盖「实际扣积分的会话」，**不能对账全量 token 总量**；命中集内的**倍率**可信。",
         "- 积分单位以平台页面为准（本脚本只做数值求和，不做单位换算）。",
         "- token 侧由 `token-dashboard` skill 的看板提供（本脚本不重复解析日志）。",
+        "- 三源里**只有积分是真的**；`cost_tracker` 的 ¥ 与其内置价目表见 "
+        "`.workbuddy/docs/consumption-ledger.md`。",
         "",
     ]
     out.write_text("\n".join(lines), encoding="utf-8")
