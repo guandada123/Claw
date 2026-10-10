@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-10T16:43:46+08:00",
+  "updated_at": "2026-10-10T17:45:00+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2486,10 +2486,11 @@
       "owner": "auto",
       "title": "本仓有两个 uv.lock（根 55 包 / .workbuddy 47 包）—— 同一 CVE 必须修两遍",
       "criteria": "两个锁文件各自独立（对应两个 pyproject），任一漏改即「半修」。已实测：2026-10-10 修 urllib3 CVE 时两处都要动。",
-      "decision": "2026-10-10 记录，暂不合并（两者依赖集不同，合并会引入无关依赖）。但需知：security-scan.yml 的 safety / pip-audit 审计的是**运行器已装的包**（pip freeze），不是锁文件内容 → 锁文件里的漏洞只能靠 Dependabot 发现，CI 不拦。刻意不加「每次推送审计锁」的门禁：新 CVE 公布会让无关提交变红，属告警频率不匹配可处置性。",
-      "status": "noted",
+      "decision": "【2026-10-10 更新 → superseded by 同日加装的门禁】原决策「刻意不加锁审计门禁」已被用户否决（要求硬门禁）。新方案：`audit_locks.py` + security-scan.yml 的 `lock-audit` job（阻塞）。为守住我原本反对的理由（新 CVE 让无关提交变红 = 告警频率不匹配可处置性），判据被设计成**只挡可处置的**：有修复版本才 FAIL，无修复版本只 WARN。实测首次 CI 实跑 success。\n原决策内容（保留可回溯）：记录不合并两个 uv.lock（依赖集不同）；同一 CVE 必须修两遍、漏一处即半修；safety/pip-audit 审计的是**运行器已装的包**（pip freeze）而非锁文件内容，故锁里的漏洞此前只能靠 Dependabot 发现。",
+      "status": "done",
       "if_no_action": "keep_as_is",
-      "decided_at": "2026-10-10"
+      "decided_at": "2026-10-10",
+      "superseded_note": "门禁已落地（4c275dc）；原「不加门禁」结论作废，保留可回溯"
     },
     {
       "id": "PA-009",
