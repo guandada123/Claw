@@ -30,7 +30,10 @@ logs/*.log
 # WorkBuddy 本地数据 (不提交)
 .workbuddy/logs/
 .workbuddy/.coverage
-.workbuddy/.workbuddy/
+# 注意：**不要**忽略 .workbuddy/.workbuddy/ ——
+# 那正是 2026-10-10 那次「双重嵌套写错位置」的产物目录。
+# 当时有人加了忽略但没修根因，于是它静默写了两个月、写丢 11 天日志。
+# 现在由 tests/test_no_double_nested_workbuddy.py 守着；一旦复发要能在 git status 里看见。
 .workbuddy/workbuddy.db
 # Core data files (tracked) — whitelist only these, ignore rest
 .workbuddy/data/*
