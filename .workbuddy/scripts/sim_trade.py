@@ -1359,9 +1359,13 @@ def main():
     elif cmd == "snapshot":
         result = cmd_snapshot()
     elif cmd == "update":
-        result = cmd_update_price(sys.argv[2], float(sys.argv[3]), sys.argv[4] if len(sys.argv) > 4 else "")
+        result = cmd_update_price(
+            sys.argv[2], float(sys.argv[3]), sys.argv[4] if len(sys.argv) > 4 else ""
+        )
     elif cmd == "batch-update":
-        result = cmd_update_all_prices(json.loads(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else "")
+        result = cmd_update_all_prices(
+            json.loads(sys.argv[2]), sys.argv[3] if len(sys.argv) > 3 else ""
+        )
     elif cmd == "report":
         period = sys.argv[2] if len(sys.argv) > 2 else "daily"
         result = cmd_report(period)

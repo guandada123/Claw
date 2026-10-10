@@ -98,8 +98,16 @@ def main() -> int:
     rp = Path(args.registry)
     reg = load_registry(rp)
     if "_error" in reg:
-        print(json.dumps({"ok": False, "error": reg["_error"],
-                          "note": "退出码 2 = 输入不可读，**不等于「本周无待排序项」**"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": reg["_error"],
+                    "note": "退出码 2 = 输入不可读，**不等于「本周无待排序项」**",
+                },
+                ensure_ascii=False,
+            )
+        )
         return 2
 
     today = args.today or today_iso()
@@ -157,7 +165,11 @@ def main() -> int:
         "",
         "## 本周结论",
         f"- 可**立即进落地通道**（Adopt）：{len(adopt)} 条"
-        + ("" if adopt else " —— 本周没有『带可判定指标的真实项目项』，这是发现面的缺口，不是好消息"),
+        + (
+            ""
+            if adopt
+            else " —— 本周没有『带可判定指标的真实项目项』，这是发现面的缺口，不是好消息"
+        ),
         f"- **缺指标**被拦在 Assess：{len(no_metric)} 条"
         + ("（药方：在每日扫描里补 success_metric，否则永远进不了落地通道）" if no_metric else ""),
         f"- 高危/无来源 Caution：{len(caution)} 条（需人工批）",
@@ -240,7 +252,9 @@ def main() -> int:
     else:
         print(f"[radar] {tag}｜待排序 {len(pool)}｜四环 {counts}｜升降环 {len(movements)}")
         for x in sorted(rows, key=lambda r: RING_ORDER[r["ring"]]):
-            print(f"  · {x['ring']:<7} {x['id']} [{x['target_project']}] {x['value']}/{x['risk']} — {x['why']}")
+            print(
+                f"  · {x['ring']:<7} {x['id']} [{x['target_project']}] {x['value']}/{x['risk']} — {x['why']}"
+            )
         if not args.apply:
             print("[radar] （dry-run；加 --apply 写回 ring + 雷达状态）")
     return 0 if out["ok"] else 2

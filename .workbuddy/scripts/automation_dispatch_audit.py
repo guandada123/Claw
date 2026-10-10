@@ -128,7 +128,8 @@ def audit(days: int, log: Path, include_ok: bool = False) -> dict:
         "FROM automations WHERE status='ACTIVE' AND deleted_at IS NULL ORDER BY name"
     ).fetchall()
     n_all_active = conn.execute(
-        "SELECT COUNT(*) FROM automations WHERE status='ACTIVE'").fetchone()[0]
+        "SELECT COUNT(*) FROM automations WHERE status='ACTIVE'"
+    ).fetchone()[0]
     n_soft_deleted = conn.execute(
         "SELECT COUNT(*) FROM automations WHERE status='ACTIVE' AND deleted_at IS NOT NULL"
     ).fetchone()[0]
@@ -147,45 +148,64 @@ def audit(days: int, log: Path, include_ok: bool = False) -> dict:
             nr_d = None
         nr_future = bool(nr_d and nr_d >= today)
         thr = rrule_threshold(rrule, stype)
-        fresh = bool(ev["starts"] > 0 and ev["last"]
-                     and ev["last"] >= (today - dt.timedelta(days=thr)).isoformat())
+        fresh = bool(
+            ev["starts"] > 0
+            and ev["last"]
+            and ev["last"] >= (today - dt.timedelta(days=thr)).isoformat()
+        )
 
         item = {
-            "id": aid, "name": name, "schedule_type": stype, "rrule": rrule,
-            "threshold_days": thr, "dispatches": ev["starts"], "last_dispatch": ev["last"],
+            "id": aid,
+            "name": name,
+            "schedule_type": stype,
+            "rrule": rrule,
+            "threshold_days": thr,
+            "dispatches": ev["starts"],
+            "last_dispatch": ev["last"],
             "next_run_at": nr_d.isoformat() if nr_d else None,
             "next_run_at_in_past": bool(nr_d and nr_d < today),
-            "created_at": created_d.isoformat() if created_d else None, "cwds": cwds,
+            "created_at": created_d.isoformat() if created_d else None,
+            "cwds": cwds,
         }
 
         if nr_future or fresh:
             healthy.append(item)
             continue
         if stype == "once":
-            item["reason"] = ("已执行完成，未清理" if ev["starts"] > 0 else "从未执行且已过期，未清理")
+            item["reason"] = (
+                "已执行完成，未清理" if ev["starts"] > 0 else "从未执行且已过期，未清理"
+            )
             done_uncleaned.append(item)
             continue
         if created_d and (today - created_d).days < thr:
             item["reason"] = f"新建于 {created_d}，未满 {thr} 天周期"
             new_pending.append(item)
             continue
-        item["reason"] = (f"next_run_at={item['next_run_at']} 非未来，且 {thr} 天内无派发"
-                          if item["next_run_at"] else f"next_run_at 缺失，且 {thr} 天内无派发")
+        item["reason"] = (
+            f"next_run_at={item['next_run_at']} 非未来，且 {thr} 天内无派发"
+            if item["next_run_at"]
+            else f"next_run_at 缺失，且 {thr} 天内无派发"
+        )
         zombies.append(item)
 
     return {
         "generated_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "window_days": days, "log": str(log),
+        "window_days": days,
+        "log": str(log),
         "counts": {
             "active_undeleted": len(rows),
-            "zombie": len(zombies), "new_pending": len(new_pending),
-            "once_uncleaned": len(done_uncleaned), "healthy": len(healthy),
+            "zombie": len(zombies),
+            "new_pending": len(new_pending),
+            "once_uncleaned": len(done_uncleaned),
+            "healthy": len(healthy),
             # 单列以免后人重犯"把已删行当活跃"的错
             "excluded_soft_deleted": n_soft_deleted,
             "raw_status_active": n_all_active,
         },
-        "zombies": zombies, "once_uncleaned": done_uncleaned,
-        "new_pending": new_pending, "healthy": healthy if include_ok else [],
+        "zombies": zombies,
+        "once_uncleaned": done_uncleaned,
+        "new_pending": new_pending,
+        "healthy": healthy if include_ok else [],
     }
 
 
@@ -199,7 +219,9 @@ def main() -> int:
 
     log = pick_log(a.log)
     if log is None:
-        print(f"🔴 找不到 automation.log（候选：{[str(p) for p in LOG_CANDIDATES]}）", file=sys.stderr)
+        print(
+            f"🔴 找不到 automation.log（候选：{[str(p) for p in LOG_CANDIDATES]}）", file=sys.stderr
+        )
         return 2
 
     r = audit(max(14, a.days), log, a.include_ok)
@@ -208,16 +230,22 @@ def main() -> int:
     else:
         c = r["counts"]
         print(f"🔍 自动化派发对账（窗口 {r['window_days']} 天 · 日志 {log.name}）")
-        print(f"   活跃（status=ACTIVE 且未软删）{c['active_undeleted']} | 🟢 健康 {c['healthy']} | "
-              f"🔴 活跃却从不派发 {c['zombie']} | 🕐 新建待首跑 {c['new_pending']} | "
-              f"🧹 once 未清理 {c['once_uncleaned']}")
-        print(f"   ℹ️ 另有 {c['excluded_soft_deleted']} 行 status=ACTIVE 但 deleted_at 非空"
-              f"（**已软删除，非活跃**，已正确排除；裸 status 计数会得 {c['raw_status_active']}，虚高）")
+        print(
+            f"   活跃（status=ACTIVE 且未软删）{c['active_undeleted']} | 🟢 健康 {c['healthy']} | "
+            f"🔴 活跃却从不派发 {c['zombie']} | 🕐 新建待首跑 {c['new_pending']} | "
+            f"🧹 once 未清理 {c['once_uncleaned']}"
+        )
+        print(
+            f"   ℹ️ 另有 {c['excluded_soft_deleted']} 行 status=ACTIVE 但 deleted_at 非空"
+            f"（**已软删除，非活跃**，已正确排除；裸 status 计数会得 {c['raw_status_active']}，虚高）"
+        )
         if r["zombies"]:
             print("\n🔴 活跃却从不派发 — 需停用或修复：")
             for z in sorted(r["zombies"], key=lambda x: x["last_dispatch"] or ""):
-                print(f"   · 最近派发 {z['last_dispatch'] or '从未'} | next_run {z['next_run_at']}  "
-                      f"{z['name'][:50]}\n       id={z['id']}")
+                print(
+                    f"   · 最近派发 {z['last_dispatch'] or '从未'} | next_run {z['next_run_at']}  "
+                    f"{z['name'][:50]}\n       id={z['id']}"
+                )
         if r["once_uncleaned"]:
             print("\n🧹 once 已完成/已过期但仍是 ACTIVE（本机铁律：僵尸一次性须定期清理）：")
             for z in r["once_uncleaned"]:

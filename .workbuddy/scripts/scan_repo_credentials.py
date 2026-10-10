@@ -142,8 +142,10 @@ def main() -> int:
                 print(f"⚠️ {x['repo']} → {x.get('error')}")
                 continue
             mark = "🔴" if x["findings"] else "✅"
-            print(f"{mark} {x['repo']}  (跟踪 {x['counts']['tracked_files']} 文件 / "
-                  f"对象库 {x['counts']['object_paths']} 路径)")
+            print(
+                f"{mark} {x['repo']}  (跟踪 {x['counts']['tracked_files']} 文件 / "
+                f"对象库 {x['counts']['object_paths']} 路径)"
+            )
             for f in x["findings"]:
                 print(f"     [{f['layer']}] {f['path']} — {f['why']}")
             print(f"     .gitignore 覆盖: {x['ignored_patterns'] or '无'}")

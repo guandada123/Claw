@@ -42,8 +42,11 @@ try:  # pragma: no cover - 降级路径仅为健壮性
     from discovery_schema import has_metric as _has_metric
 except Exception:  # noqa: BLE001
     _ALLOWED_TARGETS = ("Claw", "QTS", "StockInsight", "meta", "none")
-    _has_metric = lambda c: bool(str(c.get("success_metric") or "").strip()) or bool(  # noqa: E731
-        str(c.get("check_cmd") or "").strip()
+    _has_metric = lambda c: (
+        bool(str(c.get("success_metric") or "").strip())
+        or bool(  # noqa: E731
+            str(c.get("check_cmd") or "").strip()
+        )
     )
 
 DEFAULT_CFG = {
@@ -142,7 +145,11 @@ def quality_gate(c: dict, cfg: dict, skills_dir: Path) -> tuple[bool, str, str]:
     if g.get("require_target_project", True):
         tp = str(c.get("target_project") or "").strip()
         if tp not in _ALLOWED_TARGETS or tp == "none":
-            return False, f"无目标锚点(target_project={tp or '(空)'}) — 不知道优化谁", "target_project"
+            return (
+                False,
+                f"无目标锚点(target_project={tp or '(空)'}) — 不知道优化谁",
+                "target_project",
+            )
     if g.get("require_success_metric", True) and not _has_metric(c):
         return False, "无可判定指标(success_metric) — 优化无法证真", "success_metric"
     return True, "pass", "pass"
@@ -165,7 +172,9 @@ def select(reg: dict, cfg: dict, skills_dir: Path) -> tuple[list[dict], list[dic
     #   旧写法把 N 条压成一条摘要 `(+N 条过闸但被 top_n 限流)` → dropped_by_code 只记「1 条」，
     #   读起来像「只挤掉 1 条」，实际挤掉 N 条 —— 典型的「聚合值抹平组成变化」。
     for c in passed[top_n:]:
-        dropped.append({"id": c.get("id"), "why": f"top_n 限流（本批配额 {top_n}）", "code": "top_n"})
+        dropped.append(
+            {"id": c.get("id"), "why": f"top_n 限流（本批配额 {top_n}）", "code": "top_n"}
+        )
     return sel, dropped
 
 

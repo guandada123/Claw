@@ -48,15 +48,15 @@ IMPACTS: tuple[str, ...] = ("achieved", "partial", "none", "unmeasured")
 CANDIDATE_V110_DEFAULTS: dict = {
     "track": "external_trend",
     "target_project": NONE_PROJECT,
-    "success_metric": None,        # 机器可判定/可复核的指标描述；空 = 未证真
-    "check_cmd": None,             # 可选：退出码 0 = achieved 的确定性命令（等价于 CI 门禁）
-    "metric_baseline": None,       # 落地时的基线取值（供「相对基线提升了吗」对照，而非「看起来更好了吗」）
-    "recheck_after_days": 7,       # 落地后 N 天回查
+    "success_metric": None,  # 机器可判定/可复核的指标描述；空 = 未证真
+    "check_cmd": None,  # 可选：退出码 0 = achieved 的确定性命令（等价于 CI 门禁）
+    "metric_baseline": None,  # 落地时的基线取值（供「相对基线提升了吗」对照，而非「看起来更好了吗」）
+    "recheck_after_days": 7,  # 落地后 N 天回查
     "landed_at": None,
-    "impact": None,                # null（未到期/未查）| achieved | partial | none | unmeasured
+    "impact": None,  # null（未到期/未查）| achieved | partial | none | unmeasured
     "impact_checked_at": None,
     "impact_note": None,
-    "ring": None,                  # Adopt | Trial | Assess | Caution（周度排序写入）
+    "ring": None,  # Adopt | Trial | Assess | Caution（周度排序写入）
     "ring_prev": None,
 }
 
@@ -146,7 +146,9 @@ def is_real_project(target: str | None) -> bool:
 
 
 def has_metric(c: dict) -> bool:
-    return bool(str(c.get("success_metric") or "").strip()) or bool(str(c.get("check_cmd") or "").strip())
+    return bool(str(c.get("success_metric") or "").strip()) or bool(
+        str(c.get("check_cmd") or "").strip()
+    )
 
 
 def apply_defaults(c: dict) -> dict:

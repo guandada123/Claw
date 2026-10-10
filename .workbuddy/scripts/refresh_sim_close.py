@@ -85,7 +85,9 @@ def main() -> int:
     args = ap.parse_args()
 
     if not PORTFOLIO.is_file():
-        print(json.dumps({"ok": False, "error": f"portfolio 不存在: {PORTFOLIO}"}, ensure_ascii=False))
+        print(
+            json.dumps({"ok": False, "error": f"portfolio 不存在: {PORTFOLIO}"}, ensure_ascii=False)
+        )
         return 1
 
     sim = _load_sim_module()

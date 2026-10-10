@@ -322,13 +322,15 @@ def dispatch_audit(hours: int) -> dict:
     try:
         p = subprocess.run(
             [sys.executable, str(DISPATCH_AUDIT), "--json", "--days", str(days)],
-            capture_output=True, text=True, timeout=180,
+            capture_output=True,
+            text=True,
+            timeout=180,
         )
-        if p.returncode not in (0, 1):        # 0=干净 1=有发现，其余=异常
+        if p.returncode not in (0, 1):  # 0=干净 1=有发现，其余=异常
             print(f"[watchdog] ⚠️ 派发对账返回码 {p.returncode}: {p.stderr[:200]}")
             return {}
         return json.loads(p.stdout)
-    except Exception as e:                     # noqa: BLE001 — 有意宽catch，见 docstring
+    except Exception as e:  # noqa: BLE001 — 有意宽catch，见 docstring
         print(f"[watchdog] ⚠️ 派发对账执行失败（不阻断）: {e.__class__.__name__}: {e}")
         return {}
 
@@ -387,10 +389,18 @@ def main() -> int:
             for ln in d_lines:
                 print(f"  {ln}")
             if d_new and not args.dry_run:
-                pushed_d = push("自动化派发对账", "\n".join(
-                    [f"发现 {len(d_findings)} 条 ACTIVE 但从不派发的自动化：", *d_lines,
-                     "", "说明：调度器只把 next_run_at 在未来的纳入排程；落在过去即永久不派发，"
-                     "且不会产生运行记录，故此前所有健康检查都看不见它。"]))
+                pushed_d = push(
+                    "自动化派发对账",
+                    "\n".join(
+                        [
+                            f"发现 {len(d_findings)} 条 ACTIVE 但从不派发的自动化：",
+                            *d_lines,
+                            "",
+                            "说明：调度器只把 next_run_at 在未来的纳入排程；落在过去即永久不派发，"
+                            "且不会产生运行记录，故此前所有健康检查都看不见它。",
+                        ]
+                    ),
+                )
                 if pushed_d:
                     alerted.update(f"dispatch:{it['id']}" for it in d_new)
                     save_alerted(alerted)
@@ -398,10 +408,19 @@ def main() -> int:
                 print("[watchdog] (dry-run) 派发对账本应告警")
         else:
             print("[watchdog] 派发对账无发现 → SILENT")
-        print("SUMMARY: " + json.dumps(
-            {"failed": 0, "critical": 0, "pushed": pushed_d,
-             "dispatch_findings": len(d_findings), "dispatch_new": len(d_new)},
-            ensure_ascii=False))
+        print(
+            "SUMMARY: "
+            + json.dumps(
+                {
+                    "failed": 0,
+                    "critical": 0,
+                    "pushed": pushed_d,
+                    "dispatch_findings": len(d_findings),
+                    "dispatch_new": len(d_new),
+                },
+                ensure_ascii=False,
+            )
+        )
         return 0
 
     critical, minor = [], []
@@ -518,11 +537,18 @@ def main() -> int:
         for ln in d_lines:
             print(f"  🔴 {ln}")
         if d_new and not args.dry_run:
-            ok = push("自动化派发对账",
-                      "\n".join([f"发现 {len(d_findings)} 条 ACTIVE 但从不派发的自动化：",
-                                 *d_lines, "",
-                                 "说明：调度器只把 next_run_at 在未来的纳入排程；落在过去即永久不派发，"
-                                 "且不产生运行记录，故此前所有健康检查都看不见它。"]))
+            ok = push(
+                "自动化派发对账",
+                "\n".join(
+                    [
+                        f"发现 {len(d_findings)} 条 ACTIVE 但从不派发的自动化：",
+                        *d_lines,
+                        "",
+                        "说明：调度器只把 next_run_at 在未来的纳入排程；落在过去即永久不派发，"
+                        "且不产生运行记录，故此前所有健康检查都看不见它。",
+                    ]
+                ),
+            )
             if ok:
                 pushed = True
                 alerted.update(f"dispatch:{it['id']}" for it in d_new)

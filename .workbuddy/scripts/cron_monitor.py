@@ -585,7 +585,9 @@ def fetch_bond_10y_yield() -> tuple[list[dict] | None, str | None]:
 
     if errors:
         # 部分窗口失败但仍有数据 —— 降级可见，不静默
-        print(f"[{now_str()}] ⚠️ 中债收益率部分窗口取数失败（已用其余窗口降级）: {'; '.join(errors)}")
+        print(
+            f"[{now_str()}] ⚠️ 中债收益率部分窗口取数失败（已用其余窗口降级）: {'; '.join(errors)}"
+        )
     return series, None
 
 

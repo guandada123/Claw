@@ -51,7 +51,7 @@ def due_candidates(cands: list[dict], today: str) -> list[dict]:
     for c in cands:
         if not str(c.get("status", "")).startswith("applied"):
             continue
-        if c.get("impact") not in (None, ""):      # 已裁决过的（含 legacy unmeasured）不再到期
+        if c.get("impact") not in (None, ""):  # 已裁决过的（含 legacy unmeasured）不再到期
             continue
         land = c.get("landed_at")
         rdays = c.get("recheck_after_days")
@@ -87,7 +87,9 @@ def run_check_cmd(cmd: str, timeout: int) -> tuple[str, str, str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--registry", default=str(DEFAULT_REGISTRY))
-    ap.add_argument("--apply", action="store_true", help="写回 impact 与 value_scoreboard（默认只读）")
+    ap.add_argument(
+        "--apply", action="store_true", help="写回 impact 与 value_scoreboard（默认只读）"
+    )
     ap.add_argument("--today", default=None, help="覆盖'今天'（YYYY-MM-DD，测试用）")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
@@ -95,8 +97,16 @@ def main() -> int:
     rp = Path(args.registry)
     reg = load_registry(rp)
     if "_error" in reg:
-        print(json.dumps({"ok": False, "error": reg["_error"],
-                          "note": "退出码 2 = 输入不可读，**不等于「没有到期回查」**"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": reg["_error"],
+                    "note": "退出码 2 = 输入不可读，**不等于「没有到期回查」**",
+                },
+                ensure_ascii=False,
+            )
+        )
         return 2
 
     today = args.today or today_iso()
@@ -149,7 +159,9 @@ def main() -> int:
         if im in ("achieved", "partial", "none"):
             by_impact[im] = by_impact.get(im, 0) + 1
         tp = c.get("target_project") or "none"
-        slot = by_project.setdefault(tp, {"achieved": 0, "partial": 0, "none": 0, "unmeasured": 0, "pending": 0})
+        slot = by_project.setdefault(
+            tp, {"achieved": 0, "partial": 0, "none": 0, "unmeasured": 0, "pending": 0}
+        )
         if im in ("achieved", "partial", "none"):
             slot[im] += 1
         elif im == "unmeasured":
@@ -210,12 +222,16 @@ def main() -> int:
     if args.json:
         print(json.dumps(out, ensure_ascii=False, indent=2))
     else:
-        print(f"[impact] 今日 {today}｜到期 {len(due)}｜机器判定 {len(checked)}｜待裁决 {len(needs_adjudication)}")
+        print(
+            f"[impact] 今日 {today}｜到期 {len(due)}｜机器判定 {len(checked)}｜待裁决 {len(needs_adjudication)}"
+        )
         for c in checked:
             print(f"  · {c['id']} [{c['target_project']}] → {c['impact']}（{c['note']}）")
         for c in needs_adjudication:
             print(f"  · {c['id']} [{c['target_project']}] → 待裁决：{c['metric']}")
-        print(f"[impact] 记分板 by_impact={by_impact}｜真实项目占比={scoreboard['real_project_share']['real_project_share']}")
+        print(
+            f"[impact] 记分板 by_impact={by_impact}｜真实项目占比={scoreboard['real_project_share']['real_project_share']}"
+        )
         if not args.apply and due:
             print("[impact] （dry-run；加 --apply 写回）")
     return 0 if out["ok"] else 2

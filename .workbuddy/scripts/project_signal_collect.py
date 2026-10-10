@@ -52,10 +52,28 @@ MAX_BYTES_PER_FILE = 200_000
 #   （与「数量骤降先怀疑口径」同源：这里反过来，数量虚高同样是口径坏了）。
 EXCLUDE_DIR_PARTS = frozenset(
     {
-        ".venv", "venv", "env", "site-packages", "dist-packages",
-        "node_modules", ".git", "__pycache__", "build", "dist",
-        ".tox", ".nox", ".eggs", ".mypy_cache", ".pytest_cache", ".ruff_cache",
-        ".idea", ".vscode", "vendor", "third_party", "thirdparty", "egg-info",
+        ".venv",
+        "venv",
+        "env",
+        "site-packages",
+        "dist-packages",
+        "node_modules",
+        ".git",
+        "__pycache__",
+        "build",
+        "dist",
+        ".tox",
+        ".nox",
+        ".eggs",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".idea",
+        ".vscode",
+        "vendor",
+        "third_party",
+        "thirdparty",
+        "egg-info",
     }
 )
 
@@ -98,8 +116,16 @@ def collect_learnings(anchor: dict, days: int) -> list[dict]:
         try:
             txt = f.read_text(encoding="utf-8", errors="replace")[:20_000]
         except Exception as e:  # noqa: BLE001
-            sig.append({"kind": "learning", "severity": None, "title": f"(读取失败) {f.name}",
-                        "detail": str(e), "file": str(f), "date": d})
+            sig.append(
+                {
+                    "kind": "learning",
+                    "severity": None,
+                    "title": f"(读取失败) {f.name}",
+                    "detail": str(e),
+                    "file": str(f),
+                    "date": d,
+                }
+            )
             continue
         t = TITLE_RE.search(txt)
         g = GRADE_RE.search(txt)
@@ -204,11 +230,27 @@ def run_tests(anchor: dict, timeout: int) -> list[dict]:
             }
         ]
     except subprocess.TimeoutExpired:
-        return [{"kind": "test", "severity": "P2", "title": f"测试超时({timeout}s)",
-                 "detail": "(timeout)", "file": None, "date": today_iso()}]
+        return [
+            {
+                "kind": "test",
+                "severity": "P2",
+                "title": f"测试超时({timeout}s)",
+                "detail": "(timeout)",
+                "file": None,
+                "date": today_iso(),
+            }
+        ]
     except Exception as e:  # noqa: BLE001
-        return [{"kind": "test", "severity": "P2", "title": f"测试执行异常: {e}",
-                 "detail": "(error)", "file": None, "date": today_iso()}]
+        return [
+            {
+                "kind": "test",
+                "severity": "P2",
+                "title": f"测试执行异常: {e}",
+                "detail": "(error)",
+                "file": None,
+                "date": today_iso(),
+            }
+        ]
 
 
 def main() -> int:
@@ -224,11 +266,21 @@ def main() -> int:
 
     reg = load_registry(Path(args.registry))
     if "_error" in reg:
-        print(json.dumps({"ok": False, "error": reg["_error"],
-                          "note": "退出码 2 = 输入不可读，**不等于「项目无痛」**"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": reg["_error"],
+                    "note": "退出码 2 = 输入不可读，**不等于「项目无痛」**",
+                },
+                ensure_ascii=False,
+            )
+        )
         return 2
 
-    anchors = ((reg.get("discovery_policy", {}) or {}).get("project_watch", {}) or {}).get("anchors", [])
+    anchors = ((reg.get("discovery_policy", {}) or {}).get("project_watch", {}) or {}).get(
+        "anchors", []
+    )
     signals, per_project = [], {}
     for a in anchors:
         proj = a.get("project")
@@ -245,7 +297,9 @@ def main() -> int:
         for s in sig:
             s["target_project"] = proj
             s["track"] = "project_signal"
-            s["source_url"] = f"file://{s.get('file')}" if s.get("file") and s["file"].startswith("/") else None
+            s["source_url"] = (
+                f"file://{s.get('file')}" if s.get("file") and s["file"].startswith("/") else None
+            )
             s["suggestion_hint"] = (
                 "把该痛点转成候选时必须补 success_metric（该痛点消失要能被复核），否则进不了落地通道"
             )
@@ -254,13 +308,17 @@ def main() -> int:
         per_project[proj] = {
             "root": str(root),
             "signals": len(sig),
-            "by_kind": {k: sum(1 for s in sig if s["kind"] == k) for k in sorted({s["kind"] for s in sig})},
+            "by_kind": {
+                k: sum(1 for s in sig if s["kind"] == k) for k in sorted({s["kind"] for s in sig})
+            },
             "third_party_excluded": excluded,
         }
 
     # 排序：先按严重度（P1>P2>无），再按日期新→旧
     sev_rank = {"P1": 0, "P2": 1, None: 2}
-    signals.sort(key=lambda s: (sev_rank.get(s.get("severity"), 2), str(s.get("date") or "")), reverse=False)
+    signals.sort(
+        key=lambda s: (sev_rank.get(s.get("severity"), 2), str(s.get("date") or "")), reverse=False
+    )
     signals = signals[: args.max_signals]
 
     out = {
@@ -280,9 +338,13 @@ def main() -> int:
         for p, v in per_project.items():
             ex = v.get("third_party_excluded")
             ex_note = f"（另排除第三方/构建产物 {ex} 个文件）" if ex else ""
-            print(f"  · {p}: {v.get('signals', 0)} 条 {v.get('by_kind', v.get('error', ''))}{ex_note}")
+            print(
+                f"  · {p}: {v.get('signals', 0)} 条 {v.get('by_kind', v.get('error', ''))}{ex_note}"
+            )
         for s in signals[:12]:
-            print(f"  - [{s['target_project']}/{s['kind']}/{s.get('severity') or '-'}] {s['title'][:90]}")
+            print(
+                f"  - [{s['target_project']}/{s['kind']}/{s.get('severity') or '-'}] {s['title'][:90]}"
+            )
     return 0
 
 

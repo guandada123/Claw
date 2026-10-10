@@ -95,7 +95,9 @@ def evaluate(mod, targets: list[Path], threshold: int) -> tuple[list[dict], list
     return rows, errors
 
 
-def check_wired(needle: str = "memory_headroom_check.py", db: Path | None = None) -> tuple[bool, str]:
+def check_wired(
+    needle: str = "memory_headroom_check.py", db: Path | None = None
+) -> tuple[bool, str]:
     """验证「本检查真的被某个 ACTIVE 自动化调用」——即「已配置 ≠ 被读取」那一条。
 
     只交付脚本而不接线，等于又造一个零调用的摆设（正是本脚本要修的病）。
@@ -123,7 +125,9 @@ def check_wired(needle: str = "memory_headroom_check.py", db: Path | None = None
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD, help="可见余量告警阈值（字节）")
+    ap.add_argument(
+        "--threshold", type=int, default=DEFAULT_THRESHOLD, help="可见余量告警阈值（字节）"
+    )
     ap.add_argument("--wired", action="store_true", help="额外验证本检查已被 ACTIVE 自动化调用")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()

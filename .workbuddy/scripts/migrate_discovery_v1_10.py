@@ -63,7 +63,7 @@ def infer_track(c: dict) -> str:
     if url.startswith("file://"):
         # 来源是自家产物/账本 → 项目自身信号（不是外部趋势）
         return "project_signal"
-    blob = f"{c.get('source_summary','')}{c.get('suggestion','')}"
+    blob = f"{c.get('source_summary', '')}{c.get('suggestion', '')}"
     if any(k in blob for k in ("卫生", "hygiene", "坏链", "重复段落", "prompt-injection")):
         return "hygiene"
     return "external_trend"
@@ -179,7 +179,9 @@ def main() -> int:
         # 锚点/轨道：仅在"未声明"时推断（幂等）
         if c.get("target_project") in (None, "", NONE_PROJECT) and c.get("skill"):
             c["target_project"] = infer_project(c)
-        if c.get("track") in (None, "", "external_trend") and c.get("url", "").startswith("file://"):
+        if c.get("track") in (None, "", "external_trend") and c.get("url", "").startswith(
+            "file://"
+        ):
             c["track"] = infer_track(c)
         # 已落地但从未度量 → 标注为 legacy 未度量（可见，但不制造回查洪峰）
         if str(c.get("status", "")).startswith("applied") and c.get("impact") in (None, ""):
@@ -251,12 +253,18 @@ def main() -> int:
         if args.json:
             print(json.dumps(summary, ensure_ascii=False, indent=2))
         else:
-            print(f"[migrate] DRY-RUN 版本 {summary['version']}｜候选 {len(cands)}｜补字段 {changed_fields}｜新增键 {added_keys}")
+            print(
+                f"[migrate] DRY-RUN 版本 {summary['version']}｜候选 {len(cands)}｜补字段 {changed_fields}｜新增键 {added_keys}"
+            )
         return 0
 
     bak = backup_registry(rp, "pre-v1.10")
     if bak is None:
-        print(json.dumps({"ok": False, "error": "备份失败 → 中止迁移（绝不无备份写盘）"}, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"ok": False, "error": "备份失败 → 中止迁移（绝不无备份写盘）"}, ensure_ascii=False
+            )
+        )
         return 2
     summary["backup"] = str(bak)
 
@@ -271,7 +279,10 @@ def main() -> int:
         and POLICY_KEY in chk
         and RADAR_KEY in chk
         and SCOREBOARD_KEY in chk
-        and all(k in (chk.get("doc_apply", {}).get("quality_gate", {})) for k in ("require_target_project", "require_success_metric"))
+        and all(
+            k in (chk.get("doc_apply", {}).get("quality_gate", {}))
+            for k in ("require_target_project", "require_success_metric")
+        )
     )
     summary["readback_ok"] = ok_back
 
