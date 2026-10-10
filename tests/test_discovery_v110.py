@@ -281,3 +281,51 @@ def test_collect_todos_excludes_third_party_and_counts_them(tmp_path):
     assert len(hits) == 1 and "真项目的痛" in hits[0]["title"]
     assert excluded == 30
     assert not any(".venv" in (h.get("file") or "") for h in hits)
+
+
+# ── 产物型 JSON 的落盘形态（2026-10-10 补）────────────────────────────
+# 背景：CI 的 pre-commit job 挂在 end-of-file-fixer 上，被它改写的正是
+# .workbuddy/inspection_hub/discovery_archive/dedup_index.json ——
+# 生成方 save_dedup_index 写盘不带尾换行，而 hook 强制「文件以单个换行结尾」
+# → 每次生成都被 hook 改写一次（提交被拦 + 无尽 diff）。
+# 同族教训已在 sync_claw_to_qts_portfolio.py 上踩过一次，故加守卫。
+
+
+def test_save_dedup_index_ends_with_exactly_one_newline(tmp_path):
+    import json
+
+    from discovery_schema import DEDUP_INDEX_REL, save_dedup_index
+
+    assert save_dedup_index(tmp_path, {"version": 1, "keys": {}}) is True
+    raw = (tmp_path / DEDUP_INDEX_REL).read_bytes()
+    assert raw.endswith(b"\n"), "必须带尾换行，否则 end-of-file-fixer 会持续改写"
+    assert not raw.endswith(b"\n\n"), "且只能有一个"
+    assert json.loads(raw.decode("utf-8"))["version"] == 1
+
+
+def test_save_dedup_index_is_stable_across_repeated_saves(tmp_path):
+    """重复保存不得让尾换行累积（否则 hook 依然会改写）。"""
+    from discovery_schema import DEDUP_INDEX_REL, save_dedup_index
+
+    for _ in range(3):
+        assert save_dedup_index(tmp_path, {"version": 1, "keys": {}}) is True
+    raw = (tmp_path / DEDUP_INDEX_REL).read_bytes()
+    assert raw.endswith(b"\n") and not raw.endswith(b"\n\n")
+
+
+def test_save_dedup_index_roundtrips_through_loader(tmp_path):
+    from discovery_schema import load_dedup_index, save_dedup_index
+
+    assert save_dedup_index(tmp_path, {"version": 7, "keys": {"k": "v"}}) is True
+    got = load_dedup_index(tmp_path)
+    assert got["version"] == 7 and got["keys"] == {"k": "v"}
+    assert got["updated_at"], "updated_at 应由保存方回写"
+
+
+def test_save_dedup_index_returns_false_on_unwritable_parent(tmp_path):
+    """写失败必须返回 False 而非抛（调用方据此上报，不能静默当成功）。"""
+    from discovery_schema import save_dedup_index
+
+    blocker = tmp_path / ".workbuddy"
+    blocker.write_text("我是文件不是目录", encoding="utf-8")  # 让 mkdir 失败
+    assert save_dedup_index(tmp_path, {"version": 1, "keys": {}}) is False

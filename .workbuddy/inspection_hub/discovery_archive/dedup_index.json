@@ -10,7 +10,7 @@
     },
     "bff64b7e2aa90b7d": {
       "id": "disc-20260922-02",
-      "status": "proposed",
+      "status": "rejected",
       "target_project": "meta",
       "skill": "wb-finance-skill",
       "also_seen": []
@@ -24,7 +24,7 @@
     },
     "d4bc4f8700835230": {
       "id": "disc-20260923-01",
-      "status": "proposed",
+      "status": "applied",
       "target_project": "meta",
       "skill": "majiu-management",
       "also_seen": []
@@ -38,7 +38,7 @@
     },
     "d4fb4eb266487ae1": {
       "id": "disc-20260923-03",
-      "status": "proposed",
+      "status": "rejected",
       "target_project": "meta",
       "skill": "wb-finance-skill",
       "also_seen": []
@@ -409,11 +409,46 @@
     },
     "919be83c9f5906ad": {
       "id": "disc-20261009-06",
-      "status": "pending",
+      "status": "applied",
       "target_project": "Claw",
       "skill": null,
       "also_seen": []
+    },
+    "1652e10d142c4953": {
+      "id": "disc-20261009-07",
+      "status": "applied",
+      "target_project": "Claw",
+      "skill": null,
+      "also_seen": []
+    },
+    "36d6c07b29507ab7": {
+      "id": "disc-20261009-08",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "unified-inspection-hub",
+      "also_seen": []
+    },
+    "18d727db2c49fc5f": {
+      "id": "disc-20261010-01",
+      "status": "pending",
+      "target_project": "Claw",
+      "skill": "unified-inspection-hub",
+      "also_seen": []
+    },
+    "33a112c98cc81ac5": {
+      "id": "disc-20261010-02",
+      "status": "pending",
+      "target_project": "QTS",
+      "skill": "",
+      "also_seen": []
+    },
+    "d0a64b46b1fc9751": {
+      "id": "disc-20261010-03",
+      "status": "pending",
+      "target_project": "QTS",
+      "skill": "",
+      "also_seen": []
     }
   },
-  "updated_at": "2026-10-09T19:49:24+08:00"
+  "updated_at": "2026-10-10T00:27:10+08:00"
 }

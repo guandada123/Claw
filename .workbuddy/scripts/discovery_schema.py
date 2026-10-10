@@ -249,6 +249,10 @@ def save_dedup_index(claw: Path, idx: dict) -> bool:
         tmp = str(p) + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(idx, f, ensure_ascii=False, indent=2)
+            # 末尾补换行：本仓 pre-commit 的 end-of-file-fixer 强制「文件以单个换行结尾」，
+            # 不带换行时每次生成都会被 hook 改写一次 → 提交被拦 + 无尽 diff
+            # （2026-10-10 CI pre-commit job 红即由此文件触发）。
+            f.write("\n")
         json.loads(Path(tmp).read_text(encoding="utf-8"))
         os.replace(tmp, p)
         return True

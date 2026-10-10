@@ -5,7 +5,7 @@
 
 **影响面**: 所有经 `push_feishu` 函数传3参数(标题/正文/去重键)的告警类自动化——日志里记录的"去重抑制(6h内已发)"**全部是误报**，实际每个窗口都重复推送。历史 evidence_log 中"去重抑制"条目不可信。
 
-**修复**: 
+**修复**:
 1. `automation_preamble.sh` `push_feishu()` 增加 `$# -ge 3` 分支，位置转发 `bash push_feishu.sh "$1" "$2" "$3"`
 2. `push_feishu.sh` 增加 `DEDUPE_KEY="$3"` 并在 ARGS 末尾追加 `--dedupe-key "$DEDUPE_KEY"`(仅当非空)
 3. 受控实测：今日去重键存在→正确输出「⚠️ 去重」+exit 0；全新键→正常发送+建文件
