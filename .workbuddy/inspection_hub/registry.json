@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-10T21:13:32+08:00",
+  "updated_at": "2026-10-10T23:03:01+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2150,6 +2150,16 @@
       "detect": "① `gh api repos/<o>/<r>/actions/runs/<id> -q .conclusion` 为 failure 且 `gh run view <id> --json jobs` 的 jobs 为空 → 直接怀疑引用，别查代码；② 复现一行：docker 不需要，直接解析远端文件——`gh api \"repos/guandada123/engineering-audit-kit/contents/.github/workflows/quality-gate.yml?ref=<ref>\" -q .content | base64 -d | /usr/bin/python3 -c \"import sys,yaml;yaml.safe_load(sys.stdin.read())\"`（非法时抛 mapping values are not allowed here）；③ 交叉验证：同一次 push 的其它工作流（如 test.yml 的 Test & Lint）是否全绿——绿则基本可排除本仓代码。",
       "mitigation": "已修：QTS 的 ci.yml 引用改 `@v3`（= engineering-audit-kit 当前 main：YAML 已修 + gitleaks 改 Docker 直调 + 补 bandit/pytest）；并在 EAK 侧新增 `Workflow YAML Validate` job（`.github/workflows/**` 变更即触发，解析失败即红）＋ README 写死 tag 版本表。QTS 的 Quality Gate 于 2026-10-10 首次转绿。",
       "does_not_affect": "本仓代码与测试：同 push 的 Test & Lint 全绿（10 个 job）；且该 run 的失败与提交内容无关，任何提交都会红。另注意：该可复用工作流的 bandit/pytest 步骤以 `|| echo` 收尾（永不失败），**绿灯不等于质量已验证**，真门禁只有 ruff 与 gitleaks。"
+    },
+    {
+      "id": "advisory-gates-green-means-nothing",
+      "area": "CI 门禁（跨仓）",
+      "severity": "low",
+      "since": "2026-10-02",
+      "desc": "Security Scan 类工作流里多个 job 以 `|| true` + `continue-on-error: true` 收尾（safety / bandit / pip-audit），→ 检查**在跑但永不判红**；「✅ Security Scan」只代表跑完没崩，不代表没发现问题。实测代价：QTS 的 uv.lock 有 30 条「有修复版本」的漏洞（含 1 条 CRITICAL）在该绿勾下长期不可见。",
+      "detect": "`grep -nE '\\|\\| true|continue-on-error: true' <repo>/.github/workflows/security-scan.yml` 非空即存在观测项；读结论必须看该 job 的 **Step Summary / artifact**（漏洞计数在那里），不能读绿勾。对照：Claw 的 security-scan 有两条真门禁（`bandit -ll` 不抑制、`lock-audit` 阻塞 + allowlist 必带 reason/expires）。",
+      "mitigation": "已在 QTS 的 security-scan 顶部写死口径声明（列出哪三个是观测项、哪个是真门禁）；引入阻塞式锁门禁的方案与取舍见 PA-010；StockInsight 同类（3 个 job 全观测、且无 uv.lock）。",
+      "does_not_affect": "gitleaks（secret-scan）是真门禁，会拦；Test & Lint 类工作流的单元测试是真的（QTS 10 个 job 含 4 个 service 的覆盖率门槛）；本仓代码与测试不受影响，只是安全维度「看得见但不拦」。"
     }
   ],
   "doc_apply": {
@@ -2539,6 +2549,19 @@
       "status": "done",
       "if_no_action": "keep_as_is",
       "decided_at": "2026-10-10"
+    },
+    {
+      "id": "PA-012",
+      "due": "2026-10-31",
+      "owner": "human",
+      "title": "给 QTS 的 uv.lock 引入阻塞式漏洞门禁（Claw 已有；QTS 零门禁已致 30 条漏洞长期不可见）",
+      "criteria": "选一种落地：①【推荐】脚本单源放 engineering-audit-kit（scripts/audit_locks.py），发新 tag；QTS 的 security-scan 增 job「Lock Dependency Audit (blocking)」，脚本用 curl 从 **pin 住的 tag** 拉取执行（与 2026-10-10 修可复用工作流同一套 pin + 单源模式）；Claw 现有副本后续同模式收敛（但必须先证在跑的门禁不被破坏）。② 直接复制 Claw 的脚本进 QTS（最快，但造第二副本，dual-copy-audit 会抓，需同时登记豁免）。③ 维持观测项（已有实证代价，见 why）。StockInsight 无 uv.lock（只有 requirements.txt），判据需另定，可二期。",
+      "status": "open",
+      "verifier": "QTS 的 Security Scan 出现 job「Lock Dependency Audit (blocking)」，且两向都实测过：① 把某包降回含**可修复**漏洞的版本 → 必须判红；② 恢复 → 必须转绿。只跑一向不算（只跑①证不了它不是恒红，只跑②证不了它会拦）。",
+      "auto_check": "hub_reconcile.py D6（待办逾期）会在 due 过后自动报出来",
+      "why": "2026-10-10 审计 CI 门禁时发现：QTS 的 security-scan 4 个 job 里只有 gitleaks 会拦，safety / bandit / pip-audit 全以 `|| true` + continue-on-error 收尾 → 该仓**没有任何会拦的依赖门禁**。用 Claw 已上线的锁门禁（只读 uv.lock + 查 OSV，只挡「有修复版本」的）扫 QTS 的锁：可处置(挡) **30 条**，含 pyjwt CVE-2026-102268 CRITICAL、pymongo 堆越界写(HIGH)、urllib3 ×3(HIGH)、virtualenv ×3(HIGH)、soupsieve ReDoS ×2。当日已定向升级修到 **0 条可处置**（uv.lock 一次提交，Test & Lint 10 job 全绿），但**没有门禁就还会再漏**——「修好一次 ≠ 以后不漏」。",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "到期不动不升级：本轮漏洞已实修（锁文件 0 条可处置）、QTS CI 全绿，短期无损失。代价是下次依赖漂移或新 CVE 出现时，仍然只能靠外部审计发现——绿灯不会告诉你。"
     }
   ],
   "automation_scope": {
