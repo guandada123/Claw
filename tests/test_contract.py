@@ -15,7 +15,7 @@
 """
 
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import signal_consensus as sc
@@ -24,8 +24,16 @@ _TZ = ZoneInfo("Asia/Shanghai")
 
 
 def _fresh_date(days_ago: int = 0) -> str:
-    """当日（或 N 天前）日期串，用于隔离 report_date 维度的干扰。"""
-    return (date.today() - timedelta(days=days_ago)).isoformat()
+    """当日（或 N 天前）日期串，用于隔离 report_date 维度的干扰。
+
+    ⚠️ 必须取 **Asia/Shanghai** 的"今天"，与 `validate_qts_signals` 的口径一致
+    （它用 `(datetime.now(_TZ).date() - rep_date).days` 算 report_age_days）。
+    若此处用 `date.today()` —— CI runner 是 UTC —— 则在 UTC 16:00~24:00
+    （= 北京时间次日 00:00~08:00）期间两者相差一天，report_age_days 会多算 1，
+    本文件所有基于 _fresh_date 的边界断言在该时间窗内**必然失败**
+    （2026-10-11 CI 实测：`assert 50 == 49`）。
+    """
+    return (datetime.now(_TZ).date() - timedelta(days=days_ago)).isoformat()
 
 
 def _base(now_iso=None):
@@ -248,7 +256,7 @@ def test_report_date_long_holiday_not_false_alarm():
 
 def test_report_date_in_future_rejected():
     """report_date 落在未来（时钟漂移/写错）→ 同样不可信"""
-    future = (date.today() + timedelta(days=3)).isoformat()
+    future = (datetime.now(_TZ).date() + timedelta(days=3)).isoformat()
     v = sc.validate_qts_signals({
         "report_date": future,
         "generated_at": datetime.now(_TZ).isoformat(),
