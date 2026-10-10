@@ -139,7 +139,7 @@ def build_brief(dry: bool = False) -> dict:
     push = subprocess.run(
         [
             "bash",
-            str(PROJECT_ROOT / ".workbuddy" / "scripts" / "push_feishu.sh"),
+            str(PROJECT_ROOT / "scripts" / "push_feishu.sh"),
             title,
             "\n".join(lines),
         ],
