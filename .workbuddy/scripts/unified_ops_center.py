@@ -688,6 +688,53 @@ def check_repo_state(
     }
 
 
+def check_silent_stubs() -> dict:
+    """跨仓扫「被调用却什么都不做」的桩函数（silent_stub_scan.py）。
+
+    为什么接在这里而不是给每个仓各装一份门禁：扫描器本就支持多 `--root`，
+    接成一处只调查询即可**单一真源**覆盖三仓；给 QTS/SI 复制脚本会造多副本
+    （dual-copy-audit 会抓），而它们的 CI 也各有各的门禁风格。
+
+    判据：**只报 🔴**（被调用 + 函数体是裸注释）。🟠/🟡 有大量合法形态
+    （空对象 close / 模板方法基类 / 迁移的空 downgrade），报它们就是恒真噪音。
+    取不到证（脚本缺失 / rc=2）→ ok=None，**不计入 ✅**。
+    """
+    script = SCRIPT_DIR / "silent_stub_scan.py"
+    if not script.exists():
+        return {"ok": None, "alerts": [], "note": "silent_stub_scan.py 不存在 —— 取不到证"}
+    roots: list[str] = []
+    for name in ("QuantTradingSystem", "Claw", "StockInsight"):
+        p = _HOME_DIR / "WorkBuddy" / name
+        if p.is_dir():
+            roots.append(str(p))
+    if not roots:
+        return {"ok": None, "alerts": [], "note": "无仓库可扫 —— 取不到证"}
+    cmd = [sys.executable, str(script)]
+    for r in roots:
+        cmd += ["--root", r]
+    try:
+        r = run_cmd(cmd, timeout=180)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": None, "alerts": [], "note": f"扫描器执行失败: {e} —— 取不到证"}
+    if r.returncode == 2:
+        return {"ok": None, "alerts": [], "note": "扫描器 rc=2（路径不可读）—— 取不到证"}
+    if r.returncode not in (0, 1):
+        return {"ok": False, "alerts": [f"静默桩扫描器异常退出 rc={r.returncode}"]}
+    # rc=1 才有 🔴；把命中行摘出来（脚本输出里 🔴 开头那几行）
+    reds = [
+        ln.strip()
+        for ln in (r.stdout or "").splitlines()
+        if ln.strip().startswith("🔴") and ":" in ln
+    ]
+    reds = [ln for ln in reds if "条" not in ln]  # 去掉汇总行
+    if reds:
+        return {
+            "ok": False,
+            "alerts": [f"静默桩 {len(reds)} 处（被调用却什么都不做）: " + " ; ".join(reds[:3])],
+        }
+    return {"ok": True, "alerts": []}
+
+
 def check_feishu_channel() -> dict:
     """飞书通道可达性（lark-cli 探测）。"""
     try:
@@ -3110,6 +3157,7 @@ def main() -> int:
         "QTS/pmf CI": check_qts_pmf_ci(),
         "磁盘空间": check_disk(),
         "仓库状态": check_repo_state(),
+        "静默桩": check_silent_stubs(),
         "飞书通道": check_feishu_channel(),
         "调度活性": check_schedule_liveness(),
         "工程质量": check_code_quality(),

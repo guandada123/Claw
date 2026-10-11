@@ -554,3 +554,60 @@ def test_repo_state_registered_in_checks(tmp_path, monkeypatch):
     """检查项必须真的被注册 —— 「已实现但没人调」是本项目反复踩的坑。"""
     src = SRC.read_text(encoding="utf-8")
     assert '"仓库状态": check_repo_state()' in src
+
+
+# ════════════════════ G. 静默桩检查（2026-10-11 新增）════════════════════
+
+
+def _stub_env(tmp_path, monkeypatch):
+    """让 check_silent_stubs 的前置条件成立：脚本存在 + 至少一个仓库根存在。"""
+    sd = tmp_path / "scripts"
+    sd.mkdir(parents=True, exist_ok=True)
+    (sd / "silent_stub_scan.py").write_text("", encoding="utf-8")
+    monkeypatch.setattr(uoc, "SCRIPT_DIR", sd)
+    monkeypatch.setattr(uoc, "_HOME_DIR", tmp_path)
+    (tmp_path / "WorkBuddy" / "Claw").mkdir(parents=True, exist_ok=True)
+
+
+def test_silent_stub_check_reports_reds(tmp_path, monkeypatch):
+    """🔴 = 被调用却什么都不做 → 必须报，且把命中行带出来。"""
+    _stub_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        uoc,
+        "run_cmd",
+        lambda *a, **k: _FakeRun("  🔴 a.py:1  f()  kind=bare_comment  calls=2\n", returncode=1),
+    )
+    r = uoc.check_silent_stubs()
+    assert r["ok"] is False
+    assert "静默桩" in r["alerts"][0] and "f()" in r["alerts"][0]
+
+
+def test_silent_stub_check_clean_repo_is_ok(tmp_path, monkeypatch):
+    """🟠/🟡 不算 —— 只报 🔴（否则空对象 close / 模板方法基类会变成恒真噪音）。"""
+    _stub_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        uoc,
+        "run_cmd",
+        lambda *a, **k: _FakeRun("  🟠 cache.py:130  close()  kind=pass  calls=18\n", returncode=0),
+    )
+    assert uoc.check_silent_stubs()["ok"] is True
+
+
+def test_silent_stub_check_rc2_is_skip(tmp_path, monkeypatch):
+    """rc=2 = 路径不可读 → ok=None，**不计入 ✅**（判不了就不许当通过）。"""
+    _stub_env(tmp_path, monkeypatch)
+    monkeypatch.setattr(uoc, "run_cmd", lambda *a, **k: _FakeRun("", returncode=2))
+    r = uoc.check_silent_stubs()
+    assert r["ok"] is None and "取不到证" in r["note"]
+
+
+def test_silent_stub_check_missing_script_is_skip(tmp_path, monkeypatch):
+    monkeypatch.setattr(uoc, "SCRIPT_DIR", tmp_path / "no-scripts")
+    r = uoc.check_silent_stubs()
+    assert r["ok"] is None and "取不到证" in r["note"]
+
+
+def test_silent_stub_check_registered(tmp_path):
+    """检查项必须真被注册 —— 「已实现但没人调」是本项目反复踩的坑。"""
+    src = SRC.read_text(encoding="utf-8")
+    assert '"静默桩": check_silent_stubs()' in src
