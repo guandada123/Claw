@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T11:57:32+08:00",
+  "updated_at": "2026-10-11T12:21:18+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2303,6 +2303,16 @@
       "detect": "`grep -nE '\\|\\| true|continue-on-error: true' <repo>/.github/workflows/security-scan.yml` 非空即存在观测项；读结论必须看该 job 的 **Step Summary / artifact**（漏洞计数在那里），不能读绿勾。对照：Claw 的 security-scan 有两条真门禁（`bandit -ll` 不抑制、`lock-audit` 阻塞 + allowlist 必带 reason/expires）。",
       "mitigation": "QTS 的 security-scan 顶部已写死口径声明并**更正了「只有 gitleaks 会拦」的错误说法**；QTS 已引入阻塞式锁门禁（脚本单源在 engineering-audit-kit@v4，按 pin 的 tag 拉取执行，PA-012 已结案）；StockInsight 同类（safety/bandit 观测、gitleaks 真拦）且无 uv.lock，判据需另定。",
       "does_not_affect": "**不是全部**：Claw / StockInsight 的 `secret-scan`（gitleaks-action@v3，无抑制）是真门禁，会拦；**但 QTS 的 gitleaks 步骤也带 `continue-on-error: true`（2026-10-11 复核更正，此前误写为真门禁）**，故 QTS 原有 4 个 job **全部是观测项**。Test & Lint 类工作流的单元测试是真的（QTS 10 个 job 含 4 个 service 的覆盖率门槛）。**QTS 已于 2026-10-11 新增 `lock-audit`（blocking），成为该仓唯一会判红的门禁**（已双向验证，见 PA-012）。"
+    },
+    {
+      "id": "secret-in-public-history-after-head-fix",
+      "area": "凭据纪律 / git 历史",
+      "severity": "high",
+      "since": "2026-07-30",
+      "desc": "「从 HEAD 删除 + 移进 gitignore 的 .env + 加测试钉住工作区无该形态」会让**工作区、gitleaks、测试全绿**，但历史 blob 里的明文一字未动；公开仓 = 任何 `git clone` 都能取到。更糟的是绿灯制造「已修复」的错觉。实测：某 Wind MCP token 在公开仓 Claw 的历史里存活 4 个提交（2026-07-30 ~ 08-04），直到 2026-10-11 才被历史扫描发现——而当天早些时候的『修复』已让工作区变干净。",
+      "detect": "`python3 .workbuddy/scripts/scan_git_history_secrets.py`（只读、本地、不联网）：按字节偏移流式读全部可达 blob，对文本类路径匹配 wind/sk-/AKIA/Bearer/PRIVATE KEY 等高置信形态，**只输出路径 + 值哈希前缀，绝不打印明文**；退出码 0=干净 / 1=有命中 / 2=无法判定。已轮换的值登记在 `.workbuddy/secret_history_allowlist.json`（必须带 rotated_at，否则不算豁免）。",
+      "mitigation": "**轮换优先**：公开仓的密钥一旦入库，唯一真修复是到平台重新生成（清历史只是收窄可见面）。本轮 Wind token 的轮换已登记为 **PA-013**；漏出的 DeepSeek 旧键已于 2026-08-05 吊销并登记豁免。",
+      "does_not_affect": "当前工作区与 HEAD 是干净的（token 已移入 gitignored 的 .env；`tests/test_credentials_hygiene.py` 钉住工作区形态仍有效）；不影响本机任何运行行为。本条说的是**历史**这一层此前无人覆盖。"
     }
   ],
   "doc_apply": {
@@ -2723,6 +2733,19 @@
       "if_no_action_note": "到期不动不升级：本轮漏洞已实修（锁文件 0 条可处置）、QTS CI 全绿，短期无损失。代价是下次依赖漂移或新 CVE 出现时，仍然只能靠外部审计发现——绿灯不会告诉你。",
       "closed_at": "2026-10-11T09:34:38+08:00",
       "resolution": "已落地并**两向实测**（verifier 判据全部满足）：\n① 门禁就位：QTS `.github/workflows/security-scan.yml` 新增 job「Lock Dependency Audit (blocking)」（提交 f8ea0ac2，本工作流**唯一会判红**的检查）；脚本按 pin 的 tag 从 engineering-audit-kit@v4 拉取执行（单源，不在本仓复制第二份）。\n② 负向（必须判红）：分支 `test/lock-gate-negative-20261011`（提交 0a8af278，把 urllib3 降回 2.7.0）→ CI run 38102070991 的该 job **failure**，日志 `🔴 CVE-2026-97687/97688/97689 urllib3@2.7.0 → 升级到 ['2.8.0']`、`合计: 可处置(挡) 3`；同时 2 条**无修复版本**的（ecdsa/python-jose）只提示不挡 —— 证明「只挡可处置的」口径正确。本机独立复现：切到该分支跑脚本真实 **rc=1**。\n③ 正向（必须转绿）：main → CI run 38101943347 该 job **success**；本机独立复现 `合计: 可处置(挡) 0`、真实 **rc=0**。\n④ 副作用清理：本地已切回 main（工作树干净）；远端测试分支 `test/lock-gate-negative-20261011` **已删除**（2026-10-11 09:3x，取证已完成、不留长尾）→ 之后要复跑反向验证，重建同名分支同样能复现，证据（run 38102070991 的日志行）已固化在本条 evidence 里。\n⑤ 双副本现状（**有意保留、非疏漏**）：脚本权威副本在 engineering-audit-kit，Claw 侧仍留一份同源副本（`.workbuddy/scripts/audit_locks.py`，被 `tests/test_audit_locks.py` 与 Claw CI 直接引用，动它等于改一个正在生效的守卫）；差异目前仅 `import` 顺序。两处文件头与 EAK README 均写明「**改判据要同时改两份**」。触发条件：若判据再改一次，就加机器漂移校验或直接收敛为单源。\n复现命令：`python3 audit_locks.py --root . --allowlist .github/lock_audit_allowlist.json`（**不要接管道取 rc** —— `| tail` 会把退出码换成 tail 的，本机实测踩过）。"
+    },
+    {
+      "id": "PA-013",
+      "due": "2026-10-13",
+      "owner": "human",
+      "title": "轮换 Wind MCP token —— 它仍在**公开仓**的 git 历史里（4 个提交），从 HEAD 移除 ≠ 修复",
+      "criteria": "① 到 Wind 平台重新生成 MCP token；② 更新调用方引用（.env 及其消费方，注意本地代理链路）；③ 验证旧值失效；④ 把旧值哈希登记进 `.workbuddy/secret_history_allowlist.json`（必须带 rotated_at + reason）；⑤ 重跑扫描器确认对 macro_data.py 的命中消失。**可选**：清历史（git filter-repo + force-push）——只是收窄可见面，不能替代①②。",
+      "status": "open",
+      "verifier": "`python3 .workbuddy/scripts/scan_git_history_secrets.py` 输出的路径清单里不再出现 `.workbuddy/scripts/macro_data.py`（旧值哈希 67c05351e1 / 41de694a94 已登进 allowlist）。轮换前后对比同一命令的输出即可判定。",
+      "auto_check": "hub_reconcile.py D6（待办逾期）会在 due 过后自动报出来",
+      "why": "2026-10-11 实测：今天那次「Wind token 明文入库修复」（把 token 移进 .env + 加测试钉住 HEAD 无该形态 + 修 gitleaks 空跑）**只覆盖了工作区**。用新写的 `scan_git_history_secrets.py`（按 blob 扫全历史，只比对哈希不打印明文）实测：**该真 token 仍在 4 个历史提交里**（f1c2660 / 3a8f613 = 2026-07-30，375e51a / 26e7ac1 = 2026-08-04，路径 `.workbuddy/scripts/macro_data.py`），且 **Claw 是公开仓**（private=false）→ 任何 clone 都能取到。同时确认：漏的那个 sk- 值（62bb86bf82）是 2026-08-05 已在 DeepSeek 平台吊销的旧键（已按证据登记豁免），故本轮真实待办只有 Wind token 一个。",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "到期不动不升级：不影响本机运行（工作区已干净、功能正常）。代价是**公开仓里有一把有效凭据**——任何克隆该仓库的人都能拿去调用你的 Wind MCP 额度；轮换成本很低（平台一键重生成 + 改 .env），所以不建议拖。"
     }
   ],
   "automation_scope": {
