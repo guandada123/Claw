@@ -41,7 +41,10 @@ from pathlib import Path
 
 # 高置信度模式：宁少勿滥（命中都是"必须人工看一眼"的形态）
 PATTERNS = [
-    ("wind_token", re.compile(r"ak_[A-Za-z0-9]{16,}")),
+    # ⚠️ 2026-10-11 修正：Wind token 的字符集含 `_` 与 `-`（实测新 token 形如 ak_xxxxxx_<25 字符>-），
+    #    旧模式 `ak_[A-Za-z0-9]{16,}` 会**漏报**这类形态、同时误报短标识符（如 ak_xxx）。
+    #    改为「ak_ + 至少 20 个 [A-Za-z0-9_-]」：新旧两种形态都覆盖，短标识符被长度下限挡掉。
+    ("wind_token", re.compile(r"ak_[A-Za-z0-9_\-]{20,}")),
     ("bearer_long", re.compile(r"[Bb]earer\s+[A-Za-z0-9._\-]{20,}")),
     ("openai_like", re.compile(r"\bsk-[A-Za-z0-9]{20,}\b")),
     ("aws_akid", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
