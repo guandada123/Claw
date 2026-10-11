@@ -367,3 +367,41 @@ def test_save_registry_returns_false_on_unwritable_path(tmp_path):
     d = tmp_path / "as_dir"
     d.mkdir()
     assert save_registry_atomic(d, {"version": 1}) is False
+
+
+# ── _norm_url：file:// 必须剥掉行号（行号会随文件编辑漂移）──
+
+
+def test_dedup_key_ignores_line_number_in_file_url():
+    """回归（2026-10-11）：行号随编辑漂移，不剥掉就会把同一处缺陷发现两次。
+
+    实况：`advanced_risk_rules.py:448` 与 `:507` 是同一处 stub，
+    因 URL 带不同行号 → dedup_key 不同 → 绕过去重（其中一条在修好后仍留在待排序池）。
+    """
+    a = _cand(url="file:///x/y/services/advanced_risk_rules.py:448", suggestion="同一句主张" * 6)
+    b = _cand(url="file:///x/y/services/advanced_risk_rules.py:507", suggestion="同一句主张" * 6)
+    assert dedup_key(a) == dedup_key(b)
+
+
+def test_dedup_key_also_ignores_line_col_suffix():
+    """`:行:列` 形态一并剥掉。"""
+    a = _cand(url="file:///x/y/a.py:12:5", suggestion="同一句主张" * 6)
+    b = _cand(url="file:///x/y/a.py", suggestion="同一句主张" * 6)
+    assert dedup_key(a) == dedup_key(b)
+
+
+def test_dedup_key_still_distinguishes_different_files():
+    """剥行号不能把「不同文件」也合并 —— 反向对照。"""
+    a = _cand(url="file:///x/y/a.py:1", suggestion="同一句主张" * 6)
+    b = _cand(url="file:///x/y/b.py:1", suggestion="同一句主张" * 6)
+    assert dedup_key(a) != dedup_key(b)
+
+
+def test_dedup_key_keeps_http_url_behaviour():
+    """http(s) 侧行为不变：只留 host+path，丢协议差异与 query/fragment、host 大小写。
+
+    （注意：协议名大小写不归一属既有行为，本用例不覆盖 —— 断言只钉"不变的没变"。）
+    """
+    a = _cand(url="http://Example.COM/a/b/?x=1#frag", suggestion="同一句主张" * 6)
+    b = _cand(url="https://example.com/a/b", suggestion="同一句主张" * 6)
+    assert dedup_key(a) == dedup_key(b)

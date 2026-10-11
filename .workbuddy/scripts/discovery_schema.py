@@ -166,13 +166,24 @@ def apply_defaults(c: dict) -> dict:
 _URL_PATH_RE = re.compile(r"^[a-z]+://")
 
 
+_FILE_LINE_SUFFIX = re.compile(r":\d+(?::\d+)?$")
+
+
 def _norm_url(url: str | None) -> str:
-    """把 URL 归一到可去重的形态：去掉协议差异与 query/fragment，仅留 host+path。"""
+    """把 URL 归一到可去重的形态。
+
+    · http(s)：去掉协议差异与 query/fragment，仅留 host+path；
+    · **file://：必须剥掉末尾的 `:行号[:列号]`** —— 行号会随文件编辑漂移，
+      同一处缺陷在不同时间被扫到就落在不同行 → 去重键不同 → 同一条被发现两次。
+      （2026-10-11 实况：`advanced_risk_rules.py:448` 与 `:507` 实为同一处 stub，
+      因行号不同被判成两条候选；且其中一条在缺陷修好之后仍留在待排序池里，
+      被雷达重新报出来。）
+    """
     u = str(url or "").strip()
     if not u:
         return ""
     if u.startswith("file://"):
-        return u
+        return _FILE_LINE_SUFFIX.sub("", u).rstrip("/")
     m = re.match(r"^[a-z]+://([^/?#]+)([^?#]*)", u)
     if m:
         return f"{m.group(1).lower()}{m.group(2).rstrip('/').lower()}"
