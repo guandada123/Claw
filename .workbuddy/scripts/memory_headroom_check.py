@@ -62,6 +62,59 @@ def load_checker(path: Path | None = None):
     return mod if hasattr(mod, "check") else None
 
 
+DAILY_LOG_MIN_SKEW_DAYS = 7
+"""日日志「被复制/恢复进来」的 ctime−mtime 最小间隔（天）。
+
+判据由来（2026-10-11 实况）：10-10 20:50 有 11 个 2026-06-21~07-01 的日日志被静默放回
+`memory/`，**同期没有任何自动化运行**，也没有任何日志记录该动作 → 只能靠时间戳识别：
+「复制/恢复且保留 mtime」会让 **mtime 停在原值、ctime 变成操作时刻**，两者相差数月；
+正常写入时 ctime≈mtime。这是「被动过」的机器可判证据。
+"""
+
+
+def check_daily_log_anomalies(
+    mem_dirs: list[Path], min_skew_days: int = DAILY_LOG_MIN_SKEW_DAYS
+) -> list[dict]:
+    """日日志卫生：个数/最早/最新 + 「疑似被复制或恢复进来」的清单。
+
+    ⚠️ 本判据**只报不拦**（不进 rc）：被回灌的内容经核实是**独有历史**（不是重复），
+    正确处置是「知道它来了」；rc 仍由可见余量决定。若哪天变成真缺陷，再升级为拦。
+    """
+    import datetime as _dt
+    import re as _re
+
+    out: list[dict] = []
+    for d in mem_dirs:
+        if not d.is_dir():
+            continue
+        files = sorted(
+            p for p in d.glob("2026-*-*.md") if _re.match(r"^\d{4}-\d\d-\d\d\.md$", p.name)
+        )
+        refluxed = []
+        for p in files:
+            st = p.stat()
+            skew_days = (st.st_ctime - st.st_mtime) / 86400
+            if skew_days >= min_skew_days:
+                refluxed.append(
+                    {
+                        "file": p.name,
+                        "skew_days": round(skew_days, 1),
+                        "mtime": _dt.date.fromtimestamp(st.st_mtime).isoformat(),
+                        "ctime": _dt.date.fromtimestamp(st.st_ctime).isoformat(),
+                    }
+                )
+        out.append(
+            {
+                "dir": str(d),
+                "count": len(files),
+                "oldest": files[0].name if files else None,
+                "newest": files[-1].name if files else None,
+                "refluxed": refluxed,
+            }
+        )
+    return out
+
+
 def evaluate(mod, targets: list[Path], threshold: int) -> tuple[list[dict], list[str]]:
     rows: list[dict] = []
     errors: list[str] = []
@@ -143,6 +196,7 @@ def main() -> int:
 
     rows, errors = evaluate(mod, TARGETS, args.threshold)
     low = [r for r in rows if r.get("status") == "low"]
+    daily = check_daily_log_anomalies([t.parent for t in TARGETS])
 
     wired_ok, wired_detail = (True, "未检查（未加 --wired）")
     if args.wired:
@@ -156,6 +210,7 @@ def main() -> int:
                     "rows": rows,
                     "errors": errors,
                     "low_count": len(low),
+                    "daily_logs": daily,
                     "wired_ok": wired_ok,
                     "wired_detail": wired_detail,
                 },
@@ -174,6 +229,28 @@ def main() -> int:
                 f"     上限 {r['limit']}B | 规则止 {r['rule_off']}B | "
                 f"**可见余量 {r['headroom']}B** | 规则 {r['rules']} 条"
             )
+        for d in daily:
+            print(
+                "📅 日日志 {n} 个（最早 {old} / 最新 {new}） ← {dir}".format(
+                    n=d["count"], old=d["oldest"], new=d["newest"], dir=d["dir"]
+                )
+            )
+            if d["refluxed"]:
+                items = ", ".join(
+                    "{f}(+{s:.0f}天 {m}→{c})".format(
+                        f=x["file"], s=x["skew_days"], m=x["mtime"], c=x["ctime"]
+                    )
+                    for x in d["refluxed"][:12]
+                )
+                print(
+                    "   ⚠️ 疑似被复制/恢复进来的 {n} 个（ctime 远晚于 mtime；正常写入时两者接近）：{items}".format(
+                        n=len(d["refluxed"]), items=items
+                    )
+                )
+                print(
+                    "     处置：先核实内容是否为独有历史（对照 CHRONICLE.md 日期段），"
+                    "**不要直接删**（删/移走「先复制→验证→再删源」）；再查备份/恢复链路。"
+                )
         for e in errors:
             print(f"🔴 {e}")
         if low:

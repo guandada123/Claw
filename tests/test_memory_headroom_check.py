@@ -130,7 +130,9 @@ def _mk_db(tmp_path, rows):
 
 
 def test_check_wired_true_when_active_automation_references_script(tmp_path):
-    db = _mk_db(tmp_path, [("记忆维护", "run memory_headroom_check.py --threshold 500", "ACTIVE", None)])
+    db = _mk_db(
+        tmp_path, [("记忆维护", "run memory_headroom_check.py --threshold 500", "ACTIVE", None)]
+    )
     ok, detail = mhc.check_wired(db=db)
     assert ok is True and "记忆维护" in detail
 
@@ -167,3 +169,58 @@ def test_wired_failure_makes_main_return_2(monkeypatch, memfile, capsys):
     monkeypatch.setattr(sys, "argv", ["memory_headroom_check", "--wired", "--threshold", "1"])
     assert mhc.main() == 2
     assert "接线自检: 没接线" in capsys.readouterr().out
+
+
+# ────────────────────────────────────────────────────────────────
+# 日日志异常判据（2026-10-11 新增：11 个 6/7 月日日志被静默放回）
+# ────────────────────────────────────────────────────────────────
+
+
+def test_daily_logs_flags_restored_files(tmp_path):
+    """ctime 远晚于 mtime = 被复制/恢复进来 → 必须点名，且只点名它（可证伪）。"""
+    import os
+    import time
+
+    restored = tmp_path / "2026-06-21.md"
+    restored.write_text("x", encoding="utf-8")
+    sixty_days_ago = time.time() - 60 * 86400
+    os.utime(restored, (sixty_days_ago, sixty_days_ago))  # mtime 回拨；ctime 无法设置=现在
+    (tmp_path / "2026-10-11.md").write_text("x", encoding="utf-8")  # 正常写入
+    (tmp_path / "MEMORY.md").write_text("x", encoding="utf-8")  # 非日日志，不该计数
+
+    rows = mhc.check_daily_log_anomalies([tmp_path])
+    assert rows[0]["count"] == 2, "只应统计 YYYY-MM-DD.md"
+    assert rows[0]["oldest"] == "2026-06-21.md" and rows[0]["newest"] == "2026-10-11.md"
+    assert [r["file"] for r in rows[0]["refluxed"]] == ["2026-06-21.md"]
+    assert rows[0]["refluxed"][0]["skew_days"] >= 59
+
+
+def test_daily_logs_silent_when_no_skew(tmp_path):
+    """正常写入（ctime≈mtime）→ 不得报（防「恒报红」，否则真异常会被淹掉）。"""
+    (tmp_path / "2026-10-11.md").write_text("x", encoding="utf-8")
+    rows = mhc.check_daily_log_anomalies([tmp_path])
+    assert rows[0]["count"] == 1 and rows[0]["refluxed"] == []
+
+
+def test_daily_logs_missing_dir_skipped(tmp_path):
+    """目录不存在 → 跳过而不是崩（rc 仍由余量决定）。"""
+    assert mhc.check_daily_log_anomalies([tmp_path / "nope"]) == []
+
+
+def test_daily_logs_do_not_change_rc(monkeypatch, memfile, capsys):
+    """日日志异常**只报不拦**：rc 仍只由可见余量决定（本轮设计选择，写死防漂移）。"""
+    restored = memfile.parent / "2026-06-21.md"
+    restored.write_text("x", encoding="utf-8")
+    import os
+    import time
+
+    sixty_days_ago = time.time() - 60 * 86400
+    os.utime(restored, (sixty_days_ago, sixty_days_ago))
+
+    monkeypatch.setattr(mhc, "TARGETS", [memfile])
+    monkeypatch.setattr(mhc, "load_checker", lambda: _FakeChecker({"rule_off": 1, "rules": 1}))
+    monkeypatch.setattr(sys, "argv", ["memory_headroom_check", "--threshold", "500"])
+    rc = mhc.main()
+    out = capsys.readouterr().out
+    assert "疑似被复制/恢复进来" in out, out
+    assert rc == 0, f"余量充足时必须 rc=0，即使有日日志异常（实际 {rc}）"
