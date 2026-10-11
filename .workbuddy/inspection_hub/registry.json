@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T17:02:00+08:00",
+  "updated_at": "2026-10-11T17:52:05+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2755,7 +2755,7 @@
       "auto_check": "hub_reconcile.py D6（待办逾期）会在 due 过后自动报出来",
       "why": "2026-10-11 实测：今天那次「Wind token 明文入库修复」（把 token 移进 .env + 加测试钉住 HEAD 无该形态 + 修 gitleaks 空跑）**只覆盖了工作区**。用新写的 `scan_git_history_secrets.py`（按 blob 扫全历史，只比对哈希不打印明文）实测：**该真 token 仍在 4 个历史提交里**（f1c2660 / 3a8f613 = 2026-07-30，375e51a / 26e7ac1 = 2026-08-04，路径 `.workbuddy/scripts/macro_data.py`），且 **Claw 是公开仓**（private=false）→ 任何 clone 都能取到。同时确认：漏的那个 sk- 值（62bb86bf82）是 2026-08-05 已在 DeepSeek 平台吊销的旧键（已按证据登记豁免），故本轮真实待办只有 Wind token 一个。\n\n🔴 **2026-10-11 16:3x 升级取证（本条把严重度从「历史里的旧值」提到「在用凭据」）**：① 独立复核仓库可见性：`gh repo view guandao…/Claw --json visibility` → **PUBLIC / isPrivate=false**（确认公开）。② 独立复跑 `scan_git_history_secrets.py` → rc=1，4 处命中 1 个路径，值哈希 `41de694a94` / `67c05351e1`。③ **决定性一步**：把**当前 `.env` 里的在用值**按**与扫描器完全相同的口径**（同一 PATTERNS 取匹配片段 + **sha256[:10]**，不是 sha1、不是整值）比对 → `WIND_MCP_TOKEN` / `WIND_API_KEY`（两键同值，长度 35）命中 **`67c05351e1`** ⇒ **公开仓历史里那把 = 现在正在用的那把**。不是「已轮换的旧值」，**是有效凭据暴露在公开仓**。\n⚠️ **口径教训（差点误判成安全）**：首次比对我用的是 `sha1(整值)[:10]`，与扫描器的 `sha256(匹配片段)[:10]` 不同 → 得出「🟢 不同、已被换过」的**相反结论**。**比对哈希必须同时对齐算法与粒度**；不确定就直接复用扫描器的 PATTERNS（已为此加 `--compare-env` 子命令）。",
       "if_no_action": "keep_as_is",
-      "if_no_action_note": "已 done。⚠️ 附带暴露面：该 token 曾以**明文经聊天消息传递**，且被工具日志捕获（后者已就地打码清理）；聊天记录本身仍在会话库里。若要求零留痕，建议再轮换一次并由用户直接写 .env（不经过对话）。",
+      "if_no_action_note": "已 done。**暴露面决策（2026-10-11 17:4x，用户明示）**：该 token 明文经聊天消息传递过一次，用户选择**接受「只存在于本机会话记录」**、不再做第二次轮换 —— 故不再有后续动作。（工具日志里的副本已就地打码清理；仓库/allowlist 里只有哈希，无明文。）",
       "resolved_at": "2026-10-11T16:38:35+08:00",
       "resolution": "用户已在 Wind 平台重新生成 MCP token（2026-10-11 16:36 提供），本机完成更换与验证：① `.env` 的 `WIND_MCP_TOKEN` 与 `WIND_API_KEY` 两个键均换新（备份 /tmp/env-bak-20261011-163602）；② **`~/.workbuddy/mcp.json` 里 5 个 Wind server**（wind_analytics_data / wind_index_data / vserver_financial_info / wind_stock_data / wind_economic_data）的 `Authorization` 全部换新并回读校验通过（这是最容易被漏掉的消费方 —— 只改 .env 的话 Wind MCP 工具会一直用已作废的旧值）；③ 旧值两个形态（ak_ 形态 67c05351e1 / \"Bearer ak_…\" 形态 41de694a94）登记进 `.workbuddy/secret_history_allowlist.json`（带 rotated_at=2026-10-11）→ 历史扫描 rc=0 干净；④ 凭据有效性实测：对新 token 直接做一次 Wind MCP `initialize`（只读）→ **HTTP 200 且握手成功**。",
       "evidence": "更换后回读：.env 两键哈希 = 新值哈希；mcp.json 5/5 server 指向新值；`scan_git_history_secrets.py` 输出「✅ 历史干净（rev=--all）」，rc=0（此前为 4 处/1 路径）；Wind MCP 端点 initialize → HTTP 200（result.protocolVersion=2025-06-18）。"
