@@ -148,6 +148,49 @@ def history_hits(rev: str, extra_allow: list[str], rotated: set[str]) -> list[di
     return hits
 
 
+def compare_env(env_path: Path, rev: str, allow: list[str], allowlist_path: Path) -> int:
+    """回答「历史里泄漏的值，是不是**现在还在用**的那把」。
+
+    为什么必须复用本模块的 PATTERNS 与 sha256[:10]，而不是手写一遍：
+    手算哈希极易**算法与粒度双错**。2026-10-11 实测踩到 —— 我用 `sha1(整值)[:10]` 去比
+    扫描器的 `sha256(匹配片段)[:10]`，得出「🟢 不同、已被换过」的**相反结论**；
+    改用本模块口径后才发现：公开仓历史里那把 **就是当前 `.env` 在用的凭据**。
+    读错的比对比不做比对更致命。
+
+    这里**刻意不跳过 allowlist**：若"在用值"命中一条「已轮换」条目，那本身是矛盾
+    （说明那条豁免写错了 / 值其实没换），必须报出来而不是静默跳过。
+    """
+    if not env_path.exists():
+        print(f"❌ 读不到 {env_path}", file=sys.stderr)
+        return 2
+    hits = history_hits(rev, allow, set())  # 全量，不跳豁免
+    leaked = {h["value_sha256_10"]: h for h in hits}
+    rotated = load_value_allowlist(allowlist_path)
+    text = env_path.read_text(encoding="utf-8", errors="ignore")
+    print(f"历史命中 {len(hits)} 处 / 不同值 {len(leaked)} 个 ｜ 比对文件 {env_path}")
+    live: list[tuple[str, str, str]] = []
+    for name, rx in PATTERNS:
+        for m in rx.finditer(text):
+            frag = m.group(0)
+            vh = hashlib.sha256(frag.encode()).hexdigest()[:10]
+            src = leaked.get(vh)
+            if src and vh in rotated:
+                tag = f"🔴 与历史命中同值，**且该值被登记为「已轮换」** —— 豁免写错了？（{src['path']}）"
+            elif src:
+                tag = f"🔴 与历史命中**同值** → 在用凭据就是被泄漏的那把（{src['path']}）"
+            else:
+                tag = "·  与历史值不同"
+            print(f"  {name:14s} 片段长={len(frag):3d} sha256[:10]={vh}  {tag}")
+            if src:
+                live.append((name, vh, src["path"]))
+    print()
+    if live:
+        print(f"🔴 {len(live)} 处在用值出现在 git 历史里 → 泄漏的是**当前生效凭据**，须立刻轮换")
+        return 1
+    print("🟢 在用的值与历史命中**均不同** → 未发现「在用凭据被泄漏」；历史里那些仍是待轮换的旧值")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="扫 git 历史里的疑似密钥（只读）")
     ap.add_argument("--rev", default="--all", help="git rev-list 的 rev（默认 --all）")
@@ -158,11 +201,20 @@ def main() -> int:
         help="已轮换值哈希表（默认 " + DEFAULT_VALUE_ALLOWLIST + "）",
     )
     ap.add_argument("--json", action="store_true")
+    ap.add_argument(
+        "--compare-env",
+        metavar="PATH",
+        help="**口径一致地**比对：把该文件（如 .env）里当前在用的值按同一 PATTERNS+sha256[:10] "
+        "算哈希，与历史命中比对 —— 回答「历史里那把是不是现在还在用」。给了它就只做这一件事。",
+    )
     args = ap.parse_args()
 
     if not Path(".git").exists() and not git("rev-parse", "--git-dir").strip():
         print("❌ 当前目录不是 git 仓库", file=sys.stderr)
         return 2
+
+    if args.compare_env:
+        return compare_env(Path(args.compare_env), args.rev, args.allow, Path(args.allowlist))
 
     rotated = load_value_allowlist(Path(args.allowlist))
     hits = history_hits(args.rev, args.allow, rotated)
