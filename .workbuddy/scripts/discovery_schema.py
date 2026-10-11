@@ -131,6 +131,11 @@ def save_registry_atomic(path: Path, reg: dict) -> bool:
         tmp = str(path) + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(reg, f, ensure_ascii=False, indent=2)
+            # 末尾补换行：本仓 pre-commit 的 end-of-file-fixer 强制「文件以单个换行结尾」，
+            # 不带换行时每次生成都会被 hook 改写一次 → 提交被拦 + 无尽 diff。
+            # ⚠️ 与 save_dedup_index 同款（那里 2026-10-10 已修，本函数当时漏了 ——
+            # 「改一份漏一份」：同一模块两个写入器，只补了一个。2026-10-11 补齐）。
+            f.write("\n")
         json.loads(Path(tmp).read_text(encoding="utf-8"))  # 回读：能解析才落盘
         os.replace(tmp, path)
         json.loads(path.read_text(encoding="utf-8"))  # 落盘后二次回读

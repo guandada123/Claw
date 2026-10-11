@@ -329,3 +329,41 @@ def test_save_dedup_index_returns_false_on_unwritable_parent(tmp_path):
     blocker = tmp_path / ".workbuddy"
     blocker.write_text("我是文件不是目录", encoding="utf-8")  # 让 mkdir 失败
     assert save_dedup_index(tmp_path, {"version": 1, "keys": {}}) is False
+
+
+# ── save_registry_atomic：与 save_dedup_index 同款守卫（「改一份漏一份」的对照面）──
+
+
+def test_save_registry_ends_with_exactly_one_newline(tmp_path):
+    """registry.json 是 **git 跟踪**文件，且 CI 跑 `pre-commit run --all-files`
+    → 少一个尾换行就会被 end-of-file-fixer 改写 → hook 非零退出 → 提交被拦 / CI 红。
+
+    对照事故：save_dedup_index 2026-10-10 已修（同一模块、同一原因），
+    save_registry_atomic 当时漏补，2026-10-11 补齐后加此守卫钉住两个面。
+    """
+    from discovery_schema import save_registry_atomic
+
+    p = tmp_path / "registry.json"
+    assert save_registry_atomic(p, {"version": 1, "discovery_candidates": []}) is True
+    raw = p.read_bytes()
+    assert raw.endswith(b"\n"), "必须带尾换行，否则 end-of-file-fixer 会持续改写"
+    assert not raw.endswith(b"\n\n"), "且只能有一个"
+
+
+def test_save_registry_roundtrips(tmp_path):
+    from discovery_schema import load_registry, save_registry_atomic
+
+    p = tmp_path / "registry.json"
+    reg = {"version": 3, "discovery_candidates": [{"id": "disc-x"}]}
+    assert save_registry_atomic(p, reg) is True
+    got = load_registry(p)
+    assert got["version"] == 3 and got["discovery_candidates"] == [{"id": "disc-x"}]
+
+
+def test_save_registry_returns_false_on_unwritable_path(tmp_path):
+    """写失败必须返回 False 而非抛（调用方据此上报，不能静默当成功）。"""
+    from discovery_schema import save_registry_atomic
+
+    d = tmp_path / "as_dir"
+    d.mkdir()
+    assert save_registry_atomic(d, {"version": 1}) is False
