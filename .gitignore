@@ -43,6 +43,9 @@ logs/*.log
 !.workbuddy/data/simulation/
 !.workbuddy/data/simulation/portfolio.json
 !.workbuddy/data/sector_cache.json
+# 休市日历 = **静态权威输入**（不是运行产物）：不入库则 CI / 新克隆读不到 →
+# is_trading_day 静默降级为"自然日"（节假日被当交易日）。2026-10-11 实测踩到。
+!.workbuddy/data/astock_holidays.json
 !.workbuddy/data/user/
 
 # L2 Skills 下沉：项目内仅为指向用户级 ~/.workbuddy/skills/ 的本地 symlink
