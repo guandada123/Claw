@@ -137,7 +137,10 @@
 - ~~**微信读书采集**~~: `Claw/.workbuddy/scripts/weread_fetch.py`（⚠️ 已停用）
 - **we-mp-rss客户端**: `Claw/.workbuddy/scripts/fetch_wx_rss.py`（安全数据采集）
 - **盘中问答守护**: `Claw/.workbuddy/scripts/qa_daemon.sh`
-- **GitHub备份**: `Claw/.workbuddy/scripts/github_sync.sh`
+- **GitHub备份（⛔ 遗留·默认只读）**: `Claw/.workbuddy/scripts/github_sync.sh`
+  —— 2026-10-11 核实：**无任何自动化/脚本引用**，且原按旧布局推定仓库根而**一直跑不起来**（惰性）；
+  其职责（把 data/·memory/·reports/ 运行产物入库）现由统一巡检中枢的 `chore(data,hub)`（逐路径）承担。
+  已收窄为**默认只读**（`--apply` 才写、`--push` 才推），并在只读输出里报告"哪些路径已不存在"。
 
 ### 文档文件
 - **项目记忆**: `Claw/.workbuddy/memory/MEMORY.md`
