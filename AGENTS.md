@@ -83,7 +83,7 @@ ruff check --config ruff.toml <path>          # line-length=100，E501 忽略
 | 五层架构 / 各层落地状态 | `.workbuddy/ARCHITECTURE.md` |
 | 模型路由与预算降级 | `.workbuddy/docs/routing-rules.md` |
 | 一次事故怎么复盘的 | `.learnings/`（标 ★ 的是升级铁律候选） |
-| 某天做了什么 | `.workbuddy/memory/YYYY-MM-DD.md`（>30 天应蒸馏进分层） |
+| 某天做了什么 | `.workbuddy/memory/YYYY-MM-DD.md`（**日日志本身就是历史真值**：`CHRONICLE.md` 已于 2026-10-09 显式冻结在 06-05~07-29 并声明「不再逐日蒸馏」，故不存在「>30 天必须蒸馏进分层」这条要求 —— 该说法 2026-10-11 核实为陈旧声明，已更正） |
 | 自动化清单与契约 | `.workbuddy/docs/automation-inventory.md` |
 | **Token / 积分花在哪了** | `.workbuddy/reports/token-dashboard.html`（用量看板）+ `credit-vs-token.md`（三源对齐、实测积分/百万 token）；两者每日 06:30 由「📊 Token 用量看板 + 积分对齐（每日刷新）」自动刷新，也可说一句"看看我的 token 用量" |
 | **消耗数字该信哪个**（口径台账：token/积分/自记成本谁是真的） | `.workbuddy/docs/consumption-ledger.md` —— 新增任何「花了多少」前先在这里认领源 |
