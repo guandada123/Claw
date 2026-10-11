@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T08:44:22+08:00",
+  "updated_at": "2026-10-11T08:52:28+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -1974,7 +1974,7 @@
       "suggestion": "借鉴 A股回测提速范式（向量化替代 for/iterrows、QMT get_market_data_ex 一次性内存预加载、DuckDB/三级缓存、多进程并行），优化 backtest_engine_v2.py 的逐行/iterrows 瓶颈使全样本回测耗时可控。核心改动，走周度人工审（生成 diff 提案待授权）。",
       "ring_prev": null,
       "ring": "Caution",
-      "proposal": "核心改动提案（QTS strategy-service/services/backtest_engine_v2.py）：当前回测为逐标的×逐策略 Python for 循环 + 行级 .append() 累积（热点：_build_bt_indices 内 generate_signals 逐行调用 ~line386-392、daily_values/trades 累积循环 ~line573/644/698）。提案：① 先用 cProfile 对全样本跑取基线 wall-time（数值基线，success_metric 的对照锚）；② 将行情 list[dict] 预载为 Pandas DataFrame，信号生成与逐Bar盈亏/仓位更新改用向量化（.shift()/.rolling()/布尔掩码）替代 Python 层 for/iterrows；③ 保留 test_backtest_engine_v2.py 断言收益曲线与交易信号不变；④ 复测 wall-time 须较基线下降≥50%。属核心类 → 仅提案，本自动化不改写，待人工授权后落地。回滚点：QTS git HEAD。"
+      "proposal": "核心改动提案（QTS strategy-service/services/backtest_engine_v2.py）：当前回测为逐标的×逐策略 Python for 循环 + 行级 .append() 累积（热点：_build_bt_indices 内 generate_signals 逐行调用 ~line386-392、daily_values/trades 累积循环 ~line573/644/698）。提案：① 先用 cProfile 对全样本跑取基线 wall-time（数值基线，success_metric 的对照锚）；② 将行情 list[dict] 预载为 Pandas DataFrame，信号生成与逐Bar盈亏/仓位更新改用向量化（.shift()/.rolling()/布尔掩码）替代 Python 层 for/iterrows；③ 保留 test_backtest_engine_v2.py 断言收益曲线与交易信号不变；④ 复测 wall-time 须较基线下降≥50%。属核心类 → 仅提案，本自动化不改写，待人工授权后落地。回滚点：QTS git HEAD。\n\n⚠️ 2026-10-11 前提更正（实测）：本提案写「保留 test_backtest_engine_v2.py 断言收益曲线与交易信号不变」—— **该前提不成立**：存量 100 个用例只断言结构（len>0 / >=0 / 日期单调 / 字段存在），**没有任何值级断言** → 改造一旦让收益曲线数值漂移，存量测试会全绿。\n   已补前置（2026-10-11）：新增 `strategy-service/tests/test_backtest_golden_master.py`（5 例值级金标：聚合指标逐位 + 逐笔成交价/数量/盈亏 + 成本必带【滑点/佣金/印花税】 + 自证确定性；输入用整数 LCG，跨平台逐位一致）。\n   执行向量化改造前请先把该金标跑绿并留 wall-time 基线；改造后「金标全绿 + 耗时 ≥50% 下降」两条一起看，缺一不算达成。"
     },
     {
       "id": "disc-20261010-03",
