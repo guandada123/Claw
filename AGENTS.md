@@ -18,8 +18,11 @@ A股投顾自动化系统：模拟炒股 / 实盘助理 / 美股监控三套数�
 - **投资类推送**走飞书群 `oc_9ee5303497f5e0e71666b610d6bdc346`，卡片化（禁 `--text` 降级）；维护类默认静默，仅 ⚠️/🔴 推。
 - **`data/` 字段改动先确认**；总本金授权值不可推翻；三套系统数据不得混。
 
-> 以上是 `.workbuddy/memory/MEMORY.md` **规则层**的摘要。完整 62 条 + 逐条证据：
-> `grep -n "^## 🔴 不可违反铁律" .workbuddy/memory/MEMORY.md`，规则层在行 24–88，证据在文末「铁律证据库」。
+> 以上是 `.workbuddy/memory/MEMORY.md` **规则层**的摘要（**冲突以 MEMORY.md 为准**）。
+> ⚠️ **本文件不硬编码条数与行号** —— 那类数字每次改规则层都会腐烂，正确来源是 MEMORY.md 速查索引里
+> 由 `check_memory_visibility.py --fix` 回写的值（2026-10-11 实测：本节原先写死的条数与行号**均已过期**）。
+> → 取用：`grep -n "^## 🔴 不可违反铁律" .workbuddy/memory/MEMORY.md`（看规则层与其索引声明的条数/行号）；
+> 逐条证据在文末「铁律证据库」：`grep -n "── 证据 N ──"`（**N = 规则层第 N 条**，同序）。
 
 ## 2. 解释器与常用命令（均实测过）
 
@@ -76,7 +79,7 @@ ruff check --config ruff.toml <path>          # line-length=100，E501 忽略
 
 | 想知道 | 去哪 |
 | --- | --- |
-| 铁律 + 逐条证据 | `.workbuddy/memory/MEMORY.md`（规则层行 24–88 / 证据库文末） |
+| 铁律 + 逐条证据 | `.workbuddy/memory/MEMORY.md`（规则层 + 文末证据库；**条数/行号见其速查索引**，本文件不复制） |
 | 用户决策风格、协作心智模型 | `.workbuddy/memory/SCHEMA.md` |
 | **待决事项**（含 owner/due/判据/if_no_action） | `.workbuddy/inspection_hub/registry.json` → `pending_actions` |
 | 已知失效模式（含"不影响的边界"） | 同上 → `known_failure_modes` |
