@@ -432,13 +432,15 @@ def main():
                 return 2
 
     # 去重（文件级，冷却 6h）
+    # 🔴 2026-10-11 审计修复：标记必须在**发送成功后**才落盘。原实现「先写标记再发送」，
+    #    一旦发送失败（网络/限流耗尽重试），6 小时内的重试会被误判为「已发送」→
+    #    告警被静默吞掉，且调用方会拿到 rc=0 的假成功。
+    dedupe_file = ""
     if args.dedupe_key:
-        df = f"/tmp/feishu_card_dedupe_{args.dedupe_key.replace(' ', '_')[:40]}"
-        if os.path.exists(df):
+        dedupe_file = f"/tmp/feishu_card_dedupe_{args.dedupe_key.replace(' ', '_')[:40]}"
+        if os.path.exists(dedupe_file):
             print(f"⚠️ 去重: {args.dedupe_key} (6h内已发)")
             return 0
-        with open(df, "w") as f:
-            f.write("sent")
 
     if args.json_stdin:
         data = json.loads(sys.stdin.read())
@@ -483,6 +485,9 @@ def main():
             chat_id=args.chat_id,
         )
 
+    if ok and dedupe_file:
+        with open(dedupe_file, "w") as f:
+            f.write("sent")
     return 0 if ok else 1
 
 
