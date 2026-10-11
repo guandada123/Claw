@@ -10,7 +10,7 @@
 其实是**锯齿**（归档日跳水、之后线性回升），不是趋势。
 
 ━━ 新判据（相对稳态，而非绝对阈值）━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  · 🔴 异常  = 内容时间跨度 > 归档窗口(14天) × 1.5（即 >21 天）**且** 近 7 天有写入
+  · 🔴 异常  = 内容时间跨度 > 合法峰值(24 天) **且** 近 7 天有写入
         —— 直白说：「归档没在按窗口工作，而且它还在长」。
   · ⚠️ 高位  = size > 30KB（只记录，不报警）
   · ⚠️ 休眠  = 近 7 天没写（体积是历史遗留，不会继续涨）
@@ -24,6 +24,10 @@
      ⇒ 「size > steady × 1.5」**等价于「跨度 > 21 天」**。
      所以这个判据真正测的从来不是"体积"，而是**归档窗口有没有在工作**。
      直接按这个语义写：测跨度，别绕体积。这才是能自愈、且真值得看的信号。
+  ⑤ 上限标定（2026-10-11）：原用「窗口 × 1.5 = 21 天」，**恰好等于合法峰值**
+     （窗口 14 + 归档周期 7）→ 每周日归档前必然越线报红（实测 span=21.1 > 21.0），
+     属「恒真噪音」（告警价值 = 症状准 × 药方对）。改按「窗口 + 周期 + 余量」= 24 天，
+     把合法性写进公式而不是乘数。
 
 退出码：0=无 🔴 / 1=有 🔴 / 2=无法判定（目录缺失或一个文件都分析不了）
 """
@@ -49,11 +53,16 @@ TS_PATTERNS = [
 ARCHIVE_WINDOW_DAYS = (
     14  # 与 rotate_automation_memory.py 的「早于 14 天」保持一致（仅用于展示稳态体积）
 )
+ARCHIVE_CYCLE_DAYS = 7  # 归档周期：记忆维护自动化每周日跑一次归档
+SPAN_MARGIN_DAYS = 3  # 余量：允许归档晚一两天 / 单档波动，不因此报警
+# 合法最大跨度 = 窗口(14) + 一个归档周期(7) = 21 天：归档后跨度回到 14，
+# 一周内线性涨到 21，下次归档前正好触线 —— 所以上限**必须大于 21**，
+# 否则每周日归档前必然报一次红（2026-10-11 实测 span=21.1 > 21.0，恒真噪音）。
+SPAN_LIMIT_DAYS = ARCHIVE_WINDOW_DAYS + ARCHIVE_CYCLE_DAYS + SPAN_MARGIN_DAYS  # 24
 ABS_FLOOR_BYTES = 30 * 1024  # 旧判据的绝对下限，现降级为「提示线」，不再单独报警
 RECENT_DAYS = 7
 BASELINE_DAYS = 21
 MIN_RECENT_DAILY = 1024.0  # 近窗日增低于此值视为休眠，不参与异常判定
-SPAN_OVER_FACTOR = 1.5  # 内容跨度须超归档窗口这些倍（14×1.5 = 21 天）
 MIN_ANOMALY_DAILY = 2048.0  # 且近窗日增须越过此值（休眠档位跨度再大也不报）
 
 
@@ -118,7 +127,7 @@ def analyze(path: Path, window_days: int = 7) -> dict:
             "days_since_last": round((now_ts - dates[-1].timestamp()) / 86400, 1),
         }
     )
-    span_limit = ARCHIVE_WINDOW_DAYS * SPAN_OVER_FACTOR
+    span_limit = SPAN_LIMIT_DAYS
     row["span_limit"] = span_limit
     if recent_daily < MIN_RECENT_DAILY:
         row["status"] = "dormant" if size > ABS_FLOOR_BYTES else "ok"

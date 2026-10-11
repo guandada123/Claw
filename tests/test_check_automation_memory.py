@@ -67,6 +67,19 @@ def test_small_file_is_ok(tmp_path):
     assert r["status"] == "ok"
 
 
+def test_weekly_peak_span_is_not_anomaly(tmp_path):
+    """回归（2026-10-11）：合法峰值 = 窗口 14 + 归档周期 7 = 21 天。
+
+    原上限「窗口 × 1.5」**恰好等于 21** → 每周日归档前跨度 ~21.x 必然越线报红
+    （实测 span=21.1 > 21.0），属恒真噪音。上限改「窗口+周期+余量」= 24 后不得报警。
+    """
+    lines = [_entry(22.5, 20000)] + [_entry(d, 20000) for d in (6, 5, 4, 3, 2, 1)]
+    f = _mk(tmp_path, "slot-weekly-peak", lines)
+    r = cam.analyze(f)
+    assert 21 < r["span_days"] < r["span_limit"], f"构造不成立: {r}"
+    assert r["status"] != "anomaly", f"合法峰值不该报警: {r}"
+
+
 # ── 真异常必须被抓住 ──────────────────────────────────────────────
 
 
@@ -89,6 +102,15 @@ def test_anomaly_needs_both_conditions(tmp_path):
     lines = [_entry(d, 20000) for d in (60, 55, 50)]  # 跨度大但已停写
     f = _mk(tmp_path, "slot-bigold", lines)
     assert cam.analyze(f)["status"] != "anomaly", "停写的档位不该报警（休眠分支）"
+
+
+def test_span_beyond_new_limit_still_anomaly(tmp_path):
+    """抬高上限不得把真异常一起放过：明显超越 24 天且仍在写 → 仍须报警。"""
+    lines = [_entry(30.5, 20000)] + [_entry(d, 20000) for d in (6, 5, 4, 3, 2, 1)]
+    f = _mk(tmp_path, "slot-over-limit", lines)
+    r = cam.analyze(f)
+    assert r["span_days"] > r["span_limit"], f"构造不成立: {r}"
+    assert r["status"] == "anomaly", f"应判异常: {r}"
 
 
 # ── 判不了要说出来 ───────────────────────────────────────────────
