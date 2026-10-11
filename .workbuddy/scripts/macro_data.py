@@ -7,6 +7,7 @@
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -27,8 +28,34 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Wind MCP HTTP 直连（用 urllib，零依赖）──
+# 🔴 凭证纪律（2026-10-11 审计后整改）：Bearer token 一律从环境变量读取，
+#    禁止在本文件（或任何 tracked 文件）中出现明文。缺失即视为未配置 → 走降级链。
 WIND_MCP_URL = "https://mcp.wind.com.cn/vserver_analytics_data/mcp/"
-WIND_MCP_AUTH = "Bearer ak_7w6DGzdxZAtiZA5Z6btos1VjS7hexvPI"
+
+
+def _load_env_file() -> None:
+    """从项目根 .env 载入缺失的环境变量（零依赖，不覆盖已有值）。"""
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    if not env_path.exists():
+        return
+    try:
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = val
+
+
+_load_env_file()
+WIND_MCP_TOKEN = os.environ.get("WIND_MCP_TOKEN", "").strip()
+WIND_MCP_AUTH = f"Bearer {WIND_MCP_TOKEN}" if WIND_MCP_TOKEN else ""
 
 # Wind 指标 → MCP 查询关键词
 WIND_MCP_QUERIES = {
@@ -52,6 +79,9 @@ def _fetch_wind_mcp_macro(indicator: str) -> dict | None:
     Returns:
         {"status": "ok", "latest_12": [{"日期": ..., "值": ...}]} 或 None
     """
+    if not WIND_MCP_AUTH:
+        # 未配置 WIND_MCP_TOKEN → 明确降级（由上游回退 AKShare），不发起无效请求
+        return None
     payload = json.dumps(
         {
             "jsonrpc": "2.0",

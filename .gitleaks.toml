@@ -1,17 +1,51 @@
-# gitleaks 配置 — 精确豁免历史泄漏（2026-08-04 处置，不重写历史）
+# gitleaks 配置 — Claw 凭证扫描
 #
-# 背景：scripts/.prompt_cache_config.json 曾在提交 dd5df15c 中提交真实 DeepSeek API key；
-# 后经 afac54b(2026-06-20) 移出 git 跟踪并加入 .gitignore，当前工作区已无此文件。
-# gitleaks 扫描 --all 全历史仍命中该提交 → 按提交哈希精确豁免，使 CI 转绿。
-# 铁律约束：不 force/压历史，故不做 filter-repo 类历史重写。
+# ⚠️ 2026-10-11 审计修正（重要，勿回退）：
+#   本文件此前**只有 [allowlist]、没有 [extend] / [[rules]]**。而 gitleaks 会自动发现
+#   仓库根的同名配置文件 —— 一个「无规则」的 config 等价于**关闭全部默认规则**。
+#   实测（同目录同文件）：
+#     · rules-less config       → 0 命中（默认规则被关掉）
+#     · useDefault = true 版本  → 2 命中
+#   即 CI 的 Secret Detection (gitleaks) job 长期处于「空跑」状态——这解释了为何
+#   macro_data.py 的明文 Wind token 从未被拦截。[extend] useDefault 必须保留。
 #
-# ⚠️ 安全提示：该密钥已暴露于公开仓库(guandada123/Claw, PUBLIC)历史，
-#    豁免仅消除 CI 红灯，不消除暴露 —— 须轮换 DeepSeek API key，
-#    并在轮换后（经用户确认）用历史重写彻底清除。
+# ⚠️ 其它约束（沿用）：
+#   · 铁律：不 force / 不压历史。已知泄漏按提交哈希精确豁免，仅保持 CI 绿灯，
+#     **豁免不消除暴露** —— 对应凭证必须轮换（详见 allowlist 注释）。
+
 title = "Claw gitleaks config"
 
+# ── 必须：恢复默认规则集（否则本文件会让扫描空跑） ──
+[extend]
+  useDefault = true
+
+# ── 自定义规则 ──────────────────────────────────────────────
+# Wind MCP Bearer Token：gitleaks 默认规则不覆盖 `Bearer ak_...` 形态（2026-10-11 实测
+# "no leaks found"），故补此规则防复发。
+[[rules]]
+  id = "wind-mcp-bearer-token"
+  description = "Wind MCP Bearer token (ak_ prefix)"
+  regex = '''(?i)Bearer\s+ak_[A-Za-z0-9]{16,}'''
+  tags = ["secret", "wind"]
+
+# ── 已知历史泄漏 / 误报（精确豁免，仅为 CI 绿灯；暴露未消除） ──────
 [allowlist]
-  description = "historical DeepSeek api_key in scripts/.prompt_cache_config.json (committed dd5df15c, untracked since 2026-06-20, rotation pending)"
+  description = "已知历史泄漏：DeepSeek key（轮换待确认） + Wind MCP token（已外移 .env，轮换待执行）；另含 1 类误报（curl 示例中的环境变量引用）"
+  # 误报：.learnings 文档中的示例 `curl -H "X-API-Key: $QTS_API_KEY"` —— 是变量引用，
+  # 不是密钥字面量（gitleaks curl-auth-header 规则误判，2026-10-11 实测）。
+  regexes = [
+    '''X-API-Key:\s*\$[A-Za-z_][A-Za-z0-9_]*''',
+  ]
   commits = [
+    # scripts/.prompt_cache_config.json 曾提交真实 DeepSeek API key（2026-06-20 移出跟踪）
     "dd5df15c5a0726116da2e691f994fa01940a5334",
+    # .learnings 文档中的示例 curl（`X-API-Key: $QTS_API_KEY`，变量引用非密钥）
+    "f09fd8be462b88e7af25338251842aeb5bc10906",
+    # .workbuddy/scripts/macro_data.py 曾明文硬编码 Wind MCP Bearer token
+    # （2026-10-11 外移至 .env；以下 5 个提交为全部含明文的提交，2026-10-11 枚举）
+    "3a8f6137fa35fb99be310859dfe57fc8522f46f1",
+    "f1c2660f9048586da5558251638d81845f4a249f",
+    "26e7ac1caa9165eba068d024630c81b0cd90a99d",
+    "375e51afb0896bd2aa7d5776428a198db876b7cc",
+    "5a170e03fe34ec975e3d0d77176a37ec9be1a09a",
   ]

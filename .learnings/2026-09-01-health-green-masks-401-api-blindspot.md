@@ -94,7 +94,7 @@
 ## 四、待办
 
 - **A（治本，推荐）**：给本自动化 prompt 加硬性约束 —— 探活 QTS API 必须
-  `curl -H "X-API-Key: $QTS_API_KEY"`；或提供 `qts_api_probe.sh` 封装强制带 key
+  `curl -H "X-API-Key: <QTS_API_KEY>"`；或提供 `qts_api_probe.sh` 封装强制带 key
 - **B**：服务端对 `172.18.0.1`（bridge 网关 = 宿主机）来源免鉴权（安全风险，不推荐）
 - **C**：`backtest_reports` 零落库——今天 15:30~15:45（回测日报调度窗口）后复查；
   若无新行，从 `report_scheduler` 的注册/触发链路重新查，不要再往 401 上归因
