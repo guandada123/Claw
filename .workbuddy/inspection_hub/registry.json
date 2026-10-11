@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T09:29:40+08:00",
+  "updated_at": "2026-10-11T09:34:38+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2705,12 +2705,14 @@
       "owner": "human",
       "title": "给 QTS 的 uv.lock 引入阻塞式漏洞门禁（Claw 已有；QTS 零门禁已致 30 条漏洞长期不可见）",
       "criteria": "选一种落地：①【推荐】脚本单源放 engineering-audit-kit（scripts/audit_locks.py），发新 tag；QTS 的 security-scan 增 job「Lock Dependency Audit (blocking)」，脚本用 curl 从 **pin 住的 tag** 拉取执行（与 2026-10-10 修可复用工作流同一套 pin + 单源模式）；Claw 现有副本后续同模式收敛（但必须先证在跑的门禁不被破坏）。② 直接复制 Claw 的脚本进 QTS（最快，但造第二副本，dual-copy-audit 会抓，需同时登记豁免）。③ 维持观测项（已有实证代价，见 why）。StockInsight 无 uv.lock（只有 requirements.txt），判据需另定，可二期。",
-      "status": "open",
+      "status": "done",
       "verifier": "QTS 的 Security Scan 出现 job「Lock Dependency Audit (blocking)」，且两向都实测过：① 把某包降回含**可修复**漏洞的版本 → 必须判红；② 恢复 → 必须转绿。只跑一向不算（只跑①证不了它不是恒红，只跑②证不了它会拦）。",
       "auto_check": "hub_reconcile.py D6（待办逾期）会在 due 过后自动报出来",
       "why": "2026-10-10 审计 CI 门禁时发现：QTS 的 security-scan 4 个 job 里只有 gitleaks 会拦，safety / bandit / pip-audit 全以 `|| true` + continue-on-error 收尾 → 该仓**没有任何会拦的依赖门禁**。用 Claw 已上线的锁门禁（只读 uv.lock + 查 OSV，只挡「有修复版本」的）扫 QTS 的锁：可处置(挡) **30 条**，含 pyjwt CVE-2026-102268 CRITICAL、pymongo 堆越界写(HIGH)、urllib3 ×3(HIGH)、virtualenv ×3(HIGH)、soupsieve ReDoS ×2。当日已定向升级修到 **0 条可处置**（uv.lock 一次提交，Test & Lint 10 job 全绿），但**没有门禁就还会再漏**——「修好一次 ≠ 以后不漏」。",
       "if_no_action": "keep_as_is",
-      "if_no_action_note": "到期不动不升级：本轮漏洞已实修（锁文件 0 条可处置）、QTS CI 全绿，短期无损失。代价是下次依赖漂移或新 CVE 出现时，仍然只能靠外部审计发现——绿灯不会告诉你。"
+      "if_no_action_note": "到期不动不升级：本轮漏洞已实修（锁文件 0 条可处置）、QTS CI 全绿，短期无损失。代价是下次依赖漂移或新 CVE 出现时，仍然只能靠外部审计发现——绿灯不会告诉你。",
+      "closed_at": "2026-10-11T09:34:38+08:00",
+      "resolution": "已落地并**两向实测**（verifier 判据全部满足）：\n① 门禁就位：QTS `.github/workflows/security-scan.yml` 新增 job「Lock Dependency Audit (blocking)」（提交 f8ea0ac2，本工作流**唯一会判红**的检查）；脚本按 pin 的 tag 从 engineering-audit-kit@v4 拉取执行（单源，不在本仓复制第二份）。\n② 负向（必须判红）：分支 `test/lock-gate-negative-20261011`（提交 0a8af278，把 urllib3 降回 2.7.0）→ CI run 38102070991 的该 job **failure**，日志 `🔴 CVE-2026-97687/97688/97689 urllib3@2.7.0 → 升级到 ['2.8.0']`、`合计: 可处置(挡) 3`；同时 2 条**无修复版本**的（ecdsa/python-jose）只提示不挡 —— 证明「只挡可处置的」口径正确。本机独立复现：切到该分支跑脚本真实 **rc=1**。\n③ 正向（必须转绿）：main → CI run 38101943347 该 job **success**；本机独立复现 `合计: 可处置(挡) 0`、真实 **rc=0**。\n④ 副作用清理：该负向验证把 QTS 本地仓库留在了测试分支上 → 已切回 main（工作树干净）；远端测试分支保留作**可复跑的证据**（如需清理请另行决定）。\n复现命令：`python3 audit_locks.py --root . --allowlist .github/lock_audit_allowlist.json`（**不要接管道取 rc** —— `| tail` 会把退出码换成 tail 的，本机实测踩过）。"
     }
   ],
   "automation_scope": {
