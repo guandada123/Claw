@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T20:06:13+08:00",
+  "updated_at": "2026-10-11T20:08:06+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2333,6 +2333,16 @@
       "detect": "① 目录计数突增：`.workbuddy/memory/` 下 `2026-*.md` 个数与上一轮记忆维护记录不一致；② 逐文件 `stat -f '%Sm|%Sc'`（mtime|ctime）看是否有「ctime 远晚于 mtime」的文件 —— 这类文件是被复制/恢复进来的，不是被改写的；③ 交叉核对 `CHRONICLE.md` 的日期段是否已覆盖（已冻结在 06-05~07-29）。",
       "mitigation": "本轮核实后**未删除、未移走**任何文件（内容为真且属独有历史；删/移须先确认）。已把 AGENTS.md 里与其相关的**陈旧声明**更正：「>30 天应蒸馏进分层」并不存在——CHRONICLE 已于 2026-10-09 显式冻结并声明不再逐日蒸馏，日日志本身就是历史真值。若再现同类回灌：优先查 00:10 每日数据备份/恢复链路与手动操作记录（本轮 ctime 落在无自动化的时段）。",
       "does_not_affect": "不影响记忆分层质量与检索：日日志不进注入上下文，不影响 `memory_headroom_check` 的余量判据（该判据看的是 MEMORY.md 体积）；也不影响任何自动化行为。"
+    },
+    {
+      "id": "symlinked-dir-find-blindspot",
+      "area": "工具方法 / 路径查找",
+      "severity": "low",
+      "since": "2026-10-11",
+      "desc": "`find /Users/guan -maxdepth N -name X` 查 `~/.workbuddy/**` 会**静默漏掉整个子树**：`~/.workbuddy` 是指向 `/Volumes/ZHITAI/workbuddy_data` 的**软链**，而 find 默认不跟随符号链接。实测（2026-10-11）：`check_memory_visibility.py` 一直在 `~/.workbuddy/scripts/`（11,751B，10-09 建），我却因 find 返回空而得出「全机不存在」→ 差点登记一条**假发现**（「铁律引用了不存在的脚本」），并据此去重写一个已存在的工具。同类还会误判 `~/.workbuddy/skills/**`（同样软链）。",
+      "detect": "① find/grep 返回空时，先 `ls -la` 看**起点本身是否为软链**；② 「没找到」必须由第二种方法佐证：直接按预期绝对路径 `test -f` / `ls`，或 `find -L`、`cd` 进真实路径再遍历；③ 反向验证：对一个**已知存在**的文件跑同一查找命令，确认命令本身能命中。",
+      "mitigation": "涉及 `~/.workbuddy`、`/Volumes/ZHITAI/...` 的查找：优先**按预期绝对路径直接探测**，不依赖 find 遍历；把「不存在」写进结论前，必须有一次正向命中（第二条方法）。",
+      "does_not_affect": "文件本身一直存在、可读、可执行（`readlink -f ~/.workbuddy/scripts` 解析到真实卷路径）。本条只描述**查找方法的盲区**，与文件生命周期、权限、内容无关。"
     }
   ],
   "doc_apply": {
