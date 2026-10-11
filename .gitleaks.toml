@@ -30,14 +30,15 @@ title = "Claw gitleaks config"
 
 # ── 已知历史泄漏 / 误报（精确豁免，仅为 CI 绿灯；暴露未消除） ──────
 # 🔴 历史重写决策（2026-10-11，用户授权下作出）：**不做 filter-repo**。理由：
-#   1. 决定性：旧值一旦轮换即失效，重写的边际安全收益≈0；**轮换才是实质动作**（Wind token 待轮换）。
+#   1. 决定性：旧值一旦轮换即失效，重写的边际安全收益≈0；**轮换才是实质动作**
+#      —— Wind token 已于 2026-10-11 16:38 **完成轮换**，并经平台只读探测确认旧值失效（`GET api.deepseek.com/models` 同法：HTTP 401）。
 #   2. 本仓库 0 fork / 0 star（gh api 实测），不存在第三方副本，历史残留的危害面有限。
 #   3. 改写需 force-push 重写全部 SHA：会破坏并发会话正在推的提交、以及本仓
 #      allowlist/learnings/审计报告中对旧 SHA 的引用 → 操作风险 >> 收益。
 #   4. 铁律「不 force / 不压历史」仍然适用；推翻它需要比「少一个失效字符串」更强的理由。
 #   → 若将来仍需彻底清除：filter-repo + force-push + 通知所有 clone 方，并同步更新本文件与 learnings。
 [allowlist]
-  description = "已知历史泄漏：DeepSeek key（已轮换） + Wind MCP token（已外移 .env，**轮换待执行**）；另含 1 类误报（curl 示例中的环境变量引用）"
+  description = "已知历史泄漏：DeepSeek key（已轮换） + Wind MCP token（2026-10-11 已轮换完成、旧值平台侧确认失效）；另含 1 类误报（curl 示例中的环境变量引用）"
   # 误报：.learnings 文档中的示例 `curl -H "X-API-Key: $QTS_API_KEY"` —— 是变量引用，
   # 不是密钥字面量（gitleaks curl-auth-header 规则误判，2026-10-11 实测）。
   regexes = [

@@ -7,11 +7,11 @@
 > 复现方法：拿注入块末尾原文串回文件做字节定位（见 skill `context-health-cleanup` 第零节脚本）。
 > 用法：命中主题 → `grep -n "<关键词>" $CLAW/.workbuddy/memory/MEMORY.md` → Read 该行前后 30 行。
 > 纪律：新增高价值规则 → **同步更新本索引 + 写靠前位置**，不要只 append 到末尾（末尾=不可见=白写）。
-> 🔴 **结构（09-28 分层重构，零删除）**：`## 🔴 不可违反铁律` = **规则层**（64 条各一行，行 24–89，止于 **14,464B**，**全部落在可见区内，余量 ≈2,010B**；数值由 `check_memory_visibility.py --fix` 生成，勿手算）；
+> 🔴 **结构（09-28 分层重构，零删除）**：`## 🔴 不可违反铁律` = **规则层**（65 条各一行，行 24–90，止于 **15,090B**，**全部落在可见区内，余量 ≈1,384B**；数值由 `check_memory_visibility.py --fix` 生成，勿手算）；
 > 各条的事故复现/取证细节 → 文末 **`## 📎 铁律证据库`**（原文逐字，`grep -n "── 证据 N ──"` 取用，N=规则层第 N 条）。
 > 新增铁律**只写一行命令**进规则层 —— 原病根：铁律段 23.3KB 里大半是证据叙述，把规则挤出了可见区。
 
-**A 铁律(渠道/文件/数据/推送)**：`不可违反铁律` · `oc_9ee5303497f5e0e71666b610d6bdc346` · `先复制` · `get_effective_capital` · `push_card` · `cost_tracker` · `qt.gtimg.cn`
+**A 铁律(渠道/文件/数据/推送)**：`不可违反铁律` · `oc_9ee5303497f5e0e71666b610d6bdc346` · `先复制` · `get_effective_capital` · `push_card` · `cost_tracker` · `qt.gtimg.cn` · 凭据片段禁入产物
 **B 防错(股价/推荐)**：`price_sanity` · `check-entry` · `_apply_sanity` · `_sanity_guard` · `reliable_current_price` · `sanity_failed`
 **C 排程/rrule**：`单BYHOUR` · `automation-rrule-safety-check` · `check_schedule` · `done_schedule` · `automation- 前缀` · `影子记录`
 **D 巡检中枢**：`统一巡检中枢` · `hub_reconcile` · `D1`–`D9` · `registry.json`(**只读镜像，只放声明**) · `workbuddy.db`(唯一真值) · `doc_apply` · `parity` · `wb_health_check` · `if_no_action` · `hub_liveness_probe`(只读探针) · `runtime_state_in_declaration`(D5 K6)
@@ -21,10 +21,10 @@
 **H 运维/技术债**：`实盘同步管线已死` · `ths_account_sync` · `1785421201464` · `ZHITAI` · `ruff` · `Colima` · `QTS日线`/`qfqday`
 **I 记忆/协作**：`记忆维护规则` · `domain_expertise_map` · `运行态目录版本控制` · `SAFE-MODE 重建` · `memory-consistency-audit` · `context-health-cleanup`
 
-## 🔴 不可违反铁律（规则层 · 64 条一览 · 证据正文见文末「铁律证据库」）
+## 🔴 不可违反铁律（规则层 · 65 条一览 · 证据正文见文末「铁律证据库」）
 - 渠道：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346(免审直推)；维护类默认不推仅⚠️/🔴异常推；前缀📈投顾操盘/📊炒股助理/🇺🇸美股监控
 - 删/移文件须「先复制→验证→再删源」+ 删前用户确认
-- 数据文件改动
+- 数据文件改动：data/ 字段增删改须先确认；总本金 ¥50,000 权威（=¥30,000+加仓¥20,000@07-14，记 config.capital_additions），sim_trade.py 用 get_effective_capital() 勿硬编码；例外：实时价刷新可直拉（标来源+时间）
 - 飞书推送卡片化：统一 push_card.py(interactive)禁--text降级；lark-cli≥1.0.76；notify_center已委托push_card；改脚本先--dry-run
 - 成本：cost_tracker.py(数据层)/cost_monitor.py(报告层)被cost_dashboard_feishu依赖；监控自动化=1782002819199
 - 自动化调LLM必走本地代理:9999：provider≠deepseek/catrouter(如local_proxy)+base_url="http://127.0.0.1:9999/v1"
@@ -87,6 +87,7 @@
 - 🔴 **会写盘的开关，测试必须重定向**（09-29，静默吞内容型）：`--since-last`/seen 状态这类「读起来像查询、实际会写盘」的开关，非 dry-run 试跑一次就把生产状态写脏 → 次日报告**静默吞掉**该时段内容且不报错 → 测试一律 `--dry-run` 或把状态文件 monkeypatch 到 `tempfile.mkdtemp()` 后再验
 - 🔴 **双副本重构后相对路径会静默失配**（10-06）：实现从 `scripts/` 迁到 `.workbuddy/scripts/` 后 `Path(__file__).parent.parent` 少一层 → 写出 `.workbuddy/.workbuddy/…` 影子路径；**读写自洽故不报错**，但外部按文档路径写的数据永远读不到 → 路径算式须层级自证
 - 🔴 **会腐烂的声明值必须由脚本回写，禁手算**（10-09，第5次复发）：`止于 NB`/`共 N 条`/`行 A–B` 这类从文件结构算出的数，人手同步必与脚本口径差 1 字节（「占 N 字节」vs「起于 N+1 字节」两义）→ 用 `check_memory_visibility.py --fix` 生成
+- 🔴 凭据不得以任何片段进入产物（2026-10-11 实测）：报告/卡片/日志/DB 标题只写「哈希前缀 + 状态（已轮换/已失效）」；比对新旧值**比哈希**，不贴明文片段（哪怕只前 8 位）——周度自审首轮曾把**在用**的 Wind token 前 8 位写进飞书卡片与 `automation_runs.thread_title`
 
 ## 三系统边界（数据隔离）
 - 📈投顾→.workbuddy/data/simulation/portfolio.json(全权只给结果)｜📊助理→.workbuddy/data/user/portfolio.json(国金)｜🇺🇸美股；持仓同步(07-15)：用户发持仓截图→先diff再分析
@@ -163,7 +164,7 @@
 
 ## 📎 铁律证据库（逐条复现与取证 · 由 split_memory_layers.py 从规则层剥离，**正文逐字未改**）
 > 用法：`grep -n "── 证据 37 ──" /Users/guan/WorkBuddy/Claw/.workbuddy/memory/MEMORY.md`；**证据编号 = 规则层第 N 条**（同序）。
-> 共 64 条，默认不可见，按需检索。
+> 共 65 条，默认不可见，按需检索。
 
 **── 证据 1 ──**
 - 渠道：投资类→飞书群 oc_9ee5303497f5e0e71666b610d6bdc346(免审直推)；维护类默认不推仅⚠️/🔴异常推；前缀📈投顾操盘/📊炒股助理/🇺🇸美股监控
@@ -432,3 +433,13 @@
   → 干跑成本 1 分钟，换来「不把新工具变成新的腐烂源」。
   判据：**「改内容 + 手算偏移」这个动作组合本身就是缺陷源；只要声明值还需要人手填，它就会继续腐烂。**
   同族铁律「同一语义的值必须单一真源」+「副本必须是机器交叉核对」。
+
+**── 证据 65 ──**
+
+**凭据不得以任何片段进入产物（2026-10-11，周度自审首轮自曝）**
+
+- 事故：`🧭【自审】变更效果评估（周日 20:30）` 首轮（20:30）在**飞书卡片**与
+  `workbuddy.db → automation_runs.thread_title` 里写了「旧泄漏值 `ak_<旧值前8位省略>…` ≠ 当前 `.env` 值 `ak_<在用值前8位省略>…`」。
+- 危害分级：旧值已于同日轮换、并经平台只读探测确认失效（`GET /models` → HTTP 401），**旧值片段无实际危害**；问题在**当前态 token 的前 8 位**同时落进「飞书群消息」与「平台库标题」两处持久化载体——8/33 字符不足以直接使用，但违反纪律，且已推送的卡片**无法撤回**。
+- 正确做法：要说明轮换状态时**比哈希**（如 `67c05351e1 ≠ 4fc736dcbb`），或写「已轮换（2026-10-11，平台 401 实测）」——有据可查且不外泄任何明文片段。
+- 同类落地：`.workbuddy/secret_history_allowlist.json` 只存哈希前缀；`scan_git_history_secrets.py` 输出亦只给哈希前缀。
