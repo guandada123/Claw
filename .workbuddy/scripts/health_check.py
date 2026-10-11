@@ -288,7 +288,12 @@ def check_automations() -> dict:
         try:
             conn = sqlite3.connect(str(db_path))
             c = conn.cursor()
-            c.execute('SELECT COUNT(*) FROM automations WHERE status="ACTIVE"')
+            # 🔴 2026-10-11 修：必须带 `deleted_at IS NULL` —— 本表是**软删除**语义，
+            #    删掉的任务 status 仍留 'ACTIVE'（实测 20 行）→ 只按 status 统计会虚高
+            #    （99 vs 真实 79），正是"聚合值稳定/口径错"类误导。
+            c.execute(
+                "SELECT COUNT(*) FROM automations WHERE status='ACTIVE' AND deleted_at IS NULL"
+            )
             active = c.fetchone()[0] or 0
             c.execute("""
                 SELECT COUNT(*) FROM automation_runs
