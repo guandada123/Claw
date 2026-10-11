@@ -405,3 +405,95 @@ def test_dedup_key_keeps_http_url_behaviour():
     a = _cand(url="http://Example.COM/a/b/?x=1#frag", suggestion="同一句主张" * 6)
     b = _cand(url="https://example.com/a/b", suggestion="同一句主张" * 6)
     assert dedup_key(a) == dedup_key(b)
+
+
+# ── check_cmd 路径存在性预检（2026-10-11，落 disc-20261011-04）──
+# 背景：候选的 check_cmd 常把落地根写成 Claw 侧路径，而实际落地根是 HOME/.workbuddy/skills
+# → 命令恒失败 ⇒ 指标永远无法证真、impact_recheck 永远到期不了。
+
+
+def test_check_cmd_bad_paths_flags_missing_abs_path(tmp_path):
+    missing = str(tmp_path / "nope" / "SKILL.md")
+    assert adc.check_cmd_bad_paths(_cand(check_cmd=f"grep -q x {missing}")) == [missing]
+
+
+def test_check_cmd_bad_paths_ignores_existing_path(tmp_path):
+    f = tmp_path / "SKILL.md"
+    f.write_text("x", encoding="utf-8")
+    assert adc.check_cmd_bad_paths(_cand(check_cmd=f"grep -q x {f}")) == []
+
+
+def test_check_cmd_bad_paths_dedups_and_keeps_order(tmp_path):
+    m1, m2 = str(tmp_path / "a.md"), str(tmp_path / "b.md")
+    got = adc.check_cmd_bad_paths(_cand(check_cmd=f"cat {m1} && cat {m1} && cat {m2}"))
+    assert got == [m1, m2]
+
+
+def test_check_cmd_bad_paths_skips_unexpandable_vars():
+    """变量展开不出来 → **判不了就不判**，不得凭猜否决（否则会误杀合法候选）。"""
+    assert adc.check_cmd_bad_paths(_cand(check_cmd="test -f $NO_SUCH_VAR_XYZ/a/b.md")) == []
+
+
+def test_check_cmd_bad_paths_ignores_relative_paths():
+    """相对路径的基准是执行时 cwd，闸门无从判定。"""
+    assert adc.check_cmd_bad_paths(_cand(check_cmd="pytest tests/foo.py -q")) == []
+
+
+def test_gate_blocks_candidate_whose_check_cmd_path_is_missing(tmp_path, skills_dir):
+    missing = str(tmp_path / "gone" / "SKILL.md")
+    c = _cand(target_project="Claw", success_metric=None, check_cmd=f"grep -q x {missing}")
+    ok, why, code = adc.quality_gate(c, adc.DEFAULT_CFG, skills_dir)
+    assert (ok, code) == (False, "check_cmd_bad")
+    assert "不存在的路径" in why
+
+
+def test_gate_passes_when_check_cmd_path_exists(tmp_path, skills_dir):
+    f = tmp_path / "exists.md"
+    f.write_text("x", encoding="utf-8")
+    c = _cand(target_project="Claw", success_metric=None, check_cmd=f"grep -q x {f}")
+    assert adc.quality_gate(c, adc.DEFAULT_CFG, skills_dir)[0::2] == (True, "pass")
+
+
+def test_check_cmd_precheck_can_be_disabled_by_config(skills_dir, tmp_path):
+    """闸门可配置关闭（与其它 require_* 一致），便于回滚与灰度。"""
+    cfg = {"quality_gate": {**adc.DEFAULT_CFG["quality_gate"], "require_check_cmd_paths": False}}
+    c = _cand(target_project="Claw", success_metric=None,
+              check_cmd=f"grep -q x {tmp_path / 'nope.md'}")
+    assert adc.quality_gate(c, cfg, skills_dir)[2] == "pass"
+
+
+def test_check_cmd_bad_paths_uses_glob_for_wildcards(tmp_path):
+    """通配符路径要判「至少匹配到一个实体」，不能直接 os.path.exists。
+
+    2026-10-11 实测踩到假阳性：`.../skills/*/SKILL.md` 被 os.path.exists 判 False。
+    """
+    (tmp_path / "skill-a").mkdir()
+    (tmp_path / "skill-a" / "SKILL.md").write_text("x", encoding="utf-8")
+    hit = str(tmp_path / "*/SKILL.md")
+    assert adc.check_cmd_bad_paths(_cand(check_cmd=f"grep -q x {hit}")) == []
+    miss = str(tmp_path / "nope-*" / "SKILL.md")
+    assert adc.check_cmd_bad_paths(_cand(check_cmd=f"grep -q x {miss}")) == [miss]
+
+
+# ── check_cmd 弱退出码（仅告警）──
+
+
+def test_weak_exit_code_flags_pipe_tail():
+    """实例：`grep -rl … | head -1` 对不存在的字符串也 rc=0 → 指标形同虚设。"""
+    assert adc.check_cmd_weak_exit_code(_cand(check_cmd="grep -rl x /tmp | head -1"))
+    assert adc.check_cmd_weak_exit_code(_cand(check_cmd="find /tmp -name x | wc -l"))
+
+
+def test_weak_exit_code_flags_forced_true():
+    assert adc.check_cmd_weak_exit_code(_cand(check_cmd="pytest -q tests/x.py || true"))
+
+
+def test_weak_exit_code_passes_informative_commands():
+    """反向对照：退出码真的由判据决定的命令不得被误报。"""
+    assert adc.check_cmd_weak_exit_code(_cand(check_cmd="grep -rq x /tmp")) == ""
+    assert adc.check_cmd_weak_exit_code(_cand(check_cmd="pytest -q tests/x.py")) == ""
+    assert adc.check_cmd_weak_exit_code(
+        _cand(check_cmd="grep -q x /tmp/a.py && test -f /tmp/b.py")
+    ) == ""
+    # 前段有管道、末段是判据 → 退出码有效
+    assert adc.check_cmd_weak_exit_code(_cand(check_cmd="cat /tmp/a | grep -q needle")) == ""

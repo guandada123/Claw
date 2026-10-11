@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import glob
 import json
 import os
 import re
@@ -62,6 +63,9 @@ DEFAULT_CFG = {
         #   （旧口径的产物：57 条候选 100% 落在技能元层、落地即宣布成功、零收益回查）
         "require_target_project": True,
         "require_success_metric": True,
+        # 2026-10-11（disc-20261011-04）：指标字段有值 ≠ 可证真 ——
+        # check_cmd 引用的绝对路径不存在时命令恒失败、指标永远到期不了（详见 check_cmd_bad_paths）
+        "require_check_cmd_paths": True,
     },
 }
 
@@ -124,10 +128,82 @@ def metric_of(c: dict) -> str:
     return str(c.get("success_metric") or c.get("check_cmd") or "").strip()
 
 
+# ── check_cmd 的「弱退出码」告警（2026-10-11）─────────────────────────────
+# check_cmd 的契约是「退出码 0 = achieved」。若命令以 `| head` / `| wc` / `|| true`
+# 之类收尾，退出码就不再由判据决定 → 指标形同虚设。
+# 实例（disc-20261011-01 原写法）：`grep -rl … | head -1` 对**不存在的字符串也 rc=0**。
+# 只**告警不拦截**：`head` 在文件不存在时仍会返 1，不是绝对恒 0 —— 判不了就不否决。
+_WEAK_TAIL_RE = re.compile(r"\|\s*(head|tail|wc|true|echo|cat)\b[^|]*$")
+
+
+def check_cmd_weak_exit_code(c: dict) -> str:
+    """返回弱判据说明（空串 = 未发现）。**仅告警，不参与闸门否决。**"""
+    cmd = str(c.get("check_cmd") or "").strip()
+    if not cmd:
+        return ""
+    if _WEAK_TAIL_RE.search(cmd):
+        return "以管道收尾（末段命令的退出码不反映达成与否）"
+    if re.search(r"(\|\||;)\s*true\s*$", cmd):
+        return "以 `|| true` / `; true` 收尾（退出码被主动抹平）"
+    return ""
+
+
+# ── check_cmd 路径存在性预检（2026-10-11，落 disc-20261011-04）──────────────
+# 背景：候选的 check_cmd 普遍把落地根写成 **Claw 侧**路径
+# （`Claw/.workbuddy/skills/<skill>/SKILL.md`、`Claw/.workbuddy/inspection_hub/references/`），
+# 而闸门与实际落地根是 `HOME/.workbuddy/skills`（Claw 侧只对部分 skill 建了 symlink）
+# ⇒ 命令恒失败 ⇒ **指标永远无法证真、impact_recheck 永远到期不了**，
+# 与 v1.10「没有可判定指标的候选不落地」的初衷相悖。
+#
+# 为什么只做"存在性预检"而不执行命令：执行代价高且可能有副作用；
+# 而"命令里引用的绝对路径根本不存在"是**足以单独否决**的硬证据。
+_PATH_TOKEN_RE = re.compile(r"(?<![\w/])((?:~|\$[A-Za-z_][A-Za-z0-9_]*)?/[^\s'\"|;>&()]+)")
+_PATH_TRAILING = ".,;:)】」'\""
+_PATH_WILDCARD = "*?["
+
+
+def check_cmd_bad_paths(c: dict) -> list[str]:
+    """返回 check_cmd 中**引用的绝对路径里不存在的**那些（去重、保序）。
+
+    判据边界（刻意保守，避免"凭猜否决"）：
+      · 只认「以 / 开头」或「以 ~ / $VAR 开头再接 /」的 token；**相对路径不判**
+        （相对路径的基准是执行时 cwd，闸门无从得知）；
+      · 变量展开不出来（结果里仍含 `$`）→ **跳过**，不当作不存在；
+      · token 含通配符（`*`/`?`/`[`）→ 用 glob 判「是否至少匹配到一个实体」。
+        ⚠️ 不能用 `os.path.exists` 直接判：`skills/*/SKILL.md` 这类**合法写法**会被判 False
+        （2026-10-11 实测踩到：3 条命中里有 1 条是这种假阳性）。
+    """
+    cmd = str(c.get("check_cmd") or "")
+    if not cmd:
+        return []
+    bad: list[str] = []
+    seen: set[str] = set()
+    for raw in _PATH_TOKEN_RE.findall(cmd):
+        token = raw.rstrip(_PATH_TRAILING)
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        expanded = os.path.expandvars(os.path.expanduser(token))
+        if "$" in expanded:
+            continue  # 判不了就不判
+        if any(ch in expanded for ch in _PATH_WILDCARD):
+            try:
+                if glob.glob(expanded):
+                    continue
+            except (OSError, re.error):
+                continue  # glob 自身出错 → 判不了就不判
+            bad.append(token)
+            continue
+        if not os.path.exists(expanded):
+            bad.append(token)
+    return bad
+
+
 def quality_gate(c: dict, cfg: dict, skills_dir: Path) -> tuple[bool, str, str]:
     """返回 (通过?, 理由, 理由码)。理由码供调用方分类统计（尤其「指标闸拦下」要能单独计数）。
 
-    理由码：pass | status | value | risk | host | doc_target | target_project | success_metric
+    理由码：pass | status | value | risk | host | doc_target | target_project
+            | success_metric | check_cmd_bad
     """
     g = cfg.get("quality_gate", DEFAULT_CFG["quality_gate"])
     if c.get("status") not in g.get("allow_status", []):
@@ -152,6 +228,17 @@ def quality_gate(c: dict, cfg: dict, skills_dir: Path) -> tuple[bool, str, str]:
             )
     if g.get("require_success_metric", True) and not _has_metric(c):
         return False, "无可判定指标(success_metric) — 优化无法证真", "success_metric"
+    # 2026-10-11（disc-20261011-04）：指标字段有值 ≠ 指标可证真 ——
+    # check_cmd 引用的路径若不存在，命令恒失败、指标永远到不了期。
+    if g.get("require_check_cmd_paths", True):
+        bad = check_cmd_bad_paths(c)
+        if bad:
+            shown = "、".join(bad[:3]) + ("…" if len(bad) > 3 else "")
+            return (
+                False,
+                f"check_cmd 引用了不存在的路径 {shown} — 指标永远无法证真",
+                "check_cmd_bad",
+            )
     return True, "pass", "pass"
 
 
@@ -208,6 +295,10 @@ def write_calibration_report(
         ]
     blocked_metric = [d for d in dropped if d.get("code") == "success_metric"]
     blocked_anchor = [d for d in dropped if d.get("code") == "target_project"]
+    blocked_check_cmd = [d for d in dropped if d.get("code") == "check_cmd_bad"]
+    weak_cmd = [
+        (c.get("id"), check_cmd_weak_exit_code(c)) for c in sel if check_cmd_weak_exit_code(c)
+    ]
     lines += ["", "## 被滤除（质量闸）"]
     for d in dropped:
         lines.append(f"- `{d.get('id')}` — {d.get('why')}")
@@ -216,9 +307,16 @@ def write_calibration_report(
         "## v1.10 指标闸（新）",
         f"- 因**无目标锚点**被拦：{len(blocked_anchor)} 条",
         f"- 因**无可判定指标**被拦：{len(blocked_metric)} 条",
+        f"- 因**check_cmd 路径不存在**（指标无法证真）被拦：{len(blocked_check_cmd)} 条",
         "- 药方：在「🛡️ 统一发现-每日扫描」里给候选补 `target_project` + `success_metric`（可判定、可复核）后才进本通道；",
         "  补不出指标的 → 在周度排序里落到 `Assess`（先评估）或 `rejected`，**不再默认落地**。",
-    ]
+        "- check_cmd 请用**实际落地根**（`$HOME/.workbuddy/skills/...`）而非 Claw 侧路径；",
+        "  Claw 侧只对部分 skill 建了 symlink，写 Claw 路径会让命令恒失败、指标永远到期不了。",
+        "",
+        f"## ⚠️ 弱退出码告警（仅上报，不拦截） —— {len(weak_cmd)} 条",
+        "check_cmd 的契约是「退出码 0 = achieved」。以 `| head` / `| wc` / `|| true` 收尾时",
+        "退出码不再由判据决定 → 指标形同虚设（实例：`grep -rl … | head -1` 对不存在的字符串也 rc=0）。",
+    ] + [f"- `{cid}` — {why}" for cid, why in weak_cmd]
     lines += [
         "",
         "## 说明",
@@ -345,6 +443,7 @@ def main() -> int:
 
     blocked_metric = sum(1 for d in dropped if d.get("code") == "success_metric")
     blocked_anchor = sum(1 for d in dropped if d.get("code") == "target_project")
+    blocked_check_cmd = sum(1 for d in dropped if d.get("code") == "check_cmd_bad")
     da0 = reg.get("doc_apply", {}) or {}
     alert_min = int(da0.get("blocked_metric_alert_min", 3))
     # v1.10.1 节流：存量被拦是「待清账」的稳态，不是每日事件。
@@ -385,6 +484,7 @@ def main() -> int:
         },
         "blocked_metric": blocked_metric,
         "blocked_anchor": blocked_anchor,
+        "blocked_check_cmd": blocked_check_cmd,
         "metric_alert": metric_alert,
         "metric_alert_raw": raw_alert,
         "metric_alert_throttled": throttled,
@@ -417,6 +517,20 @@ def main() -> int:
             print(
                 f"[apply_doc] v1.10 指标闸拦下 {blocked_metric} 条（无 success_metric）"
                 f"、锚点闸拦下 {blocked_anchor} 条 {flag}"
+            )
+        if blocked_check_cmd:
+            # 单独一条：这不是"候选写得不全"，而是"命令指向的路径根本不存在"
+            # —— 指标永远无法证真，必须让产出候选的那一侧看见并修（disc-20261011-04）
+            print(
+                f"[apply_doc] ⚠️ check_cmd 路径预检拦下 {blocked_check_cmd} 条"
+                f"（引用了不存在的路径 → 指标永远无法证真；请改用 $HOME/.workbuddy/skills/... ）"
+            )
+        weak = [(c.get("id"), check_cmd_weak_exit_code(c)) for c in sel]
+        weak = [(cid, why) for cid, why in weak if why]
+        if weak:
+            print(
+                f"[apply_doc] ⚠️ {len(weak)} 条入选候选的 check_cmd 是**弱退出码**"
+                f"（{'、'.join(cid for cid, _ in weak[:3])}…）→ 退出码不反映达成与否，指标形同虚设"
             )
     return 0
 
