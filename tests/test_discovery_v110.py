@@ -497,3 +497,97 @@ def test_weak_exit_code_passes_informative_commands():
     ) == ""
     # 前段有管道、末段是判据 → 退出码有效
     assert adc.check_cmd_weak_exit_code(_cand(check_cmd="cat /tmp/a | grep -q needle")) == ""
+
+
+# ── 性能类候选必须有数值基线（2026-10-11，改进建议 1；来自 disc-20261010-02 的教训）──
+
+
+def test_perf_candidate_without_baseline_is_blocked(skills_dir):
+    """实例：提案写「耗时较改造前下降 ≥50%」却未附任何耗时数字 → 无法判断也无法验收。"""
+    c = _cand(
+        target_project="QTS",
+        success_metric="回测耗时较改造前下降 >= 50%，且收益曲线不变",
+    )
+    assert adc.perf_needs_baseline(c) is True
+    ok, why, code = adc.quality_gate(c, adc.DEFAULT_CFG, skills_dir)
+    assert (ok, code) == (False, "perf_no_baseline")
+    assert "基线" in why
+
+
+def test_perf_candidate_with_baseline_passes(skills_dir):
+    c = _cand(
+        target_project="QTS",
+        success_metric="回测耗时较改造前下降 >= 50%",
+        baseline="全样本 40 万行当前 0.472s（bench_backtest.py，best-of-3）",
+    )
+    assert adc.quality_gate(c, adc.DEFAULT_CFG, skills_dir)[0::2] == (True, "pass")
+
+
+def test_baseline_without_number_is_not_baseline(skills_dir):
+    """只写「很慢」「明显慢」等于没写 —— 基线必须带数字。"""
+    c = _cand(
+        target_project="QTS",
+        success_metric="耗时下降 >= 50%",
+        baseline="目前很慢，肉眼可见",
+    )
+    assert adc.has_baseline(c) is False
+    assert adc.quality_gate(c, adc.DEFAULT_CFG, skills_dir)[2] == "perf_no_baseline"
+
+
+def test_correctness_candidate_is_not_perf(skills_dir):
+    """反向对照：正确性类候选不得被性能闸误杀。"""
+    c = _cand(target_project="QTS", success_metric="pytest tests/test_x.py 由红转绿")
+    assert adc.perf_needs_baseline(c) is False
+    assert adc.quality_gate(c, adc.DEFAULT_CFG, skills_dir)[0::2] == (True, "pass")
+
+
+def test_mentioning_perf_without_quantified_target_is_not_perf(skills_dir):
+    """只提了一句「性能」但没有量化目标 → 不算性能类（避免误杀）。"""
+    c = _cand(target_project="Claw", success_metric="性能相关文档新增一节且被 SKILL.md 引用")
+    assert adc.perf_needs_baseline(c) is False
+
+
+def test_gauge_target_forms_are_recognised():
+    """量化目标的几种写法都要认出来。"""
+    for metric in (
+        "耗时 < 30s",
+        "接口延迟降到 200ms 以内",
+        "提速 3 倍",
+        "吞吐提升到 500 qps",
+        "全样本耗时下降 50%",
+    ):
+        assert adc.perf_needs_baseline(_cand(success_metric=metric)) is True, metric
+
+
+def test_perf_baseline_gate_can_be_disabled(skills_dir):
+    cfg = {"quality_gate": {**adc.DEFAULT_CFG["quality_gate"], "require_perf_baseline": False}}
+    c = _cand(target_project="QTS", success_metric="耗时下降 >= 50%")
+    assert adc.quality_gate(c, cfg, skills_dir)[2] == "pass"
+
+
+# ── 探测运行不得写权威账本（2026-10-11 实测踩过一次覆盖事故）──
+
+
+def test_foreign_registry_run_is_treated_as_probe(tmp_path, monkeypatch):
+    """`--registry <临时副本>` 看着像"隔离试跑"，原实现仍会写**权威账本**
+    （账本路径写死在 CALIBRATION_DIR，与 --registry 无关）→ 一次探测覆盖掉当日真实记录。
+    修后：registry 非默认路径 = 探测 → 报告落 probe/、不写 parity.json。
+    """
+    import json as _json
+    import sys as _sys
+
+    import apply_doc_candidates as adc_mod
+
+    rp = tmp_path / "registry.json"
+    rp.write_text(
+        _json.dumps({"discovery_candidates": [], "doc_apply": {"mode": "live"}}),
+        encoding="utf-8",
+    )
+    calib = tmp_path / ".workbuddy" / "inspection_hub" / "calibration"
+    monkeypatch.setattr(adc_mod, "CLAW", tmp_path)
+    monkeypatch.setattr(adc_mod, "CALIBRATION_DIR", calib)
+    monkeypatch.setattr(_sys, "argv", ["adc", "--registry", str(rp), "--json"])
+
+    assert adc_mod.main() == 0
+    assert not (calib / "parity.json").exists(), "探测运行不得写权威账本"
+    assert list((calib / "probe").glob("*_probe.md")), "报告应落 probe/ 且带 _probe 后缀"

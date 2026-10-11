@@ -33,7 +33,7 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve()
 CLAW = SCRIPT.parents[2]  # .workbuddy/scripts/<this>.py -> CLAW
 DEFAULT_REGISTRY = CLAW / ".workbuddy" / "inspection_hub" / "registry.json"
-DEFAULT_SKILLS_DIR = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "skills"
+DEFAULT_SKILLS_DIR = Path(os.environ.get("HOME") or Path.home()) / ".workbuddy" / "skills"
 CALIBRATION_DIR = CLAW / ".workbuddy" / "inspection_hub" / "calibration"
 
 # v1.10：锚点与指标口径从**单一真源**取（防"新增一个项目名，五个脚本各判一次"）
@@ -66,6 +66,8 @@ DEFAULT_CFG = {
         # 2026-10-11（disc-20261011-04）：指标字段有值 ≠ 可证真 ——
         # check_cmd 引用的绝对路径不存在时命令恒失败、指标永远到期不了（详见 check_cmd_bad_paths）
         "require_check_cmd_paths": True,
+        # 2026-10-11（改进建议 1）：以「量化性能目标」为验收的候选必须自带 baseline
+        "require_perf_baseline": True,
     },
 }
 
@@ -146,6 +148,38 @@ def check_cmd_weak_exit_code(c: dict) -> str:
     if re.search(r"(\|\||;)\s*true\s*$", cmd):
         return "以 `|| true` / `; true` 收尾（退出码被主动抹平）"
     return ""
+
+
+# ── 性能类候选必须有「数值基线」（2026-10-11，来自 disc-20261010-02 的教训）────────
+# 该提案写「相同全样本回测耗时较改造前下降 ≥50%」，却**未附任何耗时数字** ——
+# 没基线既不能判断该不该改，也不能验收「降了 50%」。实测补基线后结论直接反转
+# （每行 ≈1.2µs、完全线性，耗时根本不是瓶颈 → 判 rejected）。
+# 故：**凡以"量化的性能目标"作验收的候选，必须自带 baseline（当前值 + 测量方法）。**
+_PERF_WORDS = ("耗时", "提速", "性能", "延迟", "吞吐", "benchmark", "profile", "qps")
+# 只认「量化的性能目标」——光出现"性能"二字不算（避免误杀只是提了一句的候选）
+_PERF_TARGET_RE = re.compile(
+    r"(\d+(\.\d+)?\s*(ms|毫秒|s|秒|min|分钟|倍|%|qps|[x×]\s*\d)"
+    r"|下降\s*[≥>=]+\s*\d+"
+    r"|提速\s*\d+"
+    r"|[≥>=]+\s*\d+\s*%?)",
+    re.IGNORECASE,
+)
+
+
+def perf_needs_baseline(c: dict) -> bool:
+    """该候选是否属「性能类」= 命中性能词 **且** success_metric/check_cmd 里有量化目标。"""
+    metric = " ".join(str(c.get(k) or "") for k in ("success_metric", "check_cmd"))
+    if any(w in metric.lower() for w in _PERF_WORDS) and _PERF_TARGET_RE.search(metric):
+        return True
+    # suggestion 里出现量化性能目标（但 metric 没写）也算 —— 那正是"目标在散文里"的形态
+    sug = str(c.get("suggestion") or "")
+    return bool(_PERF_TARGET_RE.search(sug) and any(w in sug for w in _PERF_WORDS))
+
+
+def has_baseline(c: dict) -> bool:
+    """基线必须**带数字**（只写「很慢」等于没写）。"""
+    b = str(c.get("baseline") or "").strip()
+    return bool(b) and bool(re.search(r"\d", b))
 
 
 # ── check_cmd 路径存在性预检（2026-10-11，落 disc-20261011-04）──────────────
@@ -239,6 +273,14 @@ def quality_gate(c: dict, cfg: dict, skills_dir: Path) -> tuple[bool, str, str]:
                 f"check_cmd 引用了不存在的路径 {shown} — 指标永远无法证真",
                 "check_cmd_bad",
             )
+    # 2026-10-11（改进建议 1）：性能类候选必须自带数值基线 ——
+    # 「下降 ≥50%」没有对照值就无法验收，也无法判断该不该改。
+    if g.get("require_perf_baseline", True) and perf_needs_baseline(c) and not has_baseline(c):
+        return (
+            False,
+            "性能类候选缺数值基线(baseline) — 「下降 X%」无对照值，既不能判断该不该改也不能验收",
+            "perf_no_baseline",
+        )
     return True, "pass", "pass"
 
 
@@ -296,6 +338,7 @@ def write_calibration_report(
     blocked_metric = [d for d in dropped if d.get("code") == "success_metric"]
     blocked_anchor = [d for d in dropped if d.get("code") == "target_project"]
     blocked_check_cmd = [d for d in dropped if d.get("code") == "check_cmd_bad"]
+    blocked_perf = [d for d in dropped if d.get("code") == "perf_no_baseline"]
     weak_cmd = [
         (c.get("id"), check_cmd_weak_exit_code(c)) for c in sel if check_cmd_weak_exit_code(c)
     ]
@@ -308,10 +351,13 @@ def write_calibration_report(
         f"- 因**无目标锚点**被拦：{len(blocked_anchor)} 条",
         f"- 因**无可判定指标**被拦：{len(blocked_metric)} 条",
         f"- 因**check_cmd 路径不存在**（指标无法证真）被拦：{len(blocked_check_cmd)} 条",
+        f"- 因**性能类缺数值基线**被拦：{len(blocked_perf)} 条",
         "- 药方：在「🛡️ 统一发现-每日扫描」里给候选补 `target_project` + `success_metric`（可判定、可复核）后才进本通道；",
         "  补不出指标的 → 在周度排序里落到 `Assess`（先评估）或 `rejected`，**不再默认落地**。",
         "- check_cmd 请用**实际落地根**（`$HOME/.workbuddy/skills/...`）而非 Claw 侧路径；",
         "  Claw 侧只对部分 skill 建了 symlink，写 Claw 路径会让命令恒失败、指标永远到期不了。",
+        "- 以**量化性能目标**（如「耗时下降 ≥50%」「<30s」）作验收的候选，必须自带 `baseline`",
+        "  （当前值 + 测量方法，**要带数字**）—— 没有对照值，既不能判断该不该改也不能验收。",
         "",
         f"## ⚠️ 弱退出码告警（仅上报，不拦截） —— {len(weak_cmd)} 条",
         "check_cmd 的契约是「退出码 0 = achieved」。以 `| head` / `| wc` / `|| true` 收尾时",
@@ -417,10 +463,20 @@ def main() -> int:
     #    修正：显式 --mode 时 → 报告写 `_probe` 后缀、**不写权威账本、不回写 registry**。
     #    真值纪律：mode 只能由 registry 自己持有；切换只走「📥 每日·文档类落地」1c（有守卫）或人工显式改。
     override = args.mode is not None
-    report = write_calibration_report(sel, dropped, mode, "_probe" if override else "")
-    if override:
+    # 2026-10-11 修（实测踩到的 footgun）：`--registry <临时副本>` **看着像"隔离试跑"，其实不是** ——
+    # 账本路径写死在 CALIBRATION_DIR（与 --registry 无关）→ 一次探测就把当日**真实**记录覆盖掉
+    # （实测：把 00:41 的 live 记录覆盖成了一次空跑）。故 registry 非默认路径时一并按 probe 处理。
+    foreign_registry = Path(args.registry).resolve() != DEFAULT_REGISTRY.resolve()
+    probe = override or foreign_registry
+    report = write_calibration_report(sel, dropped, mode, "_probe" if probe else "")
+    if probe:
+        why = (
+            f"--mode {mode} 仅本次运行生效"
+            if override
+            else f"--registry 指向非默认路径（{args.registry}）= 探测，不是生产跑"
+        )
         print(
-            f"[apply_doc] 注意：--mode {mode} 仅本次运行生效 → 报告写 {report.name}（probe 后缀），"
+            f"[apply_doc] 注意：{why} → 报告写 {report.name}（probe 后缀），"
             f"**不写权威账本、不回写 registry**（registry 现有 mode={reg.get('doc_apply', {}).get('mode')}）；"
             f"切 mode 请走 1c 自动化或人工显式改 registry",
             file=sys.stderr,
@@ -444,6 +500,7 @@ def main() -> int:
     blocked_metric = sum(1 for d in dropped if d.get("code") == "success_metric")
     blocked_anchor = sum(1 for d in dropped if d.get("code") == "target_project")
     blocked_check_cmd = sum(1 for d in dropped if d.get("code") == "check_cmd_bad")
+    blocked_perf = sum(1 for d in dropped if d.get("code") == "perf_no_baseline")
     da0 = reg.get("doc_apply", {}) or {}
     alert_min = int(da0.get("blocked_metric_alert_min", 3))
     # v1.10.1 节流：存量被拦是「待清账」的稳态，不是每日事件。
@@ -485,6 +542,7 @@ def main() -> int:
         "blocked_metric": blocked_metric,
         "blocked_anchor": blocked_anchor,
         "blocked_check_cmd": blocked_check_cmd,
+        "blocked_perf": blocked_perf,
         "metric_alert": metric_alert,
         "metric_alert_raw": raw_alert,
         "metric_alert_throttled": throttled,
@@ -531,6 +589,11 @@ def main() -> int:
             print(
                 f"[apply_doc] ⚠️ {len(weak)} 条入选候选的 check_cmd 是**弱退出码**"
                 f"（{'、'.join(cid for cid, _ in weak[:3])}…）→ 退出码不反映达成与否，指标形同虚设"
+            )
+        if blocked_perf:
+            print(
+                f"[apply_doc] ⚠️ 性能基线闸拦下 {blocked_perf} 条"
+                f"（以量化性能目标为验收但没给 baseline）—— 没基线既不能判断该不该改也不能验收"
             )
     return 0
 
