@@ -1,5 +1,11 @@
 # LEARNINGS (Claw)
 
+> ⚠️ **2026-10-11 起：本文件已停止维护（仅作历史浓缩条目保留）。**
+> 实测它最后一条是 2026-08-31，而 `.learnings/` 下的 dated 文件已到 2026-10-11（落后 约 6 周）。
+> **现行权威清单 = 同目录 `INDEX.md`（由 `learnings_index.py` 从 dated 文件自动生成）。**
+> 需要查"最近有哪些教训"，看 `INDEX.md`；本文件里的`处置/防复犯`浓缩条目仍可参考。
+
+
 Corrections, insights, and knowledge gaps captured during development.\n\n**Categories**: correction | insight | best_practice | knowledge_gap
 
 ---
