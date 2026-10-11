@@ -283,7 +283,7 @@
     },
     "943c96e3b1b3c25b": {
       "id": "disc-20261004-03",
-      "status": "pending",
+      "status": "applied",
       "target_project": "meta",
       "skill": "a-stock-data",
       "also_seen": []
@@ -318,14 +318,14 @@
     },
     "c02bb8a5c4d236af": {
       "id": "disc-20261006-02",
-      "status": "pending",
+      "status": "applied",
       "target_project": "meta",
       "skill": "a-stock-data",
       "also_seen": []
     },
     "0be9791c573b02de": {
       "id": "disc-20261006-03",
-      "status": "pending",
+      "status": "applied",
       "target_project": "meta",
       "skill": "majiu-management",
       "also_seen": []
@@ -367,7 +367,7 @@
     },
     "8fe665688f92090c": {
       "id": "disc-20261008-03",
-      "status": "pending",
+      "status": "applied",
       "target_project": "meta",
       "skill": "a-stock-data",
       "also_seen": []
@@ -381,7 +381,7 @@
     },
     "152656b5f6c26ee1": {
       "id": "disc-20261009-02",
-      "status": "pending",
+      "status": "applied",
       "target_project": "meta",
       "skill": "majiu-management",
       "also_seen": []
@@ -437,18 +437,53 @@
     },
     "33a112c98cc81ac5": {
       "id": "disc-20261010-02",
-      "status": "pending",
+      "status": "proposed",
       "target_project": "QTS",
       "skill": "",
       "also_seen": []
     },
     "d0a64b46b1fc9751": {
       "id": "disc-20261010-03",
-      "status": "pending",
+      "status": "proposed",
       "target_project": "QTS",
       "skill": "",
       "also_seen": []
+    },
+    "1e7e52c1e2cdb718": {
+      "id": "disc-20261009-09",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "unified-inspection-hub",
+      "also_seen": []
+    },
+    "112d72dc3038723f": {
+      "id": "disc-20261010-04",
+      "status": "applied",
+      "target_project": "meta",
+      "skill": "context-health-cleanup",
+      "also_seen": []
+    },
+    "563def974e89a4fb": {
+      "id": "disc-20261011-01",
+      "status": "pending",
+      "target_project": "Claw",
+      "skill": "unified-inspection-hub",
+      "also_seen": []
+    },
+    "5962e9dac428c25b": {
+      "id": "disc-20261011-02",
+      "status": "proposed",
+      "target_project": "QTS",
+      "skill": "",
+      "also_seen": []
+    },
+    "38394e0248bcdccb": {
+      "id": "disc-20261011-03",
+      "status": "pending",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "also_seen": []
     }
   },
-  "updated_at": "2026-10-10T00:27:10+08:00"
+  "updated_at": "2026-10-11T00:24:25+08:00"
 }

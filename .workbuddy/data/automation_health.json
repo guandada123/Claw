@@ -1,7 +1,7 @@
 {
-  "total_count": 72,
-  "healthy_count": 71,
-  "warning_count": 1,
+  "total_count": 73,
+  "healthy_count": 73,
+  "warning_count": 0,
   "critical_count": 0,
   "by_category": {
     "投顾操盘": [
@@ -9,22 +9,22 @@
         "name": "Claw→QTS 模拟盘 portfolio 同步（含收盘估值刷新）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-09T15:10:13.658000",
+        "last_run": "2026-10-10T15:10:47.623000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 984.0,
+        "field_lag_h": 1008.0,
         "last_run_interrupted": false
       },
       {
         "name": "StockInsight 收盘选股扫描",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-09T15:30:55.558000",
+        "last_run": "2026-10-10T15:30:14.147000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 984.0,
+        "field_lag_h": 1008.0,
         "last_run_interrupted": false
       },
       {
@@ -99,7 +99,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T13:10:55.261000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1008.0,
         "last_run_interrupted": false
@@ -110,23 +110,9 @@
         "health": "🟢",
         "last_run": "2026-10-09T14:10:34.759000",
         "issues": [],
-        "run_count_24h": 1,
-        "running": false,
-        "field_lag_h": 1008.0,
-        "last_run_interrupted": false
-      },
-      {
-        "name": "📈【盘中】投顾策略执行",
-        "status": "PAUSED",
-        "health": "🟡",
-        "last_run": "2026-08-24T17:29:10.916000",
-        "issues": [
-          "已暂停",
-          "1123h未运行"
-        ],
         "run_count_24h": 0,
         "running": false,
-        "field_lag_h": 0.0,
+        "field_lag_h": 1008.0,
         "last_run_interrupted": false
       },
       {
@@ -146,7 +132,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T15:40:10.792000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1007.9,
         "last_run_interrupted": false
@@ -157,7 +143,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T17:00:27.543000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1007.9,
         "last_run_interrupted": false
@@ -172,6 +158,17 @@
         "running": false,
         "field_lag_h": 1007.9,
         "last_run_interrupted": false
+      },
+      {
+        "name": "🔎 模拟盘收盘刷新「首次真实执行」核验（一次性）",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": null,
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false,
+        "field_lag_h": 0.0,
+        "last_run_interrupted": false
       }
     ],
     "炒股助理": [
@@ -181,7 +178,7 @@
         "health": "🟢",
         "last_run": "2026-10-10T04:30:47.897000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1007.9,
         "last_run_interrupted": false
@@ -192,7 +189,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T17:00:22.528000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 0.0,
         "last_run_interrupted": false
@@ -236,7 +233,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T15:50:57.068000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1007.6,
         "last_run_interrupted": false
@@ -256,11 +253,11 @@
         "name": "📊【炒股助理】宏观数据周报",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-04T18:12:52.260000",
+        "last_run": "2026-10-10T23:27:22.373000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 872.1,
+        "field_lag_h": 1021.4,
         "last_run_interrupted": false
       },
       {
@@ -278,11 +275,11 @@
         "name": "📊【炒股助理】资产配置周报",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-04T18:18:27.317000",
+        "last_run": "2026-10-10T23:32:27.454000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 866.2,
+        "field_lag_h": 1015.4,
         "last_run_interrupted": false
       },
       {
@@ -335,7 +332,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T14:00:25.838000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 984.0,
         "last_run_interrupted": false
@@ -357,7 +354,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T14:55:23.363000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1007.7,
         "last_run_interrupted": false
@@ -369,7 +366,7 @@
         "name": "🌙 积分零成本调度审计",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T03:50:35.677000",
+        "last_run": "2026-10-11T03:50:26.277000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
@@ -380,18 +377,18 @@
         "name": "🔍【治理】双副本/软链审计(重构后自动)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-09T23:12:17.750000",
+        "last_run": "2026-10-10T23:12:44.462000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 986.1,
+        "field_lag_h": 1010.1,
         "last_run_interrupted": false
       },
       {
         "name": "🗂️ 记忆索引重建 + 新鲜度自检（每日）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T04:00:40.530000",
+        "last_run": "2026-10-11T04:00:28.314000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
@@ -402,13 +399,13 @@
         "name": "🛡️ 统一巡检中枢（接管所有健康巡检）",
         "status": "ACTIVE",
         "health": "🔵",
-        "last_run": "2026-10-10T13:07:12.540000",
+        "last_run": "2026-10-11T07:37:46.011000",
         "issues": [
           "运行中"
         ],
         "run_count_24h": 5,
         "running": true,
-        "field_lag_h": 1000.7,
+        "field_lag_h": 1019.2,
         "last_run_interrupted": false
       },
       {
@@ -426,11 +423,11 @@
         "name": "🧹【系统维护】记忆+上下文维护",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T03:30:36.476000",
+        "last_run": "2026-10-11T03:30:18.418000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 1008.0,
+        "field_lag_h": 1032.0,
         "last_run_interrupted": false
       }
     ],
@@ -442,7 +439,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T16:33:44.753000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1008.0,
         "last_run_interrupted": false
@@ -451,11 +448,11 @@
         "name": "WIND→QTS基本面桥",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-09T14:50:53.260000",
+        "last_run": "2026-10-10T14:50:55.071000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 984.0,
+        "field_lag_h": 1008.0,
         "last_run_interrupted": false
       },
       {
@@ -495,7 +492,7 @@
         "name": "💓 中枢存活看门狗",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T11:19:50.216000",
+        "last_run": "2026-10-11T05:44:03.618000",
         "issues": [],
         "run_count_24h": 5,
         "running": false,
@@ -517,11 +514,11 @@
         "name": "💾【系统维护】每日数据备份",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T00:10:04.166000",
+        "last_run": "2026-10-11T00:10:13.803000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 986.7,
+        "field_lag_h": 1010.7,
         "last_run_interrupted": false
       },
       {
@@ -529,6 +526,17 @@
         "status": "ACTIVE",
         "health": "🟢",
         "last_run": "2026-10-09T16:30:10.659000",
+        "issues": [],
+        "run_count_24h": 0,
+        "running": false,
+        "field_lag_h": 0.0,
+        "last_run_interrupted": false
+      },
+      {
+        "name": "📊 Token 用量看板 + 积分对齐（每日刷新）",
+        "status": "ACTIVE",
+        "health": "🟢",
+        "last_run": "2026-10-11T06:30:47.896000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
@@ -550,22 +558,22 @@
         "name": "📊【知识库】信号溯源+升降级+CSV(05:00)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T05:05:28.958000",
+        "last_run": "2026-10-11T05:05:54.339000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 1008.0,
+        "field_lag_h": 1032.0,
         "last_run_interrupted": false
       },
       {
         "name": "📊【知识库】信号溯源+升降级+CSV(15:00)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-09T15:05:03.571000",
+        "last_run": "2026-10-10T15:05:24.674000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 984.0,
+        "field_lag_h": 1008.0,
         "last_run_interrupted": false
       },
       {
@@ -585,7 +593,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T23:27:40.160000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1013.4,
         "last_run_interrupted": false
@@ -594,11 +602,11 @@
         "name": "📋 日报结构校验（异常推送）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-09T23:07:42.685000",
+        "last_run": "2026-10-10T23:07:25.013000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 986.1,
+        "field_lag_h": 1010.1,
         "last_run_interrupted": false
       },
       {
@@ -607,7 +615,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T15:07:03.606000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 984.0,
         "last_run_interrupted": false
@@ -618,7 +626,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T14:25:27.235000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1008.0,
         "last_run_interrupted": false
@@ -649,7 +657,7 @@
         "name": "📚【知识库】全网挖掘+文章精读 · 槽位2",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T03:20:51.530000",
+        "last_run": "2026-10-11T03:20:34.075000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
@@ -660,7 +668,7 @@
         "name": "📚【知识库】全网挖掘+文章精读 · 槽位3",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T05:50:41.863000",
+        "last_run": "2026-10-11T05:50:11.812000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
@@ -671,18 +679,18 @@
         "name": "📚【知识库】全网挖掘+文章精读(LLM)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T00:50:30.379000",
+        "last_run": "2026-10-11T00:50:49.990000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 992.7,
+        "field_lag_h": 1016.7,
         "last_run_interrupted": false
       },
       {
         "name": "📥 每日·文档类落地（校准/生效自动）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T00:40:29.102000",
+        "last_run": "2026-10-11T00:40:56.032000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
@@ -693,11 +701,11 @@
         "name": "📦 Dependabot 日清 — 午休执行(12:00)",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-09T23:17:36.063000",
+        "last_run": "2026-10-10T23:17:15.313000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
-        "field_lag_h": 995.2,
+        "field_lag_h": 1019.2,
         "last_run_interrupted": false
       },
       {
@@ -726,18 +734,18 @@
         "name": "🛡️ 巡检中枢存活看门狗（每6h）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T12:59:15.778000",
+        "last_run": "2026-10-11T07:05:20.634000",
         "issues": [],
         "run_count_24h": 4,
         "running": false,
-        "field_lag_h": 999.7,
+        "field_lag_h": 1017.8,
         "last_run_interrupted": false
       },
       {
         "name": "🛡️ 统一发现-每日扫描",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T00:20:09.612000",
+        "last_run": "2026-10-11T00:20:45.037000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
@@ -748,11 +756,11 @@
         "name": "🛡️ 自动化失败扫表 watchdog（每小时）",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-10T11:51:13.781000",
+        "last_run": "2026-10-11T06:03:01.419000",
         "issues": [],
         "run_count_24h": 5,
         "running": false,
-        "field_lag_h": 998.6,
+        "field_lag_h": 1016.8,
         "last_run_interrupted": false
       },
       {
@@ -761,7 +769,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T16:30:10.660000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1008.0,
         "last_run_interrupted": false
@@ -772,7 +780,7 @@
         "health": "🟢",
         "last_run": "2026-10-09T17:10:14.704000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1008.0,
         "last_run_interrupted": false
@@ -781,9 +789,9 @@
         "name": "🧬 技能演进-周度",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-04T18:00:07.065000",
+        "last_run": "2026-10-10T23:22:42.295000",
         "issues": [],
-        "run_count_24h": 0,
+        "run_count_24h": 1,
         "running": false,
         "field_lag_h": 0.0,
         "last_run_interrupted": false
@@ -792,7 +800,7 @@
         "name": "🩺 统一巡检·报错自诊与修复",
         "status": "ACTIVE",
         "health": "🟢",
-        "last_run": "2026-10-09T23:02:20.206000",
+        "last_run": "2026-10-10T23:02:49.458000",
         "issues": [],
         "run_count_24h": 1,
         "running": false,
@@ -805,12 +813,12 @@
         "health": "🟢",
         "last_run": "2026-10-09T23:22:36.036000",
         "issues": [],
-        "run_count_24h": 1,
+        "run_count_24h": 0,
         "running": false,
         "field_lag_h": 1022.5,
         "last_run_interrupted": false
       }
     ]
   },
-  "generated_at": "2026-10-10T13:09:31.761693"
+  "generated_at": "2026-10-11T07:39:37.627496"
 }
