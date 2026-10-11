@@ -195,7 +195,15 @@ jobs:
         run: safety check --full-report || true
       - name: Secret scan
         run: |
-          if grep -rn "PRIVATE KEY\|-----BEGIN RSA\|-----BEGIN OPENSSH" .workbuddy/scripts/ .workbuddy/lib/ 2>/dev/null; then
+          # 判据（2026-10-11 收窄）：关键词命中**且不是"检测模式定义行"**才算真密钥。
+          # ⚠️ 原写法只看关键词 → **新加一个密钥检测脚本本身就会把本 job 弄红**：
+          #    `.workbuddy/scripts/scan_git_history_secrets.py` 里写着
+          #    `re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")`，被当成真密钥命中（实测）。
+          #    真密钥不会长在 `re.compile(` 的模式串里，故排除该形态；
+          #    真正会拦人的是 Security Scan 工作流里的 gitleaks（本步只是廉价冒烟）。
+          HITS=$(grep -rnI "PRIVATE KEY\|-----BEGIN RSA\|-----BEGIN OPENSSH" .workbuddy/scripts/ .workbuddy/lib/ 2>/dev/null | grep -v "re\.compile" || true)
+          if [ -n "$HITS" ]; then
+            echo "$HITS"
             echo "::error::Private key detected in source code"
             exit 1
           fi
