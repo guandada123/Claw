@@ -46,7 +46,8 @@ def _to_symbol(code: str) -> str:
     code = code.strip()
     if code[:2].lower() in ("sh", "sz"):
         return code
-    if code.startswith("6"):
+    # 2026-10-11 修：沪市 6(股票)/5(ETF·LOF)/9(B股) → sh；其余 0/1/2/3 → sz
+    if code.startswith(("6", "5", "9")):
         return "sh" + code
     return "sz" + code
 

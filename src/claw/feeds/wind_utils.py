@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 
 # ── 路径常量 ──
 
-WIND_CLI_PATH = os.path.expanduser(
-    "~/.agents/skills/wind-mcp-skill/scripts/cli.mjs"
-)
+WIND_CLI_PATH = os.path.expanduser("~/.agents/skills/wind-mcp-skill/scripts/cli.mjs")
 WIND_SKILL_DIR = os.path.dirname(os.path.dirname(WIND_CLI_PATH))
 WIND_CONFIG_PATHS = [
     os.path.expanduser("~/.wind-aifinmarket/config"),
@@ -29,6 +27,7 @@ WIND_CONFIG_PATHS = [
 
 
 # ── 可用性检查 ──
+
 
 def wind_available() -> bool:
     """检查 Wind 数据源是否可用（CLI 文件存在 + API Key 已配置）"""
@@ -48,16 +47,19 @@ def wind_available() -> bool:
 
 # ── 代码转换 ──
 
+
 def plain_code_to_windcode(code: str) -> str:
     """裸 6 位代码转 Wind 标准代码
 
     沪市主板 6xxxxx → 600519.SH
+    沪市基金/ETF 5xxxxx → 588170.SH（2026-10-11 补：原实现把 5 开头落到 .SZ，
+       Wind 直接报「未识别到有效的金融标的:588170.SZ」→ 该标的拿不到价）
     北交所   8xxxxx → 8xxxxx.BJ
     三板     4xxxxx → 4xxxxx.BJ
-    深市/中小板/创业板 → 000001.SZ
+    深市/中小板/创业板/深市基金(1xxxxx) → 000001.SZ
     """
     code = code.strip()
-    if code.startswith("6"):
+    if code.startswith(("6", "5")):  # 6=沪市股票；5=沪市基金/ETF（深市基金一律 1 开头）
         return f"{code}.SH"
     elif code.startswith(("8", "4")):
         return f"{code}.BJ"
@@ -82,9 +84,13 @@ def plain_code_to_windcode(code: str) -> str:
 #   2) 新增「同日内查询缓存」——相同 (server,tool,params) 直接返回缓存，不打网络、不计数，
 #      真正释放有效吞吐（根治 signal_verify 逐股重复查 Wind 的浪费），而非单纯抬高数字。
 #   3) 支持环境变量 CLAW_WIND_DAILY_LIMIT 覆盖（用户升级 Wind 套餐后可调高）。
-_DAILY_QUERY_LIMIT = int(os.environ.get("CLAW_WIND_DAILY_LIMIT", "0"))  # 0 = 不限制（2026-09-29 用户要求取消）
+_DAILY_QUERY_LIMIT = int(
+    os.environ.get("CLAW_WIND_DAILY_LIMIT", "0")
+)  # 0 = 不限制（2026-09-29 用户要求取消）
 _query_lock = threading.Lock()
-_limit_warned = False  # 进程内去重：日限警告仅打印一次，避免 signal_verify 逐股循环刷屏（08-24 修复 25 天刷屏）
+_limit_warned = (
+    False  # 进程内去重：日限警告仅打印一次，避免 signal_verify 逐股循环刷屏（08-24 修复 25 天刷屏）
+)
 
 # ── 持久化计数器（跨进程累加，修复"日报永远0"测量bug）──
 # ⚠️ DO NOT REVERT: 原 _daily_query_count 是纯内存变量，进程退出即归零，
@@ -164,9 +170,7 @@ def _check_query_limit() -> bool:
         # _DAILY_QUERY_LIMIT <= 0 表示「不限制」（2026-09-29 用户要求取消）→ 只计数、不拦
         if _DAILY_QUERY_LIMIT > 0 and st["count"] >= _DAILY_QUERY_LIMIT:
             if not _limit_warned:
-                logger.warning(
-                    f"Wind 每日查询上限已达 ({_DAILY_QUERY_LIMIT}次)，今日暂停"
-                )
+                logger.warning(f"Wind 每日查询上限已达 ({_DAILY_QUERY_LIMIT}次)，今日暂停")
                 _limit_warned = True
             return False
         st["count"] += 1
@@ -255,9 +259,7 @@ def call_wind_cli(
                     message = str(j.get("message") or message)
             except (ValueError, TypeError):
                 pass
-            logger.debug(
-                f"Wind CLI[{server_type}.{tool_name}] 退出码 {result.returncode}"
-            )
+            logger.debug(f"Wind CLI[{server_type}.{tool_name}] 退出码 {result.returncode}")
             _note_failure(code, message or (result.stdout or "")[:200])
             return None
 
@@ -265,9 +267,7 @@ def call_wind_cli(
         # 2026-09-29：CLI 的业务失败形如 {"ok": false, "code": "backend_error",
         # "message": "账户积分余额不足…"} —— 必须把 code/message 带出来，否则根因被静默
         if out.get("ok") is False or out.get("isError"):
-            _note_failure(
-                str(out.get("code") or "isError"), str(out.get("message") or "")
-            )
+            _note_failure(str(out.get("code") or "isError"), str(out.get("message") or ""))
             return None
 
         text = out.get("content", [{}])[0].get("text", "")
@@ -295,16 +295,16 @@ def call_wind_cli(
                 dates = series.get("date", [])
                 vals = series.get("value", [])
                 if len(dates) != len(vals):
-                    logger.warning(
-                        f"EDB date/value 长度不一致: {len(dates)} vs {len(vals)}"
-                    )
+                    logger.warning(f"EDB date/value 长度不一致: {len(dates)} vs {len(vals)}")
                 for dt, val in zip(dates, vals):
-                    flat_rows.append({
-                        "指标": name,
-                        "单位": unit,
-                        "日期": dt[:10],
-                        "值": val,
-                    })
+                    flat_rows.append(
+                        {
+                            "指标": name,
+                            "单位": unit,
+                            "日期": dt[:10],
+                            "值": val,
+                        }
+                    )
             ret = {"columns": [], "rows": flat_rows}
             _wind_cache[cache_key] = ret
             return ret
@@ -320,7 +320,10 @@ def call_wind_cli(
             return ret
 
         # 标准表格: {columns, rows}
-        ret = {"columns": [c["name"] for c in inner.get("columns", [])], "rows": inner.get("rows", [])}
+        ret = {
+            "columns": [c["name"] for c in inner.get("columns", [])],
+            "rows": inner.get("rows", []),
+        }
         _wind_cache[cache_key] = ret
         return ret
 
@@ -364,6 +367,7 @@ def call_wind_cli_as_rows(
 
 
 # ── 高频便捷函数 ──
+
 
 def get_wind_realtime_price(code: str) -> dict | None:
     """获取指定股票的实时行情（价格 + 涨跌幅）

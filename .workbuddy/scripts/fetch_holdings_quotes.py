@@ -27,9 +27,10 @@ def _prefix(code: str) -> str:
     code = str(code).strip()
     if code[:2] in ("sh", "sz"):
         return code
-    if code[0] in ("6",):
+    # 2026-10-11 修：沪市 6(股票)/5(ETF·LOF)/9(B股) → sh；其余 0/1/2/3 → sz
+    if code[0] in ("6", "5", "9"):
         return "sh" + code
-    if code[0] in ("0", "3", "2"):
+    if code[0] in ("0", "1", "2", "3"):
         return "sz" + code
     return code
 

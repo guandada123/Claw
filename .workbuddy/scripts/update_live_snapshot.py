@@ -58,8 +58,22 @@ def parse_position(raw: str) -> dict:
     return {"code": code, "shares": shares, "avg_cost": cost}
 
 
+# 结构重写时必须清掉的**陈旧断言类**字段：它们描述的是上一份快照的情况，
+# 直接继承会出现「note 写成本 94.656 / 实际 avg_cost 86.421」这种自相矛盾的记录
+# （2026-10-11 实犯：长电加仓摊薄后 note 未更新，与 pnl_pct 直接冲突）。
+_STALE_KEYS = (
+    "note",
+    "updated",
+    "price_source",
+    "market_value",
+    "pnl",
+    "pnl_pct",
+    "floating_pnl",
+)
+
+
 def build_holdings(positions: list[dict], old_holdings: list[dict]) -> tuple[list[dict], list[str]]:
-    """按新结构构造 holdings，尽量沿用旧记录里的辅助字段（name/bought_date 等）。"""
+    """按新结构构造 holdings：清理陈旧断言字段、保留稳定标识（bought_date/broker）。"""
     warnings: list[str] = []
     old_by_code = {h.get("code"): h for h in old_holdings}
     out = []
@@ -69,19 +83,26 @@ def build_holdings(positions: list[dict], old_holdings: list[dict]) -> tuple[lis
             warnings.append(
                 f"⚠️ {p['code']} 股数 {p['shares']} 非 100 整数倍（可能为零股/拆股残留），已按原值写入，请核对"
             )
-        out.append(
+        if not old:
+            warnings.append(
+                f"ℹ️ {p['code']} 是本次快照新增标的 → bought_date 置空，"
+                f"T+N 类规则（advisor_rules A 规则）将跳过该标的"
+            )
+        row = {k: v for k, v in old.items() if k not in _STALE_KEYS}
+        row.update(
             {
-                **{k: v for k, v in old.items() if k not in ("market_value", "pnl", "pnl_pct")},
                 "code": p["code"],
-                "name": old.get("name", p["code"]),
+                "name": old.get("name") or "",  # 空名稍后用行情源补全
                 "shares": p["shares"],
                 "shares_available": p["shares"],
                 "avg_cost": p["avg_cost"],
                 "current_price": old.get("current_price", 0),
-                "market_value": round(old.get("current_price", 0) * p["shares"], 2),
                 "broker": old.get("broker", "GJ"),
+                "bought_date": old.get("bought_date"),  # 新标的 → None（宁缺勿造）
             }
         )
+        row["market_value"] = round(row["current_price"] * p["shares"], 2)
+        out.append(row)
     return out, warnings
 
 
@@ -131,7 +152,7 @@ def main() -> int:
 
     # 用实时行情补价格与盈亏（复用 refresh_portfolio 的降级链）；先 dry-run 计算，再按需落盘
     codes = [h["code"] for h in new_holdings]
-    quotes = rp.get_quotes_via_wind(codes) or rp.get_quotes_via_tencent(codes) if codes else {}
+    quotes = rp.get_quotes_with_fallback(codes) if codes else {}
     if codes and not quotes:
         print("[WARN] 行情源均不可用：只写结构与现金，价格留待每日刷新补齐")
         quotes = {}
@@ -142,19 +163,45 @@ def main() -> int:
 
     rp.update_portfolio(data, quotes, dry_run=True, confirm_structure=True)
 
+    # 名称补全 + 记录可追溯的 note（Wind 不返回名称 → 用腾讯行情补）
+    need = [h["code"] for h in new_holdings if not h.get("name") or h["name"] == h["code"]]
+    if need:
+        try:
+            for c, q in (rp.get_quotes_via_tencent(need) or {}).items():
+                if q.get("name"):
+                    for h in new_holdings:
+                        if h["code"] == c:
+                            h["name"] = q["name"]
+        except Exception as e:  # noqa: BLE001 - 名称补全失败不影响价格与结构
+            print(f"[WARN] 名称补全失败（不影响估值）: {e}")
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    for h in new_holdings:
+        h["note"] = f"成本{h['avg_cost']} / 结构确认{stamp} / 来源:{args.source[:32]}"
+
     # 来源信息在 update_portfolio 之后回填：它内部的 confirm 分支会写通用文案，
     # 会覆盖掉本次录入的真实来源（保留人工来源才可追溯）。
     data["data_source"] = f"{args.source} + 行情刷新({datetime.now():%Y-%m-%d %H:%M})"
     data["structure_basis"] = f"人工确认录入（{args.source}）"
 
-    if not new_holdings:
-        # 清仓：总资产 = 现金（update_portfolio 的「旧市值守恒」公式在空仓下不适用）
-        data["summary"]["total_market_value"] = 0.0
-        data["summary"]["floating_pnl"] = 0.0
-        data["summary"]["position_pct"] = 0.0
-        data["summary"]["total_assets"] = round(args.cash, 2)
+    # 🔴 总资产必须由「现金 + 市值」直接得出（2026-10-11 修）：
+    # `update_portfolio` 用的是「旧总资产 ± 市值变化」的守恒式，**前提是现金不变**；
+    # 而结构重写恰恰会改现金（本例 26,683.72 → 9,687.98），沿用该式会算出
+    # 55,816.72 这种明显错误的数（正确值 45,094.98）。
+    summary = data["summary"]
+    mv = round(sum(h.get("market_value", 0) for h in new_holdings), 2)
+    cash = round(args.cash, 2)
+    summary["total_market_value"] = mv
+    summary["total_assets"] = round(cash + mv, 2)
+    summary["position_pct"] = round(mv / (cash + mv) * 100, 1) if (cash + mv) > 0 else 0.0
 
-    print(f"\n[结构] {len(new_holdings)} 只持仓；现金 ¥{args.cash:,.2f}；来源：{args.source}")
+    # 注意：上面 update_portfolio 打印的「总资产」是**中间值**（它按"现金不变"的守恒式算），
+    # 本路径改了现金，故以下面这行为最终口径。
+    print(
+        f"\n[最终口径] {len(new_holdings)} 只持仓 | 市值 ¥{mv:,.2f} + 现金 ¥{cash:,.2f} "
+        f"= 总资产 ¥{summary['total_assets']:,.2f} | 仓位 {summary['position_pct']}% "
+        f"| 浮亏 ¥{summary['floating_pnl']:,.2f}"
+    )
+    print(f"[结构 as-of] {data.get('updated')} | 来源：{args.source}")
     if args.dry_run:
         print("[DRY-RUN] 未写盘")
         return 0

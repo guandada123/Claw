@@ -142,10 +142,12 @@ def get_quotes_via_tencent(codes: list[str]) -> dict[str, dict]:
     """通过腾讯财经 API 获取实时行情（备用）."""
     import urllib.request
 
-    # 腾讯代码映射: 6开头→sh, 0/3开头→sz
+    # 腾讯代码映射（2026-10-11 修）：沪市 6(股票)/5(ETF·LOF)/9(B股) → sh；
+    # 深市 0/1(ETF·LOF)/2(B股)/3(创业板) → sz。
+    # 原实现只认 6 → 588170 被拼成 sz588170 → 取不到价（与 wind_utils 同一处前缀盲区）。
     tc_codes = []
     for c in codes:
-        if c.startswith("6"):
+        if c.startswith(("6", "5", "9")):
             tc_codes.append(f"sh{c}")
         else:
             tc_codes.append(f"sz{c}")
@@ -176,6 +178,37 @@ def get_quotes_via_tencent(codes: list[str]) -> dict[str, dict]:
     except Exception as e:
         print(f"[腾讯] 失败: {e}")
     return {}
+
+
+def get_quotes_with_fallback(codes: list[str]) -> dict[str, dict]:
+    """三级降级取价链（Wind → 通达信 → 腾讯），**逐标的补齐**。
+
+    🔴 2026-10-11 修复：原 `main()` 用 `if not quotes:` 串联三级 —— 只要上一级
+    **部分**成功就整体提前返回，未命中的标的**拿不到价格**却无人察觉
+    （实测：Wind 对 588170 报错，2/3 成功 → 腾讯不再被调用 → 第三只永远没价）。
+    从"全失败"退化成"部分缺失"比彻底失败更隐蔽，故改为按缺失标的逐级补。
+    """
+    quotes: dict[str, dict] = {}
+    for fetch, name in (
+        (get_quotes_via_wind, "Wind"),
+        (get_quotes_via_tdx, "通达信"),
+        (get_quotes_via_tencent, "腾讯"),
+    ):
+        missing = [c for c in codes if c not in quotes]
+        if not missing:
+            break
+        try:
+            got = fetch(missing) or {}
+        except Exception as e:  # noqa: BLE001 - 单一数据源异常不得中断取价
+            print(f"[{name}] 异常: {e}")
+            got = {}
+        if got:
+            quotes.update(got)
+        print(f"[取价] {name} 补 {len(got)} 只（仍缺 {len(codes) - len(quotes)}）")
+    if len(quotes) < len(codes):
+        missing = [c for c in codes if c not in quotes]
+        print(f"[WARN] 以下标的最终未取到价：{missing}")
+    return quotes
 
 
 def update_portfolio(
@@ -313,14 +346,8 @@ def main():
     codes = [h["code"] for h in holdings]
     print(f"\n持仓标的: {', '.join(codes)}")
 
-    # Wind → TDX → 腾讯 三级降级链
-    quotes = get_quotes_via_wind(codes)
-    if not quotes:
-        print("[降级] Wind 不可用，切换到通达信 MCP")
-        quotes = get_quotes_via_tdx(codes)
-    if not quotes:
-        print("[降级] 通达信不可用，切换到腾讯财经")
-        quotes = get_quotes_via_tencent(codes)
+    # Wind → 通达信 → 腾讯 三级降级链（逐标的补齐，见 get_quotes_with_fallback）
+    quotes = get_quotes_with_fallback(codes)
 
     if not quotes:
         print("[ERROR] 所有数据源不可用，无法刷新")

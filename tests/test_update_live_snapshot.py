@@ -148,3 +148,22 @@ def test_clear_sets_total_equals_cash(tmp_path, monkeypatch):
     assert saved["holdings"] == []
     assert saved["summary"]["total_assets"] == 14048.0
     assert saved["summary"]["floating_pnl"] == 0.0
+
+
+def test_full_update_recomputes_total_from_cash(tmp_path, monkeypatch):
+    """回归：结构重写会改现金 → 总资产必须 = 现金 + 市值。
+
+    不能沿用 `update_portfolio` 的「旧总资产 ± 市值变化」守恒式（其前提是现金不变）。
+    实犯：录入真实快照时该式给出 55,816.72，而正确值是 45,094.98。
+    """
+    p = _seed(tmp_path, monkeypatch)
+    rc = _run(
+        monkeypatch,
+        ["--position", "600584:200:94.656", "--cash", "9999.0", "--source", "单测"],
+    )
+    assert rc == 0
+    saved = json.loads(p.read_text(encoding="utf-8"))
+    mv = saved["holdings"][0]["market_value"]  # 替身行情 62.74 × 200 = 12548
+    assert saved["summary"]["total_market_value"] == mv
+    assert saved["summary"]["total_assets"] == round(9999.0 + mv, 2)
+    assert abs(saved["summary"]["position_pct"] - round(mv / (9999.0 + mv) * 100, 1)) < 0.05

@@ -1110,7 +1110,8 @@ class AdvisorRules:
         code = code.strip().lower()
         if code.startswith(("sh", "sz")):
             return code
-        return f"sh{code}" if code.startswith("6") else f"sz{code}"
+        # 2026-10-11 修：沪市 6(股票)/5(ETF·LOF)/9(B股) → sh；其余 0/1/2/3 → sz
+        return f"sh{code}" if code.startswith(("6", "5", "9")) else f"sz{code}"
 
     def _get_rsi(self, code_prefixed: str) -> float | None:
         """RSI(14)。Wind 万得直接返回，降级 calc_rsi.py 子进程。"""
