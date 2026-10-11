@@ -20,9 +20,12 @@ from typing import Any
 
 # ── 路径配置 ──────────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SIM_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "simulation" / "portfolio.json"
-USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
-STRATEGY_LIB = PROJECT_ROOT / ".workbuddy" / "data" / "simulation" / "strategy_library.json"
+
+# 2026-10-11 修：PROJECT_ROOT 已到 .workbuddy，再拼 ".workbuddy" 会得到
+#   `.workbuddy/.workbuddy/...`（恒不存在）→ 该常量静默失效
+SIM_PORTFOLIO = PROJECT_ROOT / "data" / "simulation" / "portfolio.json"
+USER_PORTFOLIO = PROJECT_ROOT / "data" / "user" / "portfolio.json"
+STRATEGY_LIB = PROJECT_ROOT / "data" / "simulation" / "strategy_library.json"
 
 # ── 行业分类映射（与 asset-allocation-framework.md 一致） ──────────
 INDUSTRY_MAP = {

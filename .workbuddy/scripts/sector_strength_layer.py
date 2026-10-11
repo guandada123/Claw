@@ -42,10 +42,13 @@ from typing import Any
 # ── 路径 / 依赖 ───────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
+
+# 2026-10-11 修：PROJECT_ROOT 已到 .workbuddy，再拼 ".workbuddy" 会得到
+#   `.workbuddy/.workbuddy/...`（恒不存在）→ 该常量静默失效
 sys.path.insert(0, str(SCRIPT_DIR))
 import qts_client as qts  # 经授权服务层只读 PG（铁律：禁直连 QTS 代码，走 qts_client）
 
-OUTPUT = PROJECT_ROOT / ".workbuddy" / "data" / "sector_strength.json"
+OUTPUT = PROJECT_ROOT / "data" / "sector_strength.json"
 
 # 允许板块（对齐 sim_trade RESTRICTED_PREFIXES：主板60/00 + 创业板30，禁 688/689/8/4）
 ALLOWED_PREFIXES = ("60", "00", "30")

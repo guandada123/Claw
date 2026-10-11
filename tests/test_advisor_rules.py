@@ -347,7 +347,9 @@ def _portfolio_with_holdings(holdings, total=50000.0):
 
 
 def test_sector_concentration_warn_and_block(tmp_path, advisor):
-    data_dir = tmp_path / ".workbuddy" / "data"
+    # PROJECT_ROOT 语义 = 仓库的 .workbuddy 目录（2026-10-11 修：源码里
+    # 曾多拼一层 ".workbuddy" → 缓存恒定读不到；本行随源码修正为 tmp_path/data）
+    data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True)
     cache = data_dir / "sector_cache.json"
     cache.write_text('{"600584": "半导体", "002185": "半导体", "000333": "家电"}', encoding="utf-8")
@@ -375,7 +377,9 @@ def test_sector_concentration_no_holdings(advisor):
 
 
 def test_check_sector_block_blocks_sector(tmp_path, advisor):
-    data_dir = tmp_path / ".workbuddy" / "data"
+    # PROJECT_ROOT 语义 = 仓库的 .workbuddy 目录（2026-10-11 修：源码里
+    # 曾多拼一层 ".workbuddy" → 缓存恒定读不到；本行随源码修正为 tmp_path/data）
+    data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True)
     cache = data_dir / "sector_cache.json"
     cache.write_text('{"600584": "半导体", "002185": "半导体"}', encoding="utf-8")
@@ -393,7 +397,9 @@ def test_check_sector_block_blocks_sector(tmp_path, advisor):
 
 
 def test_check_sector_block_safe_sector(tmp_path, advisor):
-    data_dir = tmp_path / ".workbuddy" / "data"
+    # PROJECT_ROOT 语义 = 仓库的 .workbuddy 目录（2026-10-11 修：源码里
+    # 曾多拼一层 ".workbuddy" → 缓存恒定读不到；本行随源码修正为 tmp_path/data）
+    data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True)
     cache = data_dir / "sector_cache.json"
     cache.write_text('{"600584": "半导体"}', encoding="utf-8")

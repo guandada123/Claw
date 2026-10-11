@@ -97,7 +97,10 @@ CYCLE_POSITION = {
 
 # 行业名缓存（东财 push2 被风控 2026-08-12 后，行业名以 MCP 预置缓存为准）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SECTOR_CACHE = PROJECT_ROOT / ".workbuddy" / "data" / "sector_cache.json"
+
+# 2026-10-11 修：PROJECT_ROOT 已到 .workbuddy，再拼 ".workbuddy" 会得到
+#   `.workbuddy/.workbuddy/...`（恒不存在）→ 该常量静默失效
+SECTOR_CACHE = PROJECT_ROOT / "data" / "sector_cache.json"
 _industry_cache: dict[str, str] | None = None
 
 

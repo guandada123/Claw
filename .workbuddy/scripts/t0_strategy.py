@@ -64,7 +64,10 @@ ATR_STOP_CAP = 0.06  # 动态止损上限 6%（防过度放宽失去保护）
 # ATR 数据不可用(网络失败/bar不足)时回退固定3%止损，不阻断
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
+
+# 2026-10-11 修：PROJECT_ROOT 已到 .workbuddy，再拼 ".workbuddy" 会得到
+#   `.workbuddy/.workbuddy/...`（恒不存在）→ 该常量静默失效
+USER_PORTFOLIO = PROJECT_ROOT / "data" / "user" / "portfolio.json"
 
 
 class T0Strategy:

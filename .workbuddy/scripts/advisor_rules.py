@@ -100,8 +100,11 @@ except ImportError:
     _SSL_SECTORS = {}  # type: ignore[assignment,misc]
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# 2026-10-11 修：PROJECT_ROOT 已到 .workbuddy，再拼 ".workbuddy" 会得到
+#   `.workbuddy/.workbuddy/...`（恒不存在）→ 该常量静默失效
 CALC_RSI = PROJECT_ROOT / "scripts" / "calc_rsi.py"
-USER_PORTFOLIO = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
+USER_PORTFOLIO = PROJECT_ROOT / "data" / "user" / "portfolio.json"
 
 # ── 规则阈值常量 ────────────────────────────────────────────────
 RSI_OVERBOUGHT = 70  # RSI(14) 超买线
@@ -889,7 +892,7 @@ class AdvisorRules:
         """
         data = self._load_json(portfolio_path)
         holdings = data.get("holdings", [])
-        cache = self._load_json(PROJECT_ROOT / ".workbuddy" / "data" / "sector_cache.json")
+        cache = self._load_json(PROJECT_ROOT / "data" / "sector_cache.json")
         sector_value: dict[str, float] = {}
         total_value = 0.0
         unknown = 0
@@ -932,7 +935,7 @@ class AdvisorRules:
         warns 命中 → 返回 warn 详情，未命中 → None。
         """
         if sector is None:
-            cache = self._load_json(PROJECT_ROOT / ".workbuddy" / "data" / "sector_cache.json")
+            cache = self._load_json(PROJECT_ROOT / "data" / "sector_cache.json")
             sector = cache.get(str(code)) if isinstance(cache, dict) else None
         if not sector:
             return None
@@ -997,7 +1000,7 @@ class AdvisorRules:
         """
         if not code:
             return None
-        cache_path = PROJECT_ROOT / ".workbuddy" / "data" / "sector_strength.json"
+        cache_path = PROJECT_ROOT / "data" / "sector_strength.json"
         try:
             if cache_path.exists():
                 data = json.loads(cache_path.read_text(encoding="utf-8"))
