@@ -19,7 +19,10 @@
     python3 rotate_automation_memory.py --dry-run        # 只看会做什么
     python3 rotate_automation_memory.py                  # 执行（默认 14 天 / 30KB 门槛）
     python3 rotate_automation_memory.py --json
-退出码：0 有归档或无需归档；1 有文件被跳过（需人看）。
+退出码：0 有归档 / 无需归档 / 仅「窗口内无旧条目」；1 有文件**真解析不出**时间戳（需人看）。
+  ⚠️ 2026-10-11 修正：`nothing_older_than_cutoff` 不再计入 rc=1。原实现把它与
+  `no_timestamps` 一律归为「跳过」，于是**每周归档后必然 rc=1**（watchdog 等高频档位
+  归档后仍超门槛、但窗口内已无旧条目）→ rc 变成恒真噪音，真问题被淹。
 """
 
 from __future__ import annotations
@@ -33,6 +36,14 @@ import re
 import sys
 
 TS = re.compile(r"^\s*(?:#{1,6}\s+|[-*+]\s+|\|\s*)?(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})")
+# 宽松兜底（2026-10-11 加）：`## 2026-08-31 (周一) 10:14 …` 这类「日期与时刻之间还夹着
+# 星期/标题」的格式，严格式匹配不到 → 该档位被判 `no_timestamps` 跳过，**永远不归档**；
+# 同一个正则也用在 check_automation_memory.py，于是它同时逃过 1c 的跨度体检
+# （实测 50 档里 20 档用这种格式，会静默无限增长）。严格式先试、命中即用，
+# 故对既有解析结果零影响（回归实测：571 行严格命中 0 行改变，新增命中 275 行）。
+TS_LOOSE = re.compile(
+    r"^\s*(?:#{1,6}\s+|[-*+]\s+|\|\s*)?(\d{4})-(\d{2})-(\d{2})[^\n]*?(\d{2}):(\d{2})"
+)
 DEFAULT_ROOTS = [
     pathlib.Path("/Users/guan/WorkBuddy/Claw/.workbuddy/memory/automations"),
     pathlib.Path(os.path.expanduser("~/.workbuddy/memory/automations")),
@@ -43,13 +54,15 @@ DEFAULT_MIN_BYTES = 30_000
 
 
 def line_ts(line: str):
-    m = TS.match(line)
-    if not m:
-        return None
-    try:
-        return datetime.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-    except ValueError:
-        return None
+    for pat in (TS, TS_LOOSE):
+        m = pat.match(line)
+        if not m:
+            continue
+        try:
+            return datetime.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+    return None
 
 
 def rotate_file(path: pathlib.Path, cutoff: datetime.date, dry_run: bool) -> dict:
@@ -134,7 +147,7 @@ def main() -> int:
     args = ap.parse_args()
 
     cutoff = datetime.date.today() - datetime.timedelta(days=args.keep_days)
-    results, skipped = [], []
+    results, skipped, noop = [], [], []
     for root in DEFAULT_ROOTS:
         if not root.is_dir():
             continue
@@ -142,7 +155,15 @@ def main() -> int:
             if f.stat().st_size < args.min_bytes:
                 continue
             r = rotate_file(f, cutoff, args.dry_run)
-            (skipped if r["skipped"] else results).append(r)
+            if r["skipped"] == "nothing_older_than_cutoff":
+                # 良性稳态：文件超门槛但窗口内无旧条目（归档本就无从下手）。
+                # 不计入 rc —— 否则「每周日归档后必有档位处于此态」会让 rc=1 变成
+                # 恒真噪音，把真正需要人看的 no_timestamps 淹掉（2026-10-11 修）。
+                noop.append(r)
+            elif r["skipped"]:
+                skipped.append(r)
+            else:
+                results.append(r)
 
     if args.json:
         print(
@@ -152,6 +173,7 @@ def main() -> int:
                     "dry_run": args.dry_run,
                     "rotated": results,
                     "skipped": skipped,
+                    "noop": noop,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -162,12 +184,14 @@ def main() -> int:
         print(
             f"{mode}滚动归档 · cutoff={cutoff}（保留最近 {args.keep_days} 天）/ 门槛 {args.min_bytes}B"
         )
-        if not results and not skipped:
+        if not results and not skipped and not noop:
             print("  ✅ 无超过门槛的文件")
         for r in results:
             print(
                 f"  ✅ {r['id']}: {r['before']:,}B → {r['after']:,}B（移出 {r['archived_lines']} 行 → {pathlib.Path(r['archive']).name}）"
             )
+        for r in noop:
+            print(f"  ℹ️ {r['id']}: {r['before']:,}B 超门槛但窗口内无旧条目（良性稳态，不计 rc）")
         for r in skipped:
             print(f"  ⚠️ {r['id']}: {r['before']:,}B 跳过（{r['skipped']}）")
 

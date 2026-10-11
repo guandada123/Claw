@@ -140,7 +140,14 @@ def test_main_returns_1_on_anomaly(tmp_path, monkeypatch):
     assert cam.main() == 1
 
 
-@pytest.mark.parametrize("pattern_line", ["2026-10-10T09:30 payload", "## 2026-10-10 09:30:00 | x"])
+@pytest.mark.parametrize(
+    "pattern_line",
+    [
+        "2026-10-10T09:30 payload",
+        "## 2026-10-10 09:30:00 | x",
+        "## 2026-10-10 (周一) 09:30 payload",  # 宽松兜底（2026-10-11）：日期与时刻间夹「(周X)」
+    ],
+)
 def test_parse_both_timestamp_formats(tmp_path, pattern_line):
     f = _mk(tmp_path, "slot-fmt", [pattern_line, pattern_line])
     assert cam.analyze(f)["entries"] == 2

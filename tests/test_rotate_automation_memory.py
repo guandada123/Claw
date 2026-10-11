@@ -7,6 +7,7 @@
 import datetime
 import importlib.util
 import pathlib
+import sys
 
 import pytest
 
@@ -89,6 +90,65 @@ def test_dry_run_changes_nothing(tmp_path):
     assert r["archived_lines"] == 1
     assert src.read_text(encoding="utf-8") == before
     assert not pathlib.Path(r["archive"]).exists()
+
+
+# ── 2026-10-11 回归：宽松时间戳格式（日期与时刻之间夹「(周X)」等）──────────
+# 判据被两个检查器复用（check + rotate），格式盲区会成对出现 —— 该档位
+# **同时**逃过体检与归档。这里钉住修复后的解析能力。
+
+
+LOOSE_OLD = "## 2026-09-10 (周一) 10:14 旧块\n- 正文 A\n"
+LOOSE_NEW = "## 2026-09-28 (周一) 10:14 新块\n- 正文 C\n"
+
+
+def test_loose_timestamp_is_parsed_and_archived(tmp_path):
+    """严格式匹配不到 `## 2026-09-10 (周一) 10:14` → 加宽松兜底后必须能整块归档。"""
+    src = tmp_path / "memory.md"
+    src.write_text(LOOSE_OLD + LOOSE_NEW, encoding="utf-8")
+    r = rot.rotate_file(src, CUTOFF, dry_run=False)
+    assert r["skipped"] is None, "宽松格式不应再被判 no_timestamps"
+    assert r["archived_lines"] == 2  # 旧块标题 + 正文
+    arch = pathlib.Path(r["archive"])
+    assert "旧块" in arch.read_text(encoding="utf-8")
+    assert "旧块" not in src.read_text(encoding="utf-8")
+    assert "新块" in src.read_text(encoding="utf-8")
+
+
+def test_loose_format_all_recent_is_noop_not_no_timestamps(tmp_path):
+    """全是宽松格式且都在窗口内 → 良性 noop（不是 no_timestamps）。"""
+    src = tmp_path / "memory.md"
+    src.write_text(LOOSE_NEW, encoding="utf-8")
+    r = rot.rotate_file(src, CUTOFF, dry_run=False)
+    assert r["skipped"] == "nothing_older_than_cutoff"
+
+
+# ── main() 退出码：良性 noop 不计 rc（2026-10-11 修）──────────────────
+
+
+def _slot(root: pathlib.Path, name: str, body: str) -> None:
+    d = root / name
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "memory.md").write_text(body, encoding="utf-8")
+
+
+def test_main_noop_is_rc0(monkeypatch, tmp_path, capsys):
+    """超门槛但窗口内无旧条目 = 归档正常稳态（归档后必有档位处于此态）→ rc=0。
+    原实现与 no_timestamps 一律归「跳过」→ 每周归档后必然 rc=1（恒真噪音，淹真问题）。"""
+    root = tmp_path / "automations"
+    _slot(root, "slot-hf", "2026-09-28T03:00 只有新条目\n")
+    monkeypatch.setattr(rot, "DEFAULT_ROOTS", [root])
+    monkeypatch.setattr(sys, "argv", ["rot", "--min-bytes", "10"])
+    assert rot.main() == 0
+    assert "良性稳态" in capsys.readouterr().out
+
+
+def test_main_no_timestamps_is_rc1(monkeypatch, tmp_path):
+    """真解析不出时间戳 → 必须 rc=1（需人看），不能被 noop 的 0 一起抹平。"""
+    root = tmp_path / "automations"
+    _slot(root, "slot-nots", "没有时间戳的正文\n" * 20)
+    monkeypatch.setattr(rot, "DEFAULT_ROOTS", [root])
+    monkeypatch.setattr(sys, "argv", ["rot", "--min-bytes", "10"])
+    assert rot.main() == 1
 
 
 if __name__ == "__main__":
