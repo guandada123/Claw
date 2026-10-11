@@ -2228,11 +2228,99 @@ def runbook_publish_audit_merge(dry_run: bool = False) -> list[dict]:
 CROSS_STATE_PATH = Path.home() / ".workbuddy" / "cross_project_state.json"
 
 # 当前代码实际注册的安全动作（与 Runbook 白名单一致；改 Runbook 时同步此处）
+LEARNINGS_REPOS = ("Claw", "QuantTradingSystem", "StockInsight")
+
+
+def _repo_dir(name: str) -> Path | None:
+    """本地仓探测（优先外置 SSD，降级 ~/WorkBuddy）—— 与 runbook_dependabot_rebase 同款。"""
+    for base in (Path("/Volumes/ZHITAI/WorkBuddy"), Path.home() / "WorkBuddy"):
+        p = base / name
+        if p.is_dir():
+            return p
+    return None
+
+
+def runbook_refresh_learnings_index(dry_run: bool = False) -> list[dict]:
+    """Runbook#5: `.learnings/INDEX.md` 落后于 dated 文件 → **重新生成**（纯派生、幂等、无副作用）。
+
+    为什么需要：`.learnings/LEARNINGS.md`（手工浓缩条目）**实测停更 5~6 周而无人发现**
+    （Claw 停在 08-31、QTS 停在 09-06，而 dated 文件都到 10-11）—— 根因是
+    「同一份信息存两处、只维护一处」。现索引已改为**派生物**（`learnings_index.py`），
+    但派生物若不刷新就会再次腐烂 → 由本 runbook 兜住，**不靠人记得**。
+
+    ⚠️ 两个分寸：
+      · **只在 `--check` 判"落后"时才写** —— 否则每次都会因为文件里的生成时间戳
+        产生一个无意义 diff（本来内容没变）。
+      · `--check` 返回 2（判不了）时**不动**，并记 `skipped(cannot-determine)` ——
+        "判不了"不许当成"最新"。
+    作用域仅限**派生文件** `INDEX.md`，绝不碰 `.learnings/*.md` 正文。
+    """
+    recs: list[dict] = []
+    if is_runbook_fused("refresh_learnings_index"):
+        return recs
+    script = SCRIPT_DIR / "learnings_index.py"
+    if not script.exists():
+        return recs  # 取不到证 → 什么也不做（也不记假动作）
+    for name in LEARNINGS_REPOS:
+        repo = _repo_dir(name)
+        if repo is None:
+            continue
+        d = repo / ".learnings"
+        if not d.is_dir():
+            continue
+        try:
+            chk = run_cmd([sys.executable, str(script), "--dir", str(d), "--check"], timeout=60)
+        except Exception:  # noqa: BLE001
+            continue
+        if chk.returncode == 0:
+            continue  # 最新 → 不记动作（免得自愈日志全是 noop）
+        if chk.returncode != 1:
+            recs.append(
+                log_action(
+                    "refresh_learnings_index",
+                    name,
+                    f"learnings_index --check 判不了(rc={chk.returncode})",
+                    "skipped(cannot-determine)",
+                    "判不了就不动 —— 不许当成「最新」",
+                )
+            )
+            continue
+        reason = ((chk.stdout or "").strip().splitlines() or ["INDEX 落后"])[-1][:120]
+        if dry_run:
+            recs.append(
+                log_action(
+                    "refresh_learnings_index",
+                    name,
+                    reason,
+                    "skipped(dry-run)",
+                    "将重新生成 INDEX.md",
+                )
+            )
+            continue
+        try:
+            gen = run_cmd([sys.executable, str(script), "--dir", str(d)], timeout=120)
+        except Exception as e:  # noqa: BLE001
+            recs.append(log_action("refresh_learnings_index", name, reason, "failed", str(e)[:120]))
+            continue
+        out = ((gen.stdout or "") + (gen.stderr or "")).strip().splitlines()
+        recs.append(
+            log_action(
+                "refresh_learnings_index",
+                name,
+                reason,
+                "success" if gen.returncode == 0 else "failed",
+                (out[-1] if out else "")[:120],
+            )
+        )
+    return recs
+
+
 REGISTERED_RUNBOOKS = [
     "memwatch_threshold_bump",  # #1
     "docker_restart_container",  # #3 (self_heal.py 实际重启，中枢上报 healed)
     "dependabot_rebase",  # #2
     "publish_audit_merge",  # #4
+    "refresh_learnings_index",  # #5
 ]
 
 
@@ -3353,6 +3441,11 @@ def main() -> int:
     # Runbook#4: 已验证未合并的 PR → 审计+Git比对+合并（用户 08-06 授权发布类）
     rb4 = runbook_publish_audit_merge(dry_run=args.dry_run)
     for r in rb4:
+        if r["result"] != "skipped(dry-run)":
+            healed.append(r)
+    # Runbook#5: learnings 索引落后于 dated 文件 → 重新生成（派生文件，无副作用）
+    rb5 = runbook_refresh_learnings_index(dry_run=args.dry_run)
+    for r in rb5:
         if r["result"] != "skipped(dry-run)":
             healed.append(r)
 

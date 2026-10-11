@@ -21,6 +21,7 @@ import datetime
 import importlib.util
 import json
 import pathlib
+import shutil
 
 import pytest
 
@@ -786,3 +787,71 @@ def test_guard_would_catch_a_regression(monkeypatch):
     assert bad_check()["ok"] is True, "坏检查在命令失败时报通过（这就是守卫要抓的形态）"
     assert _re.search(r"\brun_cmd\(", "def check_disk():\n    r = run_cmd([])") is not None
     assert "check_disk" in real_src  # 真文件里存在该检查
+
+
+# ════ K. Runbook#5：learnings 索引落后 → 自动重新生成（2026-10-11）════
+
+
+def _stale_repo(tmp_path, name="Claw") -> pathlib.Path:
+    d = tmp_path / name / ".learnings"
+    d.mkdir(parents=True)
+    (d / "2026-10-11-demo.md").write_text(
+        "# ★升级候选：演示\n\n**日期**：2026-10-11\n**等级**：P2\n**类型**：demo\n**状态**：已修\n",
+        encoding="utf-8",
+    )
+    return d
+
+
+def _wire_runbook(tmp_path, monkeypatch, learnings_dir: pathlib.Path):
+    """把 runbook 的作用域收敛到一个临时仓；并把真脚本放进被 patch 过的 SCRIPT_DIR。"""
+    real = SRC.parent / "learnings_index.py"   # 与被测脚本同目录
+    monkeypatch.setattr(uoc, "SCRIPT_DIR", tmp_path / "scripts")
+    (tmp_path / "scripts").mkdir(parents=True, exist_ok=True)
+    shutil.copy(real, tmp_path / "scripts" / "learnings_index.py")
+    monkeypatch.setattr(uoc, "_repo_dir", lambda n: learnings_dir.parent if n == "Claw" else None)
+    monkeypatch.setattr(uoc, "LEARNINGS_REPOS", ("Claw",))
+
+
+def test_runbook_regenerates_stale_index(tmp_path, monkeypatch):
+    d = _stale_repo(tmp_path)
+    _wire_runbook(tmp_path, monkeypatch, d)
+    assert not (d / "INDEX.md").exists()
+
+    recs = uoc.runbook_refresh_learnings_index(dry_run=True)
+    assert recs and recs[0]["result"] == "skipped(dry-run)"
+    assert not (d / "INDEX.md").exists(), "dry-run 不得写文件"
+
+    recs = uoc.runbook_refresh_learnings_index(dry_run=False)
+    assert recs and recs[0]["result"] == "success"
+    assert (d / "INDEX.md").exists(), "判落后时必须真的生成"
+
+
+def test_runbook_is_idempotent(tmp_path, monkeypatch):
+    """刚生成完再跑 → 无事可做（否则每天都会因时间戳产生无意义 diff）。"""
+    d = _stale_repo(tmp_path)
+    _wire_runbook(tmp_path, monkeypatch, d)
+    uoc.runbook_refresh_learnings_index(dry_run=False)
+    assert uoc.runbook_refresh_learnings_index(dry_run=False) == []
+
+
+def test_runbook_does_not_treat_cannot_determine_as_fresh(tmp_path, monkeypatch):
+    """rc=2（目录里没有 dated 文件 = 判不了）→ 记 cannot-determine，**不许当成最新**。"""
+    d = tmp_path / "Claw" / ".learnings"
+    d.mkdir(parents=True)
+    _wire_runbook(tmp_path, monkeypatch, d)
+    # 目录存在但无 dated 文件 → --check 会 rc=2
+    recs = uoc.runbook_refresh_learnings_index(dry_run=False)
+    assert recs and recs[0]["result"] == "skipped(cannot-determine)"
+
+
+def test_runbook_respects_fuse(tmp_path, monkeypatch):
+    d = _stale_repo(tmp_path)
+    _wire_runbook(tmp_path, monkeypatch, d)
+    monkeypatch.setattr(uoc, "is_runbook_fused", lambda a: True)
+    assert uoc.runbook_refresh_learnings_index(dry_run=False) == [], "熔断后不得动手"
+
+
+def test_runbook_registered(tmp_path):
+    src = SRC.read_text(encoding="utf-8")
+    assert '"refresh_learnings_index",  # #5' in src
+    assert "runbook_refresh_learnings_index(dry_run=args.dry_run)" in src, "注册了但没在主流程调用 = 从不执行"
