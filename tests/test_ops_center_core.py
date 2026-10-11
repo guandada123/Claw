@@ -680,7 +680,15 @@ def test_rss_upstream_facts_returns_schedule_and_last_run(tmp_path, monkeypatch)
     monkeypatch.setattr(uoc.Path, "home", staticmethod(lambda: tmp_path))
     sched, last = uoc._rss_upstream_facts()
     assert "BYDAY=MO,TU,WE,TH,FR" in sched, sched
-    assert last.startswith("2026-10-09"), last
+    # ⚠️ **不许写死日期字符串**：CI runner 是 UTC、本机是 +08 ——
+    #    写死 "2026-10-09" 的断言会「本地绿、CI 恒红」（本提交实测踩到，Unit Tests 判红）。
+    #    改为：按**与生产同一套本地时区换算**重建期望值再比；这同时钉住"毫秒口径"
+    #    （若误把毫秒当秒解，会得到公元 5.8 万年那种值，比不过）。
+    import datetime as _dt
+
+    want = _dt.datetime.fromtimestamp(1791502200).strftime("%Y-%m-%d %H:%M")
+    assert last == want, (last, want)
+    assert last.startswith("2026"), last  # 粗略但与时区无关：钉住"不是秒口径解出来的远古日期"
 
 
 def test_rss_upstream_facts_never_invents_when_unreadable(tmp_path, monkeypatch):
