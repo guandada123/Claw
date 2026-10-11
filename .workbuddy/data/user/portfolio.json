@@ -11,18 +11,19 @@
     "note": "止损8%，止盈不设"
   },
   "summary": {
-    "total_assets": 47949.72,
+    "total_assets": 47156.72,
     "cash_available": 26683.72,
     "cash_withdrawable": 26683.72,
-    "floating_pnl": -9101.27,
+    "floating_pnl": -9872.7,
     "daily_pnl": -382.0,
     "daily_pct": -0.79,
-    "position_pct": 44.4,
-    "total_market_value": 21266.0,
+    "position_pct": 43.4,
+    "total_market_value": 20473.0,
     "invested_cost_stocks": 30345.7,
     "invested_return_pct_stocks": -29.99,
     "return_basis": "国金APP截图OCR(2026-09-14 15:36): 总资产=可用+市值自洽; 收益率=浮动盈亏/已投成本; 日收益率=当日参考盈亏/总资产",
-    "updated": "国金证券APP·2026-09-14 15:36"
+    "updated": "国金证券APP·2026-09-14 15:36",
+    "price_refreshed_at": "2026-10-11 10:37:06"
   },
   "holdings": [
     {
@@ -31,17 +32,17 @@
       "shares": 200,
       "shares_available": 200,
       "avg_cost": 94.656,
-      "current_price": 66.33,
-      "market_value": 13266.0,
-      "floating_pnl": -5677.45,
-      "pnl_pct": -29.93,
+      "current_price": 62.74,
+      "market_value": 12548.0,
+      "floating_pnl": -6383.2,
+      "pnl_pct": -33.72,
       "broker": "GJ",
-      "updated": "国金证券APP·2026-09-14 15:36",
-      "price_source": "国金证券APP·2026-09-14 15:36",
+      "updated": "auto·2026-10-11 10:37:06",
+      "price_source": "tencent·实时·2026-10-11 10:37:06",
       "note": "成本94.656/2026-09-14 15:36浮亏-29.93%",
       "bought_date": "2026-07-15",
       "bought_date_note": "最早可证持有日; 用于A规则T+N判定",
-      "pnl": -5677.45,
+      "pnl": -6383.2,
       "price_sanity_ok": true
     },
     {
@@ -50,19 +51,20 @@
       "shares": 500,
       "shares_available": 500,
       "avg_cost": 22.829,
-      "current_price": 16.0,
-      "market_value": 8000.0,
-      "floating_pnl": -3423.82,
-      "pnl_pct": -29.91,
+      "current_price": 15.85,
+      "market_value": 7925.0,
+      "floating_pnl": -3489.5,
+      "pnl_pct": -30.57,
       "broker": "GJ",
-      "updated": "国金证券APP·2026-09-14 15:36",
-      "price_source": "国金证券APP·2026-09-14 15:36",
+      "updated": "auto·2026-10-11 10:37:06",
+      "price_source": "tencent·实时·2026-10-11 10:37:06",
       "note": "成本22.829/2026-09-14 15:36浮亏-29.91%",
       "bought_date": "2026-07-15",
       "bought_date_note": "最早可证持有日; 用于A规则T+N判定",
-      "pnl": -3423.82,
+      "pnl": -3489.5,
       "price_sanity_ok": true
     }
   ],
-  "total_market_value": 21266.0
+  "total_market_value": 21266.0,
+  "prices_refreshed_at": "2026-10-11 10:37:06"
 }

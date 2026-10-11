@@ -44,7 +44,10 @@ except ImportError:
         return code
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# 🔴 2026-10-11 修复：本文件在 `.workbuddy/scripts/` 下，parent.parent 只到 `.workbuddy`，
+#    再拼 ".workbuddy/data/..." 会得到 `.workbuddy/.workbuddy/data/...` → 文件恒定不存在，
+#    脚本自创建起就无法运行（这解释了为何持仓快照长期靠手改）。
+PROJECT_ROOT = Path(__file__).resolve().parents[2]  # Claw 仓库根
 PORTFOLIO_PATH = PROJECT_ROOT / ".workbuddy" / "data" / "user" / "portfolio.json"
 
 
@@ -175,10 +178,20 @@ def get_quotes_via_tencent(codes: list[str]) -> dict[str, dict]:
     return {}
 
 
-def update_portfolio(data: dict, quotes: dict[str, dict], dry_run: bool = False) -> dict:
-    """更新持仓数据（兼容 holdings schema）."""
+def update_portfolio(
+    data: dict, quotes: dict[str, dict], dry_run: bool = False, confirm_structure: bool = False
+) -> dict:
+    """刷新持仓价格与估值。
+
+    🔴 语义边界（2026-10-11 审计整改）：
+      · 本函数只刷新**价格/估值**，并写 `prices_refreshed_at`；
+      · 顶层 `updated` 代表「快照 as-of」= 持仓结构被确认的日期，**默认不动**
+        （原实现每次刷新都把它改成今天 → 结构陈旧也会显示「新鲜」，即假新鲜）；
+      · 只有人工确认持仓结构未变时，才用 `--confirm-structure` 显式盖章。
+    """
     holdings = data.get("holdings", [])
     summary = data.get("summary", {})
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # 记录旧市值（更新前）
     old_holdings_mv = sum(h.get("market_value", 0) for h in holdings)
@@ -197,12 +210,22 @@ def update_portfolio(data: dict, quotes: dict[str, dict], dry_run: bool = False)
         old_price = h.get("current_price", 0)
         new_price = q["price"]
         shares = h.get("shares", 0)
-        cost_price = h.get("cost_price", 0)
+        # 🔴 2026-10-11 修复：实盘 holdings 用 `avg_cost`（无 `cost_price` 键）→ 原取值恒 0，
+        #    导致 pnl = (现价-0)×股数（**正数**）、pnl_pct 恒 0，summary.floating_pnl 符号反转。
+        #    该缺陷历史上被「手工重算并回写」掩盖多次（08-25/08-28 记录），本次落到代码。
+        cost_price = h.get("avg_cost") or h.get("cost_price") or 0
+        if not cost_price:
+            print(f"  [WARN] {code} 缺成本价（avg_cost/cost_price 均无）→ 跳过该只盈亏计算")
+            continue
 
         h["current_price"] = new_price
         h["market_value"] = round(new_price * shares, 2)
         h["pnl"] = round((new_price - cost_price) * shares, 2)
-        h["pnl_pct"] = round((new_price / cost_price - 1) * 100, 2) if cost_price > 0 else 0
+        h["floating_pnl"] = h["pnl"]  # 与快照既有字段名保持一致（消费方两个名字都读）
+        h["pnl_pct"] = round((new_price / cost_price - 1) * 100, 2)
+        h["price_source"] = f"tencent·实时·{ts}"
+        h["updated"] = f"auto·{ts}"
+        h["price_sanity_ok"] = True
         h["name"] = q.get("name") or h.get("name", code)
 
         total_market_value += h["market_value"]
@@ -222,25 +245,59 @@ def update_portfolio(data: dict, quotes: dict[str, dict], dry_run: bool = False)
     new_total = round(old_total - old_holdings_mv + total_market_value, 2)
 
     summary["total_assets"] = new_total
+    summary["total_market_value"] = round(total_market_value, 2)
     summary["floating_pnl"] = round(total_pnl, 2)
     summary["position_pct"] = round(total_market_value / new_total * 100, 1) if new_total > 0 else 0
+    summary["price_refreshed_at"] = ts
     data["summary"] = summary
-    data["updated"] = datetime.now().strftime("%Y-%m-%d")
+    data["prices_refreshed_at"] = ts
+
+    if confirm_structure:
+        # 人工确认后才盖章：`updated` = 快照 as-of（结构确认日）
+        data["updated"] = datetime.now().strftime("%Y-%m-%d")
+        data["data_source"] = f"国金账户人工确认（{ts}）+ 腾讯实时价刷新（{ts}）"
+        data["structure_basis"] = "人工确认持仓结构与可用资金未变（2026-10-11）"
 
     print(
-        f"\n[汇总] 更新 {updated_count} 只持仓, 总资产: ¥{summary['total_assets']:,.2f}, 浮动盈亏: ¥{total_pnl:+,.2f}"
+        f"\n[汇总] 更新 {updated_count} 只持仓, 总资产: ¥{summary['total_assets']:,.2f}, "
+        f"浮动盈亏: ¥{total_pnl:+,.2f}"
     )
+    print(f"[口径] 结构 as-of={data.get('updated', 'unknown')} | 价格刷新={ts}")
 
     if not dry_run:
         save_portfolio(data)
+        _readback_check(data)
     else:
         print("[DRY-RUN] 未实际保存")
 
     return data
 
 
+def _readback_check(data: dict) -> None:
+    """回读校验（写库须 readback 铁律）：确认落盘后的值与内存一致且自洽。"""
+    reloaded = load_portfolio()
+    m_is = round(data["summary"]["floating_pnl"], 2)
+    m_should = round(sum(h.get("floating_pnl", 0) for h in reloaded.get("holdings", [])), 2)
+    mv = sum(h.get("market_value", 0) for h in reloaded.get("holdings", []))
+    cash = reloaded.get("summary", {}).get("cash_available", 0)
+    total = reloaded.get("summary", {}).get("total_assets", 0)
+    print(
+        f"[readback] floating_pnl={m_is} vs 明细合计={m_should} | "
+        f"市值={mv:.2f} + 现金={cash:.2f} = {mv + cash:.2f} vs total_assets={total:.2f}"
+    )
+    if abs(m_is - m_should) > 0.01:
+        print("  🔴 readback 不一致：summary.floating_pnl 与明细合计不符")
+        sys.exit(2)
+    if abs((mv + cash) - total) > 0.5:
+        print("  🔴 readback 不一致：市值+现金 与 total_assets 不符")
+        sys.exit(2)
+    print("  ✅ readback 通过（明细自洽）")
+
+
 def main():
     dry_run = "--dry-run" in sys.argv
+    # 🔴 仅人工确认持仓结构未变时才用（会盖章 updated=今天）
+    confirm_structure = "--confirm-structure" in sys.argv
 
     print("=" * 50)
     print("  Claw 用户持仓自动刷新")
@@ -270,9 +327,10 @@ def main():
         sys.exit(1)
 
     print()
-    update_portfolio(data, quotes, dry_run=dry_run)
+    update_portfolio(data, quotes, dry_run=dry_run, confirm_structure=confirm_structure)
 
-    print(f"\n数据更新至: {data.get('updated', 'unknown')}")
+    print(f"\n结构 as-of: {data.get('updated', 'unknown')}")
+    print(f"价格刷新: {data.get('prices_refreshed_at', 'unknown')}")
 
 
 if __name__ == "__main__":
