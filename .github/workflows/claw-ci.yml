@@ -195,12 +195,16 @@ jobs:
         run: safety check --full-report || true
       - name: Secret scan
         run: |
-          # 判据（2026-10-11 收窄）：关键词命中**且不是"检测模式定义行"**才算真密钥。
-          # ⚠️ 原写法只看关键词 → **新加一个密钥检测脚本本身就会把本 job 弄红**：
-          #    `.workbuddy/scripts/scan_git_history_secrets.py` 里写着
-          #    `re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")`，被当成真密钥命中（实测）。
-          #    真密钥不会长在 `re.compile(` 的模式串里，故排除该形态；
-          #    真正会拦人的是 Security Scan 工作流里的 gitleaks（本步只是廉价冒烟）。
+          # 判据（2026-10-11 两层，互补 —— 改任一层前先读这里，别只改一处）：
+          #  ① 源头约定（更严，由 tests/test_secret_scan_selfcheck.py 强制）：
+          #     `.workbuddy/scripts/` 与 `.workbuddy/lib/` 里**不得出现完整 PEM 标记字面量**；
+          #     检测器要匹配它时按 `"PRIVATE" + " KEY-----"` 拆开拼接。
+          #  ② 本步兜底（防的是一整类，不只是一次事故）：关键词命中**且不是模式定义行**
+          #     （`grep -v "re\.compile"`）才算真密钥。实例：新增一个密钥检测脚本，其
+          #     `re.compile(...)` 里写着完整 PEM 头 → 被本步当成真密钥判红（2026-10-11 实测，
+          #     把 Claw CI 的 Security Scan 打红）。真密钥不会长在模式串里。
+          #     `-I` 忽略二进制（本地 `__pycache__/*.pyc` 会以 "Binary file matches" 命中）。
+          # 真正会拦人的是 Security Scan 工作流里的 gitleaks；本步只是廉价冒烟。
           HITS=$(grep -rnI "PRIVATE KEY\|-----BEGIN RSA\|-----BEGIN OPENSSH" .workbuddy/scripts/ .workbuddy/lib/ 2>/dev/null | grep -v "re\.compile" || true)
           if [ -n "$HITS" ]; then
             echo "$HITS"
