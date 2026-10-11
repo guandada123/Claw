@@ -465,3 +465,92 @@ def test_check_duplicate_picks_no_data(isolate_state):
     res = uoc.check_duplicate_picks()
     assert res["ok"] is None
     assert "今日 0 票" in res["note"]
+
+
+# ════════════════════ F. 仓库状态（2026-10-11 新增）════════════════════
+
+
+class _FakeRun:
+    def __init__(self, stdout: str, returncode: int = 0):
+        self.stdout = stdout
+        self.stderr = ""
+        self.returncode = returncode
+
+
+def _fake_cmd(branch: str, porcelain: str):
+    """替身 run_cmd：按子命令返回预置输出（不真跑 git）。"""
+
+    def _run(cmd, timeout=90, capture=True, env=None, cwd=None):
+        if "rev-parse" in cmd:
+            return _FakeRun(branch + "\n")
+        if "status" in cmd:
+            return _FakeRun(porcelain)
+        return _FakeRun("")
+
+    return _run
+
+
+def _repo(tmp_path, name="r"):
+    p = tmp_path / name
+    (p / ".git").mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def test_repo_state_flags_non_default_branch(tmp_path, monkeypatch):
+    """硬判据：仓库被留在非默认分支（实测发生过 —— 负向验证做完没切回 main）。"""
+    monkeypatch.setattr(uoc, "run_cmd", _fake_cmd("test/lock-gate-negative-20261011", ""))
+    r = uoc.check_repo_state(targets=[("QTS", _repo(tmp_path), "main")])
+    assert r["ok"] is False
+    assert "分支" in r["alerts"][0] and "checkout main" in r["alerts"][0]
+
+
+def test_repo_state_clean_repo_is_ok(tmp_path, monkeypatch):
+    monkeypatch.setattr(uoc, "run_cmd", _fake_cmd("main", ""))
+    r = uoc.check_repo_state(targets=[("Claw", _repo(tmp_path), "main")])
+    assert r["ok"] is True and r["alerts"] == []
+
+
+def test_repo_state_flags_stale_dirty(tmp_path, monkeypatch):
+    """软判据：改动滞留 ≥12h 才报（几分钟内的改动是自动化"边写边提交"的常态，不报）。"""
+    import os
+    import time
+
+    repo = _repo(tmp_path)
+    f = repo / "a.py"
+    f.write_text("x", encoding="utf-8")
+    old = time.time() - 20 * 3600
+    os.utime(f, (old, old))
+    monkeypatch.setattr(uoc, "run_cmd", _fake_cmd("main", " M a.py\n"))
+    r = uoc.check_repo_state(targets=[("Claw", repo, "main")])
+    assert r["ok"] is False
+    assert "滞留" in r["alerts"][0] and "20" in r["alerts"][0]
+
+
+def test_repo_state_fresh_dirty_is_not_an_alert(tmp_path, monkeypatch):
+    """新鲜改动（<12h）不报 —— 否则每次巡检都撞上并发自动化的在写状态 = 恒真噪音。"""
+    repo = _repo(tmp_path)
+    (repo / "a.py").write_text("x", encoding="utf-8")
+    monkeypatch.setattr(uoc, "run_cmd", _fake_cmd("main", " M a.py\n"))
+    r = uoc.check_repo_state(targets=[("Claw", repo, "main")])
+    assert r["ok"] is True and r["alerts"] == []
+
+
+def test_repo_state_missing_repo_is_explicit_skip(tmp_path, monkeypatch):
+    """取不到证 → ok=None 显式跳过（**不计入 ✅**，与中枢其它检查同口径）。"""
+    monkeypatch.setattr(uoc, "run_cmd", _fake_cmd("main", ""))
+    r = uoc.check_repo_state(targets=[("Nope", tmp_path / "no-such-repo", "main")])
+    assert r["ok"] is None
+    assert "取不到证" in r["note"]
+
+
+def test_repo_state_git_error_is_skip(tmp_path, monkeypatch):
+    """git 报错也算取不到证（不许当成通过）。"""
+    monkeypatch.setattr(uoc, "run_cmd", lambda *a, **k: _FakeRun("", returncode=128))
+    r = uoc.check_repo_state(targets=[("X", _repo(tmp_path), "main")])
+    assert r["ok"] is None
+
+
+def test_repo_state_registered_in_checks(tmp_path, monkeypatch):
+    """检查项必须真的被注册 —— 「已实现但没人调」是本项目反复踩的坑。"""
+    src = SRC.read_text(encoding="utf-8")
+    assert '"仓库状态": check_repo_state()' in src

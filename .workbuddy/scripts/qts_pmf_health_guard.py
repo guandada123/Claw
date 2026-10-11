@@ -98,6 +98,13 @@ def scan_ci(repo, limit=5):
             pr_state = _pr_state_for_branch(repo, br)
             if pr_state in ("MERGED", "CLOSED"):
                 continue
+            # 2026-10-11 修（实测的恒真噪音）：**分支已从远端删除**的无 PR 分支
+            # （实验/验证用的一次性分支）→ 没有可合并的东西、永久无人处置，
+            # 但 run 记录不随分支删除 → 「CI 红灯 1 个」会常驻。
+            # 实测来源：负向验证分支 test/lock-gate-negative-20261011 删掉后仍被计入。
+            # 判不了（None）则**维持原判**，不擅自放过。
+            if _branch_exists(repo, br) is False:
+                continue
         reds.append(
             {
                 "workflow": r.get("workflowName", "?"),
@@ -108,6 +115,27 @@ def scan_ci(repo, limit=5):
             }
         )
     return reds, ""
+
+
+def _branch_exists(repo: str, branch: str) -> bool | None:
+    """分支是否还在远端。None = 查不到（网络/权限）→ 调用方**不许据此改判**。
+
+    2026-10-11 新增。用途见 scan_ci 的孤儿分支豁免。
+    """
+    rc, out, _err = run(
+        [
+            "gh",
+            "api",
+            f"repos/guandada123/{repo}/branches",
+            "--paginate",
+            "--jq",
+            ".[].name",
+        ]
+    )
+    if rc != 0:
+        return None
+    names = {ln.strip() for ln in (out or "").splitlines() if ln.strip()}
+    return branch in names
 
 
 def _pr_state_for_branch(repo, branch) -> str:

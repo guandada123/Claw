@@ -614,6 +614,80 @@ def check_disk() -> dict:
         return {"ok": False, "alerts": [f"disk 检查异常: {e}"]}
 
 
+# ── 仓库状态检查（2026-10-11 新增）───────────────────────────────────────
+# 动机：本机多个自动化会写 Claw / QTS / StockInsight 的 git 工作树。实测撞到过两类
+# **无告警的残留**：① 负向验证做完把 QTS 仓库**留在测试分支上**（要人工切回 main）；
+# ② 改动滞留工作树数小时（可能被下一次 checkout/clean 冲掉）。
+# 判据刻意分软硬两档，避免变成恒真噪音：
+#   · 硬：当前分支 ≠ 期望默认分支 → 告警（无歧义、必处置）
+#   · 软：有未提交改动，且**最新一次改动已超过 STALE_HOURS 小时**未动 → 告警
+#         （阈值取 12h 而非几分钟：自动化"边写边提交"是常态，短阈值必然天天红）
+#   · 取不到证（仓库不存在 / git 不可用）→ ok=None 显式跳过，**不计入通过**
+REPO_STATE_STALE_HOURS = 12
+_HOME_DIR = Path(os.environ.get("HOME") or Path.home())
+REPO_STATE_TARGETS: list[tuple[str, Path, str]] = [
+    ("Claw", Path(os.environ.get("CLAW") or (_HOME_DIR / "WorkBuddy" / "Claw")), "main"),
+    ("QTS", _HOME_DIR / "WorkBuddy" / "QuantTradingSystem", "main"),
+    ("StockInsight", _HOME_DIR / "WorkBuddy" / "StockInsight", "main"),
+]
+
+
+def check_repo_state(
+    now_ts: float | None = None,
+    targets: list[tuple[str, Path, str]] | None = None,
+) -> dict:
+    """多仓库 git 状态：分支是否正确 + 是否有「过夜未提交」的改动。
+
+    返回 {"ok": True|False|None, "alerts": [...], "note": ...}；
+    ok=None = 取不到证（**不计入 ✅**，与中枢其它检查同口径）。
+    """
+    tgts = REPO_STATE_TARGETS if targets is None else targets
+    now = datetime.datetime.now().timestamp() if now_ts is None else now_ts
+    alerts: list[str] = []
+    checked: list[str] = []
+    for name, path, default_branch in tgts:
+        path = Path(path)
+        if not (path / ".git").exists():
+            continue
+        rp = run_cmd(["git", "-C", str(path), "rev-parse", "--abbrev-ref", "HEAD"], timeout=20)
+        if rp.returncode != 0:
+            continue
+        branch = (rp.stdout or "").strip()
+        if not branch:
+            continue
+        checked.append(name)
+        if branch != default_branch:
+            alerts.append(
+                f"{name} 当前在分支 `{branch}`（期望 {default_branch}）"
+                f" —— 自动化残留？切回：`git -C {path} checkout {default_branch}`"
+            )
+            continue  # 分支不对时先不叠加"滞留"噪音
+        rs = run_cmd(["git", "-C", str(path), "status", "--porcelain"], timeout=20)
+        dirty = [ln for ln in (rs.stdout or "").splitlines() if ln.strip()]
+        if not dirty:
+            continue
+        newest = 0.0
+        for ln in dirty:
+            rel = ln[3:].strip().strip('"')
+            try:
+                newest = max(newest, (path / rel).stat().st_mtime)
+            except OSError:
+                continue
+        if newest and (now - newest) / 3600 >= REPO_STATE_STALE_HOURS:
+            age_h = (now - newest) / 3600
+            alerts.append(
+                f"{name} 有 {len(dirty)} 项未提交改动，最新一次已 {age_h:.1f}h 未动"
+                f"（≥{REPO_STATE_STALE_HOURS}h = 疑似滞留；示例 `{dirty[0][3:][:60]}`）"
+            )
+    if not checked:
+        return {"ok": None, "alerts": [], "note": "无仓库可检（路径缺失或无 .git）—— 取不到证"}
+    return {
+        "ok": not alerts,
+        "alerts": alerts,
+        "note": f"已检 {len(checked)} 仓：{'/'.join(checked)}",
+    }
+
+
 def check_feishu_channel() -> dict:
     """飞书通道可达性（lark-cli 探测）。"""
     try:
@@ -3035,6 +3109,7 @@ def main() -> int:
         "Docker自愈": check_docker_self_heal(),
         "QTS/pmf CI": check_qts_pmf_ci(),
         "磁盘空间": check_disk(),
+        "仓库状态": check_repo_state(),
         "飞书通道": check_feishu_channel(),
         "调度活性": check_schedule_liveness(),
         "工程质量": check_code_quality(),
