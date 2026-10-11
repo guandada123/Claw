@@ -80,8 +80,26 @@ def test_compare_env_missing_file_is_rc2(tmp_path, monkeypatch):
     assert sec.compare_env(tmp_path / "nope.env", "--all", [], tmp_path / "al.json") == 2
 
 
-@pytest.mark.parametrize("frag", ["ak_" + "A" * 16, "ak_" + "a1B2" * 6])
+@pytest.mark.parametrize(
+    "frag",
+    [
+        "ak_" + "A" * 20,          # 边界：恰好 20 位
+        "ak_" + "a1B2" * 6,        # 混合字母数字
+        "ak_" + "a" * 16 + "_-_-",  # ⚠️ 含 `_`/`-`：旧模式 `[A-Za-z0-9]{16,}` **漏报**过这类值
+    ],
+)
 def test_pattern_matches_expected_token_shapes(frag):
-    """判据边界：`ak_` + ≥16 位字母数字才算候选（避免把 `ak_your_key_here` 这类占位符算进来）。"""
+    """判据边界：`ak_` + ≥20 位（字母数字或 `_`/`-`）才算候选 —— 避免把占位符算进来。
+
+    ⚠️ 2026-10-11 由并发修复变更：原为 `{16,}` 且不含 `_`/`-`（**会漏报**含这两个字符的真 token）。
+    本用例刻意钉住**修正后**的边界：19 位不算、20 位算、`_`/`-` 算。
+    """
     names = [n for n, rx in sec.PATTERNS if rx.search(frag)]
     assert "wind_token" in names
+
+
+def test_pattern_ignores_below_boundary_and_placeholders():
+    """反向对照：太短 / 占位符形态不得命中（否则会把示例文本当密钥）。"""
+    for frag in ["ak_" + "A" * 19, "ak_your_key_here", "ak_", "AK_" + "A" * 30]:
+        names = [n for n, rx in sec.PATTERNS if rx.search(frag)]
+        assert "wind_token" not in names, frag

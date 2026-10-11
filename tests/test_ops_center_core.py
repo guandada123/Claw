@@ -611,3 +611,40 @@ def test_silent_stub_check_registered(tmp_path):
     """检查项必须真被注册 —— 「已实现但没人调」是本项目反复踩的坑。"""
     src = SRC.read_text(encoding="utf-8")
     assert '"静默桩": check_silent_stubs()' in src
+
+
+# ════════════ H. 工程质量·测试子信号不得静默降级（2026-10-11）════════════
+
+
+def _qc_with(monkeypatch, pytest_stdout: str, rc: int = 0):
+    """只替换 pytest 那一次调用，其余子信号返回空成功。"""
+
+    def _run(cmd, **k):
+        if "pytest" in " ".join(map(str, cmd)):
+            return _FakeRun(pytest_stdout, returncode=rc)
+        return _FakeRun("", returncode=0)
+
+    monkeypatch.setattr(uoc, "run_cmd", _run)
+    return uoc.check_code_quality()
+
+
+def test_quality_note_reports_count_when_parseable(monkeypatch):
+    r = _qc_with(monkeypatch, "..... 889 passed in 57.58s\n")
+    assert "测试: 889 passed" in r["note"]
+
+
+def test_quality_note_does_not_render_unknown_as_pass(monkeypatch):
+    """回归：拿不到统计行时原写法落成 "?"，渲染出来是 `✅ … 测试: ? passed` —— 看着像通过。
+
+    真实触发：用**没有 pytest 的解释器**跑本脚本（sys.executable 决定），
+    pytest 只回 `No module named pytest`，没有任何统计行。
+    """
+    r = _qc_with(monkeypatch, "python3: No module named pytest\n", rc=1)
+    assert "无法判定" in r["note"], r["note"]
+    assert "? passed" not in r["note"], "不许把「判不了」写成「通过了」"
+    assert "不等于通过" in r["note"]
+
+
+def test_quality_note_reports_failures(monkeypatch):
+    r = _qc_with(monkeypatch, "3 failed, 10 passed in 1.0s\n")
+    assert "10 passed / 3 failed" in r["note"]

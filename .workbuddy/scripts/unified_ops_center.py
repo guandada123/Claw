@@ -948,13 +948,25 @@ def check_code_quality() -> dict:
             cwd=str(CLAW_ROOT),
         )
         m = re.search(r"(\d+)\s+passed", r.stdout)
-        passed = int(m.group(1)) if m else "?"
         failed = re.search(r"(\d+)\s+failed", r.stdout)
         failed_n = int(failed.group(1)) if failed else 0
-        if failed_n > 0:
-            notes.append(f"测试: {passed} passed / {failed_n} failed（质检卡片会推送）")
+        if not m:
+            # ⚠️ 2026-10-11 修：**不许把"判不了"渲染成"通过了"**。
+            # 原写法拿不到统计行时落成 "?"，note 渲染出来是 `✅ 工程质量 … 测试: ? passed` ——
+            # 一眼扫过去像"测过了"。真实触发：用没有 pytest 的解释器跑本脚本
+            # （sys.executable 决定，我本地用 managed 3.13.12 跑时命中），
+            # pytest 只回了 `No module named pytest`，没有任何统计行。
+            # 现在显式写"无法判定"+ 原因 + 末行，让人知道该看哪。
+            tail = ((r.stdout or "") + (r.stderr or "")).strip().splitlines()
+            notes.append(
+                f"测试: **无法判定**（未产出统计行，rc={r.returncode}；"
+                f"末行: {tail[-1][:90] if tail else '(空)'}）"
+                f" —— 该子信号未通过验证，不等于通过"
+            )
+        elif failed_n > 0:
+            notes.append(f"测试: {int(m.group(1))} passed / {failed_n} failed（质检卡片会推送）")
         else:
-            notes.append(f"测试: {passed} passed")
+            notes.append(f"测试: {int(m.group(1))} passed")
     except Exception as e:  # noqa: BLE001
         notes.append(f"pytest 异常: {e}")
 
