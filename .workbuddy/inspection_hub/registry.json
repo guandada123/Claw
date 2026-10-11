@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T09:37:51+08:00",
+  "updated_at": "2026-10-11T11:57:32+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2463,7 +2463,8 @@
     "2026-10-10T00:44:00+08:00 [📥 文档类落地·live batch#2] 落地 3 条纯新建 references/*.md（disc-20261004-03,disc-20261006-02,disc-20261006-03）至 a-stock-data×2 / majiu-management×1；self_audit 全过 + check_cmd 3/3 PASS；parity rc=0/ok/violations=[]/gaps=[]；hub_reconcile rc=0 clean=true；rollback：skills_vcs 7fe73c0→a76d009，Claw commit 9b549d9",
     "2026-10-10T23:25:21+08:00 周度统一排序（2026-W41）：待排序 5｜四环 {'Adopt': 1, 'Trial': 2, 'Assess': 0, 'Caution': 2}｜升降环 3",
     "2026-10-11 live 第 3 批落地 3 条 [disc-20261010-01,disc-20261011-01,disc-20261011-03]：unified-inspection-hub 新建 references/×2 + majiu-management ×1；技能库回滚点 395ffb7→da5a824；Claw commit 67270a5；doc_apply.rollback_point 9b549d9→67270a5；3b 复检 parity rc=0/ok=true/violations=[] + hub_reconcile rc=0/clean=true（连续第 7 日）",
-    "2026-10-11 登记 disc-20261011-04（proposed）：候选 check_cmd 硬编码 Claw 侧路径而实际落地根为 HOME/.workbuddy/skills → check_cmd 恒失败、指标永远无法证真（本批 2/3 条命中）→ 转周度审"
+    "2026-10-11 登记 disc-20261011-04（proposed）：候选 check_cmd 硬编码 Claw 侧路径而实际落地根为 HOME/.workbuddy/skills → check_cmd 恒失败、指标永远无法证真（本批 2/3 条命中）→ 转周度审",
+    "2026-10-11 多自动化并发写仓：**判定不做「仓库级真互斥」，改为结构性拆除唯一的危险写法**。① 普查（77 个 ACTIVE 自动化的 prompt 全文匹配 git 写动词）：真正会写 git 的**只有 1 个** —— `1fd52465` 📥 每日·文档类落地（`git add -A && git commit`）；`automation-1785825576843` 运维巡检周报里出现的 `git commit/push/reset/clean` 全是**禁止性说明**；`$VCS`（skills_vcs.sh）被 2 个自动化调用，但那是技能库的独立 git 仓、`-A` 属**设计意图**（快照全部技能库状态）。② 取证：历史 6 次 `hub(doc-apply)` 提交**均只含预期文件**（registry/calibration/parity），**未发生**扫走无关文件的事故 → 隐患真实存在但未触发（运行时机恰好错开）。③ 为何不做锁：自动化是**自己敲 git 命令**、没有单一收口点可挂锁；且 git 自身 `.git/index.lock` 已把索引操作串行化（并发 `git add/commit` 是**响亮失败**，不是静默损坏）；给 77 个自动化统一加锁属独立工程。④ 实际动作：把 doc-apply 的 `git add -A` 改为 `git add .workbuddy/inspection_hub/`（**结构性消除扫走能力**，非靠纪律），并在 prompt 里写明「看到 inspection_hub 之外的改动 → 那不是本批的，既不提交也不丢弃」。⑤ 可观测性已就位：本轮新增的巡检检查项「仓库状态」（分支不对 / 改动滞留 ≥12h）负责兜住残留。→ 若将来再次出现扫走/并发损坏的**实例**，再据此升级为锁；**不要凭机制危险就上锁**。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
