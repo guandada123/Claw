@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T09:34:38+08:00",
+  "updated_at": "2026-10-11T09:37:38+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -1962,12 +1962,12 @@
     {
       "id": "disc-20261010-02",
       "found_at": "2026-10-10",
-      "status": "proposed",
+      "status": "rejected",
       "track": "external_trend",
       "target_project": "QTS",
       "skill": "",
       "class": "core",
-      "needs_review": true,
+      "needs_review": false,
       "url": "https://cloud.tencent.com.cn/developer/article/2747829",
       "value": "medium-high",
       "risk": "medium",
@@ -1975,8 +1975,10 @@
       "check_cmd": "cd /Users/guan/WorkBuddy/QuantTradingSystem && python -m pytest strategy-service/tests/test_backtest_engine_v2.py -q",
       "suggestion": "借鉴 A股回测提速范式（向量化替代 for/iterrows、QMT get_market_data_ex 一次性内存预加载、DuckDB/三级缓存、多进程并行），优化 backtest_engine_v2.py 的逐行/iterrows 瓶颈使全样本回测耗时可控。核心改动，走周度人工审（生成 diff 提案待授权）。",
       "ring_prev": null,
-      "ring": "Caution",
-      "proposal": "核心改动提案（QTS strategy-service/services/backtest_engine_v2.py）：当前回测为逐标的×逐策略 Python for 循环 + 行级 .append() 累积（热点：_build_bt_indices 内 generate_signals 逐行调用 ~line386-392、daily_values/trades 累积循环 ~line573/644/698）。提案：① 先用 cProfile 对全样本跑取基线 wall-time（数值基线，success_metric 的对照锚）；② 将行情 list[dict] 预载为 Pandas DataFrame，信号生成与逐Bar盈亏/仓位更新改用向量化（.shift()/.rolling()/布尔掩码）替代 Python 层 for/iterrows；③ 保留 test_backtest_engine_v2.py 断言收益曲线与交易信号不变；④ 复测 wall-time 须较基线下降≥50%。属核心类 → 仅提案，本自动化不改写，待人工授权后落地。回滚点：QTS git HEAD。\n\n⚠️ 2026-10-11 前提更正（实测）：本提案写「保留 test_backtest_engine_v2.py 断言收益曲线与交易信号不变」—— **该前提不成立**：存量 100 个用例只断言结构（len>0 / >=0 / 日期单调 / 字段存在），**没有任何值级断言** → 改造一旦让收益曲线数值漂移，存量测试会全绿。\n   已补前置（2026-10-11）：新增 `strategy-service/tests/test_backtest_golden_master.py`（5 例值级金标：聚合指标逐位 + 逐笔成交价/数量/盈亏 + 成本必带【滑点/佣金/印花税】 + 自证确定性；输入用整数 LCG，跨平台逐位一致）。\n   执行向量化改造前请先把该金标跑绿并留 wall-time 基线；改造后「金标全绿 + 耗时 ≥50% 下降」两条一起看，缺一不算达成。"
+      "ring": null,
+      "proposal": "核心改动提案（QTS strategy-service/services/backtest_engine_v2.py）：当前回测为逐标的×逐策略 Python for 循环 + 行级 .append() 累积（热点：_build_bt_indices 内 generate_signals 逐行调用 ~line386-392、daily_values/trades 累积循环 ~line573/644/698）。提案：① 先用 cProfile 对全样本跑取基线 wall-time（数值基线，success_metric 的对照锚）；② 将行情 list[dict] 预载为 Pandas DataFrame，信号生成与逐Bar盈亏/仓位更新改用向量化（.shift()/.rolling()/布尔掩码）替代 Python 层 for/iterrows；③ 保留 test_backtest_engine_v2.py 断言收益曲线与交易信号不变；④ 复测 wall-time 须较基线下降≥50%。属核心类 → 仅提案，本自动化不改写，待人工授权后落地。回滚点：QTS git HEAD。\n\n⚠️ 2026-10-11 前提更正（实测）：本提案写「保留 test_backtest_engine_v2.py 断言收益曲线与交易信号不变」—— **该前提不成立**：存量 100 个用例只断言结构（len>0 / >=0 / 日期单调 / 字段存在），**没有任何值级断言** → 改造一旦让收益曲线数值漂移，存量测试会全绿。\n   已补前置（2026-10-11）：新增 `strategy-service/tests/test_backtest_golden_master.py`（5 例值级金标：聚合指标逐位 + 逐笔成交价/数量/盈亏 + 成本必带【滑点/佣金/印花税】 + 自证确定性；输入用整数 LCG，跨平台逐位一致）。\n   执行向量化改造前请先把该金标跑绿并留 wall-time 基线；改造后「金标全绿 + 耗时 ≥50% 下降」两条一起看，缺一不算达成。",
+      "resolved_at": "2026-10-11T09:37:19+08:00",
+      "resolution": "**判据：不做（rejected），并已把基线补齐。**\n① 先补提案缺的**数值基线**（QTS e3494a9a 新增 `strategy-service/scripts/bench_backtest.py`，确定性：整数 LCG 造行情，无网络/DB/random）：实测 best-of-3 —— 2 万行 **0.016s** / 10 万行 **0.121s** / 40 万行 **0.472s** → **每行 ≈1.2µs，完全线性**；外推 13M 行（≈5400 只 × 10 年日线）≈ **16s**。\n② 结论：回测耗时**不是当前瓶颈**。向量化能省的是「零点几秒」，代价却是重写算钱路径的信号/成交循环（`_signal_ma_cross` + `_run_bt_simulation`）——高爆炸半径、收益无法证明。\n③ 该提案源自外部趋势文章（A股回测提速范式），**不是**本项目实测出的痛点（登记时未附任何耗时数字）→ 属「方案找问题」。基线已留在仓库；等真出现「回测太慢挡住研究」的实例，再拿它当验收锚（届时 success_metric 才有对照值）。\n④ 前置网已就位：值级金标 5 例（QTS d7d0c835）——将来若真要改，先跑绿它。"
     },
     {
       "id": "disc-20261010-03",
@@ -2144,12 +2146,12 @@
       "id": "disc-20261011-04",
       "date": "2026-10-11",
       "skill": "unified-inspection-hub",
-      "status": "proposed",
+      "status": "applied",
       "value": "medium-high",
       "risk": "low",
       "track": "project_signal",
       "target_project": "meta",
-      "needs_review": true,
+      "needs_review": false,
       "anchor": {
         "discovered_by": "1fd52465-899f-4525-a82d-4cc5df01155c"
       },
@@ -2159,7 +2161,14 @@
       "evidence": {
         "batch": "2026-10-11 live 第 3 批",
         "hit": "disc-20261010-01, disc-20261011-01（2/3 条命中）"
-      }
+      },
+      "ring": null,
+      "applied_action": "apply_doc_candidates.py：新增 check_cmd_bad_paths() + 闸门理由码 check_cmd_bad + blocked_check_cmd 计数告警 + check_cmd_weak_exit_code() 弱退出码告警",
+      "resolved_at": "2026-10-11T09:37:38+08:00",
+      "landed_at": "2026-10-11",
+      "landed_commit": "c861e49",
+      "recheck_after_days": 7,
+      "resolution": "已落地（Claw c861e49）。\n① 闸门新增**路径存在性预检**：`check_cmd_bad_paths()` 抽出命令里的绝对路径做存在性判定，命中不存在 → 理由码 `check_cmd_bad` 拦下；报告与 JSON 输出 `blocked_check_cmd` 计数，console 单独一行告警并给出药方（改用 `$HOME/.workbuddy/skills/…`）。可配置 `require_check_cmd_paths` 关闭。\n② 覆盖率：对**全部 70 条候选**实测 —— 20 条带 check_cmd 的逐条判定，0 条漏判、0 条误杀（修掉一处误杀：含通配符的 `skills/*/SKILL.md` 改走 glob 判定）。\n③ 顺带修实测发现的两条失效 check_cmd（disc-20261010-01 / disc-20261011-01）并各留 note。\n④ 额外发现并落地：原提案只提「路径不存在」，实测还有一类**退出码被抹平**（`grep -rl … | head -1` 对不存在的字符串也 rc=0）→ 新增 `check_cmd_weak_exit_code()` 仅告警不拦截。\n⑤ 未越界：提案①要求的「产出侧改用变量」属另一自动化的 prompt，未改它；改由闸门告警承担反馈闭环。\n验收：本候选 check_cmd `grep -c 'check_cmd_bad' apply_doc_candidates.py` 实测 = **7**（≥1 即达成）。"
     }
   ],
   "known_failure_modes": [
