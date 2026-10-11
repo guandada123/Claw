@@ -149,7 +149,9 @@ def main(argv: list[str]) -> int:
         print(f"[learnings-index] {repo_name}: 最新（{len(items)} 条）")
         return 0
 
-    target.write_text(content + "\n", encoding="utf-8")
+    # ⚠️ `render()` 的结果**已经以单个换行结尾** —— 别再补一个，否则 pre-commit 的
+    #    `end-of-file-fixer` 会改文件并把提交打回（QTS 实测踩到）。
+    target.write_text(content.rstrip("\n") + "\n", encoding="utf-8")
     print(f"[learnings-index] {repo_name}: 已生成 {target.name}，{len(items)} 条")
     return 0
 
