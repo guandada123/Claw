@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T22:52:51+08:00",
+  "updated_at": "2026-10-11T23:08:52+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2809,12 +2809,17 @@
       "owner": "auto",
       "title": "板块层拆 generated_at / data_date，触发器连续计数改按 data_date（自审首轮建议②）",
       "criteria": "板块层新增 `data_date`（取 `daily_quote` 最后一根 K 线日期），与 `generated_at` 分离；处置触发器的连续计数按 `data_date` 去重。",
-      "status": "open",
-      "verifier": "非交易日生成时 `data_date < report_date`；「同日三跑」不触发 T2。T2 最早 10-14 可判（板块层 RPS 历史目前仅 1 个 report_date）。",
+      "status": "done",
+      "verifier": "非交易日生成时 `data_date < report_date`；「同日三跑」不触发 T2。T2 最早 10-14 可判（板块层 RPS 历史目前仅 1 个 report_date）。 ⚠️ 2026-10-11 补充验收（已过）：sector_strength_layer.compute() 输出含 data_date 且 非交易日时 data_date < report_date（实测 10-09 < 10-11）；连续三跑不同 report_date 而同 data_date → sector_rps_history.json 只有 1 个键；且该文件**确实存在**（此前根本不存在）。",
       "auto_check": "hub_reconcile.py D6",
       "why": "自审首轮实测：`report_date` 是「生成日」而非「数据日」→ 同日多跑会重复计数，把 T2 判据灌水。",
       "if_no_action": "keep_as_is",
-      "if_no_action_note": "不升级：T2 判据在数据积累到 2 个 data_date 前不会误判；但 10-14 后若仍按生成日计数，结论会失真。"
+      "if_no_action_note": "不升级：T2 判据在数据积累到 2 个 data_date 前不会误判；但 10-14 后若仍按生成日计数，结论会失真。",
+      "resolved_at": "2026-10-11",
+      "landed_at": "2026-10-11",
+      "landed_commit": "93e53bf",
+      "recheck_after_days": 7,
+      "resolution": "已落地（Claw 93e53bf）。**同时纠正本条的原始判据描述**：原文写「report_date 是生成日 → 同日多跑会重复计数」—— 读码核实为**不成立**：历史是 history[sector][report_date]=rps，字典键本身就把同日多跑折叠成一条；真问题是**非交易日也跑**（生成日是新的一天、数据仍是上一交易日旧值 → 多出一个休市日键，给 T2 灌水）。已按此实现：\n① sector_strength_layer 新增 data_date（成分股最新 K 线日最大值）；实跑今日 report_date=2026-10-11 / **data_date=2026-10-09**（今天正是休市日，此刻就会多记一天）。\n② check_disposal_triggers 历史改按 data_date 入键，**缺字段回退** report_date（老产物若直接不写会更坏：历史停止增长）。\n③ 🔴 **顺带撞见更严重的问题**：RPS_HISTORY 此前**只读不写**（全脚本仅写 BASELINE_FILE，磁盘上该文件不存在）→ series 每次只有今天一条 → **T2「连续≥3 个不同日期」结构性不可达**，即 T2 是个**死触发器**而一直「看起来在跑」。已补落盘（置于基线逻辑之前，否则首次运行建完基线即 return 会丢第一天）；写失败响亮告警。\n（自审首轮那句「RPS 历史目前仅 1 个 report_date」其实是**没落盘**的症状，被归因成「才过一天」。）\n验证：双向 —— 临时移除落盘段 → 5 例测试失败（含决定性 T2 例）；恢复 → 24 passed。"
     },
     {
       "id": "PA-016",

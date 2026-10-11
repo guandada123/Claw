@@ -3,10 +3,10 @@
 > ⚠️ **本文件由 `learnings_index.py` 自动生成，请勿手改**（改了会在下次生成时被覆盖）。
 > 权威内容是 `.learnings/*.md` 正文；本文件只是**派生视图**。
 > ⚠️ 手工维护的 `LEARNINGS.md` 里的**浓缩条目不在本表内**（它已停更，见其抬头说明）。
-> 生成时间：2026-10-11 23:01　｜　条目数：**89**
+> 生成时间：2026-10-11 23:09　｜　条目数：**90**
 
-- **按类型**：correction×5　分析口径错误×2　归因错误×2　self-checker-blind×1　blind-spot×1　false-positive×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　engineering_practice×1　best_practice×1　knowledge_gap×1　根因定案×1　（另有 67 条未标注该字段）
-- **按等级**：P1×15　P2×5　P0×3　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 63 条未标注该字段）
+- **按类型**：correction×5　分析口径错误×2　归因错误×2　self-checker-blind×1　blind-spot×1　silent-dead-mechanism×1　false-positive×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　engineering_practice×1　best_practice×1　knowledge_gap×1　根因定案×1　（另有 67 条未标注该字段）
+- **按等级**：P1×16　P2×5　P0×3　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 63 条未标注该字段）
 
 | 日期 | 标题 | 等级 | 类型 | 状态 | 文件 |
 |---|---|---|---|---|---|
@@ -14,6 +14,7 @@
 | 2026-10-11 | ★教训：审计别人的系统前，先读**既有的审计代码**（一次自我假警报的复盘） | — | 分析口径错误（不是系统故障；**是审计者自己制造的故障**） | — | `2026-10-11-self-audit-hit-documented-soft-delete-trap.md` |
 | 2026-10-11 | ★升级候选：「没有规则的规则文件」会**静默关闭全部检测** —— CI 密钥扫描空跑 68 天 | P0（安全检测能力实际为零，且 CI 显示绿灯） | self-checker-blind（检测器自身失效 / 假性安心） | 已修复（`.gitleaks.toml` 补 `[extend] useDefault = true` + 自定义规则 + 6 例防回归测试） | `2026-10-11-rulesless-config-disables-all-detection.md` |
 | 2026-10-11 | ★升级候选：判据被复用，盲区就会成对出现 —— 同一正则漏一种时间戳格式，该档位**同时**逃过「体检」与「归档」 | P1（不造成数据丢失，但**让 40% 的档位永久脱离治理**，且全程无告警） | blind-spot（判据复用 + 退出码语义污染） | 已全部修复（解析器 + 退出码 + 判据阈值），2026-10-11 | `2026-10-11-reused-predicate-reuses-blindspot.md` |
+| 2026-10-11 | ★升级候选：状态**只读不写** → 触发器**结构性死亡**；而它的症状被误归因成"才过一天" | P1（T2 触发器**从未、也不可能**触发；无报错、无告警，脚本一直"看起来在跑"） | silent-dead-mechanism（状态不落盘） | 已修复（Claw `93e53bf`） | `2026-10-11-read-only-state-kills-accumulator.md` |
 | 2026-10-11 | ★升级候选：分支删了，`gh run list` 的 failure 记录**不会消失** —— 一条**永久假红**常驻巡检 | P1（不误伤生产，但让一条**永远无人能处置**的红灯常驻 → 真红灯混在同一栏里失去分辨力） | false-positive（取证口径漏了"分支已不存在"这一态） | 已修复（`qts_pmf_health_guard.scan_ci` 加孤儿分支豁免） | `2026-10-11-orphan-branch-red-persists-after-delete.md` |
 | 2026-10-11 | ★ 别在共享 checkout 里用 commit 做实验（2026-10-11） | — | — | — | `2026-10-11-no-experiment-commits-in-shared-checkout.md` |
 | 2026-10-11 | ★升级候选：比对哈希**差点判反** —— 算法与粒度错一个，结论就反了（「在用凭据在公开仓」被判成"已轮换"） | P0 级风险 × 手动取证险些失手（结论错 = 把一个**公开仓里放着的有效凭据**判成"安全"） | 取证口径错误（readback 读错） | 已闭环（凭据已轮换）；已加 `--compare-env` 把口径固化 | `2026-10-11-hash-compare-caliber-nearly-inverted.md` |
