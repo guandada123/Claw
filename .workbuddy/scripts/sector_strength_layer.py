@@ -107,6 +107,8 @@ def _stock_metrics(code: str) -> dict | None:
     mom_slope = mom5 - mom20
     return {
         "code": code,
+        # 该股最新一根 K 线的日期（rows 是 DESC，rows[0] 即最新）→ 供上层取 max 得 data_date
+        "last_date": str(rows[0].get("trade_date") or "")[:10] or None,
         "mom5": mom5,
         "mom10": mom10,
         "mom20": mom20,
@@ -144,8 +146,11 @@ def _sector_agg(name: str, codes: list[str]) -> dict | None:
     else:
         label = "弱"
     composite = mom20 * W_MOM20 + mom5 * W_MOM5 + ma20_pos * W_MA20POS
+    _dds = [m.get("last_date") for m in ms if m.get("last_date")]
     return {
         "sector": name,
+        # 本板块数据实际对应的交易日（成分股最新 K 线日的最大值）
+        "data_date": max(_dds) if _dds else None,
         "n_stocks": len(ms),
         "mom5": round(mom5, 4),
         "mom10": round(med("mom10"), 4),
@@ -185,8 +190,13 @@ def compute(date_str: str | None = None) -> dict | None:
         for c in SECTORS.get(sec, []):
             if _allowed(c) and c not in focus_codes:
                 focus_codes.append(c)
+    _all_dd = [s.get("data_date") for s in sectors_sorted if s.get("data_date")]
     return {
+        # report_date = **生成日**（本次运行是哪天）；data_date = **数据日**（用的 K 线到哪天）。
+        # ⚠️ 2026-10-11（PA-015）：两者必须分开 —— 非交易日也会跑，若下游按生成日计数，
+        #    休市日会以"新的一天 + 旧数据"多记一天，把「连续 N 日」类判据灌水。
         "report_date": date_str or date.today().isoformat(),
+        "data_date": max(_all_dd) if _all_dd else None,
         "source": "QTS PG daily_quote (via qts_client, readonly)",
         "sectors": sectors_sorted,
         "top3": [

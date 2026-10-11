@@ -144,10 +144,15 @@ def _seed(
     created_days_ago=10,
     baseline=True,
     rps=None,
+    report_date=None,
+    data_date=None,
 ):
     """布置快照/板块/基线三份数据并指到 tmp。"""
     portfolio = {"holdings": holdings, "summary": {"total_assets": 100000.0}}
-    strength = {"report_date": date.today().isoformat(), "sectors": []}
+    # report_date = 生成日；data_date = 数据日（PA-015 新增，缺省不带 → 走回退路径）
+    strength = {"report_date": report_date or date.today().isoformat(), "sectors": []}
+    if data_date:
+        strength["data_date"] = data_date
     if rps is not None:
         strength["sectors"] = [{"sector": "半导体", "rps": rps}]
     files = {
@@ -294,3 +299,106 @@ def test_main_silent_when_nothing_fires(tmp_path, monkeypatch):
         rps=55.0,
     )
     assert _run(monkeypatch) == 0
+
+
+# ══════════════════════════════════════════════════════
+# PA-015：RPS 历史按「数据日」去重（2026-10-11）
+# ══════════════════════════════════════════════════════
+
+
+def _history(tmp_path):
+    f = tmp_path / "rps_history.json"
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+
+
+def test_rps_history_keys_by_data_date(tmp_path, monkeypatch):
+    """有 `data_date` 时按其入键 —— 生成日与数据日必须分开。"""
+    _fixed_calendar(monkeypatch)
+    _seed(
+        tmp_path,
+        monkeypatch,
+        _CONCENTRATED,
+        created_days_ago=1,
+        rps=15.0,
+        report_date="2026-10-11",  # 生成日（周日）
+        data_date="2026-10-09",    # 数据日（周五收盘）
+    )
+    _run(monkeypatch)
+    assert list(_history(tmp_path)["半导体"]) == ["2026-10-09"], "应按数据日入键，而不是生成日"
+
+
+def test_rps_history_falls_back_to_report_date(tmp_path, monkeypatch):
+    """缺 `data_date`（老产物）→ **回退** report_date。
+
+    若不回退而是"不写"，历史会停止增长 —— 那比灌水更坏。
+    """
+    _fixed_calendar(monkeypatch)
+    _seed(tmp_path, monkeypatch, _CONCENTRATED, created_days_ago=1, rps=15.0)
+    _run(monkeypatch)
+    assert list(_history(tmp_path)["半导体"]) == [date.today().isoformat()]
+
+
+def test_nontrading_repeat_does_not_inflate_series(tmp_path, monkeypatch):
+    """回归（PA-015 的真问题）：**非交易日/同日多跑**不得多记一天。
+
+    构造同一数据日、不同生成日跑两次 → 历史仍只有 1 个键。
+    （原按 report_date 入键时会多出一个"休市日"，把 T2「连续 ≥3 个不同日期」灌水。）
+    """
+    _fixed_calendar(monkeypatch)
+    _seed(
+        tmp_path,
+        monkeypatch,
+        _CONCENTRATED,
+        created_days_ago=1,
+        rps=15.0,
+        report_date="2026-10-11",
+        data_date="2026-10-09",
+    )
+    _run(monkeypatch)
+    # 再来一次：隔天生成、但数据日仍是同一个（休市/重跑）
+    _seed(
+        tmp_path,
+        monkeypatch,
+        _CONCENTRATED,
+        created_days_ago=1,
+        rps=15.0,
+        report_date="2026-10-12",
+        data_date="2026-10-09",
+    )
+    _run(monkeypatch)
+    keys = list(_history(tmp_path)["半导体"])
+    assert keys == ["2026-10-09"], f"同一数据日不得多记，实际={keys}"
+
+
+def test_history_persists_across_runs(tmp_path, monkeypatch):
+    """回归（结构性死触发器）：历史**必须落盘**，否则 T2 永远不可能触发。
+
+    实测取证：修复前 `RPS_HISTORY` **只读不写**（全脚本仅写 BASELINE_FILE），
+    磁盘上该文件根本不存在 → `series` 每次只有"今天一条" →
+    T2「连续 ≥3 个不同日期」结构性不可达，而脚本一直"看起来在跑"。
+    """
+    _fixed_calendar(monkeypatch)
+    _seed(tmp_path, monkeypatch, _CONCENTRATED, created_days_ago=1, rps=15.0,
+          report_date="2026-10-08", data_date="2026-10-08")
+    _run(monkeypatch)
+    assert (tmp_path / "rps_history.json").exists(), "跑完必须落盘"
+
+
+def test_t2_can_actually_fire_across_three_data_dates(tmp_path, monkeypatch):
+    """端到端：同一板块 RPS<20 连续 3 个**不同数据日** → T2 必须触发。
+
+    这是对"历史落盘"这个修复的**决定性验证**：修之前无论跑多少次都只会得到 1 条序列。
+    """
+    _fixed_calendar(monkeypatch)
+    for i, dd in enumerate(("2026-10-08", "2026-10-09", "2026-10-12")):
+        _seed(
+            tmp_path,
+            monkeypatch,
+            _CONCENTRATED,
+            created_days_ago=1,
+            rps=15.0,              # 持续弱：RPS 15 < 20
+            report_date=dd,
+            data_date=dd,
+        )
+        rc = _run(monkeypatch)
+    assert rc == 1, "三个不同数据日持续弱 → T2 应触发（修前恒为 0）"

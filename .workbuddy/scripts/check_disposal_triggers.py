@@ -160,15 +160,34 @@ def main() -> int:
     cache = load_json(SECTOR_CACHE, {})
     strength = load_json(SECTOR_STRENGTH, {})
 
-    # 1) RPS 历史（按 report_date 去重，抗重跑/陈旧）
+    # 1) RPS 历史（按**数据日**去重）
+    # ⚠️ 2026-10-11（PA-015）修正原判据：此前按 `report_date`（= **生成日**）为键。
+    #    · 字典键本身就把「同日多跑」折叠成一条 → 所谓"重复计数"其实**不成立**（原描述有误）；
+    #    · 真问题是**非交易日也跑**：生成日是新的一天、数据却还是上一交易日的旧值
+    #      → 多出一个"休市日"键，把 T2「连续 ≥3 个不同日期」**灌水**。
+    #    故改用 `data_date`（板块层取最新 K 线日）；**缺字段时回退** report_date ——
+    #    老产物若直接不写，历史会停止增长，那比灌水更坏。
     history = load_json(RPS_HISTORY, {})
-    rd = strength.get("report_date")
+    rd = strength.get("data_date") or strength.get("report_date")
     rps_now = None
     if rd:
         row = next((s for s in strength.get("sectors", []) if s.get("sector") == args.sector), None)
         if row and "rps" in row:
             rps_now = float(row["rps"])
             history.setdefault(args.sector, {})[rd] = rps_now
+    # 🔴 2026-10-11 取证（PA-015 排查时顺带发现，**比 PA 原描述更严重**）：
+    #    `RPS_HISTORY` 此前**只读不写** —— 全脚本仅写过 BASELINE_FILE，磁盘上该文件也**不存在**。
+    #    后果：`series` 每次运行都只有"今天一条" → **T2「连续 ≥3 个不同日期」永远不可能触发**，
+    #    是**结构性死触发器**（而它此前一直"看起来在跑"）。
+    #    （自审首轮那句"RPS 历史目前仅 1 个 report_date"其实是**没落盘**的症状，被归因成"才过一天"。）
+    #    故在此持久化；放在基线逻辑**之前**，否则首次运行（建基线后即 return）会丢掉第一天。
+    if rps_now is not None and not args.dry_run:
+        try:
+            RPS_HISTORY.write_text(
+                json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except OSError as e:  # 写不了 = T2 仍是死的 → 必须响亮，别静默
+            print(f"⚠️ RPS 历史写入失败({e}) → T2 判据将不可用")
     series = [history.get(args.sector, {})[d] for d in sorted(history.get(args.sector, {}))]
 
     m = evaluate(portfolio, cache, args.sector, series)
