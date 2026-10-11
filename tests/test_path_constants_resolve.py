@@ -49,7 +49,7 @@ INPUT_CASES = [
 #    门禁只查「父目录存在 + 无双嵌套」：抓路径拼错，不抓"还没生成"。
 #    ⚠️ 往这里加条目之前，先确认目标是生成物（`git ls-files --error-unmatch <path>` 应报未跟踪）。
 OUTPUT_CASES = [
-    ("sector_strength_layer", "OUTPUT"),
+    ("sector_strength_layer", "OUTPUT"),  # .workbuddy/data/sector_strength.json（生成物）
 ]
 
 
