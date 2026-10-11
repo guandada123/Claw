@@ -224,3 +224,46 @@ def test_daily_logs_do_not_change_rc(monkeypatch, memfile, capsys):
     out = capsys.readouterr().out
     assert "疑似被复制/恢复进来" in out, out
     assert rc == 0, f"余量充足时必须 rc=0，即使有日日志异常（实际 {rc}）"
+
+
+def test_daily_logs_known_reflux_is_not_reported_again(tmp_path):
+    """已核实的回灌只报一行计数、不再逐条 ⚠️（防恒真噪音淹掉新异常）。
+
+    反例同批验证：把同一个文件从「已知」里拿掉 → 必须立刻回到 ⚠️ 列表。
+    """
+    import json
+    import os
+    import time
+
+    f = tmp_path / "2026-06-21.md"
+    f.write_text("x", encoding="utf-8")
+    old = time.time() - 90 * 86400
+    os.utime(f, (old, old))
+
+    # 未登记 → 进 ⚠️
+    rows = mhc.check_daily_log_anomalies([tmp_path])
+    assert [r["file"] for r in rows[0]["refluxed"]] == ["2026-06-21.md"]
+    assert rows[0]["refluxed_known"] == 0
+
+    # 登记（须带 recorded_at）→ 移出 ⚠️，只计入 known
+    (tmp_path / mhc.DAILY_LOG_KNOWN_FILE).write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {"file": "2026-06-21.md", "reason": "已核实", "recorded_at": "2026-10-11"}
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    rows = mhc.check_daily_log_anomalies([tmp_path])
+    assert rows[0]["refluxed"] == [] and rows[0]["refluxed_known"] == 1
+
+    # 只写 file、不写 recorded_at → **不算豁免**（防「把红灯涂绿」）
+    (tmp_path / mhc.DAILY_LOG_KNOWN_FILE).write_text(
+        json.dumps({"entries": [{"file": "2026-06-21.md"}]}), encoding="utf-8"
+    )
+    rows = mhc.check_daily_log_anomalies([tmp_path])
+    assert [r["file"] for r in rows[0]["refluxed"]] == ["2026-06-21.md"], (
+        "缺 recorded_at 不得算豁免"
+    )

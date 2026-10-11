@@ -63,6 +63,8 @@ def load_checker(path: Path | None = None):
 
 
 DAILY_LOG_MIN_SKEW_DAYS = 7
+DAILY_LOG_KNOWN_FILE = ".daily_log_reflux_known.json"
+"""已核实的回灌清单（同目录）。登记过的只报一行计数，避免恒真噪音。"""
 """日日志「被复制/恢复进来」的 ctime−mtime 最小间隔（天）。
 
 判据由来（2026-10-11 实况）：10-10 20:50 有 11 个 2026-06-21~07-01 的日日志被静默放回
@@ -70,6 +72,22 @@ DAILY_LOG_MIN_SKEW_DAYS = 7
 「复制/恢复且保留 mtime」会让 **mtime 停在原值、ctime 变成操作时刻**，两者相差数月；
 正常写入时 ctime≈mtime。这是「被动过」的机器可判证据。
 """
+
+
+def _load_known_reflux(mem_dir: Path) -> set[str]:
+    """已知（已核实）的回灌文件名集合；文件缺失/坏 JSON = 空集（不当成豁免）。"""
+    f = mem_dir / DAILY_LOG_KNOWN_FILE
+    if not f.is_file():
+        return set()
+    try:
+        data = json.loads(f.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return set()
+    return {
+        str(e.get("file"))
+        for e in data.get("entries", [])
+        if e.get("file") and e.get("recorded_at")
+    }
 
 
 def check_daily_log_anomalies(
@@ -103,13 +121,16 @@ def check_daily_log_anomalies(
                         "ctime": _dt.date.fromtimestamp(st.st_ctime).isoformat(),
                     }
                 )
+        known = _load_known_reflux(d)
+        new_reflux = [r for r in refluxed if r["file"] not in known]
         out.append(
             {
                 "dir": str(d),
                 "count": len(files),
                 "oldest": files[0].name if files else None,
                 "newest": files[-1].name if files else None,
-                "refluxed": refluxed,
+                "refluxed": new_reflux,
+                "refluxed_known": len(refluxed) - len(new_reflux),
             }
         )
     return out
@@ -235,6 +256,12 @@ def main() -> int:
                     n=d["count"], old=d["oldest"], new=d["newest"], dir=d["dir"]
                 )
             )
+            if d.get("refluxed_known"):
+                print(
+                    "   ℹ️ 另有 {} 个已知（已核实为独有历史）的回灌文件，不重复报（见 {}/{}）".format(
+                        d["refluxed_known"], d["dir"], DAILY_LOG_KNOWN_FILE
+                    )
+                )
             if d["refluxed"]:
                 items = ", ".join(
                     "{f}(+{s:.0f}天 {m}→{c})".format(
@@ -243,7 +270,7 @@ def main() -> int:
                     for x in d["refluxed"][:12]
                 )
                 print(
-                    "   ⚠️ 疑似被复制/恢复进来的 {n} 个（ctime 远晚于 mtime；正常写入时两者接近）：{items}".format(
+                    "   ⚠️ 新发现「疑似被复制/恢复进来」的 {n} 个（ctime 远晚于 mtime；正常写入时两者接近）：{items}".format(
                         n=len(d["refluxed"]), items=items
                     )
                 )
