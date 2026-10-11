@@ -696,3 +696,93 @@ def test_rss_upstream_facts_never_invents_when_unreadable(tmp_path, monkeypatch)
     monkeypatch.setattr(uoc.Path, "home", staticmethod(lambda: tmp_path))
     sched, last = uoc._rss_upstream_facts()
     assert "取不到" in sched and "取不到" in last
+
+
+# ════════ J. 结构性守卫：全命令失败时，依赖命令取证的检查不得报 ✅（2026-10-11）════════
+
+
+# 白名单：**按设计**允许在"命令全失败"时仍 ok=True 的检查（每条必须写明理由）
+_ALLOW_OK_ON_TOTAL_FAILURE = {
+    # docstring 写明：它只做"趋势可见性"（记录到状态锚），**绝不返回会触发中枢推送的 alert** ——
+    # 否则关键失败会被 watchdog(1785506975961) 与中枢整体报告双发（两套去重键不同，首轮必双推）。
+    "check_automation_failures",
+}
+
+
+def _checks_using_run_cmd() -> list[str]:
+    r"""用 AST 找出源码里调用过 run_cmd 的 check_\* —— 这样将来新加的检查会被自动纳入守卫。"""
+    import ast
+    import re as _re
+
+    src = SRC.read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    lines = src.splitlines()
+    names = []
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("check_"):
+            body = "\n".join(lines[node.lineno - 1 : node.end_lineno])
+            if _re.search(r"\brun_cmd\(", body):
+                names.append(node.name)
+    return sorted(names)
+
+
+def test_no_check_claims_pass_when_every_command_fails(monkeypatch):
+    """把所有外部命令都弄失败 → 靠命令取证的检查**不得报 ok=True**。
+
+    实测（2026-10-11）抓到 4 个同款缺陷，均已修：
+      · `check_disk`                 —— df 失败 / **路径不存在** / 输出不可解析 → 报"磁盘正常"
+      · `check_qts_api_auth`         —— docker logs 失败 → 报"没找到 401" = 通过
+      · `check_qts_job_write_health` —— 同上，且「无日志输出」原**显式**写 ok=True
+      · `check_code_quality`         —— bandit 没跑起来 → 安全检查压根没验，却仍 ✅
+    这些都是"取不到证却渲染成通过"，与 `测试: ? passed` 同族。
+    """
+
+    class _Fail:
+        returncode = 127
+        stdout = ""
+        stderr = "command not found"
+
+    monkeypatch.setattr(uoc, "run_cmd", lambda *a, **k: _Fail())
+
+    def _call_or_exc(name: str) -> dict:
+        """抛异常 = 响亮失败，不属于"静默报通过" → 用哨兵值表示，不当作 offender。"""
+        try:
+            return getattr(uoc, name)()
+        except Exception as e:  # noqa: BLE001
+            return {"ok": "EXC", "alerts": [str(e)[:60]]}
+
+    offenders = [
+        name
+        for name in _checks_using_run_cmd()
+        if name not in _ALLOW_OK_ON_TOTAL_FAILURE and _call_or_exc(name).get("ok") is True
+    ]
+
+    assert not offenders, (
+        "以下检查在「所有外部命令都失败」时仍报 ok=True —— 属「取不到证却渲染成通过」：\n"
+        + "\n".join(f"  - {n}" for n in offenders)
+        + "\n修法：拿不到证据时返回 ok=None（显式跳过，不计入 ✅），或在白名单里写明按设计的理由。"
+    )
+
+
+def test_guard_would_catch_a_regression(monkeypatch):
+    """自证：把 check_disk 改回"df 失败就静默通过"，守卫必须抓到 —— 否则它是"看着在跑其实没查"。"""
+    import re as _re
+
+    real_src = SRC.read_text(encoding="utf-8")
+    # 直接构造一个同形态的坏检查，验证判定逻辑（不动真文件）
+    def bad_check() -> dict:
+        alerts: list = []
+        r = uoc.run_cmd(["df", "-P", "/nonexistent"], timeout=5)
+        if r.returncode == 0:
+            alerts.append("x")
+        return {"ok": len(alerts) == 0, "alerts": alerts}
+
+    class _Fail:
+        returncode = 127
+        stdout = ""
+        stderr = ""
+
+    monkeypatch.setattr(uoc, "run_cmd", lambda *a, **k: _Fail())
+    assert bad_check()["ok"] is True, "坏检查在命令失败时报通过（这就是守卫要抓的形态）"
+    assert _re.search(r"\brun_cmd\(", "def check_disk():\n    r = run_cmd([])") is not None
+    assert "check_disk" in real_src  # 真文件里存在该检查

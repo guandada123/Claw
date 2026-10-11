@@ -595,20 +595,37 @@ def check_disk() -> dict:
     """检查数据盘使用率（cross_project_state 阈值 warn=85 crit=92）。
     仅查真实数据盘 /Volumes/ZHITAI；/Users/guan 在 macOS 映射到系统卷(~91%常态)，非风险点，排除。"""
     alerts = []
+    missing: list[str] = []
+    unreadable: list[str] = []
     try:
         for path in ["/Volumes/ZHITAI"]:
             if not os.path.exists(path):
+                missing.append(path)
                 continue
             r = run_cmd(["df", "-P", path], timeout=20)
-            if r.returncode == 0:
-                line = r.stdout.strip().splitlines()[-1]
-                parts = line.split()
-                if len(parts) >= 5:
-                    use_pct = int(parts[4].rstrip("%"))
-                    if use_pct >= 92:
-                        alerts.append(f"磁盘 {path} 使用率 {use_pct}%(crit≥92)")
-                    elif use_pct >= 85:
-                        alerts.append(f"磁盘 {path} 使用率 {use_pct}%(warn≥85)")
+            if r.returncode != 0:
+                unreadable.append(f"{path}(df 退出码 {r.returncode})")
+                continue
+            line = r.stdout.strip().splitlines()[-1] if (r.stdout or "").strip() else ""
+            parts = line.split()
+            if len(parts) < 5:
+                unreadable.append(f"{path}(df 输出不可解析)")
+                continue
+            try:
+                use_pct = int(parts[4].rstrip("%"))
+            except ValueError:
+                unreadable.append(f"{path}(df 使用率字段非数字)")
+                continue
+            if use_pct >= 92:
+                alerts.append(f"磁盘 {path} 使用率 {use_pct}%(crit≥92)")
+            elif use_pct >= 85:
+                alerts.append(f"磁盘 {path} 使用率 {use_pct}%(warn≥85)")
+        if missing or unreadable:
+            # 🔴 2026-10-11 修：**取不到证 ≠ 正常**。原写法 df 失败、路径缺失、输出不可解析
+            #    全都静默 continue → 报「磁盘正常」。尤其**路径缺失**：/Volumes/ZHITAI 是三个
+            #    项目的外置盘，它不在是件大事，不是"没这条路径就算了"。
+            bits = ([f"路径不存在 {'、'.join(missing)}"] if missing else []) + unreadable
+            return {"ok": None, "alerts": [], "note": "取不到证：" + "；".join(bits)}
         return {"ok": len(alerts) == 0, "alerts": alerts}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "alerts": [f"disk 检查异常: {e}"]}
@@ -889,6 +906,7 @@ def check_code_quality() -> dict:
     有高危安全项→告警（Tier2 仅告知）；ruff/测试/门禁异常→note 记录（不阻断，质检会处理）。"""
     notes = []
     alerts = []
+    bandit_unavailable = False  # 安全子信号未验证 → 见下方返回值
 
     # 1) bandit 安全扫描（复用 security_scanner.py --quiet）
     try:
@@ -905,8 +923,14 @@ def check_code_quality() -> dict:
             else:
                 notes.append(f"bandit: 无高危（中{med}/低{low}）")
         else:
-            notes.append("无安全汇总输出（bandit 可能未装）")
+            # 🔴 2026-10-11 修：原写"无安全汇总输出（bandit 可能未装）"——**太软了**。
+            #    本检查里 ruff/测试/门禁三个子信号按设计只记 note（不阻断，交给质检自动化），
+            #    但 **bandit 是唯一承载"告警"那一档的子信号**：它没跑起来 = 安全检查**根本没验**，
+            #    而检查仍会渲染成 ✅。现标记为取不到证（函数末尾据此返回 ok=None）。
+            bandit_unavailable = True
+            notes.append("无安全汇总输出（bandit 未产出汇总）")
     except Exception as e:  # noqa: BLE001
+        bandit_unavailable = True
         alerts.append(f"security_scanner 异常: {e}")
 
     # 2) ruff 违规数（只读，不 --fix）
@@ -970,6 +994,13 @@ def check_code_quality() -> dict:
     except Exception as e:  # noqa: BLE001
         notes.append(f"pytest 异常: {e}")
 
+    if bandit_unavailable:
+        # 取不到证就不计入通过：安全检查这一档没验，不能因为"其它子信号没报异常"就报 ✅
+        return {
+            "ok": None,
+            "alerts": alerts,
+            "note": " | ".join(notes + ["取不到证：安全检查(bandit)未验证，不计入通过"]),
+        }
     return {"ok": len(alerts) == 0, "alerts": alerts, "note": " | ".join(notes)}
 
 
@@ -2562,8 +2593,19 @@ def check_qts_api_auth() -> dict:
             timeout=60,
         )
         text = (r.stdout or "") + "\n" + (r.stderr or "")
+        rc = r.returncode
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "alerts": [f"QTS API 鉴权检查异常(docker logs 失败): {e}"]}
+
+    # 🔴 2026-10-11 修：**取不到证 ≠ 通过**。本检查属「从命令输出里找坏消息」型 ——
+    #    拿不到证据时报「没找到坏消息 = ok」是错的。实测（把所有外部命令都弄失败）
+    #    它仍返回 ok=True。现按中枢统一口径改为 ok=None（不计入 ✅）。
+    if rc != 0:
+        return {
+            "ok": None,
+            "alerts": [],
+            "note": f"取不到证：docker logs 退出码 {rc}（判不了 401/403 增量，不计入通过）",
+        }
 
     src_counter: Counter = Counter()
     path_counter: Counter = Counter()
@@ -2727,11 +2769,27 @@ def check_qts_job_write_health() -> dict:
             timeout=60,
         )
         text = (r.stdout or "") + "\n" + (r.stderr or "")
+        rc = r.returncode
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "alerts": [f"QTS 写入健康检查异常(docker logs 失败): {e}"]}
 
+    # 🔴 2026-10-11 修：**取不到证 ≠ 通过**。本检查属「从命令输出里找坏消息」型 ——
+    #    拿不到证据时报「没找到坏消息 = ok」是错的。实测（把所有外部命令都弄失败）
+    #    它仍返回 ok=True。现按中枢统一口径改为 ok=None（不计入 ✅）。
+    if rc != 0:
+        return {
+            "ok": None,
+            "alerts": [],
+            "note": f"取不到证：docker logs 退出码 {rc}（判不了写入失败，不计入通过）",
+        }
     if not text.strip():
-        return {"ok": True, "alerts": [], "note": "quant-strategy 近 6h 无日志输出"}
+        # 原写法这里是 ok=True（"没日志=没问题"）—— 但**没有日志恰恰是没有证据**，
+        # 不能当作"写入正常"。改为 ok=None。
+        return {
+            "ok": None,
+            "alerts": [],
+            "note": "取不到证：quant-strategy 近 6h 无日志输出（无法证明写入正常，不计入通过）",
+        }
 
     write_fail: Counter = Counter()
     samples: list[str] = []
