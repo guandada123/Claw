@@ -46,6 +46,11 @@ CLAW = SCRIPT.parents[2]
 DEFAULT_REGISTRY = CLAW / ".workbuddy" / "inspection_hub" / "registry.json"
 DEFAULT_DB = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "workbuddy.db"
 
+# 非 finding 的信息通道：把「我跳过了什么、为什么」说出来，但**不影响 rc**
+# （存在理由：Hub 的判据是「空声明 ≠ 干净」，可如果连正常跳过都算 finding，rc 就会恒 20 → 恒真噪音，
+#   真问题反而被淹。故单列 NOTES：可读、可入 JSON，但不参与 clean/rc 计算。）
+NOTES: list[str] = []
+
 # D4 只覆盖"高频项"（节奏 ≤ 此小时数）；周/月/季项的漏跑由各自周期审阅覆盖，避免噪音
 # D4' 用：最近 N 次运行全失败才算「跑了但从未成功」（单次失败是常态，不该刷屏）
 MIN_RUNS_FOR_SUCCESS = 3
@@ -699,6 +704,7 @@ def check_cross_project(
     now_dt: datetime.datetime,
     exists: bool = True,
     load_error: str | None = None,
+    reg: dict | None = None,
 ) -> list[dict]:
     """D8 跨项目闭环：active_projects 声明的每个项目是否真的有人管、且状态锚自己不说谎。
 
@@ -778,6 +784,16 @@ def check_cross_project(
         for cwd in paths:
             if cwd and Path(str(cwd)).exists():
                 declared_real.add(os.path.realpath(str(cwd)))
+    # 已知「非项目目录」声明（registry.non_project_dirs）：快照/归档/备份这类**真实存在但不该进矩阵**的目录。
+    # ⚠️ 不是静音：下面会把排除条数与名单打出来 —— 空声明与"真的没有漏项"必须可区分。
+    _npd = reg.get("non_project_dirs") if isinstance(reg, dict) else None
+    known_non_project = {
+        str(x.get("name"))
+        for x in (_npd or [])
+        if isinstance(x, dict) and x.get("name") and x.get("recorded_at")
+    }
+    excluded_hits: list[str] = []
+
     if WB_ROOT.exists():
         for d in sorted(WB_ROOT.iterdir()):
             try:
@@ -787,6 +803,9 @@ def check_cross_project(
                 continue
             rp = os.path.realpath(str(d))
             if rp in declared_real:
+                continue
+            if d.name in known_non_project:
+                excluded_hits.append(d.name)
                 continue
             f(
                 "project_unregistered",
@@ -802,6 +821,13 @@ def check_cross_project(
             str(WB_ROOT),
             f"{WB_ROOT} 不可访问（外部盘未挂载？）→ K2「磁盘上真实存在但未登记的仓库」整段空转，"
             "本次的 D8=0 **不代表**没有漏项",
+        )
+
+    if excluded_hits:
+        NOTES.append(
+            "D8 K2 已按 `registry.non_project_dirs` 排除 {} 个已知非项目目录（快照/归档类，非静默、不计 finding）：{}".format(
+                len(excluded_hits), ", ".join(sorted(excluded_hits))
+            )
         )
 
     # ---- K3 覆盖缺口：声明了项目，却没说它怎么被监控（或已显式声明休眠）----
@@ -1206,10 +1232,10 @@ def main() -> int:
     if cs_path.exists():
         cs_raw = load_json(cs_path)
         d8 = check_cross_project(
-            cs_raw, cs_path, now_dt, exists=True, load_error=cs_raw.get("_error")
+            cs_raw, cs_path, now_dt, exists=True, load_error=cs_raw.get("_error"), reg=reg
         )
     else:
-        d8 = check_cross_project({}, cs_path, now_dt, exists=False)
+        d8 = check_cross_project({}, cs_path, now_dt, exists=False, reg=reg)
 
     # ---- D9 同组槽位配置一致性（拆分排程会重置 model/expert/权限 → 兄弟槽位静默降级）----
     d9 = check_slot_consistency(reg, live, {r["id"]: r for r in rows})
@@ -1249,6 +1275,7 @@ def main() -> int:
     out = {
         "ok": True,
         "rc": rc,
+        "notes": NOTES,
         "declared": len(declared),
         "observed_live": len(live),
         "scope": {
@@ -1299,6 +1326,7 @@ def main() -> int:
     else:
         print(
             f"[reconcile] declared={len(declared)} observed_live={len(live)} clean={out['clean']}"
+            + ("\n" + "\n".join(f"  [note] {n}" for n in NOTES) if NOTES else "")
         )
         for k, label in (
             ("D1_mirror_drift", "D1 镜像漂移(可自动收敛)"),

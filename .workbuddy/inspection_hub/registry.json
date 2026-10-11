@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T22:49:32+08:00",
+  "updated_at": "2026-10-11T22:52:51+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2828,6 +2828,19 @@
       "why": "自审首轮实测红率偏高，且其中至少 2 次是**新门禁自身缺陷**（路径常量门禁必然误红 / 检查器被自己的模式串打红）——两类都已修复，故基线本就该下降。",
       "if_no_action": "keep_as_is",
       "if_no_action_note": "不升级：已修的那两类红本身不会再发；本条主要是「别再让同类进 CI」的收口。"
+    },
+    {
+      "id": "PA-017",
+      "due": "2026-10-25",
+      "owner": "human",
+      "title": "处置 87MB 的 wechat-download-api 旧快照（内含旧会话凭据）",
+      "criteria": "`/Volumes/ZHITAI/WorkBuddy/wechat-download-api.STALE-SNAPSHOT-20260730`（87MB，目录 mtime 2026-09-16）已登记为「已知非项目目录」（registry.non_project_dirs，D8 不再当矩阵漏项）。**请拍板它的去向**：① 删除（须走铁律「先复制→验证→再删源」，且删前确认无独有内容——其 git 历史为 2026-07-01 的快照）；或 ② 压缩归档到备份区并记录；或 ③ 保留原样（那就把「为什么留」写进该条 reason）。\n⚠️ 该副本含 `.env`（600）：WECHAT_TOKEN / WECHAT_COOKIE(667 字符) / WECHAT_FAKEID 等会话凭据；与当前 `wechat_api/.env` 对比，**在用值为空**（该通道登录早已过期）→ 属旧凭据副本。",
+      "status": "open",
+      "verifier": "处置后：`python3 .workbuddy/scripts/hub_reconcile.py` 的 `[note]` 行不再列出该目录（或列出新路径）；若删除，需同时确认 `non_project_dirs` 条目同步更新（避免留下指向不存在目录的声明——这正是「声明腐烂」）。",
+      "auto_check": "hub_reconcile.py D6（待办逾期）+ D8 的 [note] 行会一直提示它还在",
+      "why": "发现路径：D8 K2（磁盘上真实 git 仓库 vs active_projects）首次报错 rc=20 → 核实为快照而非项目；顺带查出它内含 `.env` 凭据。价值：既是**跨项目矩阵的盲区**（此前无人知道它存在），也是**磁盘上一次凭据副本**（87MB 里含旧会话 cookie）。",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "不升级：旧 cookie 对应的登录早已过期、且不在任何在用链路里 → 无即时风险。代价是 87MB 与一份旧凭据长期留在盘上，并需要 `non_project_dirs` 这条声明一直替它解释。"
     }
   ],
   "automation_scope": {
@@ -3426,5 +3439,13 @@
     },
     "legacy_unmeasured": 36,
     "note": "收益记分板：只统计可回查的结论（achieved/partial/none）。『优化』= 指标相对基线提升，不是『看起来更好了』。"
-  }
+  },
+  "non_project_dirs": [
+    {
+      "name": "wechat-download-api.STALE-SNAPSHOT-20260730",
+      "reason": "**非活跃项目**：2026-07-30 的 wechat-download-api 快照（87MB，目录 mtime 2026-09-16），不在 active_projects 里，也不该进去 —— 它是历史副本而非在跑的系统。⚠️ 该副本内含 `.env`（600）：WECHAT_TOKEN / WECHAT_COOKIE(667 字符) 等会话凭据；与当前 wechat_api/.env 对比：**在用值为空**（登录早已过期）→ 属旧凭据副本，处置建议见 PA-017（删除须用户确认，铁律：先复制→验证→再删源）。",
+      "recorded_at": "2026-10-11",
+      "declared_by": "D8 K2 首报（hub_reconcile rc=20）→ 核实后按「已知非项目」登记，不再计入矩阵漏项"
+    }
+  ]
 }
