@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T12:21:18+08:00",
+  "updated_at": "2026-10-11T12:41:38+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2313,6 +2313,16 @@
       "detect": "`python3 .workbuddy/scripts/scan_git_history_secrets.py`（只读、本地、不联网）：按字节偏移流式读全部可达 blob，对文本类路径匹配 wind/sk-/AKIA/Bearer/PRIVATE KEY 等高置信形态，**只输出路径 + 值哈希前缀，绝不打印明文**；退出码 0=干净 / 1=有命中 / 2=无法判定。已轮换的值登记在 `.workbuddy/secret_history_allowlist.json`（必须带 rotated_at，否则不算豁免）。",
       "mitigation": "**轮换优先**：公开仓的密钥一旦入库，唯一真修复是到平台重新生成（清历史只是收窄可见面）。本轮 Wind token 的轮换已登记为 **PA-013**；漏出的 DeepSeek 旧键已于 2026-08-05 吊销并登记豁免。",
       "does_not_affect": "当前工作区与 HEAD 是干净的（token 已移入 gitignored 的 .env；`tests/test_credentials_hygiene.py` 钉住工作区形态仍有效）；不影响本机任何运行行为。本条说的是**历史**这一层此前无人覆盖。"
+    },
+    {
+      "id": "detector-pattern-trips-naive-scanner",
+      "area": "自检器 / CI 门禁（自指假阳性）",
+      "severity": "low",
+      "since": "2026-10-11",
+      "desc": "新增「检测器」时，它内部用来匹配密钥/危险形态的**模式字面量**会被同仓更朴素的扫描器当成真目标，把 CI 打红。实测：Claw CI 的 Secret scan 是 `grep -rn \"<PEM 私钥标记>\" .workbuddy/scripts/ .workbuddy/lib/`，而新加的历史密钥扫描器里写了一个完整 PEM 私钥头字面量作模式 → CI 判红（run 38111379562）。同类还包括：把 `xoxb-`/`AKIA…` 样例写进测试或文档、把真实域名/内网 IP 样例写进规则文件。",
+      "detect": "CI 里的 Secret scan / gitleaks 报红，但逐条看命中的是**测试文件、模式定义、文档示例**而非真实凭据；或本地 `grep -rn \"<该标记>\" <被扫目录>` 命中的正是检测器自己的源码。判据：命中位置是否在「检测/测试/文档」三类文件里，且值是否是构造出来的样例。",
+      "mitigation": "把字面量**拆开拼接**（`\"PRIVATE\" + \" KEY-----\"`），或不落字面量而用字符类/转义构造 —— 检测能力不变、朴素 grep 不再命中；并在 `tests/test_secret_scan_selfcheck.py` 里同时钉住「目录内无该字面量」与「检测模式仍能命中合成样本」，防「为了变绿而删检测」。",
+      "does_not_affect": "不是泄露、也不是门禁失效：真实凭据扫描（gitleaks）与历史扫描器都照常工作；本条只描述「自检器与更朴素的自检器之间」的字符串冲突。"
     }
   ],
   "doc_apply": {
