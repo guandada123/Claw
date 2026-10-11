@@ -13,10 +13,12 @@
 ⚠️ 2026-10-11 修正一处**必然误红**：原实现把「运行时产物」也当输入查存在性
 —— `sector_strength_layer.OUTPUT` 指向 `.workbuddy/data/sector_strength.json`，
 它是**生成物、未入库（untracked/ignored）**，干净检出里根本不存在
-→ CI 判红（`/home/runner/work/Claw/Claw/.workbuddy/data/sector_strength.json` 不存在），
+→ CI 判红（runner 的工作目录下 `.workbuddy/data/sector_strength.json` 不存在），
 而本机因为跑过自动化所以存在 = 本地永远绿。
 → 故分两桶：**INPUT 必须存在**（入库的输入/账本），**OUTPUT 只查父目录存在 + 无 `.workbuddy/.workbuddy` 双嵌套**
 （生成物在干净检出里不存在是正常的，门禁要抓的是**路径拼错**，不是"文件还没生成"）。
+（本说明刻意不引用 runner 的绝对路径 —— `tests/test_ci_hermeticity.py` 会扫 .py 里"引号紧跟机器路径"的写法，
+文档字符串也在扫描范围内，引用了就会把门禁自己打红：2026-10-11 实测。）
 """
 
 from __future__ import annotations
