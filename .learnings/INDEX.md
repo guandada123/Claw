@@ -3,10 +3,10 @@
 > ⚠️ **本文件由 `learnings_index.py` 自动生成，请勿手改**（改了会在下次生成时被覆盖）。
 > 权威内容是 `.learnings/*.md` 正文；本文件只是**派生视图**。
 > ⚠️ 手工维护的 `LEARNINGS.md` 里的**浓缩条目不在本表内**（它已停更，见其抬头说明）。
-> 生成时间：2026-10-11 22:14　｜　条目数：**87**
+> 生成时间：2026-10-11 23:01　｜　条目数：**89**
 
-- **按类型**：correction×5　分析口径错误×2　self-checker-blind×1　blind-spot×1　false-positive×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　engineering_practice×1　best_practice×1　knowledge_gap×1　归因错误×1　根因定案×1　（另有 66 条未标注该字段）
-- **按等级**：P1×15　P2×4　P0×3　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 62 条未标注该字段）
+- **按类型**：correction×5　分析口径错误×2　归因错误×2　self-checker-blind×1　blind-spot×1　false-positive×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　engineering_practice×1　best_practice×1　knowledge_gap×1　根因定案×1　（另有 67 条未标注该字段）
+- **按等级**：P1×15　P2×5　P0×3　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 63 条未标注该字段）
 
 | 日期 | 标题 | 等级 | 类型 | 状态 | 文件 |
 |---|---|---|---|---|---|
@@ -15,10 +15,12 @@
 | 2026-10-11 | ★升级候选：「没有规则的规则文件」会**静默关闭全部检测** —— CI 密钥扫描空跑 68 天 | P0（安全检测能力实际为零，且 CI 显示绿灯） | self-checker-blind（检测器自身失效 / 假性安心） | 已修复（`.gitleaks.toml` 补 `[extend] useDefault = true` + 自定义规则 + 6 例防回归测试） | `2026-10-11-rulesless-config-disables-all-detection.md` |
 | 2026-10-11 | ★升级候选：判据被复用，盲区就会成对出现 —— 同一正则漏一种时间戳格式，该档位**同时**逃过「体检」与「归档」 | P1（不造成数据丢失，但**让 40% 的档位永久脱离治理**，且全程无告警） | blind-spot（判据复用 + 退出码语义污染） | 已全部修复（解析器 + 退出码 + 判据阈值），2026-10-11 | `2026-10-11-reused-predicate-reuses-blindspot.md` |
 | 2026-10-11 | ★升级候选：分支删了，`gh run list` 的 failure 记录**不会消失** —— 一条**永久假红**常驻巡检 | P1（不误伤生产，但让一条**永远无人能处置**的红灯常驻 → 真红灯混在同一栏里失去分辨力） | false-positive（取证口径漏了"分支已不存在"这一态） | 已修复（`qts_pmf_health_guard.scan_ci` 加孤儿分支豁免） | `2026-10-11-orphan-branch-red-persists-after-delete.md` |
+| 2026-10-11 | ★ 别在共享 checkout 里用 commit 做实验（2026-10-11） | — | — | — | `2026-10-11-no-experiment-commits-in-shared-checkout.md` |
 | 2026-10-11 | ★升级候选：比对哈希**差点判反** —— 算法与粒度错一个，结论就反了（「在用凭据在公开仓」被判成"已轮换"） | P0 级风险 × 手动取证险些失手（结论错 = 把一个**公开仓里放着的有效凭据**判成"安全"） | 取证口径错误（readback 读错） | 已闭环（凭据已轮换）；已加 `--compare-env` 把口径固化 | `2026-10-11-hash-compare-caliber-nearly-inverted.md` |
 | 2026-10-11 | ★教训：写死日期的测试会「**本地恒绿、CI 恒红**」—— 比"8 小时窗口必红"更坏的一种时区坑 | P2（不造成数据问题，但**只在 CI 暴露的失败**会让本地验证完全失效） | time-dependent test（恒红形态） | 已修（`a631c5e`），并把**验证方式**一并改掉 | `2026-10-11-hardcoded-date-assertion-green-local-red-ci.md` |
 | 2026-10-11 | ★升级候选：`.gitignore` 白名单漏掉**静态权威输入** → CI/新克隆静默降级 | P1（不是测试问题：**生产逻辑在 CI / 任何新环境里静默降级**） | environment-drift / silent-fallback | 已修复（日历入库 + 用例与外部文件解耦 + 临时移走文件验证 927 passed） | `2026-10-11-gitignore-whitelist-missed-static-input.md` |
 | 2026-10-11 | ★升级候选：去重标记「先写后发」= 告警静默丢失 + 假成功 | P1（告警链路可靠性；失败会被 6 小时冷却吞掉，且调用方拿到 rc=0） | silent-failure / false-success | 已修复（去重标记改为**发送成功后**落盘，+3 例防回归测试） | `2026-10-11-dedupe-before-send-swallows-alerts.md` |
+| 2026-10-11 | ★教训：CI 红了先做**归属判定**（按用例名），别默认是自己的改动 —— 一天撞上两次 | P2（不改代码，但**误判归属会导致修错东西**：要么白修自己没坏的代码，要么漏掉真问题） | 归因错误（CI 红是**聚合状态**） | 两次都正确定位到"不是我" | `2026-10-11-ci-red-attribution-before-fixing.md` |
 | 2026-10-11 | ★升级候选：「取不到证」被渲染成「通过」—— 巡检里 4 个检查同款，且**探针跑出的数字不能直接当结论** | P1（不报错、不告警，但**该发现的都没发现**：外置盘掉了、401 风暴、写入连续失败都可能被 ✅ 掩盖） | silent-pass（取证失败 ≠ 通过） | 已修复 4 个检查 + 已加结构性守卫（`c2955d3`） | `2026-10-11-cannot-determine-rendered-as-pass.md` |
 | 2026-10-10 | ★升级候选：判据带「隐含前提」时，必须在接口层表达出来 —— 否则任何跨档位复用必然自造假红 | P2（产生"每天 22/24 小时必然报红"的假警，并**差点被记成"索引静默失败"**） | correction（接口设计缺陷，非逻辑错误） | 已修复并复验 | `2026-10-10-implicit-precondition-must-be-a-flag.md` |
 | 2026-10-09 | 修上游 ≠ 修链路：一次「一条链路三层静默失效」的取证 | — | — | — | `2026-10-09-upstream-fix-is-not-link-fix.md` |
