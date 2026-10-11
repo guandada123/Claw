@@ -1292,13 +1292,50 @@ def _container_last_fetch_ts(container: str, since: str = "2400h"):
     return best
 
 
+def _rss_upstream_facts() -> tuple[str, str]:
+    """上游 RSS 同步的（调度, 最近运行）—— **从 DB 现查真值**，不给会腐烂的硬编码文字。
+
+    为什么必须连调度一起报：该自动化（WECHAT_RSS_SYNC_ID）是**工作日**调度
+    （`FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=7`）。周末看到"产出停在周五"完全正常；
+    而原文案写的是「上游RSS同步自动化仍在**每日**调度但产出停在 <周五>」——
+    2026-10-11（周日）读到它就像"停摆"，害得我真去追了一轮，白追。
+    同理，本模块 `check_wechat_channel` 的 docstring 里「RSS 同步自动化已 PAUSED」
+    也早已腐烂（它其实一直是 ACTIVE）。结论：**凡是能查的一律别写死**；
+    取不到就明说"取不到"，别用旧文字充数。
+    """
+    aid = WECHAT_RSS_SYNC_ID
+    db = Path.home() / ".workbuddy" / "workbuddy.db"
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        try:
+            rr = conn.execute(
+                "SELECT rrule FROM automations WHERE id = ? AND deleted_at IS NULL", (aid,)
+            ).fetchone()
+            lr = conn.execute(
+                "SELECT MAX(created_at) FROM automation_runs WHERE automation_id = ?", (aid,)
+            ).fetchone()
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001
+        return "(取不到调度)", "(取不到最近运行)"
+    sched = ((rr[0] if rr else "") or "").strip() or "(未设 rrule)"
+    # ⚠️ automation_runs.created_at 是**毫秒**（套 unixepoch 会得空串）
+    if lr and lr[0]:
+        ts = datetime.datetime.fromtimestamp(lr[0] / 1000).strftime("%Y-%m-%d %H:%M")
+    else:
+        ts = "(无运行记录)"
+    return sched, ts
+
+
 def check_wechat_channel() -> dict:
     """微信公众号数据链路检查（2026-08-07 新增，盲点#3）。
 
     🔴 2026-09-29 **降级为观测项**（返回 ok=None）：不再进飞书告警，只每次打印一行。
     原因：上游自 07-20 阻断后连续 40+ 天每日报同一条「登录过期」，而本地**没有可执行处置**
     （扫码重登已被实证无效）。台账原写「无消费方」是**错的**，实测仍有 4 个 ACTIVE 自动化
-    在读落盘池（知识库精读×3 + 微信早报；RSS 同步自动化已 PAUSED）→ 所以是「降级保留可见」
+    在读落盘池（知识库精读×3 + 微信早报）→ 所以是「降级保留可见」
+    ⚠️ 本 docstring 原写「RSS 同步自动化已 PAUSED」**已腐烂**（2026-10-11 核实它一直是
+    ACTIVE）。凡是能查的一律别写死 —— 上游实况用 `_rss_upstream_facts()` 现查。
     而不是删除。详见文末 return 处注释与 hub registry 的 retired/muted 登记。
 
     背景：云RSS(wechatrss) 7/30 因微信关闭文章列表接口停摆(平台重构中)；本地
@@ -1376,8 +1413,8 @@ def check_wechat_channel() -> dict:
         last_fetch = _container_last_fetch_ts("wechat-download-api")
         if last_fetch and exp_dt and (exp_dt - last_fetch).days >= 1:
             # 2026-09-02 补「上游影响面」：此前只说「确认上游调用方」，没给出上游实况，
-            # 处置者仍需自己查。实测上游「【公众号】RSS文章同步落盘(每日)」仍在每日调度，
-            # 但落盘目录停在 2026-08-13 —— 通道已死而上游白跑，属可止损项。
+            # 处置者仍需自己查。上游的**真实调度与最近运行**改由 _rss_upstream_facts() 现查
+            # （原注释写死「每日调度」是错的：它是工作日调度，周日读起来像停摆 —— 实测误导过一轮）。
             # 用**日期**而非精确时刻，保证文案静态、不冲击告警去重键。
             upstream = ""
             try:
@@ -1393,9 +1430,12 @@ def check_wechat_channel() -> dict:
                         # 上游还活着 → 提示白跑、建议止损；上游已停 → 说明现状。
                         up_st = _automation_status(WECHAT_RSS_SYNC_ID)
                         if up_st == "ACTIVE":
+                            sched, lastrun = _rss_upstream_facts()
                             upstream = (
-                                f"；上游RSS同步自动化仍在每日调度但产出停在{d:%Y-%m-%d}，"
-                                f"建议暂停止损或先修通道"
+                                f"；上游RSS同步自动化 **ACTIVE**（调度={sched}；最近运行 {lastrun}），"
+                                f"落盘产出停在 {d:%Y-%m-%d}"
+                                f" —— ⚠️ **非调度日（周末/节假日）产出落后属正常，勿据此判停摆**；"
+                                f"只有「调度日跑过之后产出仍未前移」才是真停摆"
                             )
                         else:
                             upstream = (
@@ -1428,9 +1468,12 @@ def check_wechat_channel() -> dict:
     # 该通道自 07-20 起由上游阻断（微信关闭文章列表接口 + 本地 200013 风控），
     # 连续 40+ 天每日报「登录过期」，而本地**无可执行处置**（扫码重登已被实证无效，
     # 见 2026-08-30 结论）→ 每日推送只会淹没真正可处置的告警。
-    # 保留理由：它并非孤儿 —— 落盘池仍有 4 个 ACTIVE 消费方（知识库精读×3 + 微信早报；
-    # RSS 同步自动化已 PAUSED），池子停更需继续**可见**（每次巡检打印一行），
-    # 只是不再进飞书。周报 D 段仍是该链路的固定出口。
+    # 保留理由：它并非孤儿 —— 落盘池仍有 4 个 ACTIVE 消费方（知识库精读×3 + 微信早报），
+    # 池子停更需继续**可见**（每次巡检打印一行），只是不再进飞书。
+    # ⚠️ 2026-10-11 修：此处原写「RSS 同步自动化已 PAUSED」——**已腐烂**（实测它一直是 ACTIVE，
+    #    工作日 07:30 调度）。同句在别处也出现了两次（均已改）。**能查的一律别写死**：
+    #    上游实况用 `_rss_upstream_facts()` 现查，别在此写状态。
+    # 周报 D 段仍是该链路的固定出口。
     # 恢复方式：把本函数两处 `_skip(...)` 改回 `{"ok": False, "alerts": alerts}` 即可。
     return _skip("微信公众号通道(已降级为观测项，不再推送): " + "; ".join(alerts + notes))
 

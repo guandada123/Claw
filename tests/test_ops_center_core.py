@@ -648,3 +648,43 @@ def test_quality_note_does_not_render_unknown_as_pass(monkeypatch):
 def test_quality_note_reports_failures(monkeypatch):
     r = _qc_with(monkeypatch, "3 failed, 10 passed in 1.0s\n")
     assert "10 passed / 3 failed" in r["note"]
+
+
+# ════════════ I. 上游 RSS 实况必须"连调度一起报"（2026-10-11）════════════
+
+
+def test_rss_upstream_facts_returns_schedule_and_last_run(tmp_path, monkeypatch):
+    """回归：原文案写死「仍在**每日**调度」，而它是**工作日**调度 →
+    周日读到「产出停在周五」就像停摆（实测害我白追一轮）。
+    现在改为现查 DB：调度与最近运行必须一起给出，取不到就明说。
+    """
+    import sqlite3 as _sq
+
+    (tmp_path / ".workbuddy").mkdir(exist_ok=True)
+    db = tmp_path / ".workbuddy" / "workbuddy.db"   # 与 _rss_upstream_facts 的 Path.home()/".workbuddy"/… 对齐
+    conn = _sq.connect(db)
+    conn.execute("CREATE TABLE automations (id TEXT PRIMARY KEY, rrule TEXT, deleted_at INTEGER)")
+    conn.execute("CREATE TABLE automation_runs (automation_id TEXT, created_at INTEGER)")
+    conn.execute(
+        "INSERT INTO automations VALUES (?,?,NULL)",
+        (uoc.WECHAT_RSS_SYNC_ID, "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=7;BYMINUTE=30"),
+    )
+    # ⚠️ created_at 是**毫秒**（2026-10-09 07:30 +08:00 = 1791502200000 附近）
+    conn.execute(
+        "INSERT INTO automation_runs VALUES (?,?)",
+        (uoc.WECHAT_RSS_SYNC_ID, 1791502200 * 1000),
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(uoc.Path, "home", staticmethod(lambda: tmp_path))
+    sched, last = uoc._rss_upstream_facts()
+    assert "BYDAY=MO,TU,WE,TH,FR" in sched, sched
+    assert last.startswith("2026-10-09"), last
+
+
+def test_rss_upstream_facts_never_invents_when_unreadable(tmp_path, monkeypatch):
+    """取不到时必须明说"取不到"，**不许用旧文字充数**（那正是腐烂的来源）。"""
+    monkeypatch.setattr(uoc.Path, "home", staticmethod(lambda: tmp_path))
+    sched, last = uoc._rss_upstream_facts()
+    assert "取不到" in sched and "取不到" in last
