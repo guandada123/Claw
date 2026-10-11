@@ -3,7 +3,7 @@
 > ⚠️ **本文件由 `learnings_index.py` 自动生成，请勿手改**（改了会在下次生成时被覆盖）。
 > 权威内容是 `.learnings/*.md` 正文；本文件只是**派生视图**。
 > ⚠️ 手工维护的 `LEARNINGS.md` 里的**浓缩条目不在本表内**（它已停更，见其抬头说明）。
-> 生成时间：2026-10-11 22:11　｜　条目数：**87**
+> 生成时间：2026-10-11 22:14　｜　条目数：**87**
 
 - **按类型**：correction×5　分析口径错误×2　self-checker-blind×1　blind-spot×1　false-positive×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　engineering_practice×1　best_practice×1　knowledge_gap×1　归因错误×1　根因定案×1　（另有 66 条未标注该字段）
 - **按等级**：P1×15　P2×4　P0×3　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 62 条未标注该字段）
