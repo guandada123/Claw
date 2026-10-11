@@ -17,6 +17,8 @@
   - 失败必须 fail-safe：gh/docker 不可达时记警告而非崩溃
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os

@@ -4,6 +4,7 @@
 gap 日收益作废 / 无数据降级 / 注册表完整性 / IC 计算骨架。
 """
 
+from __future__ import annotations
 
 import alpha_factors as af
 import numpy as np
@@ -23,9 +24,17 @@ def _bars(n: int = 120, seed: int = 7, gaps: list[int] | None = None) -> pd.Data
     vol = rng.integers(1_000_000, 5_000_000, n).astype(float)
     amt = close * vol * 10
     df = pd.DataFrame(
-        {"open": open_, "high": high, "low": low, "close": close,
-         "volume": vol, "amount": amt, "pre_close": pd.Series(close).shift(1),
-         "pct": 0.0, "gap": 0},
+        {
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": vol,
+            "amount": amt,
+            "pre_close": pd.Series(close).shift(1),
+            "pct": 0.0,
+            "gap": 0,
+        },
         index=idx,
     )
     df["gap"] = 0

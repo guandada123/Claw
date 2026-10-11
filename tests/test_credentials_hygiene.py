@@ -20,7 +20,10 @@ import sys
 from pathlib import Path
 
 import pytest
-import tomllib
+
+# 3.11+ 才有 stdlib tomllib；本机 /usr/bin/python3 是 3.9。
+# importorskip 让 3.9 下**可见地跳过**（而非采集期 ImportError 中断整个套件），CI 用 3.12 照常全跑。
+tomllib = pytest.importorskip("tomllib", reason="需要 Python 3.11+（stdlib tomllib）")
 
 PROJECT = Path(__file__).resolve().parent.parent
 SCRIPTS = PROJECT / ".workbuddy" / "scripts"

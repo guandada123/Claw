@@ -4,6 +4,8 @@
 行业缓存读写 / check_entry 情绪调节(弱市+弱板块block、强市RSI放宽)。
 """
 
+from __future__ import annotations
+
 from unittest.mock import patch
 
 import advisor_rules as ar
@@ -311,7 +313,9 @@ def test_check_entry_ice_cycle_blocked(advisor):
         patch.object(
             advisor,
             "_get_sentiment",
-            return_value=_sentiment_with_cycle("中", {"cycle": "冰点", "position_ratio": "≤20%", "basis": "涨停15家"}),
+            return_value=_sentiment_with_cycle(
+                "中", {"cycle": "冰点", "position_ratio": "≤20%", "basis": "涨停15家"}
+            ),
         ),
     ):
         r = advisor.check_entry("600000", price=10.2)
@@ -330,7 +334,9 @@ def test_check_entry_frenzy_cycle_blocked(advisor):
         patch.object(
             advisor,
             "_get_sentiment",
-            return_value=_sentiment_with_cycle("强", {"cycle": "狂热", "position_ratio": "减仓至≤40%", "basis": "涨停100家"}),
+            return_value=_sentiment_with_cycle(
+                "强", {"cycle": "狂热", "position_ratio": "减仓至≤40%", "basis": "涨停100家"}
+            ),
         ),
     ):
         r = advisor.check_entry("600000", price=10.2)
@@ -349,7 +355,9 @@ def test_check_entry_repair_cycle_not_blocked_by_cycle(advisor):
         patch.object(
             advisor,
             "_get_sentiment",
-            return_value=_sentiment_with_cycle("强", {"cycle": "修复", "position_ratio": "30-50%", "basis": "涨停40家"}),
+            return_value=_sentiment_with_cycle(
+                "强", {"cycle": "修复", "position_ratio": "30-50%", "basis": "涨停40家"}
+            ),
         ),
     ):
         r = advisor.check_entry("600000", price=10.2)

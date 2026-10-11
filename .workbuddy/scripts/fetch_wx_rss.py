@@ -19,6 +19,8 @@ v4.0: 修复 API 路径 (v1/wx) + OAuth2 认证
   已弃用旧的 Access Key Bearer 方式。
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os

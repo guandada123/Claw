@@ -21,6 +21,10 @@ SCRIPTS = Path(__file__).resolve().parent.parent / ".workbuddy" / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+# 3.11+ 才有 stdlib tomllib（audit_locks 用它解析 uv.lock）；本机 /usr/bin/python3 是 3.9。
+# 必须在 import 被测模块**之前** skip，否则采集期 ImportError 会中断整个套件。
+pytest.importorskip("tomllib", reason="需要 Python 3.11+（stdlib tomllib）；CI 用 3.12")
+
 import audit_locks as al  # noqa: E402
 
 LOCK_OK = """\
@@ -139,11 +143,23 @@ def test_extract_fixes_ignores_other_packages():
 
 @pytest.fixture()
 def finding():
-    return {"package": "requests", "version": "2.32.5", "ids": ["CVE-2026-1", "GHSA-x"], "display_id": "CVE-2026-1"}
+    return {
+        "package": "requests",
+        "version": "2.32.5",
+        "ids": ["CVE-2026-1", "GHSA-x"],
+        "display_id": "CVE-2026-1",
+    }
 
 
 def test_allowlist_hit_and_unexpired(finding):
-    entries = [{"id": "CVE-2026-1", "package": "requests", "reason": "暂无重建窗口", "expires": "2026-12-31"}]
+    entries = [
+        {
+            "id": "CVE-2026-1",
+            "package": "requests",
+            "reason": "暂无重建窗口",
+            "expires": "2026-12-31",
+        }
+    ]
     ok, why = al.is_allowed(finding, entries, dt.date(2026, 10, 10))
     assert ok is True and "2026-12-31" in why
 
@@ -183,9 +199,7 @@ def test_allowlist_broken_json_raises(tmp_path):
 def test_audit_end_to_end_blocks_actionable(tmp_path, monkeypatch):
     _write_lock(tmp_path)
     _aliases = ["CVE-2026-1", "GHSA-x"]
-    monkeypatch.setattr(
-        al, "query_osv", lambda pkgs, timeout=45: {"requests": list(_aliases)}
-    )
+    monkeypatch.setattr(al, "query_osv", lambda pkgs, timeout=45: {"requests": list(_aliases)})
     monkeypatch.setattr(
         al, "fetch_vuln", lambda vid, timeout=30: _vuln("2.33.0", aliases=list(_aliases))
     )

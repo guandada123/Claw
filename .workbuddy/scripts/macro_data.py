@@ -6,6 +6,8 @@
 数据源优先级: Wind EDB MCP(HTTP) → AKShare → AnySearch
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re

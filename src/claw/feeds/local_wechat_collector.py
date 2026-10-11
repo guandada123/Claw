@@ -10,6 +10,8 @@ local_wechat_collector.py — 桥接本地 WeChat Download API → Claw 信号�
     articles = collect_local_feeds()  # 返回与 wx_collector 兼容的 [{title, content, account, pub_date}]
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -123,13 +125,15 @@ def _parse_rss_xml(xml_text: str, since_ts: int) -> list[dict]:
         plain_text = re.sub(r"<[^>]+>", "", desc_html) if desc_html else ""
         plain_text = unescape(plain_text)
 
-        articles.append({
-            "title": title[:80],
-            "link": link,
-            "author": author,
-            "publish_time": pub_ts,
-            "digest": plain_text,
-        })
+        articles.append(
+            {
+                "title": title[:80],
+                "link": link,
+                "author": author,
+                "publish_time": pub_ts,
+                "digest": plain_text,
+            }
+        )
 
     return articles
 
@@ -171,10 +175,17 @@ def collect_local_feeds(lookback_hours: int = 48) -> list[dict]:
     """
     beijing_now = datetime.now(timezone.utc) + timedelta(hours=8)
     today_bj = beijing_now.date()
-    today_end_ts = int(datetime(
-        today_bj.year, today_bj.month, today_bj.day,
-        tzinfo=timezone.utc,
-    ).timestamp()) + 86400
+    today_end_ts = (
+        int(
+            datetime(
+                today_bj.year,
+                today_bj.month,
+                today_bj.day,
+                tzinfo=timezone.utc,
+            ).timestamp()
+        )
+        + 86400
+    )
     since_ts = today_end_ts - lookback_hours * 3600
 
     # 1. 获取订阅列表
@@ -212,14 +223,18 @@ def collect_local_feeds(lookback_hours: int = 48) -> list[dict]:
 
             pub_ts = art.get("publish_time", 0)
 
-            all_articles.append({
-                "title": art.get("title", "")[:80],
-                "content": content[:20000],
-                "account": nickname,
-                "pub_date": datetime.fromtimestamp(pub_ts, tz=timezone.utc).isoformat() if pub_ts else "",
-                "link": link,
-                "_source": "local_api",
-            })
+            all_articles.append(
+                {
+                    "title": art.get("title", "")[:80],
+                    "content": content[:20000],
+                    "account": nickname,
+                    "pub_date": datetime.fromtimestamp(pub_ts, tz=timezone.utc).isoformat()
+                    if pub_ts
+                    else "",
+                    "link": link,
+                    "_source": "local_api",
+                }
+            )
 
             # 限制每号最多 5 篇（避免重复过多）
             account_counts[nickname] += 1

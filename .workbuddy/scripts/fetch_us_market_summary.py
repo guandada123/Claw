@@ -6,6 +6,8 @@
 各源失败时优雅降级为「暂缺（数据源受限）」，绝不臆造。
 """
 
+from __future__ import annotations
+
 import json
 import subprocess
 import sys
