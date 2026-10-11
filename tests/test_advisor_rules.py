@@ -453,3 +453,40 @@ def test_thresholds_positive():
     assert ar.T3_LOCK_PROFIT_DAYS >= 3
     assert ar.T7_STOPLOSS_DAYS >= 7
     assert ar.RISK_REWARD_MIN >= 1.0
+
+
+class TestStopLossWithoutBoughtDate:
+    """2026-10-11 安全盲区修复：缺 bought_date 不得豁免**止损检查**。
+
+    事故形态：`check_timing` 原本「无 bought_date 直接 return」——把止损一起跳过。
+    新买入的标的（如 588170 科创半导体ETF，-13.4%）恰好最需要止损保护，
+    却因缺日期被静默放过（同日实测：引擎对其零 block）。
+    持仓天数只应对 A1(锁利)/A2(复盘) 与 A3 的 T+7 观察期 生效。
+    """
+
+    def test_no_date_still_flags_stoploss(self, advisor):
+        flags = advisor.check_timing(
+            {"code": "588170", "avg_cost": 1.0, "current_price": 0.866, "shares": 10000},
+            today=date(2026, 10, 11),
+        )
+        blocks = [f for f in flags if f["level"] == "block"]
+        assert blocks, "缺 bought_date 时止损检查被跳过（安全盲区）"
+        assert "破止损线" in blocks[0]["reason"]
+        assert "持仓天数未知" in blocks[0]["reason"], "应显式标注天数未知，不得假装知道"
+
+    def test_no_date_without_breach_is_silent(self, advisor):
+        """未破止损 + 无日期 → 不出 block（不误报）。"""
+        flags = advisor.check_timing(
+            {"code": "X", "avg_cost": 1.0, "current_price": 0.99, "shares": 100},
+            today=date(2026, 10, 11),
+        )
+        assert [f for f in flags if f["level"] == "block"] == []
+
+    def test_date_dependent_rules_still_skipped_without_date(self, advisor):
+        """A1/A2 本质依赖天数 → 无日期时仍应跳过（不得凭空编造天数）。"""
+        flags = advisor.check_timing(
+            {"code": "X", "avg_cost": 1.0, "current_price": 1.5, "shares": 100},
+            today=date(2026, 10, 11),
+        )
+        assert all(f["rule"] != "A" or "浮盈" not in f["reason"] for f in flags)
+        assert all("持仓天" not in f["reason"] or "未知" in f["reason"] for f in flags)

@@ -399,19 +399,24 @@ class AdvisorRules:
         """根据持仓天数 + 浮盈亏生成决策建议
 
         holding 需含: bought_date(ISO str) / avg_cost / current_price / shares
+
+        🔴 2026-10-11 修（安全盲区）：原实现「缺 bought_date 直接 return」——
+        把**止损检查也一起豁免**了。持仓天数只对 A1(锁利)/A2(复盘) 与 A3 的
+        「T+7 观察期」有意义，不该让"日期未知"变成"不查止损"。
+        新标的（如新买入的 ETF）恰恰最需要止损保护，却因缺日期被静默放过。
         """
         flags: list[dict] = []
         today = today or date.today()
+
+        # 持仓天数：可缺失 → None（仅影响依赖天数的规则）
+        days: int | None = None
         bought = holding.get("bought_date")
-        if not bought:
-            return flags
+        if bought:
+            try:
+                days = (today - datetime.strptime(bought, "%Y-%m-%d").date()).days
+            except (ValueError, TypeError):
+                days = None
 
-        try:
-            bdate = datetime.strptime(bought, "%Y-%m-%d").date()
-        except (ValueError, TypeError):
-            return flags
-
-        days = (today - bdate).days
         cost = holding.get("avg_cost", 0)
         price = holding.get("current_price")
         code = holding.get("code", "")
@@ -419,9 +424,10 @@ class AdvisorRules:
             return flags
 
         pnl_pct = (price - cost) / cost
+        age_tag = f"持仓 {days}天" if days is not None else "持仓天数未知(缺 bought_date)"
 
-        # A1: 持仓≥3天且浮盈 → 锁利
-        if days >= T3_LOCK_PROFIT_DAYS and pnl_pct > 0:
+        # A1: 持仓≥3天且浮盈 → 锁利（依赖天数）
+        if days is not None and days >= T3_LOCK_PROFIT_DAYS and pnl_pct > 0:
             flags.append(
                 {
                     "level": "warn",
@@ -430,8 +436,8 @@ class AdvisorRules:
                 }
             )
 
-        # A2: 持仓≥5天 → 每日复盘
-        if days >= T5_REVIEW_DAYS:
+        # A2: 持仓≥5天 → 每日复盘（依赖天数）
+        if days is not None and days >= T5_REVIEW_DAYS:
             flags.append(
                 {
                     "level": "info",
@@ -440,8 +446,8 @@ class AdvisorRules:
                 }
             )
 
-        # A3: 持仓≥7天且回撤≥-8% → 紧急减仓
-        if days >= T7_STOPLOSS_DAYS and pnl_pct <= self.stop_loss:
+        # A3: 破止损线 → 紧急减仓（**不依赖 bought_date**；天数未知时按 fail-safe 照报并标注）
+        if pnl_pct <= self.stop_loss and (days is None or days >= T7_STOPLOSS_DAYS):
             # F4 (2026-08-14 复盘「砍科技」): 板块级低位例外
             # 当下跌由板块级同步下挫(相关性事件)触发，且板块处于中段低位/刚启动
             # (板块强弱层 early 信号＝筑底反转/刚启动)，降级为「持有观察/低位不裸卖」，
@@ -453,7 +459,7 @@ class AdvisorRules:
                         "level": "warn",
                         "rule": "A",
                         "reason": (
-                            f"⚠️ 持仓 {days}天 回撤 {pnl_pct * 100:+.1f}% 破止损线，但所属板块"
+                            f"⚠️ {age_tag} 回撤 {pnl_pct * 100:+.1f}% 破止损线，但所属板块"
                             f"「{layer['sector']}」处早期转折(动量拐头/站上MA20，RPS{layer['rps']})，"
                             f"疑似板块级同步下挫的周期性低位(非个股利空) → 降级为『持有观察/低位不裸卖』，"
                             f"待板块确认反转再处置，勿砍在底部"
@@ -465,7 +471,12 @@ class AdvisorRules:
                     {
                         "level": "block",
                         "rule": "A",
-                        "reason": f"🚨 持仓 {days}天 回撤 {pnl_pct * 100:+.1f}% 破止损线(-8%) → 紧急减仓",
+                        "reason": f"🚨 {age_tag} 回撤 {pnl_pct * 100:+.1f}% 破止损线(-8%) → 紧急减仓"
+                        + (
+                            "（天数未知，无法套用 T+7 观察期豁免 → 先按最严处置，请核对建仓日）"
+                            if days is None
+                            else ""
+                        ),
                     }
                 )
 
