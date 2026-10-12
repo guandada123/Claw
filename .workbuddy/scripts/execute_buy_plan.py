@@ -32,7 +32,7 @@ import urllib.request
 from datetime import date, datetime, time
 
 # ── 路径 ──────────────────────────────────────────────
-CLAW = "/Users/guan/WorkBuddy/Claw"
+CLAW = "/Users/guan/WorkBuddy/Claw"  # P1-12 备注：此类"仓库根"字面量**暂不收敛** —— 本仓经软链，resolve() 会得到 /Volumes/... 与原值不等（会破坏字符串比较）；需先定「规范路径」再统一替换
 SCRIPTS = os.path.join(CLAW, ".workbuddy", "scripts")
 BUY_PLAN = "/tmp/buy_plan.json"
 EXP_DIR = os.path.join(CLAW, ".workbuddy", "data", "simulation", "experiments")

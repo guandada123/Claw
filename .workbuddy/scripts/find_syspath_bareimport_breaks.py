@@ -44,7 +44,7 @@ STDLIB = set(sys.stdlib_module_names)
 
 def scan(db: Path | None = None) -> dict:
     """返回 {"scanned": n, "broken": {mod: [{"id","name"}...]}}；**不打印**（供 check_broken_refs 复用）。"""
-    db = db or (Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "workbuddy.db")
+    db = db or (Path.home() / ".workbuddy" / "workbuddy.db")
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     rows = con.execute(
         "select id,name,prompt,status from automations where deleted_at is null"

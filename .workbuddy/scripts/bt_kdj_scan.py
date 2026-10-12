@@ -23,7 +23,8 @@ import time
 from collections import defaultdict
 
 # ── 复用 scan_mainboard_local 的指标与规则（保证一致性）──
-_CLAW = "/Users/guan/WorkBuddy/Claw"
+
+_CLAW = "/Users/guan/WorkBuddy/Claw"  # P1-12 备注：此类"仓库根"字面量**暂不收敛** —— 本仓经软链，resolve() 会得到 /Volumes/... 与原值不等（会破坏字符串比较）；需先定「规范路径」再统一替换
 sys.path.insert(0, os.path.join(_CLAW, ".workbuddy", "scripts"))
 import scan_mainboard_local as SCAN  # noqa: E402,N812
 

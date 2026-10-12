@@ -280,6 +280,22 @@ def main() -> int:
     ap.add_argument("--date", default=None, help="报告日期 YYYY-MM-DD")
     args = ap.parse_args()
 
+    # ── 休市闸门（PA-014）──────────────────────────────────────────────
+    # 本层 RRULE 只有 BYDAY=MO-FR、不含 A 股休市日历 → 休市工作日也生成产物，
+    # 其 report_date 是新的一天而数据仍是上一交易日的（data_date 会落后）。
+    # 下游按"日"计数的判据因此被灌水；这里从**源头**挡掉。
+    # 分寸：判不了（None）不跳过 —— 不因日历不可用而停工，但要说出来。
+    # --date 显式指定（补跑历史）时**不拦** —— 那是人为指定，不是"今天跑"。
+    if not args.date:
+        import is_trading_day as _itd
+
+        _tt = _itd.today_is_trading()
+        if _tt is False:
+            print("⏸ 今日休市（非交易日）→ 跳过：不生成产物")
+            return 0
+        if _tt is None:
+            print("⚠️ 交易日历不可用 → 无法判定是否休市，按原逻辑继续（不因此停工）")
+
     data = compute(args.date)
     if data is None:
         print(

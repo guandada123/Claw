@@ -33,7 +33,7 @@ import sys
 import tarfile
 from pathlib import Path
 
-BASE = Path("/Users/guan/.workbuddy")
+BASE = Path.home() / ".workbuddy"
 LOGS = BASE / "logs"
 TRACES = BASE / "traces"
 PROJECTS = BASE / "projects"

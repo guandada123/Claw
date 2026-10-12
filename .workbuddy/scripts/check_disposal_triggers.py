@@ -153,6 +153,21 @@ def main() -> int:
     ap.add_argument("--sector", default="半导体", help="跟踪板块（默认半导体）")
     args = ap.parse_args()
 
+    # ── 休市闸门（PA-014）──────────────────────────────────────────────
+    # 为什么必须有：本脚本的 RRULE 只有 BYDAY=MO-FR，**不含 A 股休市日历** →
+    # 休市工作日也会照跑：板块层会以"新的一天 + 上一交易日的旧数据"多记一天，
+    # 把 T2「连续 ≥3 个不同日期」灌水（PA-015 已从数据侧按 data_date 去重兜了一层，
+    # 这里是**源头闸门**：连跑都不跑）。
+    # 分寸：判不了（None）**不跳过** —— 不因日历不可用而停工，但要说出来。
+    import is_trading_day as _itd
+
+    _tt = _itd.today_is_trading()
+    if _tt is False:
+        print("⏸ 今日休市（非交易日）→ 跳过：不写盘、不推进连续计数基线")
+        return 0
+    if _tt is None:
+        print("⚠️ 交易日历不可用 → 无法判定是否休市，按原逻辑继续（不因此停工）")
+
     portfolio = load_json(USER_PORTFOLIO, {})
     if not portfolio.get("holdings"):
         print("⚠️ 未读到持仓快照，跳过")

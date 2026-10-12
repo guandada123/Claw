@@ -44,7 +44,7 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve()
 CLAW = SCRIPT.parents[2]
 DEFAULT_REGISTRY = CLAW / ".workbuddy" / "inspection_hub" / "registry.json"
-DEFAULT_DB = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "workbuddy.db"
+DEFAULT_DB = Path.home() / ".workbuddy" / "workbuddy.db"
 
 # 非 finding 的信息通道：把「我跳过了什么、为什么」说出来，但**不影响 rc**
 # （存在理由：Hub 的判据是「空声明 ≠ 干净」，可如果连正常跳过都算 finding，rc 就会恒 20 → 恒真噪音，
@@ -690,10 +690,8 @@ def check_slot_consistency(reg: dict, live: dict, rows_all: dict) -> list[dict]:
     return out
 
 
-CROSS_STATE = (
-    Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "cross_project_state.json"
-)
-WB_ROOT = Path(os.environ.get("HOME", "/Users/guan")) / "WorkBuddy"
+CROSS_STATE = Path.home() / ".workbuddy" / "cross_project_state.json"
+WB_ROOT = Path.home() / "WorkBuddy"
 # "明日/今日/开盘前" 这类相对时间无法被机器判定何时过期（写到文件里的那一刻就已经开始腐烂）
 REL_TIME_RE = re.compile(r"(明日|今日|今天|明天|后天|开盘前|收盘前|本周内|下周|稍后|尽快)")
 

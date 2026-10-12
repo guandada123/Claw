@@ -10,6 +10,8 @@
     exit 1 = 非交易日（含周末+节假日）
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from datetime import date, datetime
@@ -57,6 +59,27 @@ def is_trading_day(d: date, holidays) -> bool:
     # 法定节假日排除
     dates = holidays["dates"] if isinstance(holidays, dict) else holidays
     return d.isoformat() not in dates
+
+
+def today_is_trading(holidays=None, d: date | None = None, path: str = HOLIDAYS_FILE):
+    """今天是否 A 股交易日。**判不了返回 None** —— 调用方**不得把 None 当 False**。
+
+    为什么单独做一层而不是直接 `load_holidays()` + `is_trading_day()`：
+    `load_holidays()` 在读不到日历文件时是 **`sys.exit(2)`（进程级退出）**，
+    而"闸门"的语义是"要不要跳过这次运行" —— 把**判断不了**升级成**停工**是错的。
+    故这里兜住 SystemExit 并返回 None，由调用方按"不因判不了而停工，但要说出来"处理。
+    """
+    if holidays is None:
+        try:
+            holidays = load_holidays(path)
+        except SystemExit:  # load_holidays 用 exit(2) 报错 —— 注意 SystemExit 不是 Exception
+            return None
+        except Exception:  # noqa: BLE001
+            return None
+    try:
+        return is_trading_day(d or date.today(), holidays)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def main():

@@ -38,7 +38,7 @@ import sys
 from pathlib import Path
 
 DEFAULT_REGISTRY = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/registry.json")
-DEFAULT_DB = Path(os.environ.get("HOME", "/Users/guan")) / ".workbuddy" / "workbuddy.db"
+DEFAULT_DB = Path.home() / ".workbuddy" / "workbuddy.db"
 MAX_CADENCE_H = 48.0  # 与 hub_reconcile.HEARTBEAT_MAX_CADENCE_H 一致：长周期项不判心跳
 
 

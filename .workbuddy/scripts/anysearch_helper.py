@@ -277,9 +277,23 @@ def earnings_calendar(days: int = 7, cn_code: str = "") -> list:
     if not out:
         return result  # 可能已有 westock 部分结果
     blocks = _extract_all_json_blocks(out)
+    want = cn_code.upper() if cn_code else ""
     for b in blocks:
         if "ts_code" in b or "Symbol" in b or "symbol" in b:
+            tc = str(b.get("ts_code") or b.get("Symbol") or b.get("symbol") or "").upper()
+            # 指定个股时，AnySearch calendar 实际返回的是「全市场」结果（symbol 参数
+            # 未被服务端生效）。若不过滤，别家公司的披露日期会被挂到本持仓名下 ——
+            # 属于「同形异因」的高危误报源（2026-10-12 实测：ETF 588170 名下出现 9 行
+            # 002107.SZ/600206.SH 等全市场无关记录）。
+            if want and tc != want:
+                continue
             b["source"] = "anysearch"
+            # 字段名统一：AnySearch 用 pre_date/actual_date/ann_date，上游读 disclosureDate，
+            # 不统一就会出现「取不到字段 = 空集」的静默缺数据。
+            if not b.get("disclosureDate"):
+                b["disclosureDate"] = (
+                    b.get("pre_date") or b.get("actual_date") or b.get("ann_date") or ""
+                )
             result.append(b)
     return result[:15]
 
@@ -351,6 +365,11 @@ def _parse_md_table(md: str) -> list:
         return []
     lines = [l.strip() for l in md.split("\n") if l.strip()]
     if len(lines) < 3:
+        return []
+    # 必须是真正的 Markdown 表格：表头行须含 '|'，否则 westock 的提示语
+    # （如「暂无业绩预告数据」/「未找到数据」）会被误解析为表头 + 数据行，
+    # 产出虚假空行（同 earnings_calendar.parse_markdown_table 2026-08-31 修法）。
+    if "|" not in lines[0]:
         return []
     header = [h.strip() for h in lines[0].strip("|").split("|")]
     rows = []
