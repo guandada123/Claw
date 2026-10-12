@@ -34,6 +34,17 @@ import os
 import pathlib
 import re
 import sys
+from pathlib import Path
+
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
 
 TS = re.compile(r"^\s*(?:#{1,6}\s+|[-*+]\s+|\|\s*)?(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})")
 # 宽松兜底（2026-10-11 加）：`## 2026-08-31 (周一) 10:14 …` 这类「日期与时刻之间还夹着
@@ -45,7 +56,7 @@ TS_LOOSE = re.compile(
     r"^\s*(?:#{1,6}\s+|[-*+]\s+|\|\s*)?(\d{4})-(\d{2})-(\d{2})[^\n]*?(\d{2}):(\d{2})"
 )
 DEFAULT_ROOTS = [
-    pathlib.Path("/Users/guan/WorkBuddy/Claw/.workbuddy/memory/automations"),
+    _claw_root() / ".workbuddy/memory/automations",
     pathlib.Path(os.path.expanduser("~/.workbuddy/memory/automations")),
     pathlib.Path(os.path.expanduser("~/.workbuddy/automations")),
 ]

@@ -19,6 +19,16 @@ import re
 import sys
 from pathlib import Path
 
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
+
 # ── 默认约束 ──────────────────────────────────────────
 DEFAULT_CONSTRAINTS = {
     "lot_size": 100,  # A股最小交易单位
@@ -63,7 +73,7 @@ CONSTRAINT_TEMPLATE = """🚨 A股交易硬约束（违反=幻觉，生成任何
 
 def load_constraints() -> dict:
     """Load constraints from llm_constraints.md or use defaults."""
-    constraints_file = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/templates/llm_constraints.md")
+    constraints_file = _claw_root() / ".workbuddy/templates/llm_constraints.md"
     if constraints_file.exists():
         try:
             text = constraints_file.read_text()
@@ -107,8 +117,8 @@ def validate_code(code: str) -> tuple[bool, str]:
 #   模拟 -> .workbuddy/data/simulation/portfolio.json（sim_trade.py 维护）
 # 旧的 .workbuddy/data/portfolio.json（v2.0 混合格式）已删除，故 --portfolio
 # 默认从两份权威源聚合，不再依赖孤儿文件。
-_USER_PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/user/portfolio.json"
-_SIM_PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/simulation/portfolio.json"
+_USER_PORTFOLIO = f"{_claw_root()}/.workbuddy/data/user/portfolio.json"
+_SIM_PORTFOLIO = f"{_claw_root()}/.workbuddy/data/simulation/portfolio.json"
 
 
 def _load_authoritative_merged() -> dict:

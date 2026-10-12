@@ -1,8 +1,19 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
-path = "/Users/guan/WorkBuddy/Claw/output/wx_reports/20260714_morning.md"
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
+
+path = f"{_claw_root()}/output/wx_reports/20260714_morning.md"
 with open(path, encoding="utf-8") as f:
     content = f.read()
 title = "📊微信早报 — 2026-07-14（周二）"

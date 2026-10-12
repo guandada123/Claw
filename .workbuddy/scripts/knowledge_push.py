@@ -9,8 +9,19 @@ import json
 import os
 import subprocess
 from collections import Counter
+from pathlib import Path
 
-INDEX_JSON = "/Users/guan/WorkBuddy/Claw/.workbuddy/knowledge/index/articles_index.json"
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
+
+INDEX_JSON = f"{_claw_root()}/.workbuddy/knowledge/index/articles_index.json"
 CHAT_ID = "oc_9ee5303497f5e0e71666b610d6bdc346"
 LARK = "/Users/guan/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli"
 
@@ -54,9 +65,9 @@ def main():
     )
 
     # write message for record
-    os.makedirs("/Users/guan/WorkBuddy/Claw/.workbuddy/knowledge/index", exist_ok=True)
+    os.makedirs(f"{_claw_root()}/.workbuddy/knowledge/index", exist_ok=True)
     with open(
-        "/Users/guan/WorkBuddy/Claw/.workbuddy/knowledge/index/last_push.md", "w", encoding="utf-8"
+        f"{_claw_root()}/.workbuddy/knowledge/index/last_push.md", "w", encoding="utf-8"
     ) as fh:
         fh.write(msg + f"\n\n(dedupe-key: 知识库索引-{today})\n")
 

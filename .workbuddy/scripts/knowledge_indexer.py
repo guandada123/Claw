@@ -12,9 +12,20 @@ import json
 import os
 import re
 from collections import Counter
+from pathlib import Path
 
-ARCHIVE_ARTICLES = "/Users/guan/WorkBuddy/Claw/archive/articles"
-INDEX_DIR = "/Users/guan/WorkBuddy/Claw/.workbuddy/knowledge/index"
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
+
+ARCHIVE_ARTICLES = f"{_claw_root()}/archive/articles"
+INDEX_DIR = f"{_claw_root()}/.workbuddy/knowledge/index"
 LAST_SCAN = os.path.join(INDEX_DIR, "last_scan.txt")
 SUMMARY_LIMIT = 100
 

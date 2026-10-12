@@ -28,7 +28,7 @@ def _claw_root() -> Path:
     raise RuntimeError("找不到含 .workbuddy 的仓库根")
 
 
-SCRIPT_DIR = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/scripts")
+SCRIPT_DIR = _claw_root() / ".workbuddy/scripts"
 ALERTED = SCRIPT_DIR / ".ops_alerted.json"
 CROSS_STATE = Path.home() / ".workbuddy" / "cross_project_state.json"
 DEDUP_TTL_H = 72  # 当前 F3 类告警的去重窗口

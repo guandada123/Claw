@@ -21,11 +21,26 @@ import os
 import sys
 import time
 from collections import defaultdict
+from pathlib import Path  # P1-12：位置无关化后需要
 
 # ── 复用 scan_mainboard_local 的指标与规则（保证一致性）──
 
-_CLAW = "/Users/guan/WorkBuddy/Claw"  # P1-12 备注：此类"仓库根"字面量**暂不收敛** —— 本仓经软链，resolve() 会得到 /Volumes/... 与原值不等（会破坏字符串比较）；需先定「规范路径」再统一替换
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
+
+_CLAW = str(
+    _claw_root()
+)  # P1-12 备注：此类"仓库根"字面量**暂不收敛** —— 本仓经软链，resolve() 会得到 /Volumes/... 与原值不等（会破坏字符串比较）；需先定「规范路径」再统一替换
 sys.path.insert(0, os.path.join(_CLAW, ".workbuddy", "scripts"))
+from pathlib import Path
+
 import scan_mainboard_local as SCAN  # noqa: E402,N812
 
 # ── 回测参数 ──

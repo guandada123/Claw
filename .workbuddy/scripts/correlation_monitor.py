@@ -28,12 +28,23 @@ import math
 import statistics
 import sys
 import urllib.request
+from pathlib import Path
+
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
 
 KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={sym},day,,,60,qfq"
 THRESHOLD = 0.7  # 相关性预警阈值
 MIN_HOLDINGS = 3  # 涉及持仓数 ≥3 才触发（B1 规则，模拟盘多标）
-SIM_PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/simulation/portfolio.json"
-USER_PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/user/portfolio.json"
+SIM_PORTFOLIO = f"{_claw_root()}/.workbuddy/data/simulation/portfolio.json"
+USER_PORTFOLIO = f"{_claw_root()}/.workbuddy/data/user/portfolio.json"
 PORTFOLIO = SIM_PORTFOLIO  # 默认读模拟盘（向后兼容旧调用）
 
 # F3 (2026-08-14 复盘「砍科技」): 实盘(国金)单账户同源标的(如封测链 长电+华天)

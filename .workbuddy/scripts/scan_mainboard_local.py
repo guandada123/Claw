@@ -35,6 +35,17 @@ import types
 import urllib.request
 from collections import defaultdict
 from datetime import date, datetime
+from pathlib import Path
+
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
 
 QTS_SERVICES = "/Users/guan/WorkBuddy/QuantTradingSystem/strategy-service"
 _SERVICES_PKG = os.path.join(QTS_SERVICES, "services")
@@ -90,7 +101,7 @@ GTIMG_BASE = "https://qt.gtimg.cn/q="
 
 # ── 公众号共振库（LLM 阅读自动化产出，多账号推荐同一股≥RESONANCE_THRESHOLD 算共振）──
 # 用绝对路径（与 QTS_SERVICES 同风格），避免 __file__ 相对路径在 PYTHONPATH 调用下歧义
-RESONANCE_PATH = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/article_resonance.json"
+RESONANCE_PATH = f"{_claw_root()}/.workbuddy/data/article_resonance.json"
 RESONANCE_THRESHOLD = 2  # ≥2 篇公众号推荐同一股 = 共振（用户决策）
 
 

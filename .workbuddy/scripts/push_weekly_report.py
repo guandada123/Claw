@@ -20,6 +20,17 @@ import re
 import subprocess
 import sys
 from datetime import datetime
+from pathlib import Path
+
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LARK_CLI = (
@@ -129,12 +140,10 @@ def main():
         d = datetime.strptime(ymd, "%Y%m%d")
         weekday = WEEKDAYS[d.weekday()]
 
-    md_path = f"/Users/guan/WorkBuddy/Claw/output/wx_reports/{ymd}_weekly.md"
+    md_path = f"{_claw_root()}/output/wx_reports/{ymd}_weekly.md"
     if not os.path.exists(md_path):
         # 兼容旧命名 weekly_review_YYYY-MM-DD.md
-        alt_path = (
-            f"/Users/guan/WorkBuddy/Claw/output/weekly_review_{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}.md"
-        )
+        alt_path = f"{_claw_root()}/output/weekly_review_{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}.md"
         if os.path.exists(alt_path):
             print(f"📄 使用旧命名路径: {alt_path}")
             md_path = alt_path

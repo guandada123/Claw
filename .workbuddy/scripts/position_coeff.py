@@ -36,10 +36,21 @@ from __future__ import annotations
 import json
 import sys
 import urllib.request
+from pathlib import Path
+
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
 
 KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh000001,day,,,30,qfq"
 TEN_YEAR_YIELD = 1.7  # 10年国债收益率%（2026-08 基准）
-PORTFOLIO = "/Users/guan/WorkBuddy/Claw/.workbuddy/data/simulation/portfolio.json"
+PORTFOLIO = f"{_claw_root()}/.workbuddy/data/simulation/portfolio.json"
 
 # 持仓股息率静态映射（2026-08-05 基准，大盘蓝筹典型值）
 DIV_YIELD = {

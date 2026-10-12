@@ -22,6 +22,17 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
+
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
 
 SKILL_DIR = os.path.expanduser("~/.workbuddy/skills/anysearch")
 SKILL_CLI = os.path.join(SKILL_DIR, "scripts", "anysearch_cli.py")
@@ -99,7 +110,7 @@ def _run_westock(args: list) -> str:
             capture_output=True,
             text=True,
             timeout=TIMEOUT_WESTOCK,
-            cwd="/Users/guan/WorkBuddy/Claw",
+            cwd=str(_claw_root()),
         )
         return r.stdout if r.returncode == 0 else ""
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
