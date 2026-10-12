@@ -24,7 +24,7 @@ def _claw_root() -> Path:
 INDEX_JSON = f"{_claw_root()}/.workbuddy/knowledge/index/articles_index.json"
 CHAT_ID = "oc_9ee5303497f5e0e71666b610d6bdc346"
 LARK = str(
-    Path.home() / ".workbuddy" / "binaries" / "node", "versions", "22.22.2", "bin", "lark-cli"
+    Path.home() / ".workbuddy" / "binaries" / "node" / "versions" / "22.22.2" / "bin" / "lark-cli"
 )
 
 

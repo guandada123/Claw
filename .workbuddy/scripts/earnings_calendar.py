@@ -115,7 +115,7 @@ def _resolve_npx() -> str:
     if on_path:
         return on_path
     fallback = str(
-        Path.home() / ".workbuddy" / "binaries" / "node", "versions", "22.22.2", "bin", "npx"
+        Path.home() / ".workbuddy" / "binaries" / "node" / "versions" / "22.22.2" / "bin" / "npx"
     )
     return fallback
 

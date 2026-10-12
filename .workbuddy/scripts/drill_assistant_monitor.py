@@ -47,7 +47,7 @@ def _claw_root() -> Path:
 
 DEFAULT_CLAW = os.environ.get("CLAW") or str(_claw_root())
 PY = os.environ.get("PYTHON") or str(
-    Path.home() / ".workbuddy" / "binaries" / "python", "envs", "default", "bin", "python"
+    Path.home() / ".workbuddy" / "binaries" / "python" / "envs" / "default" / "bin" / "python"
 )
 
 

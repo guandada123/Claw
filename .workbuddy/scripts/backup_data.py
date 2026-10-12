@@ -18,15 +18,21 @@ from pathlib import Path
 
 
 def _find_project_dir(start):
-    """向上查找项目根目录:含 pyproject.toml 且含 output/ 的目录。
+    """向上查找项目根目录:含 pyproject.toml 且含 output/ 且自身包含 .workbuddy/ 的目录。
 
     不依赖固定的目录层级(backup.py 位于 <root>/src/claw/utils/ 或 <root>/scripts/),
     即使包结构被移入/移出 src/ 也能正确解析到 Claw 根目录。
+
+    关键修正(2026-10-13): 必须要求候选目录自身包含 `.workbuddy/` 子目录。
+    否则当 `.workbuddy/` 内被写入 pyproject.toml + output/ 时,会误把 `.workbuddy`
+    当成项目根,导致备份只打包 .workbuddy 自身(空备份/假绿灯)。
     """
     cur = os.path.abspath(start)
     while True:
-        if os.path.isfile(os.path.join(cur, "pyproject.toml")) and os.path.isdir(
-            os.path.join(cur, "output")
+        if (
+            os.path.isfile(os.path.join(cur, "pyproject.toml"))
+            and os.path.isdir(os.path.join(cur, "output"))
+            and os.path.isdir(os.path.join(cur, ".workbuddy"))
         ):
             return cur
         parent = os.path.dirname(cur)

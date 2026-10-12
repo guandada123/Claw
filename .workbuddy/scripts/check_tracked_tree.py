@@ -64,11 +64,14 @@ def pick_python() -> str | None:
         Path(
             os.environ.get("PYTHON")
             or str(
-                Path.home() / ".workbuddy" / "binaries" / "python",
-                "envs",
-                "default",
-                "bin",
-                "python3",
+                Path.home()
+                / ".workbuddy"
+                / "binaries"
+                / "python"
+                / "envs"
+                / "default"
+                / "bin"
+                / "python3"
             )
         ),
         Path("/usr/bin/python3"),
