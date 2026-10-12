@@ -264,7 +264,8 @@ def check_ci_failures() -> dict:
     _wb = Path.home() / "WorkBuddy"
     repos = {
         "QuantTradingSystem": str(_wb / "QuantTradingSystem"),
-        "MarvisBridge": str(_wb / "marvis_bridge"),
+        # 2026-10-12 MarvisBridge **正式下线**（用户确认「已下线，不要了」）→ 移出监控清单，
+        # 否则会永久被报「仓库异常」。目录原地保留作归档（不删除）。
     }
     results = []
     three_days_ago = (datetime.now() - timedelta(days=3)).isoformat()
@@ -325,7 +326,8 @@ def check_repo_health() -> dict:
         "Claw": str(_wb / "Claw"),
         "QuantTradingSystem": str(_wb / "QuantTradingSystem"),
         "StockInsight": str(_wb / "StockInsight"),
-        "MarvisBridge": str(_wb / "marvis_bridge"),
+        # 2026-10-12 MarvisBridge **正式下线**（用户确认「已下线，不要了」）→ 移出监控清单，
+        # 否则会永久被报「仓库异常」。目录原地保留作归档（不删除）。
     }
     problems = []
     for name, path in repos.items():
