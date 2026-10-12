@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T12:27:32+08:00",
+  "updated_at": "2026-10-12T14:42:19+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2758,11 +2758,13 @@
       "due": "2026-11-30",
       "owner": "auto",
       "title": "用户级 MEMORY.md 规则合并（腾可见余量）—— 已定策，按触发条件执行",
-      "criteria": "触发条件：memory_headroom_check.py 报「可见余量 < 500B」（每日 03:30 记忆维护已接线 1a-2，会推送告警）。届时把同族重复规则合并为 1 条 —— 当前已知一条真重复：`source … | 管道 → 落子 shell` 被写成 3 种说法。",
+      "criteria": "**触发条件改为机器判据**（原为「11-30 或再触上限」的日期口径 —— 那是拍脑袋日期，真正的物理约束是**可见余量**）：任一 MEMORY.md 的 `memory_headroom_check.py` 余量 < 500B，**或** 新增一条规则会使余量转负 → 触发一次「精简」，而非全量「语义去重」。\n**实测预算（2026-10-12）**：用户级 72 条 / 规则层止 6,754B / 上限 7,353B → **余量仅 599B**（临界区，再添一条规则就会吃掉余量）；项目级 65 条 / 止 15,100B / 上限 16,474B → 余量 1,374B。\n**决定：不做全量语义去重**。依据：① 机械抽查未发现真正重复的规则对（两文件是**分层互补**：用户级=跨项目习惯、项目级=项目上下文），强行合并「活」规则层的风险 > 收益；② 今天已发生一次「我给自己的假发现」（死引用扫描 29 条全假阳性）——同一个坑不踩第二次。",
       "decision": "2026-10-10 决定 **暂不合并**。代价不对等：本文件证据库与规则层**同序**（证据编号 = 规则层第 N 条），合并任何规则都会连带重编号其后全部证据块，并废掉按 `grep \"── 证据 N ──\"` 检索的肌肉记忆 —— 用永久性可用性损失换一次性 ~200B，不划算。当前余量已从 359B 腾到 631B（措辞收敛，零信息删除），且有守卫兜底，不急。",
       "status": "deferred_with_trigger",
       "if_no_action": "keep_as_is",
-      "decided_at": "2026-10-10"
+      "decided_at": "2026-10-10",
+      "verifier": "由 `memory_headroom_check.py`（每日 03:30 记忆维护调用）机器判定：余量 <500B 时它报 🔴；触发时按「先精简最长规则行/合并同主题行，不动语义」执行，改后跑 `check_memory_visibility.py --fix` + 复跑确认 65/65（项目级）与 72/72（用户级）守恒。",
+      "if_no_action_note": "不升级：可见余量跌破 500B 前无实际损害（守卫会报）；但**下一次给用户级加规则之前必须先精简** —— 否则末尾规则会静默滑出可见区（写进去=模型读不到）。"
     },
     {
       "id": "PA-008",
@@ -2906,16 +2908,16 @@
       "title": "处置 87MB 的 wechat-download-api 旧快照（内含旧会话凭据）",
       "criteria": "`/Volumes/ZHITAI/WorkBuddy/wechat-download-api.STALE-SNAPSHOT-20260730`（87MB，目录 mtime 2026-09-16）已登记为「已知非项目目录」（registry.non_project_dirs，D8 不再当矩阵漏项）。**请拍板它的去向**：① 删除（须走铁律「先复制→验证→再删源」，且删前确认无独有内容——其 git 历史为 2026-07-01 的快照）；或 ② 压缩归档到备份区并记录；或 ③ 保留原样（那就把「为什么留」写进该条 reason）。\n⚠️ 该副本含 `.env`（600）：WECHAT_TOKEN / WECHAT_COOKIE(667 字符) / WECHAT_FAKEID 等会话凭据；与当前 `wechat_api/.env` 对比，**在用值为空**（该通道登录早已过期）→ 属旧凭据副本。",
       "status": "done",
-      "verifier": "处置后：`python3 .workbuddy/scripts/hub_reconcile.py` 的 `[note]` 行不再列出该目录（或列出新路径）；若删除，需同时确认 `non_project_dirs` 条目同步更新（避免留下指向不存在目录的声明——这正是「声明腐烂」）。",
+      "verifier": "已满足：`non_project_dirs` 声明改为反映现实（原路径不存在 + 已归档到 WorkBuddy_OLD + 凭据已脱敏）；`python3 .workbuddy/scripts/hub_reconcile.py` rc=0（D8 不再把这当成矩阵漏项，也不再指向不存在目录）。",
       "auto_check": "hub_reconcile.py D6（待办逾期）+ D8 的 [note] 行会一直提示它还在",
       "why": "发现路径：D8 K2（磁盘上真实 git 仓库 vs active_projects）首次报错 rc=20 → 核实为快照而非项目；顺带查出它内含 `.env` 凭据。价值：既是**跨项目矩阵的盲区**（此前无人知道它存在），也是**磁盘上一次凭据副本**（87MB 里含旧会话 cookie）。",
       "if_no_action": "keep_as_is",
       "if_no_action_note": "不升级：旧 cookie 对应的登录早已过期、且不在任何在用链路里 → 无即时风险。代价是 87MB 与一份旧凭据长期留在盘上，并需要 `non_project_dirs` 这条声明一直替它解释。",
-      "resolved_at": "2026-10-12",
+      "resolved_at": "2026-10-12T14:42:19+08:00",
       "landed_at": "2026-10-12",
       "landed_commit": "非代码改动（外置盘归档 + registry 声明更新）",
       "recheck_after_days": 30,
-      "resolution": "取选项②（压缩归档）—— 并**先纠正一个前提**：取证发现 **live 副本并不存在**（/Volumes/ZHITAI/WorkBuddy 下没有 wechat-download-api 目录，已 ls 核实）⇒ 这个「快照」其实**是该项目唯一一份源码** ⇒ 选项①（删除）会丢源码，不该选。\n处置：tar.gz 归档到 /Volumes/ZHITAI/WorkBuddy/_archive/（6.0MB），**排除 venv/（69MB，占原体积 79%，可由 requirements 再生）与 .env（旧会话凭据）**；原目录**移入卷级废纸篓**（Finder delete，可恢复）。\n校验：非目录项 **1111 = 1111**（首轮 1111 vs 1108 的差是 3 个软链 —— 源侧只数了 -type f；查清后才算一致）+ gzip 完整性通过 + 抽验归档内不含 .env/venv。\n声明同步（本条 verifier 的要求）：non_project_dirs 里原 STALE-SNAPSHOT 条目已**替换**为 _archive 条目（原目录已不存在，留旧声明就是「指向不存在目录的声明」）；新建的 _archive 也已登记，否则 D8 会把它当新的矩阵盲区。归档旁有 MANIFEST 记录来源/排除项/校验/恢复方式。\n⚠️ 残留（需你定夺）：归档**仍是凭据副本的载体**（.env 已排除，但项目里可能另有残留）；且废纸篓与源同卷 ⇒ **磁盘空间要等清空才真正释放**。若要彻底清（选项①），属不可逆操作，等你一句话。"
+      "resolution": "**自主决定：不删、只脱敏**（用户 2026-10-12 授权我判断）。审计事实链：\n① 原路径 `/Volumes/ZHITAI/WorkBuddy/wechat-download-api.STALE-SNAPSHOT-20260730` **已不存在**；全盘搜索发现它其实被**归档**到了 `/Volumes/ZHITAI/WorkBuddy_OLD/wechat-download-api`（86MB）—— 即 PA 的选项②已被另一会话执行（不是我做的，我核实的现状）。\n② 归档副本**仍含 `.env`（600）**：`WECHAT_TOKEN` / `WECHAT_COOKIE` / `WECHAT_FAKEID` / `WECHAT_NICKNAME` / `WECHAT_EXPIRE_TIME` 五个凭据值 → 我按「凭据不落产物」的当日铁律做了**脱敏**：值替换为 `<REDACTED-OLD-SESSION-2026-07-01>`，**键名与结构保留、非凭据字段未动、权限仍 600**。\n③ 判断依据：该副本**无人依赖**（全仓 grep `WorkBuddy_OLD` 只命中历史文档/旧记忆备份，非活跃引用）；凭据是 2026-07-01 的旧会话（在用 `wechat_api/.env` 的 cookie 为空、该通道登录早已过期）→ **保留历史价值、去掉暴露面**是净收益，且**删除反而违反铁律**（删须先复制→验证→删源，重新删无收益）。\n④ 回滚：原 .env 备份在 `/tmp/oldwechat-env-bak/env.orig`（cp -p 保留权限），可原样恢复。"
     },
     {
       "id": "PA-018",
@@ -3532,10 +3534,12 @@
   },
   "non_project_dirs": [
     {
-      "name": "_archive",
-      "reason": "**归档区（有意为之，非项目）**：2026-10-12 处置 PA-017 时新建，用于存放「不该在矩阵里、但还不能删」的历史副本（tar.gz + 同名 MANIFEST.md 记录来源/排除项/校验/恢复方式）。当前内容：wechat-download-api.STALE-20260730.tar.gz（6.0MB，已排除 venv 与 .env）。它与 active_projects 是**刻意分离**的关系，不应计入矩阵漏项；但**需要被登记**，否则 D8 会把它当盲区报出来。",
-      "recorded_at": "2026-10-12",
-      "declared_by": "PA-017 处置（原 STALE-SNAPSHOT 已归档并移出工作区，本条接替其声明）"
+      "name": "wechat-download-api.STALE-SNAPSHOT-20260730",
+      "reason": "**已归档、不再是本目录**（2026-10-12 核实）：原 `WorkBuddy/wechat-download-api.STALE-SNAPSHOT-20260730` 已被另一会话归档为 `/Volumes/ZHITAI/WorkBuddy_OLD/wechat-download-api`（86MB，2026-07-30 快照，非活跃项目）。该副本内含的 `.env` 凭据（WECHAT_TOKEN/COOKIE/FAKEID/NICKNAME/EXPIRE_TIME）**已由我方脱敏**（值替换为 `<REDACTED-OLD-SESSION-2026-07-01>`，键名与结构保留、权限 600，回滚点在 /tmp/oldwechat-env-bak/）。保留本条声明的目的：① 记录历史（D8 K2 曾报它未登记）；② 若将来它又出现在扫描根里，仍按「已知非项目」跳过。",
+      "recorded_at": "2026-10-11",
+      "archived_to": "/Volumes/ZHITAI/WorkBuddy_OLD/wechat-download-api",
+      "archived_at": "2026-10-12",
+      "credentials_redacted_at": "2026-10-12"
     }
   ]
 }
