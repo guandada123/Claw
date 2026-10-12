@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T19:21:35+08:00",
+  "updated_at": "2026-10-12T19:50:05+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2451,6 +2451,16 @@
       "detect": "三处反查，**全空 = 孤儿**：① `automations.prompt LIKE '%<文件名>%'`；② `grep -rn \"import <mod>\\|from <mod> import\"`；③ `grep -rn \"<文件名>\"` 在 .py/.sh/launchd 里。若命中只落在文档/CHANGELOG/记忆里（历史叙述），仍算孤儿。补充判据：`ls -la` 看它的 mtime 是否**远晚于**最后一条调用——被改过但没人调 = 强烈信号。",
       "mitigation": "先**登记**再处置（别直接删）：判\"该归档\"还是\"该恢复调用\"，两条都要人拍板一次；删除须走铁律「先复制→验证→再删源」+ 删前确认。若同族存在 `.py`/`.sh` 双副本，优先并入既有的**双副本收敛**批次，避免两处各改一遍。",
       "does_not_affect": "不影响任何运行中的链路（正因为它无人调用）——本条的代价是**维护注意力被误导**，以及\"以为有健康检查、实际没有\"的认知差。"
+    },
+    {
+      "id": "scan-root-excludes-sibling-dirs",
+      "area": "检查器 / 扫描范围",
+      "severity": "medium",
+      "since": "2026-10-12",
+      "desc": "「跨项目矩阵」类检查只取**一个**扫描根，于是**根旁边的兄弟目录结构性不可见**——不是漏跑，而是从来没被纳入过。实测：`hub_reconcile` 的 D8 用 `WB_ROOT = Path.home()/WorkBuddy`，而 `~/workbuddy_marvis_bridge_OLD`（35MB、git 仓、含与活跃同值的 .env）与 `~/WorkBuddy_OLD`（→ 5.1GB 归档）都在 **home 根**，全在范围外；同类还有 `/Volumes/ZHITAI/workbuddy_marvis_bridge`（与活跃目录同源的旧副本）。",
+      "detect": "① 读检查器的根常量（如 WB_ROOT），看它是不是**唯一的一个**；② 用【找同类】反查：`ls -d <根>/../*<关键词>*`、`ls -d /Users/guan/*OLD* /Volumes/ZHITAI/*OLD*`；③ 对每个发现验真身：`os.path.realpath` + `os.path.islink` + 是否 git 仓 + 是否含 .env（哈希比对是否等于在用值）。",
+      "mitigation": "登记为「已知非项目目录」（带凭据状态与【为何不动】的理由），让**它们存在**这件事可见；**暂不扩大扫描根** —— 扩大属共享检查器的行为变更，会给并发的另一会话新增 findings；若同类副本继续增多，再评估把扫描根改成多值（根目录 + 显式列出的兄弟目录）。",
+      "does_not_affect": "不影响当前任何检查结论：这些目录本来就不该进项目矩阵（是归档/副本）。本条的代价是【不知道它们存在】—— 包括不知道旁边有一份在用凭据的本地副本。"
     }
   ],
   "doc_apply": {
@@ -3621,6 +3631,19 @@
       "archived_to": "/Volumes/ZHITAI/WorkBuddy_OLD/wechat-download-api",
       "archived_at": "2026-10-12",
       "credentials_redacted_at": "2026-10-12"
+    },
+    {
+      "name": "workbuddy_marvis_bridge_OLD",
+      "path_hint": "~/workbuddy_marvis_bridge_OLD（在 home 根，**不在** D8 扫描根 ~/WorkBuddy 之下）",
+      "reason": "**非活跃项目**：35MB 的 Marvis Bridge 旧副本（git 仓，remote 同 guandada123/MarvisBridge，public 仓；HEAD 停在较早提交）。**含 .env 三个键（DEEPSEEK_API_KEY / CATROUTER_API_KEY / WECHAT_BOT_TOKEN），经哈希比对与活跃副本 `WorkBuddy/marvis_bridge/.env` 【同值】= 在用凭据。****但无 git 层面泄漏**：该仓 .gitignore 忽略 .env、`git log --all -- .env` = **0 提交**、`git ls-files .env` 为空 → 未入库、未推送。\n**判断：不动作**（只登记）。依据：同机同用户下已有活跃 .env，这份副本不新增暴露面；它又是公开仓的可重建克隆 + 一份本地凭据副本，删除无收益、动别人的归档有风险。（对比 PA-017 的微信快照：那份是已过期凭据且不在任何在用链路，故当时做了脱敏。）",
+      "recorded_at": "2026-10-12",
+      "credentials_state": "含在用凭据的本地副本（未入库 / 0 提交 / 远端不含）"
+    },
+    {
+      "name": "WorkBuddy_OLD",
+      "path_hint": "~/WorkBuddy_OLD → /Volumes/ZHITAI/WorkBuddy_OLD（5.1GB）",
+      "reason": "**非活跃归档**：home 根的软链，指向数据卷上的 5.1GB 归档目录（非 git 仓、无 .env）；PA-017 处置过的 wechat 快照即归档在其下（.../wechat-download-api，凭据已脱敏）。登记目的：让【home 根存在多少 *_OLD 归档】可见 —— 它们都在 D8 扫描根之外。",
+      "recorded_at": "2026-10-12"
     }
   ]
 }
