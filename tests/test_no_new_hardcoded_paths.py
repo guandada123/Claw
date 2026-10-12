@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -31,10 +32,36 @@ PATTERN = re.compile("/" + "Use" + "rs/guan")
 SELF = Path(__file__).name  # 本测试自己会提到该模式，必须排除
 
 
+def _tracked_py() -> set[str] | None:
+    """本目录下**已入库**的 .py 文件名集合；取不到返回 None（判不了）。
+
+    🔴 2026-10-12 修（本门禁上线即因此判红）：原先 `SCRIPTS.glob("*.py")` 扫的是**工作树**，
+    而基线是**入库**文件 —— 两个 **gitignore 的一次性脚本**只在本地存在（`_refresh_close_*.py`），
+    其基线条目在 CI 的 tracked-only 树里就成了"已清零但仍在表里" → 规则④误红。
+    **同一条纪律**：本地全绿 ≠ CI 会绿 —— 口径必须与 CI 的检出树一致。
+    """
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(REPO), "ls-files", "--", str(SCRIPTS)],
+            capture_output=True, text=True, timeout=15,
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    if r.returncode != 0:
+        return None
+    return {Path(ln).name for ln in r.stdout.splitlines() if ln.strip().endswith(".py")}
+
+
 def scan() -> dict[str, int]:
-    """{文件名: 出现次数}，只统计 .py（与基线生成口径一致）。"""
+    """{文件名: 出现次数}，只统计**已入库**的 .py（与 CI 检出树口径一致）。
+
+    取不到跟踪清单（无 git / 非仓库）→ **退回全量 glob**（判不了就不拦，宁可漏拦不误红）。
+    """
+    tracked = _tracked_py()
     out = {}
     for p in sorted(SCRIPTS.glob("*.py")):
+        if tracked is not None and p.name not in tracked:
+            continue
         n = len(PATTERN.findall(p.read_text(encoding="utf-8", errors="ignore")))
         if n:
             out[p.name] = n

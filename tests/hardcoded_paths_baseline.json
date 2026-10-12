@@ -2,7 +2,6 @@
   "_comment": "P1-12 硬编码路径基线（2026-10-11 立）。只许减不许增；替换完一批就把数字调小，减到 0 的文件请直接删除本表条目（测试会把「已清零但仍在表里」也报出来）。",
   "files": {
     "_create_wx_doc.py": 2,
-    "_refresh_close_20260811.py": 1,
     "anysearch_helper.py": 2,
     "append_insights.py": 1,
     "bt_kdj_scan.py": 1,
@@ -24,7 +23,6 @@
     "push_weekly_report.py": 2,
     "read_wx_articles.py": 1,
     "read_yupen_data.py": 2,
-    "refresh_close_20260824.py": 1,
     "rotate_automation_memory.py": 1,
     "scan_expanded_pool.py": 1,
     "scan_mainboard_local.py": 2,
