@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-11T23:08:52+08:00",
+  "updated_at": "2026-10-12T08:21:06+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2169,6 +2169,53 @@
       "landed_commit": "c861e49",
       "recheck_after_days": 7,
       "resolution": "已落地（Claw c861e49）。\n① 闸门新增**路径存在性预检**：`check_cmd_bad_paths()` 抽出命令里的绝对路径做存在性判定，命中不存在 → 理由码 `check_cmd_bad` 拦下；报告与 JSON 输出 `blocked_check_cmd` 计数，console 单独一行告警并给出药方（改用 `$HOME/.workbuddy/skills/…`）。可配置 `require_check_cmd_paths` 关闭。\n② 覆盖率：对**全部 70 条候选**实测 —— 20 条带 check_cmd 的逐条判定，0 条漏判、0 条误杀（修掉一处误杀：含通配符的 `skills/*/SKILL.md` 改走 glob 判定）。\n③ 顺带修实测发现的两条失效 check_cmd（disc-20261010-01 / disc-20261011-01）并各留 note。\n④ 额外发现并落地：原提案只提「路径不存在」，实测还有一类**退出码被抹平**（`grep -rl … | head -1` 对不存在的字符串也 rc=0）→ 新增 `check_cmd_weak_exit_code()` 仅告警不拦截。\n⑤ 未越界：提案①要求的「产出侧改用变量」属另一自动化的 prompt，未改它；改由闸门告警承担反馈闭环。\n验收：本候选 check_cmd `grep -c 'check_cmd_bad' apply_doc_candidates.py` 实测 = **7**（≥1 即达成）。"
+    },
+    {
+      "id": "disc-20261012-01",
+      "found_at": "2026-10-12",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-09-signal-quota-starved-by-venv-and-three-counting-traps.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/counting_trap_guardrails.md 新增『计数陷阱防护清单（行数下限断言+下游心跳+第三方配额核对）』小节，且被 inspection_hub 或对应 SKILL.md 引用",
+      "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/counting_trap_guardrails.md && grep -q '行数下限' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/counting_trap_guardrails.md",
+      "suggestion": "Claw 采集器曾因 venv 配额吃光 + 三个『数出来的是假的』计数陷阱失真（P1 学习 2026-10-09）。外部研究 crosstowntech『Green Checkmark Lie』给出可落地防护分类：行数下限断言（rows>0 且 ≥预期*0.9 捕获空/部分）、schema/shape 校验、下游心跳（消费者确认收到新鲜数据）、dead-man's switch。将三者沉淀为 references/counting_trap_guardrails.md，并在 project_signal_collect.py 输出中强化 third_party_excluded 配额核对与行数下限自检，使『数出来的』可被证伪。",
+      "doc_target": "references/counting_trap_guardrails.md"
+    },
+    {
+      "id": "disc-20261012-02",
+      "found_at": "2026-10-12",
+      "status": "pending",
+      "track": "external_trend",
+      "target_project": "QTS",
+      "skill": "",
+      "url": "http://www.mzlw.cn/news/112320",
+      "value": "medium-high",
+      "risk": "medium",
+      "class": "core",
+      "needs_review": true,
+      "success_metric": "QTS 回测数据加载层新增『复权因子校验 + 退市股完整性校验』断言，且对应测试由红转绿（tests/ 下新增 test_data_quality.py 通过）",
+      "check_cmd": "cd /Users/guan/WorkBuddy/QuantTradingSystem && python3 -m pytest tests/test_data_quality.py -q 2>/dev/null | tail -1 | grep -q 'passed'",
+      "suggestion": "外部选型指南（mzlw.cn）指出：回测失真常因复权因子出错或数据源缺退市股，『差的不是策略是数据』。QTS 回测数据层应新增复权标识一致性 + 标的范围含退市股的完整性断言，避免回测乐观偏差。属核心代码改动，走周度人工审（生成 diff 提案待授权）。",
+      "doc_target": "references/backtest_data_quality.md"
+    },
+    {
+      "id": "disc-20261012-03",
+      "found_at": "2026-10-12",
+      "status": "pending",
+      "track": "external_trend",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "url": "https://zylos.ai/research/2026-05-04-agent-workflow-composition-skill-reuse",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/skill_output_contract.md 新增『技能输出 schema 版本化契约 + 注册期依赖环检测』小节，且被 majiu-management SKILL.md 或 inspection_hub 引用",
+      "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/skill_output_contract.md && grep -q 'cycle detection' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/skill_output_contract.md",
+      "suggestion": "zylos.ai（2026-05）指出技能版化的头号运营风险是『版本化缺口』：技能行为靠自然语言描述、无内置版本系统，更新即全局生效。新兴解法是把技能输出 schema 当作版本化 API 契约（semantic versioning for output structure）+ 注册期依赖环检测（cycle detection at registration）。补 majiu-management 治理未覆盖的『输出契约版本化 + 依赖环』维度。",
+      "doc_target": "references/skill_output_contract.md"
     }
   ],
   "known_failure_modes": [
@@ -2391,14 +2438,10 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-11T00:41:08+08:00",
+      "ts": "2026-10-12T00:40:39+08:00",
       "mode": "live",
-      "selected": [
-        "disc-20261010-01",
-        "disc-20261011-01",
-        "disc-20261011-03"
-      ],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261011.md"
+      "selected": [],
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261012.md"
     },
     "calibrate_runs": 18,
     "rollback_point": "67270a5",
@@ -2453,7 +2496,7 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 15,
+    "live_runs": 16,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7,
     "skill_vcs_sha_latest": "da5a824",
@@ -2514,7 +2557,8 @@
     "2026-10-10T23:25:21+08:00 周度统一排序（2026-W41）：待排序 5｜四环 {'Adopt': 1, 'Trial': 2, 'Assess': 0, 'Caution': 2}｜升降环 3",
     "2026-10-11 live 第 3 批落地 3 条 [disc-20261010-01,disc-20261011-01,disc-20261011-03]：unified-inspection-hub 新建 references/×2 + majiu-management ×1；技能库回滚点 395ffb7→da5a824；Claw commit 67270a5；doc_apply.rollback_point 9b549d9→67270a5；3b 复检 parity rc=0/ok=true/violations=[] + hub_reconcile rc=0/clean=true（连续第 7 日）",
     "2026-10-11 登记 disc-20261011-04（proposed）：候选 check_cmd 硬编码 Claw 侧路径而实际落地根为 HOME/.workbuddy/skills → check_cmd 恒失败、指标永远无法证真（本批 2/3 条命中）→ 转周度审",
-    "2026-10-11 多自动化并发写仓：**判定不做「仓库级真互斥」，改为结构性拆除唯一的危险写法**。① 普查（77 个 ACTIVE 自动化的 prompt 全文匹配 git 写动词）：真正会写 git 的**只有 1 个** —— `1fd52465` 📥 每日·文档类落地（`git add -A && git commit`）；`automation-1785825576843` 运维巡检周报里出现的 `git commit/push/reset/clean` 全是**禁止性说明**；`$VCS`（skills_vcs.sh）被 2 个自动化调用，但那是技能库的独立 git 仓、`-A` 属**设计意图**（快照全部技能库状态）。② 取证：历史 6 次 `hub(doc-apply)` 提交**均只含预期文件**（registry/calibration/parity），**未发生**扫走无关文件的事故 → 隐患真实存在但未触发（运行时机恰好错开）。③ 为何不做锁：自动化是**自己敲 git 命令**、没有单一收口点可挂锁；且 git 自身 `.git/index.lock` 已把索引操作串行化（并发 `git add/commit` 是**响亮失败**，不是静默损坏）；给 77 个自动化统一加锁属独立工程。④ 实际动作：把 doc-apply 的 `git add -A` 改为 `git add .workbuddy/inspection_hub/`（**结构性消除扫走能力**，非靠纪律），并在 prompt 里写明「看到 inspection_hub 之外的改动 → 那不是本批的，既不提交也不丢弃」。⑤ 可观测性已就位：本轮新增的巡检检查项「仓库状态」（分支不对 / 改动滞留 ≥12h）负责兜住残留。→ 若将来再次出现扫走/并发损坏的**实例**，再据此升级为锁；**不要凭机制危险就上锁**。"
+    "2026-10-11 多自动化并发写仓：**判定不做「仓库级真互斥」，改为结构性拆除唯一的危险写法**。① 普查（77 个 ACTIVE 自动化的 prompt 全文匹配 git 写动词）：真正会写 git 的**只有 1 个** —— `1fd52465` 📥 每日·文档类落地（`git add -A && git commit`）；`automation-1785825576843` 运维巡检周报里出现的 `git commit/push/reset/clean` 全是**禁止性说明**；`$VCS`（skills_vcs.sh）被 2 个自动化调用，但那是技能库的独立 git 仓、`-A` 属**设计意图**（快照全部技能库状态）。② 取证：历史 6 次 `hub(doc-apply)` 提交**均只含预期文件**（registry/calibration/parity），**未发生**扫走无关文件的事故 → 隐患真实存在但未触发（运行时机恰好错开）。③ 为何不做锁：自动化是**自己敲 git 命令**、没有单一收口点可挂锁；且 git 自身 `.git/index.lock` 已把索引操作串行化（并发 `git add/commit` 是**响亮失败**，不是静默损坏）；给 77 个自动化统一加锁属独立工程。④ 实际动作：把 doc-apply 的 `git add -A` 改为 `git add .workbuddy/inspection_hub/`（**结构性消除扫走能力**，非靠纪律），并在 prompt 里写明「看到 inspection_hub 之外的改动 → 那不是本批的，既不提交也不丢弃」。⑤ 可观测性已就位：本轮新增的巡检检查项「仓库状态」（分支不对 / 改动滞留 ≥12h）负责兜住残留。→ 若将来再次出现扫走/并发损坏的**实例**，再据此升级为锁；**不要凭机制危险就上锁**。",
+    "2026-10-12 live 第 4 批：闸门 `selected=[]`（**0 条过闸**）→ 按铁律❹ SILENT：零落地 / 零 commit / 零推送。3 条当日候选被拦原因互不相同（**均非「缺指标」**）：① `disc-20261012-01` 承载方缺失（`skill` 为空，闸门 `require_host` 按 `skill` 定位 `$HOME/.workbuddy/skills/<skill>` 目录）；② `disc-20261012-02` `risk=medium` 高于阈（且 `class=core`/`needs_review` 本不走本通道）；③ `disc-20261012-03` `check_cmd` 引用不存在的 Claw 侧路径 `Claw/.workbuddy/inspection_hub/references/skill_output_contract.md` → `blocked_check_cmd=1`。③ 是 `disc-20261011-04` 的**第 2 例**，仍属**产出侧**把 check_cmd 硬编码到 Claw 侧，而实际落地根是 `$HOME/.workbuddy/skills`（Claw 侧只对部分 skill 建 symlink）→ 指标恒 FAIL、永远到不了期，登记待周度审，非本通道职责。★ 正向证据（口径＝`discovery_candidates` 按日字段完整度）：`success_metric`/`check_cmd`/`target_project` 覆盖率 10-09 起由 0 升到今日 **3/3**，`doc_target` 字段自 10-10 出现、今日 3/3 —— **v1.10「没有可判定指标就不落地」的药方已基本落地**，瓶颈已从「缺指标」转移到「check_cmd 路径写法」与「承载方归属」。对拍 `doc_apply_parity` rc=0 / ok=true / violations=[] / gaps=[]；`metric_alert=false` → **未触碰 `last_metric_alert_at`**（节流状态源不动）。零 applied 回写（本日零落地）；`automations[].last_run/next_run` 未写（铁律❽）。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -2796,12 +2840,17 @@
       "owner": "auto",
       "title": "给 15 点档脚本加休市日历闸门（自审首轮建议①）",
       "criteria": "复用 `astock_holidays.json`：非交易日 rc=0 退出、**不写盘、不推进连续计数基线**。影响面：板块层 `sector_rps_history.json` 与处置触发器的连续计数。",
-      "status": "open",
+      "status": "done",
       "verifier": "连续 3 个休市工作日手跑：`sector_rps_history.json` 条目数不变、距基线交易日数不变；补 1 例单测（非交易日 → 不写盘）。",
       "auto_check": "hub_reconcile.py D6（待办逾期）",
       "why": "自审首轮实测：板块层 RRULE 只有 `BYDAY=MO-FR`、**不含 A 股休市日历** → 休市工作日照跑并写入「同源数据不同 report_date」，给 T2 连续计数灌水。",
       "if_no_action": "keep_as_is",
-      "if_no_action_note": "不升级：仅影响休市日的计数干净度，不影响交易日结论。但国庆/春节这类长假的额外条目会持续累积。"
+      "if_no_action_note": "不升级：仅影响休市日的计数干净度，不影响交易日结论。但国庆/春节这类长假的额外条目会持续累积。",
+      "resolved_at": "2026-10-12",
+      "landed_at": "2026-10-12",
+      "landed_commit": "efa516c（脚本改动被并发提交 24210ef 一并收走，两者都在 main）",
+      "recheck_after_days": 7,
+      "resolution": "已落地。新增 is_trading_day.today_is_trading()（三态：True/False/**None=判不了**），并在两个 15 点档脚本 main() 开头接线：非交易日 → rc=0 且**不写盘、不推进连续计数**。\n⚠️ 实现要点（值得记）：**不能直接复用 load_holidays()** —— 它读不到日历文件时是 sys.exit(2)（进程级退出），而闸门语义是「要不要跳过这次运行」：把「判断不了」升级成「停工」是错的。故兜住 SystemExit（它不是 Exception，except Exception 抓不到）→ 返回 None，调用方**不跳过但必须说出来**。板块层 --date（补跑历史）时**不拦**。\n验证：逐日实跑 2026-10-12(周一)=True / 周六周日=False / 2026-10-01(国庆)=False / 日历缺失=None 且进程不退出；测试 +9（含「休市日历史与基线一个字节都不写」与「判不了不跳过」）；根 tests 995 passed。"
     },
     {
       "id": "PA-015",
@@ -2827,12 +2876,17 @@
       "owner": "auto",
       "title": "错峰收口（自审首轮建议③①；② 已落地）",
       "criteria": "**剩**：板块层 15:30 / 处置触发器 15:40 移出错峰撞车带（10-12 实测 15:30 两条、15:40 三条同点，且 `concurrency=3` 不实际限流）。\n**已完成（2026-10-11）**：② 新门禁推送前在 tracked-only 树里预跑 —— 落地为 `.workbuddy/scripts/check_tracked_tree.py` + `make ci-tracked` / `ci-tracked-full`（临时 `git clone --local` 当 CI 替身，跑结构门禁 + ruff，`--full` 另跑两套测试；克隆/执行不可用 → rc=2 不静默放过；解释器自动探测，避开本机 `python3` 无 pytest 的假失败）。\n证据：干净 HEAD 上 `make ci-tracked` → 结构门禁 41 passed + ruff 全过（rc=0）；树里存在违规串时判红（双向验证）。",
-      "status": "open",
+      "status": "done",
       "verifier": "**基线更正（2026-10-11 独立复核）**：当日 Claw CI 实为 **11 红 / 38 绿 ≈ 49 次（≈22%）**，自审原文「20 次 7 红（35%）」是 `gh run list` 默认 limit=20 的截断样本（见 KFM `gh-run-list-limit-truncates-counts`）。验收：以 `--paginate` 取全量，绝对红次数在下一周下降 ≥50%；② 的独立验收 = `make ci-tracked` 在推送前能挡住「本地绿、CI 红」类改动（本轮已用它主动验证过一次：预检判红 → 修好 → 转绿）。",
       "auto_check": "hub_reconcile.py D6",
       "why": "自审首轮实测红率偏高，且其中至少 2 次是**新门禁自身缺陷**（路径常量门禁必然误红 / 检查器被自己的模式串打红）——两类都已修复，故基线本就该下降。",
       "if_no_action": "keep_as_is",
-      "if_no_action_note": "不升级：已修的那两类红本身不会再发；本条主要是「别再让同类进 CI」的收口。"
+      "if_no_action_note": "不升级：已修的那两类红本身不会再发；本条主要是「别再让同类进 CI」的收口。",
+      "resolved_at": "2026-10-12",
+      "landed_at": "2026-10-12",
+      "recheck_after_days": 7,
+      "landed_commit": "非代码改动（automation_update 改排程，DB 为准）",
+      "resolution": "错峰已收口（两个目标移出撞车带）：\n· 📊【板块】强弱层盘后刷新 15:30 → **15:20**\n· ⏰【处置】实盘复核触发器 15:40 → **15:45**\n改名 + rrule + prompt 三处同步（名字/prompt 里都写着时间，不同步就是「口径漂移」）。\n**Gate 4 槽位体检（改后重扫 14:00–16:30）**：两处撞车已解（15:20 与 15:12/15:30 各隔 8/10 min；15:45 与 15:40/15:50 各隔 5 min）；读写竞态也改善（写方板块层 15:20 → 读方触发器 15:45，间隔 25min，原为 10min）。\n**仍存的同刻（本轮判定不越界改）**：① 15:05/15:07/15:10/15:12 四连 —— 属**顺序流水线**（信号溯源→账户汇总→模拟盘同步→价格刷新），间隔小是有意的；② 16:30 三连（QTS日线回填 / QTS告警生产者 / 自动补跑）—— 三者目标资源不同（QTS DB / 告警 / Claw 补推），危害低；若日后要收，最该先动的是「自动补跑」（补推漏报，逻辑上应在生产者之后）。\n**Gate 2**：改前做了 `VACUUM INTO` 一致快照备份（行数比对 191=191 ✓；不用 cp —— 会漏 WAL）。\n**Gate 3**：`next_run_at` 已重算为 **今天 15:20 / 15:45**（新槽位当日即生效）。\n⚠️ **过程中一次自伤（已恢复）**：`automation_update` 的 prompt 是**全量覆盖**，我误传了单行 → 原 2370 字节 prompt 被抹掉；因事先按技能要求导出过原文，1 分钟内全文回填 + diff 校验（只有目标行不同）。已写成 learnings 2026-10-12-automation-update-prompt-is-full-replace。"
     },
     {
       "id": "PA-017",
@@ -2840,12 +2894,17 @@
       "owner": "human",
       "title": "处置 87MB 的 wechat-download-api 旧快照（内含旧会话凭据）",
       "criteria": "`/Volumes/ZHITAI/WorkBuddy/wechat-download-api.STALE-SNAPSHOT-20260730`（87MB，目录 mtime 2026-09-16）已登记为「已知非项目目录」（registry.non_project_dirs，D8 不再当矩阵漏项）。**请拍板它的去向**：① 删除（须走铁律「先复制→验证→再删源」，且删前确认无独有内容——其 git 历史为 2026-07-01 的快照）；或 ② 压缩归档到备份区并记录；或 ③ 保留原样（那就把「为什么留」写进该条 reason）。\n⚠️ 该副本含 `.env`（600）：WECHAT_TOKEN / WECHAT_COOKIE(667 字符) / WECHAT_FAKEID 等会话凭据；与当前 `wechat_api/.env` 对比，**在用值为空**（该通道登录早已过期）→ 属旧凭据副本。",
-      "status": "open",
+      "status": "done",
       "verifier": "处置后：`python3 .workbuddy/scripts/hub_reconcile.py` 的 `[note]` 行不再列出该目录（或列出新路径）；若删除，需同时确认 `non_project_dirs` 条目同步更新（避免留下指向不存在目录的声明——这正是「声明腐烂」）。",
       "auto_check": "hub_reconcile.py D6（待办逾期）+ D8 的 [note] 行会一直提示它还在",
       "why": "发现路径：D8 K2（磁盘上真实 git 仓库 vs active_projects）首次报错 rc=20 → 核实为快照而非项目；顺带查出它内含 `.env` 凭据。价值：既是**跨项目矩阵的盲区**（此前无人知道它存在），也是**磁盘上一次凭据副本**（87MB 里含旧会话 cookie）。",
       "if_no_action": "keep_as_is",
-      "if_no_action_note": "不升级：旧 cookie 对应的登录早已过期、且不在任何在用链路里 → 无即时风险。代价是 87MB 与一份旧凭据长期留在盘上，并需要 `non_project_dirs` 这条声明一直替它解释。"
+      "if_no_action_note": "不升级：旧 cookie 对应的登录早已过期、且不在任何在用链路里 → 无即时风险。代价是 87MB 与一份旧凭据长期留在盘上，并需要 `non_project_dirs` 这条声明一直替它解释。",
+      "resolved_at": "2026-10-12",
+      "landed_at": "2026-10-12",
+      "landed_commit": "非代码改动（外置盘归档 + registry 声明更新）",
+      "recheck_after_days": 30,
+      "resolution": "取选项②（压缩归档）—— 并**先纠正一个前提**：取证发现 **live 副本并不存在**（/Volumes/ZHITAI/WorkBuddy 下没有 wechat-download-api 目录，已 ls 核实）⇒ 这个「快照」其实**是该项目唯一一份源码** ⇒ 选项①（删除）会丢源码，不该选。\n处置：tar.gz 归档到 /Volumes/ZHITAI/WorkBuddy/_archive/（6.0MB），**排除 venv/（69MB，占原体积 79%，可由 requirements 再生）与 .env（旧会话凭据）**；原目录**移入卷级废纸篓**（Finder delete，可恢复）。\n校验：非目录项 **1111 = 1111**（首轮 1111 vs 1108 的差是 3 个软链 —— 源侧只数了 -type f；查清后才算一致）+ gzip 完整性通过 + 抽验归档内不含 .env/venv。\n声明同步（本条 verifier 的要求）：non_project_dirs 里原 STALE-SNAPSHOT 条目已**替换**为 _archive 条目（原目录已不存在，留旧声明就是「指向不存在目录的声明」）；新建的 _archive 也已登记，否则 D8 会把它当新的矩阵盲区。归档旁有 MANIFEST 记录来源/排除项/校验/恢复方式。\n⚠️ 残留（需你定夺）：归档**仍是凭据副本的载体**（.env 已排除，但项目里可能另有残留）；且废纸篓与源同卷 ⇒ **磁盘空间要等清空才真正释放**。若要彻底清（选项①），属不可逆操作，等你一句话。"
     }
   ],
   "automation_scope": {
@@ -3447,10 +3506,10 @@
   },
   "non_project_dirs": [
     {
-      "name": "wechat-download-api.STALE-SNAPSHOT-20260730",
-      "reason": "**非活跃项目**：2026-07-30 的 wechat-download-api 快照（87MB，目录 mtime 2026-09-16），不在 active_projects 里，也不该进去 —— 它是历史副本而非在跑的系统。⚠️ 该副本内含 `.env`（600）：WECHAT_TOKEN / WECHAT_COOKIE(667 字符) 等会话凭据；与当前 wechat_api/.env 对比：**在用值为空**（登录早已过期）→ 属旧凭据副本，处置建议见 PA-017（删除须用户确认，铁律：先复制→验证→再删源）。",
-      "recorded_at": "2026-10-11",
-      "declared_by": "D8 K2 首报（hub_reconcile rc=20）→ 核实后按「已知非项目」登记，不再计入矩阵漏项"
+      "name": "_archive",
+      "reason": "**归档区（有意为之，非项目）**：2026-10-12 处置 PA-017 时新建，用于存放「不该在矩阵里、但还不能删」的历史副本（tar.gz + 同名 MANIFEST.md 记录来源/排除项/校验/恢复方式）。当前内容：wechat-download-api.STALE-20260730.tar.gz（6.0MB，已排除 venv 与 .env）。它与 active_projects 是**刻意分离**的关系，不应计入矩阵漏项；但**需要被登记**，否则 D8 会把它当盲区报出来。",
+      "recorded_at": "2026-10-12",
+      "declared_by": "PA-017 处置（原 STALE-SNAPSHOT 已归档并移出工作区，本条接替其声明）"
     }
   ]
 }
