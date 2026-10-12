@@ -3326,6 +3326,65 @@ def check_automation_queue_backlog() -> dict:
 
 
 # ════════════════════════════════════════════════════════════════════
+# 三律合规检查（2026-10-12 接入）
+# ════════════════════════════════════════════════════════════════════
+THREE_LAWS_SCRIPT = (
+    Path.home()
+    / ".workbuddy"
+    / "skills"
+    / "long-running-agent-control-plane"
+    / "scripts"
+    / "three_laws_audit.py"
+)
+
+
+def check_three_laws() -> dict:
+    """多 Agent 协作三律（归属 / 终止 / 自主边界）合规巡检。
+
+    数据源：skill `long-running-agent-control-plane` 的只读巡检脚本 `three_laws_audit.py`
+    （子进程 + --json 调用，与本中枢解耦：脚本崩了不会带崩中枢）。
+
+    只纳入两类告警：**客观确认项**（卡死运行态 / 漏派 once / 停摆）与 **P1 自主处置类候选**
+    （删除·自愈·发布·下单 而无门禁）。P2（本职推送 / 写盘）只进 note —— 对齐本文件既有的
+    note 出口设计，避免把「记录一下」变成「每小时推一张卡片」。
+
+    取不到证（脚本缺失 / 超时 / 输出非 JSON）→ ok=None 显式 skip，**不计入 ✅**。
+    """
+    if not THREE_LAWS_SCRIPT.exists():
+        return {"ok": None, "alerts": [], "note": f"三律巡检脚本缺失: {THREE_LAWS_SCRIPT}"}
+    try:
+        cp = subprocess.run(
+            [sys.executable, str(THREE_LAWS_SCRIPT), "--json"],
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        rep = json.loads(cp.stdout)
+    except Exception as e:  # 异常/超时/非 JSON 一律按"取不到证"处理，不假装通过
+        return {"ok": None, "alerts": [], "note": f"三律巡检未取得证据: {type(e).__name__}: {e}"}
+    if not isinstance(rep, dict):  # 输出形状意外 → 同样按"取不到证"，绝不让中枢崩
+        return {"ok": None, "alerts": [], "note": f"三律巡检输出形状意外: {type(rep).__name__}"}
+
+    alerts: list[str] = []
+    term = rep.get("termination", {})
+    for x in term.get("confirmed", []):
+        alerts.append(f"终止律[{x.get('check')}] {x.get('name') or x.get('id')}: {x.get('detail')}")
+    for x in term.get("candidates", []):
+        alerts.append(f"终止律[候选·{x.get('check')}] {x.get('name')}: {x.get('detail')}")
+    for x in rep.get("ownership", {}).get("candidates", []):
+        alerts.append(f"归属律[候选] {x.get('path')} 有 {len(x.get('writers', {}))} 个写入者")
+    auto = rep.get("autonomy", {})
+    for x in auto.get("p1", []):
+        alerts.append(f"自主边界律[P1] {x.get('name')}: {x.get('detail')}")
+
+    note = (
+        f"P2本职产出 {len(auto.get('p2', []))} 项(不告警) / "
+        f"有门禁 {auto.get('gated_disposal', 0)} 项"
+    )
+    return {"ok": not alerts, "alerts": alerts, "note": note}
+
+
+# ════════════════════════════════════════════════════════════════════
 # 中枢主流程
 # ════════════════════════════════════════════════════════════════════
 def main() -> int:
@@ -3376,6 +3435,7 @@ def main() -> int:
         "QTS API鉴权": check_qts_api_auth(),
         "QTS写入健康": check_qts_job_write_health(),
         "自动化队列积压": check_automation_queue_backlog(),
+        "三律合规": check_three_laws(),
     }
 
     all_alerts: list[str] = []
