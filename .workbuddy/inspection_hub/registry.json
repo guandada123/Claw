@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T18:02:52+08:00",
+  "updated_at": "2026-10-12T18:05:08+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2441,6 +2441,16 @@
       "detect": "对每个「读产物做判断」的检查：列出产物 JSON 的键，看它是否自带时间字段；若自带而消费方没读 → 就是本条。批量找法：`grep -n \"json.loads\" ` 逐个看返回里有没有时间字段。",
       "mitigation": "消费方补 `age_days` / `stale`（阈值 7 天）并**只报不拦**（不进 rc）——旧态可见化，但不凭\"文件旧\"就断言系统故障（那会变成噪音）。已落地在 `check_bridge()`（含 5 条可证伪测试：旧→stale、新→不 stale、`Z` 结尾不得静默退 mtime、无时间戳退回 mtime、文件缺失不得报 stale）。",
       "does_not_affect": "不改变原字段（`status`/`watchers` 仍在）；也不影响 Marvis Bridge 本身 ——它是否该在跑是另一件事（本条目只保证\"读到的旧态会被标出来\"）。"
+    },
+    {
+      "id": "orphan-script-no-caller-yet-still-maintained",
+      "area": "死代码 / 维护面",
+      "severity": "medium",
+      "since": "2026-10-12",
+      "desc": "脚本**没有任何调用方**（自动化 prompt、`import`、`subprocess`/launchd 三处全空），却仍在被人阅读、修改、当作\"某个检查在跑\"的依据。实测（2026-10-12）：`.workbuddy/scripts/health_check.py`（18KB，8 段检查）与 `.workbuddy/scripts/health_check.sh`（227 行，同一批检查的**老副本**，无 CI/仓库健康两段）—— 两者都**无任何调用方**（自动化库里引用 `health_check.py` / `.sh` 的均为 **0 条**；全仓无 import、无 subprocess 调用），而我在 10-12 审计中**先改了其中的注释与硬编码路径**才意识到它在跑不跑都无人知道。危害不是\"少了个检查\"，而是**维护动作投在死代码上**，且读代码的人会以为这套检查在生效。",
+      "detect": "三处反查，**全空 = 孤儿**：① `automations.prompt LIKE '%<文件名>%'`；② `grep -rn \"import <mod>\\|from <mod> import\"`；③ `grep -rn \"<文件名>\"` 在 .py/.sh/launchd 里。若命中只落在文档/CHANGELOG/记忆里（历史叙述），仍算孤儿。补充判据：`ls -la` 看它的 mtime 是否**远晚于**最后一条调用——被改过但没人调 = 强烈信号。",
+      "mitigation": "先**登记**再处置（别直接删）：判\"该归档\"还是\"该恢复调用\"，两条都要人拍板一次；删除须走铁律「先复制→验证→再删源」+ 删前确认。若同族存在 `.py`/`.sh` 双副本，优先并入既有的**双副本收敛**批次，避免两处各改一遍。",
+      "does_not_affect": "不影响任何运行中的链路（正因为它无人调用）——本条的代价是**维护注意力被误导**，以及\"以为有健康检查、实际没有\"的认知差。"
     }
   ],
   "doc_apply": {
@@ -2963,6 +2973,19 @@
       "if_no_action_note": "已按你的决定完成；回滚点 /tmp/prompt-bak-20261012-120050 与整库备份 /tmp/wbdb-bak-20261012-120122。",
       "resolved_at": "2026-10-12T12:01:38+08:00",
       "resolution": "**用户决定：接受降级**（2026-10-12 12:00）。落地（最小改动、可回滚）：\n① 给**两条缺显式降级规则**的 Wind 任务补上统一降级条款（WIND→QTS基本面桥 / Wind 深度研报）：Wind 失败（尤其「积分余额不足」/AUTH_ERROR/ROUTE_ERROR）→ **最多再试 1 次即停**、**禁止写陈旧或部分数据（下游会静默消费错数据）**、**必须显式告警 + 标注 `source=degraded(wind_unavailable)`**、不得编造；\n② 顺带修掉 `Wind 深度研报` 里一条**过期 57 天的声明**：原写「观察期 2026-08-09~08-16，结束后由主会话评估是否切 --push」—— 从未拍板（声明腐烂），改为「保持 dry-run，Wind 恢复前不推正式周报」。\n写法：**CAS 只改 `prompt` 一列**（字节取自文件，避免转写误差）；改前备份 2 份（prompt 原文 + 整库），回读确认 model=hy3 / status=ACTIVE / rrule 均未被动过。\n**其余 15 条**已有降级条款（含腾讯/STALE/兜底关键词），按「改动最小」原则**不批量改**；改为观察式跟进：它们下次实际降级时，核对是否覆盖「余额不足」这一情形。"
+    },
+    {
+      "id": "PA-019",
+      "due": "2026-10-26",
+      "owner": "human",
+      "title": "处置 health_check 这一对（.py 孤儿 + .sh 老副本）：归档 / 删除 / 恢复调用 三选一",
+      "criteria": "**已核实事实（2026-10-12）**：\n① `.workbuddy/scripts/health_check.py`（18KB，8 段检查：Docker/端点/Tailscale/Marvis/资源/CI/仓库/自动化）\n   与 `.workbuddy/scripts/health_check.sh`（227 行，**同一批检查的老副本**，缺 CI 与仓库健康两段，mtime 08-17）   **功能面重合 = 双副本**；\n② 两者**都没有调用方**：自动化库里引用二者的 **0 条**、全仓无 `import`、无 `subprocess` 调用（只在 CHANGELOG/记忆/历史文档里被提到）；\n③ 它这一族已被 `🛡️ 统一巡检中枢` 取代（中枢不调用它）。\n**请你拍板**：① 归档（移入 `.backups/` 或 archive）；② 删除（须走「先复制→验证→再删源」）；③ 保留并**显式登记为 dormant**（写明\"无调用方、仅在人工排查时手动跑\"）。\n**若 peer 的「双副本/软链审计」批次已覆盖到这一对，直接并入其处置即可**——我这边只登记判据、不重复动手。",
+      "status": "open",
+      "verifier": "处置后：`grep -rn \"health_check.py\\|health_check.sh\"` 只在文档/记忆里命中（或指向新位置）；`python3 .workbuddy/scripts/hub_reconcile.py` rc=0；若选\"保留 dormant\"，需在 `registry.known_failure_modes`/文档里留下\"无调用方\"的显式声明，避免下一个人又以为它在跑。",
+      "auto_check": "hub_reconcile.py D6（逾期）；本条到期未处置会在 D6 报出",
+      "why": "发现路径：我 10-12 为修\"写错的依据 + 残留硬编码\"动了 `health_check.py`，随后按纪律反查调用方 → **发现它根本没有调用方**。价值在于：避免继续把维护动作投在死代码上，并消掉\"以为有健康检查、实际没有\"的认知差（同类见 KFM `orphan-script-no-caller-yet-still-maintained`）。",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "不升级：无调用方 = 无运行风险，代价仅是维护注意力与认知差。但**别再往它上面投新的维护动作**（今天我已经投过一次）——除非先决定它的去向。"
     }
   ],
   "automation_scope": {
