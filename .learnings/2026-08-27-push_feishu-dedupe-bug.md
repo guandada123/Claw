@@ -1,4 +1,4 @@
-# ★升级候选：push_feishu 去重键透传失效（P1·系统性）
+# ✅已升级(2026-10-11)→R48 —— push_feishu 去重键透传失效（P1·系统性）
 
 **日期**: 2026-08-27 | **自动化**: automation-1785123941471 (助理实盘监控-10:00)
 **根因(实证非推断)**: `automation_preamble.sh` 的 `push_feishu()` 函数只转发标题+正文(`bash push_feishu.sh "$1" "$2"`)，**丢弃第3参数去重键**；且 `push_feishu.sh` 本身也只 `TITLE="$1"; CONTENT="$2"`，从不读 `$3`。导致 `push_card.py --dedupe-key` 从未被传入，文件级6h去重彻底失效。
