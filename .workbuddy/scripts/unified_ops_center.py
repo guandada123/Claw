@@ -3329,7 +3329,7 @@ def check_automation_queue_backlog() -> dict:
 # 三律合规检查（2026-10-12 接入）
 # ════════════════════════════════════════════════════════════════════
 THREE_LAWS_SCRIPT = (
-    Path.home()
+    _HOME_DIR
     / ".workbuddy"
     / "skills"
     / "long-running-agent-control-plane"
@@ -3348,22 +3348,21 @@ def check_three_laws() -> dict:
     （删除·自愈·发布·下单 而无门禁）。P2（本职推送 / 写盘）只进 note —— 对齐本文件既有的
     note 出口设计，避免把「记录一下」变成「每小时推一张卡片」。
 
-    取不到证（脚本缺失 / 超时 / 输出非 JSON）→ ok=None 显式 skip，**不计入 ✅**。
+    取不到证（脚本缺失 / 超时 / 输出非 JSON / 形状意外）→ `_skip()`，**不计入 ✅**。
     """
     if not THREE_LAWS_SCRIPT.exists():
-        return {"ok": None, "alerts": [], "note": f"三律巡检脚本缺失: {THREE_LAWS_SCRIPT}"}
+        return _skip(f"三律巡检脚本缺失（取不到证，不计入通过）: {THREE_LAWS_SCRIPT}")
     try:
-        cp = subprocess.run(
+        cp = run_cmd(
             [sys.executable, str(THREE_LAWS_SCRIPT), "--json"],
-            capture_output=True,
-            text=True,
             timeout=90,
+            cwd=str(SCRIPT_DIR),  # 显式锁 cwd：子进程语义不随调用方目录漂移
         )
         rep = json.loads(cp.stdout)
     except Exception as e:  # 异常/超时/非 JSON 一律按"取不到证"处理，不假装通过
-        return {"ok": None, "alerts": [], "note": f"三律巡检未取得证据: {type(e).__name__}: {e}"}
+        return _skip(f"三律巡检未取得证据（取不到证，不计入通过）: {type(e).__name__}: {e}")
     if not isinstance(rep, dict):  # 输出形状意外 → 同样按"取不到证"，绝不让中枢崩
-        return {"ok": None, "alerts": [], "note": f"三律巡检输出形状意外: {type(rep).__name__}"}
+        return _skip(f"三律巡检输出形状意外（取不到证，不计入通过）: {type(rep).__name__}")
 
     alerts: list[str] = []
     term = rep.get("termination", {})
