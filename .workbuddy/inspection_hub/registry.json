@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T20:54:02+08:00",
+  "updated_at": "2026-10-12T21:33:00+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2471,6 +2471,16 @@
       "detect": "① 对同一 id 取 `done/` 全部同名件（含后缀），比对**大小/哈希/created_at** 是否不同；② 幂等判据必须用 **id + 载荷指纹**（或 id + created_at），不能只用 id；③ 反向验证：故意放一份「同 id、不同载荷」看会不会被跳过（跳过 = 静默丢活）。",
       "mitigation": "幂等键改为 `id + payload_hash`；对已重发的历史件用后缀保留（如 `_reissued-<日期>`）**不覆盖**原档；并像本次一样在产物里写明「task_id 前缀不作为日期依据」之类**显式纠偏**。",
       "does_not_affect": "本次未造成实际损失（16 条都处理/结清了）；本条防的是**下次**：一旦有同 id 的新载荷，单键幂等会让它被静默跳过，且**没有任何告警**。"
+    },
+    {
+      "id": "retiring-a-subsystem-leaves-its-monitors-behind",
+      "area": "退役流程 / 悬挂引用",
+      "severity": "medium",
+      "since": "2026-10-12",
+      "desc": "退役一个子系统=停进程 + 删自动化 + 归档数据，但**引用它的检查器/监控/分类规则不会自己消失**。两种后果：① **永久误报**（检查器继续等它的心跳 → 天天报「心跳过旧」；本次退役时并行方在 cron 注释里**预言了**这一类）；② **空类别/死分支**（看着像有监控，实际恒不命中 → 误导读者）。实测（2026-10-12 Marvis 桥接退役）：launchd 三 agent 已 disable、cron 三条已注释、无进程；仓库内仍留 4 处 `marvis` 引用 —— `health_check.py`（孤儿脚本）、`automation_health.py`（分类死分支，类别为空但**不误报**，实测 warning=0/critical=0）、两份**数据产物**。",
+      "detect": "退役后**机械扫一遍**：① `grep -rln \"<子系统关键词>\"` 限定代码/配置扩展名；② 对每个命中判**三类**：活路径（必须改）/ 死分支（记录即可）/ 数据产物（天然过期）；③ 对「活路径」跑一次真实调用，确认它**不产生新告警**（本次即用 `automation_health.py --json` 验到 warning=0/critical=0）；④ 另查**平台外**的调度器：`launchctl print-disabled`、`crontab -l`、`~/Library/LaunchAgents/`（本次三项都查，才发现 cron 里那三条）。",
+      "mitigation": "退役清单里加一步「扫悬挂引用 + 定性」，并把结论写进退役记录（本次写进 PA-021 的 verifier）；**别顺手删**死分支/数据产物（它们是历史，删了反而丢证据）——标注即可。",
+      "does_not_affect": "不影响退役本身的收益（本次退役顺带清掉 35.6 万封错误邮件/262MB、三只僵尸 agent）；本条只防「退了一半」——那会让人以为系统还在，或让告警流被永久噪音污染。"
     }
   ],
   "doc_apply": {
@@ -3039,7 +3049,7 @@
       "if_no_action_note": "不升级：旧层当前惰性、无产出物积压、对新消费端无依赖；但「坏还是退役」的定性要拍，故列为数日内核。",
       "status": "done",
       "created_at": "2026-10-12",
-      "verifier": "\n\n🔵 **2026-10-12 20:10 判定与执行（owner=auto）：判定＝「不再保留为运行系统 → 退役」，全可回滚**\n**判定依据**：① 生产端（Marvis 应用）停 2 个月（08-14 后零任务）；② **4 个月停摆零用户影响**（6 月消费端死 / 7-03 QA bot 死 / 8-22 launchd 清——期间无任何用户可见损失）⇒ 揭示价值≈0；③ 能力全被现役系统替代（行情/财报/巡检/内存守护均更强）；④ 维护税实证——本轮**再抓到一个「静默失败」标本**：两个 cron 条目每分钟失败、已发 **35.6 万封错误邮件（262MB，///var/mail/guan自 3-22 累积）**、4 个月无人察觉；且 8-22 的僵尸清理（只 bootout）**已失效——三个 agent 全回来了**。\n**已执行（全部可回滚）**：a) launchd 三僵尸（monitor / watcher / **com.workbuddy.poller**）**bootout + disable 双动作**（修正 8-22 只 bootout 的做法；`launchctl print-disabled` 可查）；b) cron 两条已注释（openclaw_watchdog + feishu_qa_bot_watchdog；**原因+原命令留在注释内**；备份 /tmp/crontab.bak-20261012.txt + 会话目录 crontab-backup-20261012.txt）；c) /var/mail/guan 262MB 归档至 _archive/cron-mail-spool-20261012.mbox（**cmp 校验后清空**；停止增长**已实证 +0B**）；d) 桥接仓 LEARNINGS 已记并推送（8a245ff）。\n**有意保留**：消费端自动化（**唯一入口**，已补陈旧防护；当晚 20:21 首跑 + 21:10 核验照跑）；Marvis 应用本体（用户资产，不碰）；代码仓 + GitHub。\n**遗留（次轮）**：① QA bot 复活决策（飞书群问答；默认不复活，**≈半小时可复活**）；② status_aggregator 复核（静默失败不可见、cost 记录停滞；其 webhook 未配置=无推送，不扰民）；③ openclaw 去向（二进制已不在，默认停用）；④ `~/WorkBuddy/marvis_bridge_OLD` 旧副本评估；⑤ MarvisBridge CI（8a245ff/d73eb09）绿况。\n\n📎 **补充证据（来自消费端首跑输出，20:22）**：watcher 自 **08-14** 起已「移除 Marvis Bridge 派发」⇒ 桥接**双向停摆**（生产侧 08-14 停 / 派发侧已关闭），与退役判定一致。",
+      "verifier": "\n\n🔵 **2026-10-12 20:10 判定与执行（owner=auto）：判定＝「不再保留为运行系统 → 退役」，全可回滚**\n**判定依据**：① 生产端（Marvis 应用）停 2 个月（08-14 后零任务）；② **4 个月停摆零用户影响**（6 月消费端死 / 7-03 QA bot 死 / 8-22 launchd 清——期间无任何用户可见损失）⇒ 揭示价值≈0；③ 能力全被现役系统替代（行情/财报/巡检/内存守护均更强）；④ 维护税实证——本轮**再抓到一个「静默失败」标本**：两个 cron 条目每分钟失败、已发 **35.6 万封错误邮件（262MB，///var/mail/guan自 3-22 累积）**、4 个月无人察觉；且 8-22 的僵尸清理（只 bootout）**已失效——三个 agent 全回来了**。\n**已执行（全部可回滚）**：a) launchd 三僵尸（monitor / watcher / **com.workbuddy.poller**）**bootout + disable 双动作**（修正 8-22 只 bootout 的做法；`launchctl print-disabled` 可查）；b) cron 两条已注释（openclaw_watchdog + feishu_qa_bot_watchdog；**原因+原命令留在注释内**；备份 /tmp/crontab.bak-20261012.txt + 会话目录 crontab-backup-20261012.txt）；c) /var/mail/guan 262MB 归档至 _archive/cron-mail-spool-20261012.mbox（**cmp 校验后清空**；停止增长**已实证 +0B**）；d) 桥接仓 LEARNINGS 已记并推送（8a245ff）。\n**有意保留**：消费端自动化（**唯一入口**，已补陈旧防护；当晚 20:21 首跑 + 21:10 核验照跑）；Marvis 应用本体（用户资产，不碰）；代码仓 + GitHub。\n**遗留（次轮）**：① QA bot 复活决策（飞书群问答；默认不复活，**≈半小时可复活**）；② status_aggregator 复核（静默失败不可见、cost 记录停滞；其 webhook 未配置=无推送，不扰民）；③ openclaw 去向（二进制已不在，默认停用）；④ `~/WorkBuddy/marvis_bridge_OLD` 旧副本评估；⑤ MarvisBridge CI（8a245ff/d73eb09）绿况。\n\n📎 **补充证据（来自消费端首跑输出，20:22）**：watcher 自 **08-14** 起已「移除 Marvis Bridge 派发」⇒ 桥接**双向停摆**（生产侧 08-14 停 / 派发侧已关闭），与退役判定一致。\n\n【独立复核（2026-10-12 21:3x）】 并行会话按「不采信自述」逐项验过退役是否彻底：\n· **launchd**：`launchctl print-disabled` 显示 `com.marvis-bridge.monitor` / `com.marvis-bridge.watcher` / `com.workbuddy.poller` **三者均 disabled** ✅；`launchctl list` 中无桥接项；`~/Library/LaunchAgents/` 已无 `com.marvis-bridge.*` plist ✅；\n· **进程**：`ps` 无 bridge_monitor / watcher / poller（仅剩腾讯 Marvis **App** 自身的 MarvisService）✅；\n· **cron**：3 条已注释且**每条都写了原因与停用日期**（openclaw_watchdog / status_aggregator / feishu_qa_bot_watchdog）✅；\n· **仓库内悬挂引用**（grep `marvis`，排除 archive/docs/memory）：4 个文件，全部**无害**——① `health_check.py`（孤儿脚本；`check_bridge()` 仍在，另有并行方已移除的两处清单）；② `automation_health.py` 仅有一条**按名分类**规则（`marvis/bridge/桥接` → 类别「桥接监控」）→ 实测该类别现为**空列表**且 `automation_health --json` 报 **warning=0 / critical=0**（total 79 全 healthy），即**不产生误报**，属死分支；③④ `data/sysinfo.json`、`data/skill_audit` 报告属**数据产物**（天然过期）。\n→ 结论：**退役彻底，无悬挂告警源**；剩余 4 处引用均已定性（1 孤儿脚本 + 1 死分支 + 2 数据产物），**不需要为退役再改代码**。",
       "resolved_at": "2026-10-12",
       "landed_at": "2026-10-12",
       "landed_commit": "桥接仓 13e3d27（RETIRED.md，最后一笔）",
