@@ -1,115 +1,30 @@
-#!/usr/bin/env python3
-"""
-cost_monitor.py — 成本监控报告生成器（供 WorkBuddy 自动化调用）
-
-功能：
-  - 生成每日/每月成本报告
-  - 输出结构化内容（直接可推送飞书/微信）
-  - 带预算警告
-
-用法：
-  python3 cost_monitor.py daily    → 今日成本报告
-  python3 cost_monitor.py monthly  → 本月成本报告
-  python3 cost_monitor.py summary  → 快速预算摘要（推荐用于每日监控）
-
-版本: v1.0 | 2026-06-14
-"""
-
-from __future__ import annotations  # 兼容 3.9: X|Y 注解字符串化
-
-import subprocess
+# AUTO-GENERATED FORWARDER — 单源薄壳 (safe_dedup.py, rule: dual-copy-audit v1.1.0)
+# 真实实现: .workbuddy/scripts/cost_monitor.py  (运行时向上搜索定位, 位置无关)
+import importlib.util
+import runpy
 import sys
-from datetime import datetime
 from pathlib import Path
 
-SCRIPTS_DIR = Path(__file__).parent.resolve()
+
+def _find_real():
+    here = Path(__file__).resolve().parent
+    for cand in [here, *here.parents]:
+        for rel in (Path(".workbuddy") / "scripts" / "cost_monitor.py",
+                    Path("src") / "claw" / "cost_monitor.py"):
+            p = cand / rel
+            if p.is_file():
+                return p
+    raise RuntimeError("forwarder[cost_monitor]: 找不到权威副本, 已从 dual-copy-audit v1.1.0 中断链?")
 
 
-def run_cost_tracker(cmd: str) -> str:
-    """执行 cost_tracker.py 并捕获输出"""
-    result = subprocess.run(
-        [sys.executable, str(SCRIPTS_DIR / "cost_tracker.py")] + cmd.split(),
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    return result.stdout
-
-
-def run_budget_guard(cmd: str) -> str:
-    """执行 budget_guard.py 并捕获输出"""
-    result = subprocess.run(
-        [sys.executable, str(SCRIPTS_DIR / "budget_guard.py"), cmd],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    return result.stdout
-
-
-def daily_report() -> str:
-    """今日成本报告 + 预算状态 + 估算成本"""
-    cost_output = run_cost_tracker("daily")
-    budget_output = run_budget_guard("status")
-    estimate_output = run_cost_tracker("estimate_today Claw")
-
-    return f"""💰 AI成本监控日报 ({datetime.now().strftime("%m/%d")})
-━━━━━━━━━━━━━
-📊 实际调用记录
-{cost_output.strip()}
-
-📊 今日估算自动化成本
-{estimate_output.strip()}
-
-📊 预算状态
-{budget_output.strip()}
-━━━━━━━━━━━━━
-提示：¥350触发Flash锁定 | ¥400月硬上限"""
-
-
-def monthly_report() -> str:
-    """本月成本汇总"""
-    output = run_cost_tracker("monthly")
-    return f"""📅 AI成本月度汇总 ({(__import__("datetime").datetime.now().strftime("%Y-%m"))})
-━━━━━━━━━━━━━
-{output.strip()}
-━━━━━━━━━━━━━
-预算：¥400/月"""
-
-
-def generate_dashboard(output: str | None = None) -> str:
-    """生成可视化仪表盘 HTML"""
-    args = [sys.executable, str(SCRIPTS_DIR / "cost_dashboard.py")]
-    if output:
-        args.append(output)
-    result = subprocess.run(args, capture_output=True, text=True, timeout=30)
-    if result.returncode == 0:
-        return f"✅ 仪表盘已生成\n{result.stdout.strip()}"
-    return f"❌ 生成失败\n{result.stderr.strip()}"
-
-
-def quick_summary() -> str:
-    """快速预算摘要（一行）"""
-    budget = run_budget_guard("status")
-    # 提取关键行
-    lines = budget.strip().split("\n")
-    key_lines = [
-        l for l in lines if "本月预算" in l or "已用比例" in l or "剩余预算" in l or "当前层级" in l
-    ]
-    return "💰 预算速报\n" + "\n".join(key_lines)
-
+_real = _find_real()
+_auth_dir = str(_real.parent)
+if _auth_dir not in sys.path:
+    sys.path.insert(0, _auth_dir)   # 让真实模块的同级 import 可解析 (等同 CLI 从权威目录运行)
+_spec = importlib.util.spec_from_file_location("cost_monitor", str(_real))
+_mod = importlib.util.module_from_spec(_spec)
+sys.modules["cost_monitor"] = _mod          # 让 `import cost_monitor` 直接拿到真实模块
+_spec.loader.exec_module(_mod)
 
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "daily"
-
-    if cmd == "daily":
-        print(daily_report())
-    elif cmd == "monthly":
-        print(monthly_report())
-    elif cmd == "summary":
-        print(quick_summary())
-    elif cmd == "dashboard":
-        output = sys.argv[2] if len(sys.argv) > 2 else None
-        print(generate_dashboard(output))
-    else:
-        print("用法: python3 cost_monitor.py [daily|monthly|summary|dashboard [输出路径]]")
+    runpy.run_path(str(_real), run_name="__main__")  # 兼容 `python scripts/cost_monitor.py`
