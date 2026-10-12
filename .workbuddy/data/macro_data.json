@@ -583,14 +583,14 @@
     "_source": "akshare"
   },
   "shibor": {
-    "latest_date": "2026-10-08",
-    "overnight": 1.3756,
-    "week_1": 1.39,
-    "month_1": 1.42,
+    "latest_date": "2026-10-12",
+    "overnight": 1.296,
+    "week_1": 1.346,
+    "month_1": 1.414,
     "month_3": 1.43,
     "month_6": 1.45,
-    "year_1": 1.48,
-    "total_days": 2379,
+    "year_1": 1.479,
+    "total_days": 2381,
     "_source": "akshare"
   },
   "social_financing": {
@@ -948,7 +948,7 @@
     "interpretation": "中性"
   },
   "_meta": {
-    "updated_at": "2026-10-08T15:56:35.960645",
+    "updated_at": "2026-10-12T15:53:41.632260",
     "source": "AKShare+AnySearch(降级)",
     "akshare_only": true,
     "anysearch_fallback": [],
