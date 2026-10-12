@@ -210,6 +210,12 @@ def check_cmd_bad_paths(c: dict) -> list[str]:
     cmd = str(c.get("check_cmd") or "")
     if not cmd:
         return []
+    # 🔴 2026-10-12 修（实测）：**提案就是要新建的那个文件，不该判 bad**。
+    # 今日两条候选（disc-20261012-01/03）的 `doc_target` 正是 check_cmd 里 `test -f` 的目标，
+    # 它当然还不存在 —— 于是闸门报 `check_cmd_bad` → **「新建文档」这一整类候选必然被弹**。
+    # 判据：token 的规范化字符串**以本候选的 doc_target 结尾** → 视为"待创建"，跳过。
+    own = (doc_target(c) or "").strip().lstrip("./")
+    own_variants = {own, own.replace("/", os.sep)} if own else set()
     bad: list[str] = []
     seen: set[str] = set()
     for raw in _PATH_TOKEN_RE.findall(cmd):
@@ -220,6 +226,8 @@ def check_cmd_bad_paths(c: dict) -> list[str]:
         expanded = os.path.expandvars(os.path.expanduser(token))
         if "$" in expanded:
             continue  # 判不了就不判
+        if own_variants and any(expanded.endswith(v) for v in own_variants):
+            continue  # 本候选要创建的目标文件 → 现在不存在是预期的
         if any(ch in expanded for ch in _PATH_WILDCARD):
             try:
                 if glob.glob(expanded):

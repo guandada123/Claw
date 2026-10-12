@@ -591,3 +591,36 @@ def test_foreign_registry_run_is_treated_as_probe(tmp_path, monkeypatch):
     assert adc_mod.main() == 0
     assert not (calib / "parity.json").exists(), "探测运行不得写权威账本"
     assert list((calib / "probe").glob("*_probe.md")), "报告应落 probe/ 且带 _probe 后缀"
+
+
+# ───────── 回归：新建文档类候选的 check_cmd 不该被判 bad（2026-10-12）─────────
+
+
+def test_check_cmd_of_own_doc_target_is_not_bad(tmp_path):
+    """**提案就是要新建的那个文件**，不该因"现在不存在"被判 `check_cmd_bad`。
+
+    实测（2026-10-12）：当日两条候选（disc-20261012-01/03）的 `doc_target` 正是
+    check_cmd 里 `test -f` 的目标 —— 它当然还不存在 → 闸门报 `check_cmd_bad`
+    → **「新建文档」这一整类候选必然被弹**（整类失效，而非个别脏数据）。
+    判据：token 以本候选 `doc_target` 结尾 → 视为"待创建"，跳过该 token。
+    """
+    missing = tmp_path / "references" / "brand_new_doc.md"  # 故意不创建
+    c = _cand(
+        target_project="Claw",
+        success_metric="新增 X 小节且被引用",
+        doc_target="references/brand_new_doc.md",
+        check_cmd=f"test -f {missing} && grep -q 'X' {missing}",
+    )
+    assert adc.check_cmd_bad_paths(c) == [], "本候选要创建的目标文件不该判 bad"
+
+
+def test_check_cmd_other_missing_path_still_bad(tmp_path):
+    """反向对照：**别人的**不存在的路径仍然要判 bad —— 否则这个检查就废了。"""
+    other = tmp_path / "somewhere" / "not_ours.md"
+    c = _cand(
+        target_project="Claw",
+        success_metric="x",
+        doc_target="references/ours.md",
+        check_cmd=f"test -f {other}",
+    )
+    assert adc.check_cmd_bad_paths(c) == [str(other)]

@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T08:21:06+08:00",
+  "updated_at": "2026-10-12T10:55:49+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2176,14 +2176,15 @@
       "status": "pending",
       "track": "project_signal",
       "target_project": "Claw",
-      "skill": "",
+      "skill": "unified-inspection-hub",
       "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-09-signal-quota-starved-by-venv-and-three-counting-traps.md",
       "value": "high",
       "risk": "low",
       "success_metric": "references/counting_trap_guardrails.md 新增『计数陷阱防护清单（行数下限断言+下游心跳+第三方配额核对）』小节，且被 inspection_hub 或对应 SKILL.md 引用",
       "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/counting_trap_guardrails.md && grep -q '行数下限' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/counting_trap_guardrails.md",
       "suggestion": "Claw 采集器曾因 venv 配额吃光 + 三个『数出来的是假的』计数陷阱失真（P1 学习 2026-10-09）。外部研究 crosstowntech『Green Checkmark Lie』给出可落地防护分类：行数下限断言（rows>0 且 ≥预期*0.9 捕获空/部分）、schema/shape 校验、下游心跳（消费者确认收到新鲜数据）、dead-man's switch。将三者沉淀为 references/counting_trap_guardrails.md，并在 project_signal_collect.py 输出中强化 third_party_excluded 配额核对与行数下限自检，使『数出来的』可被证伪。",
-      "doc_target": "references/counting_trap_guardrails.md"
+      "doc_target": "references/counting_trap_guardrails.md",
+      "skill_filled_note": "2026-10-12 补：登记时 skill 为空，而落地闸门 require_host 必须有 skill 且目录存在 → 该候选在通道里必被弹（登记端 validate_candidate 的判据更松：「有 skill 或 有真实项目锚点」，与落地端口径不一致）。其 doc_target 在 inspection_hub/references/ 下 → 承载方定为 unified-inspection-hub。"
     },
     {
       "id": "disc-20261012-02",
