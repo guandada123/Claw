@@ -594,9 +594,57 @@
           "success_metric": "references/skill_authoring_standard.md 新增『注册三元组』小节（语义描述+参数契约+实现代码 缺一不可），且被 skill-creator 或 majiu-management SKILL.md 引用；grep 命中『注册三元组』即视为落地"
         }
       ]
+    },
+    "20261012:live": {
+      "date": "2026-10-12",
+      "ts": "2026-10-12T00:40:39+08:00",
+      "mode": "live",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261012.md",
+      "selected": []
+    },
+    "20261013:live": {
+      "date": "2026-10-13",
+      "ts": "2026-10-13T00:40:54+08:00",
+      "mode": "live",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261013.md",
+      "selected": [
+        {
+          "id": "disc-20261012-01",
+          "skill": "unified-inspection-hub",
+          "target": "references/counting_trap_guardrails.md",
+          "value": "high",
+          "risk": "low",
+          "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-09-signal-quota-starved-by-venv-and-three-counting-traps.md",
+          "target_project": "Claw",
+          "track": "project_signal",
+          "success_metric": "references/counting_trap_guardrails.md 新增『计数陷阱防护清单（行数下限断言+下游心跳+第三方配额核对）』小节，且被 inspection_hub 或对应 SKILL.md 引用"
+        },
+        {
+          "id": "disc-20261012-03",
+          "skill": "majiu-management",
+          "target": "references/skill_output_contract.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://zylos.ai/research/2026-05-04-agent-workflow-composition-skill-reuse",
+          "target_project": "meta",
+          "track": "external_trend",
+          "success_metric": "references/skill_output_contract.md 新增『技能输出 schema 版本化契约 + 注册期依赖环检测』小节，且被 majiu-management SKILL.md 或 inspection_hub 引用"
+        },
+        {
+          "id": "disc-20261013-01",
+          "skill": "majiu-management",
+          "target": "references/security_skill_authoring.md",
+          "value": "high",
+          "risk": "low",
+          "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-12-content-secret-survives-name-level-fix.md",
+          "target_project": "Claw",
+          "track": "project_signal",
+          "success_metric": "skills 基线 git 仓库经内容级凭据扫描（gitleaks/trufflehog 等效）零命中真实密钥；且入库/更新 SOP 内置『内容扫描』环节（不只靠 .gitignore 文件名匹配）；references/security_skill_authoring.md 新增『文件名忽略 ≠ 内容安全』小节并被 majiu-management SKILL.md 或 skills_vcs.sh 引用"
+        }
+      ]
     }
   },
-  "updated_at": "2026-10-11T00:41:08+08:00",
+  "updated_at": "2026-10-13T00:40:54+08:00",
   "_notes": [
     "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
   ]

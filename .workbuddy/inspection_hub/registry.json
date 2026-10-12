@@ -2217,6 +2217,53 @@
       "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/skill_output_contract.md && grep -q 'cycle detection' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/skill_output_contract.md",
       "suggestion": "zylos.ai（2026-05）指出技能版化的头号运营风险是『版本化缺口』：技能行为靠自然语言描述、无内置版本系统，更新即全局生效。新兴解法是把技能输出 schema 当作版本化 API 契约（semantic versioning for output structure）+ 注册期依赖环检测（cycle detection at registration）。补 majiu-management 治理未覆盖的『输出契约版本化 + 依赖环』维度。",
       "doc_target": "references/skill_output_contract.md"
+    },
+    {
+      "id": "disc-20261013-01",
+      "found_at": "2026-10-13",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "majiu-management",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-12-content-secret-survives-name-level-fix.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "skills 基线 git 仓库经内容级凭据扫描（gitleaks/trufflehog 等效）零命中真实密钥；且入库/更新 SOP 内置『内容扫描』环节（不只靠 .gitignore 文件名匹配）；references/security_skill_authoring.md 新增『文件名忽略 ≠ 内容安全』小节并被 majiu-management SKILL.md 或 skills_vcs.sh 引用",
+      "check_cmd": "test -f /Users/guan/.workbuddy/skills/majiu-management/references/security_skill_authoring.md && grep -q '内容级\\|内容扫描\\|文件名忽略' /Users/guan/.workbuddy/skills/majiu-management/references/security_skill_authoring.md",
+      "suggestion": "Claw 学习（2026-10-12，P1·系统性）：给技能库加 GitHub 远端前做推送前凭据扫描，发现基线快照里一行『反面示例』粘进了真实 API Key，存活 3 天——根因是 .gitignore 只防文件名、防不住文件内容。外部 supply-chain 研究（itecs.ai / Snyk 13% 市场技能含严重漏洞）佐证：文件名忽略 ≠ 内容安全。把『内容级凭据扫描』接入 skills 基线推送前 SOP（gitleaks/trufflehog 等效），并沉淀为安全规范（references/security_skill_authoring.md，落在 majiu-management 治理技能下，与 skill-registry-security-scan.md 同源）。",
+      "doc_target": "references/security_skill_authoring.md"
+    },
+    {
+      "id": "disc-20261013-02",
+      "found_at": "2026-10-13",
+      "status": "pending",
+      "track": "external_trend",
+      "target_project": "QTS",
+      "skill": "",
+      "url": "https://bbs.csdn.net/weixin_29056781/article/details/100354515",
+      "value": "medium-high",
+      "risk": "medium",
+      "class": "core",
+      "needs_review": true,
+      "success_metric": "QTS 数据/回测层新增护栏（区别于 disc-20261012-02 的复权/退市股）：① 识别停牌·涨跌停状态（数据含 halt/limit 标记，信号计算与持仓在涨跌停/停牌期不生成伪成交）；② 以交易所官方交易日历为唯一真值源，volume==0 且非停牌的日期视为非有效交易日剔除。全样本回测不再因日历错位产生收益曲线跳变；tests/ 新增断言由红转绿",
+      "check_cmd": "cd /Users/guan/WorkBuddy/QuantTradingSystem && python3 -m pytest tests/test_data_calendar_halt_guard.py -q 2>/dev/null | tail -1 | grep -q 'passed'",
+      "suggestion": "外部回测数据质量研究（CSDN/iisidc）指出：涨跌停/停牌状态缺失会产生幽灵订单，交易日历错位（接口返回 volume==0 的空行被当有效交易日）会制造收益曲线跳变。QTS 数据/回测层应补『停牌·涨跌停状态识别 + 交易日历权威源校验(volume==0 视为非交易日)』护栏，作为 disc-20261012-02 的兄弟项（后者覆盖复权/退市股）。属核心代码改动，走周度人工审（生成 diff 提案待授权）。",
+      "doc_target": "references/backtest_calendar_halt_guard.md"
+    },
+    {
+      "id": "disc-20261013-03",
+      "found_at": "2026-10-13",
+      "status": "pending",
+      "track": "external_trend",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "url": "https://itecs.ai/insights/ai-agent-tool-poisoning-secure-tool-supply-chain",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/skill_supply_chain.md 新增『技能供应链安全三件套（每次更新重新扫描 + 不可变版本钉版 append-only + 密码学签名/发布者校验）』小节，且被 majiu-management SKILL.md 或入库脚本引用",
+      "check_cmd": "test -f /Users/guan/.workbuddy/skills/majiu-management/references/skill_supply_chain.md && grep -q '重新扫描\\|不可变\\|签名' /Users/guan/.workbuddy/skills/majiu-management/references/skill_supply_chain.md",
+      "suggestion": "外部 supply-chain 研究（itecs.ai / mech.app：Snyk 13% 市场技能含严重漏洞；工具投毒可经描述/schema 绕过）：技能治理不能只靠一次性入库门禁。补 majiu-management 未覆盖的『供应链安全三件套』—— ① 每次更新重新扫描（非一次性门禁）；② 不可变版本钉版（append-only，版本不被覆盖）；③ 密码学签名/发布者校验。沉淀为 references/skill_supply_chain.md（与 skill-registry-security-scan.md / skill-version-pinning.md 同源）。",
+      "doc_target": "references/skill_supply_chain.md"
     }
   ],
   "known_failure_modes": [
@@ -2519,10 +2566,14 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-12T00:40:39+08:00",
+      "ts": "2026-10-13T00:40:54+08:00",
       "mode": "live",
-      "selected": [],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261012.md"
+      "selected": [
+        "disc-20261012-01",
+        "disc-20261012-03",
+        "disc-20261013-01"
+      ],
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261013.md"
     },
     "calibrate_runs": 18,
     "rollback_point": "67270a5",
@@ -2577,7 +2628,7 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 16,
+    "live_runs": 17,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7,
     "skill_vcs_sha_latest": "da5a824",
