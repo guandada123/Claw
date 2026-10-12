@@ -12,7 +12,7 @@
     "earnings_calendar.py": 2,
     "fetch_us_market_summary.py": 1,
     "fetch_yupen_rss.py": 1,
-    "health_check.py": 5,
+    "health_check.py": 1,
     "hub_liveness_probe.py": 1,
     "knowledge_indexer.py": 2,
     "knowledge_push.py": 4,

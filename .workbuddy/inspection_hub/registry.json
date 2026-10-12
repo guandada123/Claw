@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T14:42:19+08:00",
+  "updated_at": "2026-10-12T17:37:39+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2387,8 +2387,8 @@
       "area": "工具方法 / 路径查找",
       "severity": "low",
       "since": "2026-10-11",
-      "desc": "`find /Users/guan -maxdepth N -name X` 查 `~/.workbuddy/**` 会**静默漏掉整个子树**：`~/.workbuddy` 是指向 `/Volumes/ZHITAI/workbuddy_data` 的**软链**，而 find 默认不跟随符号链接。实测（2026-10-11）：`check_memory_visibility.py` 一直在 `~/.workbuddy/scripts/`（11,751B，10-09 建），我却因 find 返回空而得出「全机不存在」→ 差点登记一条**假发现**（「铁律引用了不存在的脚本」），并据此去重写一个已存在的工具。同类还会误判 `~/.workbuddy/skills/**`（同样软链）。",
-      "detect": "① find/grep 返回空时，先 `ls -la` 看**起点本身是否为软链**；② 「没找到」必须由第二种方法佐证：直接按预期绝对路径 `test -f` / `ls`，或 `find -L`、`cd` 进真实路径再遍历；③ 反向验证：对一个**已知存在**的文件跑同一查找命令，确认命令本身能命中。",
+      "desc": "`find /Users/guan -maxdepth N -name X` 查 `~/.workbuddy/**` 会**静默漏掉整个子树**：`~/.workbuddy` 是指向 `/Volumes/ZHITAI/workbuddy_data` 的**软链**，而 find 默认不跟随符号链接。实测（2026-10-11）：`check_memory_visibility.py` 一直在 `~/.workbuddy/scripts/`（11,751B，10-09 建），我却因 find 返回空而得出「全机不存在」→ 差点登记一条**假发现**（「铁律引用了不存在的脚本」），并据此去重写一个已存在的工具。同类还会误判 `~/.workbuddy/skills/**`（同样软链）。 【2026-10-12 同日第二例 · 反向】不是\"找不到\"，而是**把一条目录的两种写法当成两个目录**：`~/workbuddy_marvis_bridge` 是指向 `WorkBuddy/marvis_bridge` 的**软链**（`os.stat` 的 `st_ino` 相同、`realpath` 同指一处），而有人比较了**软链自身**的 mtime 与**目标目录**的 mtime，得出\"两个同名目录、取较新者\"，并把这条**错误依据**写进了代码注释（比没有注释更糟：它看起来权威）。判据补充：看到\"疑似两个同名目录\"时，先 `realpath` + 比 `st_ino`，再谈取舍。",
+      "detect": "① find/grep 返回空时，先 `ls -la` 看**起点本身是否为软链**；② 「没找到」必须由第二种方法佐证：直接按预期绝对路径 `test -f` / `ls`，或 `find -L`、`cd` 进真实路径再遍历；③ 反向验证：对一个**已知存在**的文件跑同一查找命令，确认命令本身能命中。 【补充】判定\"两个目录\"之前必须做**同一性检验**：`os.path.realpath()` 是否相同、`os.stat().st_ino` 是否相同 —— 软链会造出\"同名不同路径\"的假象；mtime 比较尤其危险（软链自身也有 mtime，与目标目录的 mtime 不是同一量纲）。",
       "mitigation": "涉及 `~/.workbuddy`、`/Volumes/ZHITAI/...` 的查找：优先**按预期绝对路径直接探测**，不依赖 find 遍历；把「不存在」写进结论前，必须有一次正向命中（第二条方法）。",
       "does_not_affect": "文件本身一直存在、可读、可执行（`readlink -f ~/.workbuddy/scripts` 解析到真实卷路径）。本条只描述**查找方法的盲区**，与文件生命周期、权限、内容无关。"
     },
@@ -2411,6 +2411,36 @@
       "detect": "轮换后**双向全盘复核**（只比哈希、不打印明文）：① 旧值残留清单（期望只剩会话日志/备份）；② 新值分布清单。**必须按去重文件列表逐个确认，不能只看计数或前 N 条**（当时 755 命中里只看前 10 → 漏）。再对「同一事实多副本 + 有优先级」的链路跑一次**真实功能调用**（如 Wind CLI 取一次数），而不是只确认 `.env` 写对了。",
       "mitigation": "枚举消费方按**文件清单**而非目录猜测：全 home 反查关键词/文件名，或读该 CLI 的配置优先级文档；轮换流程固化为「查所有持有者 → 逐个更新 → 真实调用验证 → 反向复核残留」。本次的漏改已由自动化修复并全盘复核（旧值仅存于会话日志/备份）。",
       "does_not_affect": "与「轮换本身是否必要」无关（泄露的旧值确实必须换）；也不影响 `.env`/MCP 侧的可用性——它们各自都是对的，错在**没查全持有者**。"
+    },
+    {
+      "id": "py39-pep604-has-two-classes",
+      "area": "解释器兼容 / 注解与运行时",
+      "severity": "high",
+      "since": "2026-10-11",
+      "desc": "本仓解释器不统一（默认 3.13 / `/usr/bin/python3` 是 3.9），而 PEP 604 的 `X | Y` 有**两类**用法，**修法不同、症状也不同**：① **注解**里（`def f() -> A | B`）→ 加 `from __future__ import annotations` 即可（注解变惰性字符串）；② **运行时**里（`isinstance(v, dict | list)` / `issubclass(...)` / `TypeVar(bound=A | B)`）→ **future import 完全无效**，3.9 下执行到那一行就抛 `TypeError: unsupported operand type(s) for |`，必须改写成 `(A, B)`。实测：2026-10-11 修了 7 个注解类文件（症状伪装成 CI 红灯/整包采集失败）；2026-10-12 又抓到 2 处运行时类 —— `.workbuddy/tests/test_portfolio.py:68` （让 `make test` 在 3.9 下单点失败）与 `.workbuddy/scripts/fetch_wx_rss.py:259`（生产脚本隐患）。",
+      "detect": "`python3 -m pytest tests/test_py39_compat.py`（AST 双判据）：① 无 future import 的文件里不得出现注解型 `X | Y`；② **任何**文件里不得出现 `isinstance/issubclass(...)` 或 `TypeVar(bound=/constraints=)` 里的 `X | Y`（与 future import 无关）。该门禁自带证伪用例（植入违规必须被抓、已修写法不得误伤）。⚠️ 扫描根必须包含 **`.workbuddy/tests`**（2026-10-12 补：原先漏了这个树，而 `make test` 恰恰跑的是它）。",
+      "mitigation": "注解类：docstring 之后加 `from __future__ import annotations`；运行时类：改写成元组 `(A, B)`。改完**用 `/usr/bin/python3` 真跑一次**（不是只看 3.13 绿）。",
+      "does_not_affect": "CI（3.12）与平台自动化（3.13）都不受影响 —— 本条只影响 3.9 链路，而那条链路正是知识库/向量检索与部分本机巡检所依赖的。"
+    },
+    {
+      "id": "formatter-rewrites-config-into-looser-dialect",
+      "area": "工具方法 / 格式化器与配置文件",
+      "severity": "medium",
+      "since": "2026-10-12",
+      "desc": "用「格式化/排版」工具处理**配置文件**时，它可能按更宽松的方言产出（如把 `.json` 当 jsonc 写、补尾逗号），而下游是**严格**解析器 → 文件立刻不可用。实测：`ruff format tests/hardcoded_paths_baseline.json`（ruff 0.15.17，**显式点名** .json）→ 缩进 2→4 空格 **且给对象末位补尾逗号** → `json.loads` 报 `Expecting property name enclosed in double quotes`（P1-12 硬编码门禁当场崩）。",
+      "detect": "① 报错形态：严格解析器在**对象/数组末尾**报 `Expecting property name / value`，而人眼看不出来 → 先看这个文件**是否被格式化器动过**（`git diff` 缩进变了就是它）；② 复现：拿该文件副本跑一次格式化工具，比对 `json.loads` 是否由成功变失败；③ 半径判定：**目录式**调用会跳过 `.json`（实测），危险只在**显式点名**该文件时。",
+      "mitigation": "改这类文件用**文本替换**、改完立刻用**真实消费方**（`json.loads`）验一次；别把 `.json` 写进 ruff/格式化器的文件列表。本仓已在消费该文件的`tests/test_no_new_hardcoded_paths.py` docstring 留下警告。",
+      "does_not_affect": "`ruff format .`（目录式）与 `make lint/format`（目标是目录）都安全；也不影响 .py 的格式化。"
+    },
+    {
+      "id": "artifact-declares-own-freshness-but-consumer-drops-it",
+      "area": "健康检查 / 产物契约",
+      "severity": "medium",
+      "since": "2026-10-12",
+      "desc": "产物**自证新鲜度**（自带 `updated_at` / `last_health_check` / `last_run`），而消费方只取其中一两个业务字段、把时间戳丢掉 → **很久以前写的\"健康\"被当现状报出**。实测：`health_check.check_bridge()` 只读 `status/bridge.json` 的 `mode`，而该文件 `updated_at` = **2026-06-29**（105 天前），文件里同时写着 `sla_status: healthy`。",
+      "detect": "对每个「读产物做判断」的检查：列出产物 JSON 的键，看它是否自带时间字段；若自带而消费方没读 → 就是本条。批量找法：`grep -n \"json.loads\" ` 逐个看返回里有没有时间字段。",
+      "mitigation": "消费方补 `age_days` / `stale`（阈值 7 天）并**只报不拦**（不进 rc）——旧态可见化，但不凭\"文件旧\"就断言系统故障（那会变成噪音）。已落地在 `check_bridge()`（含 5 条可证伪测试：旧→stale、新→不 stale、`Z` 结尾不得静默退 mtime、无时间戳退回 mtime、文件缺失不得报 stale）。",
+      "does_not_affect": "不改变原字段（`status`/`watchers` 仍在）；也不影响 Marvis Bridge 本身 ——它是否该在跑是另一件事（本条目只保证\"读到的旧态会被标出来\"）。"
     }
   ],
   "doc_apply": {

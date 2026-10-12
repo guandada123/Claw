@@ -5,6 +5,8 @@
 输出: JSON + 终端彩色输出
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sqlite3
@@ -98,7 +100,11 @@ def check_http() -> dict:
 # ─── 3. Tailscale ───
 def check_tailscale() -> dict:
     ts = run_cmd(
-        ["tailscale", "--socket=/Users/guan/Library/Caches/tailscale/tailscaled.sock", "status"],
+        [
+            "tailscale",
+            f"--socket={HOME_DIR / 'Library/Caches/tailscale/tailscaled.sock'}",
+            "status",
+        ],
         timeout=5,
     )
     if ts.returncode != 0:
@@ -128,16 +134,47 @@ def check_tailscale() -> dict:
 
 
 # ─── 4. Marvis Bridge ───
-def check_bridge() -> dict:
-    bridge_file = Path("/Users/guan/workbuddy_marvis_bridge/status/bridge.json")
+BRIDGE_STALE_DAYS = 7  # 产物超过此天数未更新即标记 stale（只报不拦）
+
+
+def check_bridge(bridge_file: Path | None = None) -> dict:
+    """Marvis Bridge 状态。
+
+    ⚠️ 2026-10-12 修两处（均为实测取证，不是推测）：
+    ① **路径**：原写 `~/workbuddy_marvis_bridge/...`。它**不是第二个目录**，而是
+       `WorkBuddy/marvis_bridge` 的**软链** —— `os.stat` 的 `st_ino` 相同、`realpath` 同指
+       同一目录 → **一条目录两种写法**。（同文件 `check_repo_health` 的注释曾把它描述成
+       "两个同名目录、取较新者"，那个描述是错的，已一并更正。）
+    ② **新鲜度**：该产物**自带** `updated_at` / `last_health_check`，而原实现只取 `mode`、
+       把时间戳丢掉了 → 实测读到的是 **2026-06-29** 的状态（同一文件里还写着
+       `sla_status: healthy`），即「105 天前写的 healthy 被当现状报出」。
+       现补 `age_days` / `stale`，**只报不拦**（本函数不进 rc；是否算故障交上层判断）。
+
+    `bridge_file` 可注入 —— 只为让上面②可被测试钉住（默认仍是真实路径）。
+    """
+    bridge_file = bridge_file or (
+        Path.home() / "WorkBuddy" / "marvis_bridge" / "status" / "bridge.json"
+    )
     mode = "unknown"
-    recent_tasks = 0
+    declared_updated_at: str | None = None
+    age_days: float | None = None
     if bridge_file.exists():
         try:
             data = json.loads(bridge_file.read_text())
             mode = data.get("mode", "unknown")
         except Exception:
-            pass
+            data = {}
+        declared = data.get("updated_at") or data.get("last_health_check")
+        if declared:
+            try:
+                # 3.7~3.10 的 fromisoformat 不认 "Z" 结尾 → 归一化，避免静默退回 mtime
+                ts = datetime.fromisoformat(str(declared).replace("Z", "+00:00"))
+                declared_updated_at = str(declared)
+                age_days = round((time.time() - ts.timestamp()) / 86400, 1)
+            except ValueError:
+                pass
+        if age_days is None:  # 没写时间戳 / 写坏了 → 退回文件 mtime（宁可粗判，也不丢新鲜度）
+            age_days = round((time.time() - bridge_file.stat().st_mtime) / 86400, 1)
 
     watchers = 0
     try:
@@ -147,7 +184,13 @@ def check_bridge() -> dict:
     except Exception:
         pass
 
-    return {"status": mode, "watchers": watchers}
+    return {
+        "status": mode,
+        "watchers": watchers,
+        "declared_updated_at": declared_updated_at,
+        "age_days": age_days,
+        "stale": bool(age_days is not None and age_days > BRIDGE_STALE_DAYS),
+    }
 
 
 # ─── 5. System Resources ───
@@ -211,9 +254,11 @@ def check_system() -> dict:
 
 # ─── 6. CI Failure Alerting ───
 def check_ci_failures() -> dict:
+    # 2026-10-12：同一文件里漏改的一处（check_repo_health 已改、此处未改）→ 一并派生。
+    _wb = Path.home() / "WorkBuddy"
     repos = {
-        "QuantTradingSystem": "/Users/guan/WorkBuddy/QuantTradingSystem",
-        "MarvisBridge": "/Users/guan/workbuddy_marvis_bridge",
+        "QuantTradingSystem": str(_wb / "QuantTradingSystem"),
+        "MarvisBridge": str(_wb / "marvis_bridge"),
     }
     results = []
     three_days_ago = (datetime.now() - timedelta(days=3)).isoformat()
@@ -261,12 +306,14 @@ def check_ci_failures() -> dict:
 
 # ─── 7. Repo Health Check ───
 def check_repo_health() -> dict:
-    # 2026-10-12 P1-12：改为 <home> 派生（去掉写死的用户名）；同时**修掉 2 个错路径**——
+    # 2026-10-12 P1-12：改为 <home> 派生（去掉写死的用户名）；同时**修掉 1 个真错路径**——
     #   · StockInsight：原写 `stock-insight`（该目录**不存在**；实测存在的是 StockInsight，
-    #     且自动化里 10 处引用都用后者，旧名 0 引用）→ 原写法会让本检查长期误报
-    #   · MarvisBridge：原写 `workbuddy_marvis_bridge`（07-17）。两个同名目录都存在且都是 git 仓
-    #     （workbuddy_marvis_bridge 07-17 vs WorkBuddy/marvis_bridge 08-11）→ 取**较新**者；
-    #     ⚠️ 此项属"信息不足"的折中，如另有约定请更正。
+    #     且自动化里 10 处引用都用后者，旧名 0 引用）→ 原写法会让本检查长期误报。
+    #   · MarvisBridge：~~"两个同名目录都存在且都是 git 仓 → 取较新者"~~ **该说法是错的，已更正**：
+    #     `~/workbuddy_marvis_bridge` 是 `WorkBuddy/marvis_bridge` 的**软链**
+    #     （`os.stat` 的 `st_ino` 相同、`realpath` 同指同一目录）→ **一条目录两种写法，不存在歧义**。
+    #     当初比较的 07-17 是**软链自身**的 mtime、08-11 是**目标目录**的 mtime，两者不同量纲。
+    #     两种写法均可解析到同一处；此处统一用 realpath 形态。
     _wb = Path.home() / "WorkBuddy"
     repos = {
         "Claw": str(_wb / "Claw"),

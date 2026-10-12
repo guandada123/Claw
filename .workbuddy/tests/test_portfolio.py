@@ -65,7 +65,7 @@ class TestRealPortfolioLoading:
         pf = sim_trade.load_portfolio()
         assert "cash" in pf
         assert "positions" in pf
-        assert isinstance(pf["cash"], int | float)
+        assert isinstance(pf["cash"], (int, float))
         assert isinstance(pf["positions"], dict)
 
     def test_sim_portfolio_save_load_roundtrip(self, temp_dir):

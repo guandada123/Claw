@@ -11,6 +11,12 @@
   ③ 已有文件出现数**少于基线** → ✅ 通过，但**提示更新基线**（把数字调小，让门禁逐步收紧）
   ④ 已清零但仍在基线表里 → ❌ 失败（防止基线腐烂成"永远允许"）
 
+## ⚠️ 别对基线 .json 跑 `ruff format`（2026-10-12 实测）
+`ruff format tests/hardcoded_paths_baseline.json`（**显式指定 .json**）会按 jsonc 规则**加尾逗号**
+→ 严格的 `json.loads` 立刻报 `Expecting property name enclosed in double quotes`（本门禁即因此崩过）。
+**目录式** `ruff format .` 会跳过 .json（实测）→ 危险只在「显式点名 .json」时。
+改数字请用文本替换，改完 `python3 -c "import json;json.load(open(…))"` 验一次。
+
 ## 为什么不用 pre-commit 钩子
 pre-commit 只在本机装了钩子的仓库生效（本仓曾长期因未安装钩子而 CI 红），
 而 **pytest 在 CI 与本机都会跑** → 门禁覆盖面更广。基线表是**入库文件**，随仓库走。

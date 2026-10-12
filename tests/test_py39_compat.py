@@ -11,11 +11,17 @@
 在有 3.9 的链路上直接崩 → 中枢把它读成「qts_guard 退出码 1」→ **报出假的「GitHub CI 红灯」**；
 tests/ 下两个文件同因导致 **pytest 直接采集失败**（整个文件不跑）。
 
-## 判据
-凡是**没有** `from __future__ import annotations` 的 .py 文件，其注解里**不得**出现 `X | Y`。
-（加了 future import 之后注解变成惰性字符串，3.9 也不会求值 → 允许。）
+## 判据（两类，2026-10-12 补第二类）
+① **注解**：没有 `from __future__ import annotations` 的 .py，注解里**不得**出现 `X | Y`
+   （加了 future import 后注解变惰性字符串、不求值 → 允许）。
+② **运行时**：`isinstance(x, A | B)` / `issubclass(...)` / `TypeVar(bound=A | B)` 这类
+   **运行时会真的求值**的位置，一律**不得**用 `A | B` —— **future import 救不了它们**，
+   3.9 下会抛 `TypeError: unsupported operand type(s) for |`，写成 `(A, B)` 即可。
+   实战（2026-10-12）：`.workbuddy/tests/test_portfolio.py:68` 的
+   `isinstance(pf["cash"], int | float)` 让 `make test`（走 `/usr/bin/python3`）单点失败；
+   `.workbuddy/scripts/fetch_wx_rss.py:259` 的 `isinstance(v, dict | list)` 是同类隐患。
 
-这是一个**结构性**门禁：它不测某个功能，而是测"这套代码在仓库声明的两种解释器下都能被导入"。
+这是一个**结构性**门禁：它不测某个功能，而是测"这套代码在仓库声明的两种解释器下都能被导入并运行到"。
 """
 
 from __future__ import annotations
@@ -28,7 +34,7 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 
 # 只扫仓库自己的代码；skip 掉第三方/归档/虚拟环境
-ROOTS = [".workbuddy/scripts", ".workbuddy/lib", "scripts", "src/claw", "tests"]
+ROOTS = [".workbuddy/scripts", ".workbuddy/lib", ".workbuddy/tests", "scripts", "src/claw", "tests"]
 SKIP_DIR_PARTS = {
     "__pycache__",
     ".venv",
@@ -124,3 +130,62 @@ def test_known_offenders_now_have_future_import(path):
     p = REPO / path
     assert p.is_file(), f"文件不存在：{path}"
     assert FUTURE_IMPORT in p.read_text(encoding="utf-8"), f"{path} 缺少 {FUTURE_IMPORT}"
+
+
+# ─────────────────────────────────────────────────────────────
+# 第二类：**运行时** PEP 604（future import 救不了）
+# ─────────────────────────────────────────────────────────────
+_RUNTIME_CALLS = {"isinstance", "issubclass"}
+_RUNTIME_KWARGS = {"bound", "constraints"}  # TypeVar(...) 会在运行时求值
+
+
+def _runtime_pep604_usages(tree: ast.AST) -> list[str]:
+    """列出**运行时会求值**的 `A | B` 位置（这些位置加 future import 也没用）。"""
+
+    def has_bitor(n: ast.AST | None) -> bool:
+        return n is not None and any(
+            isinstance(x, ast.BinOp) and isinstance(x.op, ast.BitOr) for x in ast.walk(n)
+        )
+
+    hits: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        callee = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+        if callee in _RUNTIME_CALLS and any(has_bitor(a) for a in node.args[1:]):
+            hits.append(f"L{node.lineno}: {callee}(..., A | B) → 写成 (A, B)")
+        for kw in node.keywords:
+            if kw.arg in _RUNTIME_KWARGS and has_bitor(kw.value):
+                hits.append(f"L{node.lineno}: {callee}({kw.arg}=A | B) → 写成 (A, B)")
+    return hits
+
+
+def test_no_runtime_pep604_type_unions():
+    """运行时求值位置的 `A | B`（isinstance/issubclass/TypeVar）：**与 future import 无关**，一律拦。
+
+    为什么单列一条：① 它不受 future import 保护，混在注解那条里会被"已有 future import"漏掉；
+    ② 症状是运行到那一行才崩，比导入期崩更难定位。
+    """
+    offenders: list[str] = []
+    for p in _iter_py_files():
+        try:
+            tree = ast.parse(p.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError, OSError, SyntaxError):
+            continue
+        hits = _runtime_pep604_usages(tree)
+        if hits:
+            offenders.append(f"{p.relative_to(REPO)}（{'; '.join(hits[:3])}）")
+    assert not offenders, (
+        "以下文件在**运行时求值**位置用了 PEP 604 `A | B`（3.9 下必抛 TypeError，"
+        "且 `from __future__ import annotations` 对它无效）：\n  - " + "\n  - ".join(offenders)
+    )
+
+
+def test_runtime_detector_catches_planted_code():
+    """证伪：判据必须抓得住违规写法、且不误伤已修写法（防它退化成恒真空检查）。"""
+    bad = ast.parse("def f(v):\n    return isinstance(v, dict | list)\n")
+    assert _runtime_pep604_usages(bad), "抓不到 `isinstance(v, dict | list)`"
+    bad2 = ast.parse("from typing import TypeVar\nT = TypeVar('T', bound=int | str)\n")
+    assert _runtime_pep604_usages(bad2), "抓不到 `TypeVar(bound=A | B)`"
+    good = ast.parse("def f(v):\n    return isinstance(v, (dict, list))\n")
+    assert _runtime_pep604_usages(good) == [], "误伤已修写法"
