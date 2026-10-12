@@ -10,10 +10,9 @@ wind_monitor.py — Wind 高级监控脚本（自动化入口）
 
 import os
 import sys
-from pathlib import Path  # 2026-10-12 P1-14：位置无关化的 _claw_root() 需要
+from pathlib import Path  # P1-12：位置无关化后需要
 
 
-# 确保能找到 claw 包
 def _claw_root() -> Path:
     """位置无关地定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-14 单源化时加入。"""
     p = Path(__file__).resolve().parent
@@ -23,9 +22,13 @@ def _claw_root() -> Path:
     raise RuntimeError("找不到含 .workbuddy 的仓库根（脚本被放在异常位置？）")
 
 
+from pathlib import Path  # 2026-10-12 P1-14：位置无关化的 _claw_root() 需要
+
+# 确保能找到 claw 包
+
+
 sys.path.insert(0, os.path.join(str(_claw_root()), "src"))
 
-from pathlib import Path
 
 from claw.monitoring.wind_monitor import main
 

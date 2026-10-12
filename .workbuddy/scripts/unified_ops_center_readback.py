@@ -18,6 +18,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
+
 SCRIPT_DIR = Path("/Users/guan/WorkBuddy/Claw/.workbuddy/scripts")
 ALERTED = SCRIPT_DIR / ".ops_alerted.json"
 CROSS_STATE = Path.home() / ".workbuddy" / "cross_project_state.json"
@@ -149,7 +159,7 @@ def sec5_git():
     自己不看的目录。故改为逐项列出全仓文件名 + 高亮根级配置文件。
     """
     print("== 5) git 漂移 ==")
-    repo = Path("/Users/guan/WorkBuddy/Claw")
+    repo = _claw_root()
 
     def _gs(*extra):
         out = subprocess.run(

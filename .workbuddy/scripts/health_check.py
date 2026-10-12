@@ -261,11 +261,18 @@ def check_ci_failures() -> dict:
 
 # ─── 7. Repo Health Check ───
 def check_repo_health() -> dict:
+    # 2026-10-12 P1-12：改为 <home> 派生（去掉写死的用户名）；同时**修掉 2 个错路径**——
+    #   · StockInsight：原写 `stock-insight`（该目录**不存在**；实测存在的是 StockInsight，
+    #     且自动化里 10 处引用都用后者，旧名 0 引用）→ 原写法会让本检查长期误报
+    #   · MarvisBridge：原写 `workbuddy_marvis_bridge`（07-17）。两个同名目录都存在且都是 git 仓
+    #     （workbuddy_marvis_bridge 07-17 vs WorkBuddy/marvis_bridge 08-11）→ 取**较新**者；
+    #     ⚠️ 此项属"信息不足"的折中，如另有约定请更正。
+    _wb = Path.home() / "WorkBuddy"
     repos = {
-        "Claw": "/Users/guan/WorkBuddy/Claw",
-        "QuantTradingSystem": "/Users/guan/WorkBuddy/QuantTradingSystem",
-        "StockInsight": "/Users/guan/WorkBuddy/stock-insight",
-        "MarvisBridge": "/Users/guan/workbuddy_marvis_bridge",
+        "Claw": str(_wb / "Claw"),
+        "QuantTradingSystem": str(_wb / "QuantTradingSystem"),
+        "StockInsight": str(_wb / "StockInsight"),
+        "MarvisBridge": str(_wb / "marvis_bridge"),
     }
     problems = []
     for name, path in repos.items():

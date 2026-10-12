@@ -9,8 +9,19 @@ signal_verify_pipeline.py — 公众号信号溯源 v4 编排（步骤2~3）
 
 import json
 import pathlib
+from pathlib import Path  # P1-12：位置无关化后需要
 
-ROOT = pathlib.Path("/Users/guan/WorkBuddy/Claw")
+
+def _claw_root() -> Path:
+    """位置无关定位仓库根（向上找含 .workbuddy 的目录）。2026-10-12 P1-12 硬编码治理时加入。"""
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根")
+
+
+ROOT = _claw_root()
 REPORT = ROOT / ".workbuddy" / "data" / "signal_verify_report.json"
 HISTORY = ROOT / ".workbuddy" / "data" / "signal_verify_history.json"
 MSG_FILE = pathlib.Path("/tmp/signal_verify_msg.md")
