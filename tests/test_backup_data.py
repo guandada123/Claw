@@ -15,6 +15,9 @@ def test_find_project_dir_walks_up_to_project_root(tmp_path):
     """文档口径：向上找到「含 pyproject.toml 且含 output/」的目录。用自建树验，不依赖宿主布局。"""
     (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
     (tmp_path / "output").mkdir()
+    # 2026-10-13：实现已加严——候选目录**必须自身含 .workbuddy/**（否则会误把 .workbuddy 当项目根，
+    # 导致只备份 .workbuddy 自身的空备份）。fixture 需同步，否则用例测的是旧口径。
+    (tmp_path / ".workbuddy").mkdir()
     deep = tmp_path / "scripts" / "sub"
     deep.mkdir(parents=True)
     assert Path(bd._find_project_dir(str(deep))).resolve() == tmp_path.resolve()

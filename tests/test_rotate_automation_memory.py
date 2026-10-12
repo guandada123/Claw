@@ -135,7 +135,10 @@ def test_main_noop_is_rc0(monkeypatch, tmp_path, capsys):
     """超门槛但窗口内无旧条目 = 归档正常稳态（归档后必有档位处于此态）→ rc=0。
     原实现与 no_timestamps 一律归「跳过」→ 每周归档后必然 rc=1（恒真噪音，淹真问题）。"""
     root = tmp_path / "automations"
-    _slot(root, "slot-hf", "2026-09-28T03:00 只有新条目\n")
+    # 2026-10-12 修：原为写死的 2026-09-28 —— 随真实日期推移会滑出保留窗口，
+    # 让"稳态"用例变成"真该归档"（时间炸弹测试）。改为相对今天生成，永远在窗口内。
+    _recent = (datetime.datetime.now() - datetime.timedelta(days=2)).strftime("%Y-%m-%d")
+    _slot(root, "slot-hf", f"{_recent}T03:00 只有新条目\n")
     monkeypatch.setattr(rot, "DEFAULT_ROOTS", [root])
     monkeypatch.setattr(sys, "argv", ["rot", "--min-bytes", "10"])
     assert rot.main() == 0
