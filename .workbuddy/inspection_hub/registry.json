@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T18:05:08+08:00",
+  "updated_at": "2026-10-12T19:02:06+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2387,7 +2387,7 @@
       "area": "工具方法 / 路径查找",
       "severity": "low",
       "since": "2026-10-11",
-      "desc": "`find /Users/guan -maxdepth N -name X` 查 `~/.workbuddy/**` 会**静默漏掉整个子树**：`~/.workbuddy` 是指向 `/Volumes/ZHITAI/workbuddy_data` 的**软链**，而 find 默认不跟随符号链接。实测（2026-10-11）：`check_memory_visibility.py` 一直在 `~/.workbuddy/scripts/`（11,751B，10-09 建），我却因 find 返回空而得出「全机不存在」→ 差点登记一条**假发现**（「铁律引用了不存在的脚本」），并据此去重写一个已存在的工具。同类还会误判 `~/.workbuddy/skills/**`（同样软链）。 【2026-10-12 同日第二例 · 反向】不是\"找不到\"，而是**把一条目录的两种写法当成两个目录**：`~/workbuddy_marvis_bridge` 是指向 `WorkBuddy/marvis_bridge` 的**软链**（`os.stat` 的 `st_ino` 相同、`realpath` 同指一处），而有人比较了**软链自身**的 mtime 与**目标目录**的 mtime，得出\"两个同名目录、取较新者\"，并把这条**错误依据**写进了代码注释（比没有注释更糟：它看起来权威）。判据补充：看到\"疑似两个同名目录\"时，先 `realpath` + 比 `st_ino`，再谈取舍。",
+      "desc": "`find /Users/guan -maxdepth N -name X` 查 `~/.workbuddy/**` 会**静默漏掉整个子树**：`~/.workbuddy` 是指向 `/Volumes/ZHITAI/workbuddy_data` 的**软链**，而 find 默认不跟随符号链接。实测（2026-10-11）：`check_memory_visibility.py` 一直在 `~/.workbuddy/scripts/`（11,751B，10-09 建），我却因 find 返回空而得出「全机不存在」→ 差点登记一条**假发现**（「铁律引用了不存在的脚本」），并据此去重写一个已存在的工具。同类还会误判 `~/.workbuddy/skills/**`（同样软链）。 【2026-10-12 同日第二例 · 反向】不是\"找不到\"，而是**把一条目录的两种写法当成两个目录**：`~/workbuddy_marvis_bridge` 是指向 `WorkBuddy/marvis_bridge` 的**软链**（`os.stat` 的 `st_ino` 相同、`realpath` 同指一处），而有人比较了**软链自身**的 mtime 与**目标目录**的 mtime，得出\"两个同名目录、取较新者\"，并把这条**错误依据**写进了代码注释（比没有注释更糟：它看起来权威）。判据补充：看到\"疑似两个同名目录\"时，先 `realpath` + 比 `st_ino`，再谈取舍。 【同日第三例 · 命名空间混淆】`stock-insight`（带连字符）出现在桥接目录里是**合法项目键**（`~/workbuddy_marvis_bridge/stock-insight/` 真实存在，队列按此键分仓），而在别处它又是 `StockInsight` 仓库的错误拼法 —— **同一个字符串在一个命名空间是键、在另一个是路径**。判据：判定\"这是写错的路径\"之前，先确认该字符串**属于哪个命名空间**（仓库路径 / 项目键 / 模块名 / 显示名）。",
       "detect": "① find/grep 返回空时，先 `ls -la` 看**起点本身是否为软链**；② 「没找到」必须由第二种方法佐证：直接按预期绝对路径 `test -f` / `ls`，或 `find -L`、`cd` 进真实路径再遍历；③ 反向验证：对一个**已知存在**的文件跑同一查找命令，确认命令本身能命中。 【补充】判定\"两个目录\"之前必须做**同一性检验**：`os.path.realpath()` 是否相同、`os.stat().st_ino` 是否相同 —— 软链会造出\"同名不同路径\"的假象；mtime 比较尤其危险（软链自身也有 mtime，与目标目录的 mtime 不是同一量纲）。",
       "mitigation": "涉及 `~/.workbuddy`、`/Volumes/ZHITAI/...` 的查找：优先**按预期绝对路径直接探测**，不依赖 find 遍历；把「不存在」写进结论前，必须有一次正向命中（第二条方法）。",
       "does_not_affect": "文件本身一直存在、可读、可执行（`readlink -f ~/.workbuddy/scripts` 解析到真实卷路径）。本条只描述**查找方法的盲区**，与文件生命周期、权限、内容无关。"
@@ -2437,8 +2437,8 @@
       "area": "健康检查 / 产物契约",
       "severity": "medium",
       "since": "2026-10-12",
-      "desc": "产物**自证新鲜度**（自带 `updated_at` / `last_health_check` / `last_run`），而消费方只取其中一两个业务字段、把时间戳丢掉 → **很久以前写的\"健康\"被当现状报出**。实测：`health_check.check_bridge()` 只读 `status/bridge.json` 的 `mode`，而该文件 `updated_at` = **2026-06-29**（105 天前），文件里同时写着 `sla_status: healthy`。",
-      "detect": "对每个「读产物做判断」的检查：列出产物 JSON 的键，看它是否自带时间字段；若自带而消费方没读 → 就是本条。批量找法：`grep -n \"json.loads\" ` 逐个看返回里有没有时间字段。",
+      "desc": "产物**自证新鲜度**（自带 `updated_at` / `last_health_check` / `last_run`），而消费方只取其中一两个业务字段、把时间戳丢掉 → **很久以前写的\"健康\"被当现状报出**。实测：`health_check.check_bridge()` 只读 `status/bridge.json` 的 `mode`，而该文件 `updated_at` = **2026-06-29**（105 天前），文件里同时写着 `sla_status: healthy`。 【2026-10-12 同日补充 · **别把\"产物旧\"读成\"系统停摆\"**】同一现象在 Marvis Bridge 上被发现时，我一度据 `status/bridge.json` 是 6 月而推断\"桥接已停用、建议登记 dormant\"——**随后实测推翻**：桥接是活的（`logs/monitor.log` 当天 18:14 仍在写、`logs/consumer.log` 18:08、`status/monitor.pid` 18:14；且当天 18:21 新建了`🔗【桥接】Marvis 任务消费（每2小时）`自动化，首次运行 20:21）。结论：**`bridge.json` 只是\"这个汇总状态文件没人更新\"，不代表系统没跑**。判据修正：报 `stale` 之后必须再问一句\"**这个产物是否本来就该由某个写入方更新**\"——若写入方已改为写别处（如 monitor.log/pid），则 stale 是**产物废弃**信号，不是系统故障信号。",
+      "detect": "对每个「读产物做判断」的检查：列出产物 JSON 的键，看它是否自带时间字段；若自带而消费方没读 → 就是本条。批量找法：`grep -n \"json.loads\" ` 逐个看返回里有没有时间字段。 【补充】报 stale 前先做**写入方确认**：找\"谁应该更新这个文件\"（日志/进程/定时任务），若该写入方仍在活动（日志 mtime 新、pid 在、有自动化在跑），则结论应是**\"此产物已废弃/换位\"**，而非\"系统停摆\"。",
       "mitigation": "消费方补 `age_days` / `stale`（阈值 7 天）并**只报不拦**（不进 rc）——旧态可见化，但不凭\"文件旧\"就断言系统故障（那会变成噪音）。已落地在 `check_bridge()`（含 5 条可证伪测试：旧→stale、新→不 stale、`Z` 结尾不得静默退 mtime、无时间戳退回 mtime、文件缺失不得报 stale）。",
       "does_not_affect": "不改变原字段（`status`/`watchers` 仍在）；也不影响 Marvis Bridge 本身 ——它是否该在跑是另一件事（本条目只保证\"读到的旧态会被标出来\"）。"
     },
@@ -2980,12 +2980,27 @@
       "owner": "human",
       "title": "处置 health_check 这一对（.py 孤儿 + .sh 老副本）：归档 / 删除 / 恢复调用 三选一",
       "criteria": "**已核实事实（2026-10-12）**：\n① `.workbuddy/scripts/health_check.py`（18KB，8 段检查：Docker/端点/Tailscale/Marvis/资源/CI/仓库/自动化）\n   与 `.workbuddy/scripts/health_check.sh`（227 行，**同一批检查的老副本**，缺 CI 与仓库健康两段，mtime 08-17）   **功能面重合 = 双副本**；\n② 两者**都没有调用方**：自动化库里引用二者的 **0 条**、全仓无 `import`、无 `subprocess` 调用（只在 CHANGELOG/记忆/历史文档里被提到）；\n③ 它这一族已被 `🛡️ 统一巡检中枢` 取代（中枢不调用它）。\n**请你拍板**：① 归档（移入 `.backups/` 或 archive）；② 删除（须走「先复制→验证→再删源」）；③ 保留并**显式登记为 dormant**（写明\"无调用方、仅在人工排查时手动跑\"）。\n**若 peer 的「双副本/软链审计」批次已覆盖到这一对，直接并入其处置即可**——我这边只登记判据、不重复动手。",
-      "status": "open",
-      "verifier": "处置后：`grep -rn \"health_check.py\\|health_check.sh\"` 只在文档/记忆里命中（或指向新位置）；`python3 .workbuddy/scripts/hub_reconcile.py` rc=0；若选\"保留 dormant\"，需在 `registry.known_failure_modes`/文档里留下\"无调用方\"的显式声明，避免下一个人又以为它在跑。",
+      "status": "done",
+      "verifier": "已满足：`bash -n` 归档副本通过；`.py` 在 **3.9** 下导入 OK 且 `check_bridge()` 正常；门禁复跑 16 passed（基线/封闭性/py39/新测试）；`grep -rn \"health_check.sh\"` 现只在`_archive/` 与文档/记忆中命中。",
       "auto_check": "hub_reconcile.py D6（逾期）；本条到期未处置会在 D6 报出",
       "why": "发现路径：我 10-12 为修\"写错的依据 + 残留硬编码\"动了 `health_check.py`，随后按纪律反查调用方 → **发现它根本没有调用方**。价值在于：避免继续把维护动作投在死代码上，并消掉\"以为有健康检查、实际没有\"的认知差（同类见 KFM `orphan-script-no-caller-yet-still-maintained`）。",
       "if_no_action": "keep_as_is",
-      "if_no_action_note": "不升级：无调用方 = 无运行风险，代价仅是维护注意力与认知差。但**别再往它上面投新的维护动作**（今天我已经投过一次）——除非先决定它的去向。"
+      "if_no_action_note": "已 done。**遗留约束（写进文件本身）**：`.py` 的状态声明与归档副本的头部说明都指向本条，避免下一个人又以为这套检查在跑。",
+      "resolved_at": "2026-10-12T19:02:06+08:00",
+      "resolution": "**自主决定（用户 2026-10-12 18:5x「你自己判断」授权）：归档 `.sh` + 给 `.py` 加状态声明**（不删除、不恢复调度）。\n① `.workbuddy/scripts/health_check.sh` → `git mv` 到 `.workbuddy/scripts/_archive/health_check.sh.bak-20261012`（沿用该目录既有 `*.bak-<日期>` 约定），并在文件头写明**为什么归档**（与 .py 是同批检查的双副本、缺 CI/仓库健康两段、两者均无调用方、已被统一巡检中枢取代）；\n② `.py` **保留**（功能面是 .sh 的超集，且为人工排查有用），但在模块 docstring 里加**状态声明**：无任何调用方、别当成\"正在运行的健康检查\"、要恢复调度先读本条；\n③ **不删除**的理由：删除须走「先复制→验证→再删源」，而归档已达成\"不再误导\"这一目标，删除是净增风险；**不恢复调度**的理由：该族已被统一巡检中枢取代，恢复等于造双源。\n④ 迁移前先确认无门禁引用 `.sh`（grep 为空）、基线表只登记了 `.py`（不会触发规则④）。"
+    },
+    {
+      "id": "PA-020",
+      "due": "2026-10-13",
+      "owner": "auto",
+      "title": "稽核恢复后的 Marvis 消费端处理 2 个月积压（16 条）的结果是否\"不是陈旧数据冒充现状\"",
+      "criteria": "**背景（2026-10-12 实测）**：`~/workbuddy_marvis_bridge/claw/tasks/` 积压 **16** 个任务，**最早 2026-07-07、最新 2026-08-14**（含 4 条 `wb-404-*` 的 health_diagnosis 与多条 `data_collection`，如「财报日历采集-上午完成」「盘中监控截图-0925完成」）；消费端自动化 `🔗【桥接】Marvis 任务消费（每2小时）` 于当天 **18:21 新建**、首次运行 **20:21**（模型 v4.1-flash，0 历史运行）。\n**要核四件事**：① **幂等**：`results/<task_id>.md` 已存在的不被重复执行（不重复记账/推送）；② **日期归属**：`data_collection` 类任务的产物必须带**任务原始日期**（如 07-07/08-14），**不得**被当作\"今天的数据\"（这是本仓反复踩的坑：陈旧数据冒充现状）；③ **无编造**：拿不到的历史时点数据应报缺，不得用当前值填充；④ **成本合理**：16 条的积分消耗与结果量级相符（对照 v4.1-flash 的每千 token 口径）。",
+      "status": "open",
+      "verifier": "首跑后：`ls -t ~/workbuddy_marvis_bridge/claw/results | head` 看新增产物**文件名与内容里的日期**；`claw/tasks` 剩余数应从 16 下降且**同一 task 不出现两次执行**；自动化 run 的输出里能对上\"处理 n 条 / 跳过 m 条（幂等）\"；若有 `data_collection` 产物把历史时点写成今日值 → 判不通过，需给该自动化补\"陈旧任务\"分支（参照 2026-10-12 给 Wind 任务补的四句降级规则：不重试 / 不写半成品 / 显式标注 / 不得编造）。",
+      "auto_check": "hub_reconcile.py D6（逾期）；相关自动化自身的输出也会留在 thread_title 里",
+      "why": "发现路径：回答\"还需要做什么\"时顺查 Marvis 链路，先**推翻了我自己**\"桥接已停用\"的推断，再发现积压 16 条 + 消费端刚恢复 → **首个自然验证点就是今晚 20:21**。风险不是\"任务没做完\"，而是**2 个月前的 data_collection 任务被当今天的活干**。",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "不升级：这些任务本就是历史积压，晚处理不产生新损害；但\"把 07-07 的采集结果当现状\"会污染下游判断，故列为次日必核。"
     }
   ],
   "automation_scope": {
