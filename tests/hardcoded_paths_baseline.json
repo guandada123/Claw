@@ -8,6 +8,7 @@
     "check_tracked_tree.py": 2,
     "correlation_monitor.py": 2,
     "drill_assistant_monitor.py": 1,
+    "earnings_calendar.py": 2,
     "execute_buy_plan.py": 1,
     "fetch_us_market_summary.py": 1,
     "fetch_yupen_rss.py": 1,
