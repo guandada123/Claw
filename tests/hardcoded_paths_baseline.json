@@ -7,6 +7,7 @@
     "bt_kdj_scan.py": 1,
     "check_tracked_tree.py": 2,
     "correlation_monitor.py": 2,
+    "drill_assistant_monitor.py": 1,
     "execute_buy_plan.py": 1,
     "fetch_us_market_summary.py": 1,
     "fetch_yupen_rss.py": 1,
@@ -24,6 +25,7 @@
     "read_wx_articles.py": 1,
     "read_yupen_data.py": 2,
     "rotate_automation_memory.py": 1,
+    "run_yupen_primary.py": 1,
     "scan_expanded_pool.py": 1,
     "scan_mainboard_local.py": 2,
     "self_heal.py": 1,
@@ -34,7 +36,8 @@
     "transcribe_yupen_image.py": 1,
     "unified_ops_center.py": 1,
     "unified_ops_center_readback.py": 2,
-    "validate_constraints.py": 3
+    "validate_constraints.py": 3,
+    "verify_yupen_rssfree.py": 1
   },
   "_note_20261011_p1": "第一批替换（已验证等价的 6 处：Path.home()/'.workbuddy' 与 HOME 兜底默认值）已收敛；『仓库根字面量 /Users/guan/WorkBuddy/Claw』一类**暂不收敛**：本仓经软链，Path(__file__).resolve() 得 /Volumes/... ≠ 原值，会破坏字符串比较 —— 需先定『规范路径』再统一替换。"
 }
