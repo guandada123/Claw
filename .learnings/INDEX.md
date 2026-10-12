@@ -3,10 +3,10 @@
 > ⚠️ **本文件由 `learnings_index.py` 自动生成，请勿手改**（改了会在下次生成时被覆盖）。
 > 权威内容是 `.learnings/*.md` 正文；本文件只是**派生视图**。
 > ⚠️ 手工维护的 `LEARNINGS.md` 里的**浓缩条目不在本表内**（它已停更，见其抬头说明）。
-> 生成时间：2026-10-12 20:12　｜　条目数：**102**
+> 生成时间：2026-10-12 21:04　｜　条目数：**105**
 
-- **按类型**：correction×5　blind-spot×3　取证口径×2　false-positive×2　分析口径错误×2　归因错误×2　process / data-integrity×1　machine-maintenance / correction×1　incomplete-consumer-sweep×1　工具语义误用×1　self-checker-blind×1　silent-dead-mechanism×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　engineering_practice×1　best_practice×1　knowledge_gap×1　根因定案×1　（另有 70 条未标注该字段）
-- **按等级**：P1×21　P2×8　P0×4　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 66 条未标注该字段）
+- **按类型**：correction×5　blind-spot×3　取证口径×2　false-positive×2　engineering_practice×2　分析口径错误×2　归因错误×2　process / data-integrity×1　machine-maintenance / correction×1　incomplete-consumer-sweep×1　工具语义误用×1　self-checker-blind×1　silent-dead-mechanism×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　best_practice×1　knowledge_gap×1　根因定案×1　（另有 72 条未标注该字段）
+- **按等级**：P1×22　P2×8　P0×4　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 68 条未标注该字段）
 
 | 日期 | 标题 | 等级 | 类型 | 状态 | 文件 |
 |---|---|---|---|---|---|
@@ -14,14 +14,17 @@
 | 2026-10-12 | ★教训：扫描类检查必须锚定「**实际执行行**」—— 我差点被"修复说明的散文"骗到改坏 3 条自动化 | P1（若照第一反应动手，会对**3 条今天要跑的自动化**做无谓改动 —— 白改 + 引入风险） | 取证口径（正则扫到了散文而非命令） | 已在动手前自行拦下（导出 prompt 后 grep 才发现已修） | `2026-10-12-scan-prose-not-command-line.md` |
 | 2026-10-12 | `ruff format` 显式点名 `.json` 会给它加尾逗号 → 严格 JSON 立刻失效（★ 升级候选） | — | — | 已复现、已记录、已在门禁 docstring 留下警告；**未**给 ruff 提 issue（是否算 bug 取决于它是否 | `2026-10-12-ruff-format-destroys-json.md` |
 | 2026-10-12 | ★升级候选：恢复「积压消费通道」时，先给消费端补「陈旧输入」防护，再让它首跑 | P1 | process / data-integrity | 已落地（首跑前补丁 + 一次性核验在挂） | `2026-10-12-preflight-stale-guard-for-backlog-consumer.md` |
+| 2026-10-12 | 2026-10-12 · 去硬编码先取证"用途"，再决定"替换形态" ★升级候选 | — | — | — | `2026-10-12-hardcode-replacement-needs-usage-evidence.md` |
 | 2026-10-12 | ★升级候选：闸门的两处「缺一类」—— 新建文档类候选被整类误杀 + 登记端与落地端口径不一致 | P2（不误伤数据；但**让一整类候选永远进不了落地通道**，且两条闸门各说各话时无人发现） | false-positive（判据缺状态）+ 口径不一致（登记端松、落地端严） | 缺陷①已修（`7b5ff78`）；缺陷②已记录 + 数据侧补齐，口径统一留作提案 | `2026-10-12-gate-missing-new-file-state-and-two-calibers.md` |
 | 2026-10-12 | 易变值的「自由文本副本」：加判据治不了，删掉副本才是解法 —— 索引头里一对过期数字，让读者信任了**已经失效的可见边界** | P2（不造成数据丢失，但**误导读者对「记忆可见范围」的判断**，且历经 6 次同类复发仍未被任何检查覆盖） | blind-spot（声明腐烂 · 检查只覆盖枚举格式，散文形态永远在覆盖之外） | 已修复（重写索引头第 6 行，去 4 个易变值），2026-10-12 | `2026-10-12-free-text-copy-of-volatile-value-will-rot.md` |
 | 2026-10-12 | 兜底源「返空」与「返全市场」长得一样：一只 ETF 名下凭空多出 9 行别家公司的财报披露 | P1（**误报/误归因**类：他方数据被挂到本持仓名下，若字段名命中的话会直接产出「某持仓今日披露」的假告警） | blind-spot（降级路径未做归属校验 · 「缺键 ≠ 空集」同族） | 已修复并验证，2026-10-12 | `2026-10-12-fallback-source-must-verify-attribution.md` |
 | 2026-10-12 | ★升级候选：退役/停用「常驻机制」的三条硬动作（cron 留因注释 / launchd 双动作 / mail spool 出口） | P1 | machine-maintenance / correction | 已落地（马维斯桥接退役时执行） | `2026-10-12-decommission-hard-actions.md` |
 | 2026-10-12 | ★ 凭据轮换必须枚举「全部持有者」，且按文件清单而非目录猜测（2026-10-12） | — | — | — | `2026-10-12-credential-rotation-must-enumerate-all-holders.md` |
 | 2026-10-12 | ★候选铁律 —— 「凭据轮换」漏掉 CLI 的**最高优先级**配置源，导致 19 个交易日静默空产 | P0（主数据源连续 19 个交易日产出空壳，早报板块轮动一直用 3 周前的旧数据） | incomplete-consumer-sweep（轮换覆盖不全 / 声明式「已修复」≠ 真实链路已修复） | 已修复（全局配置 + connector token 两处同步为在用值，端到端复测通过） | `2026-10-12-credential-rotation-missed-cli-config.md` |
+| 2026-10-12 | ⚠️待升级 —— `.gitignore` 只防「文件名」，防不住「内容」：技能库基线快照里的**真实** API Key 存活 3 天（P1·系统性） | P1（**在用凭据**进入版本控制；一旦 push 即公开，且事后难溯源） | engineering_practice（覆盖面缺口 + 机器守卫缺位） | 工作树已修并提交；**历史仍含该值 → 推送保持阻断**；根因（守卫未接线）待落地 | `2026-10-12-content-secret-survives-name-level-fix.md` |
 | 2026-10-12 | 2026-10-12 · `bash <python脚本>` 当门禁 = 必然非 0 = 静默跳过 ★升级候选 | — | — | — | `2026-10-12-bash-on-python-gate-is-always-nonzero.md` |
 | 2026-10-12 | ★升级候选：`automation_update` 的 prompt 是**全量覆盖**，不是补丁 —— 我差点把一份 2370 字节的 prompt 抹成 1 行 | P1（若未及时发现，一个 ACTIVE 自动化的**全部作业指令会被一行频率说明替换**， | 工具语义误用（字段是全量替换，被我当成增量修改） | 1 分钟内发现并**已完全恢复**（逐字节 diff 校验通过） | `2026-10-12-automation-update-prompt-is-full-replace.md` |
+| 2026-10-12 | 2026-10-12 · 归档必须校验条目数 —— 否则"归档成功"是假的 ★升级候选 | — | — | — | `2026-10-12-archive-must-be-verified-before-delete.md` |
 | 2026-10-11 | ★教训：周期性自审的「本周改动」必须**先查 created_at 与派发次数**，再判「有没有用」 | — | 分析口径错误（不是系统故障） | — | `2026-10-11-weekly-self-audit-must-check-created-at-before-verdict.md` |
 | 2026-10-11 | ★教训：审计别人的系统前，先读**既有的审计代码**（一次自我假警报的复盘） | — | 分析口径错误（不是系统故障；**是审计者自己制造的故障**） | — | `2026-10-11-self-audit-hit-documented-soft-delete-trap.md` |
 | 2026-10-11 | ✅已升级(2026-10-11)→R75 —— 「没有规则的规则文件」会**静默关闭全部检测** —— CI 密钥扫描空跑 68 天 | P0（安全检测能力实际为零，且 CI 显示绿灯） | self-checker-blind（检测器自身失效 / 假性安心） | 已修复（`.gitleaks.toml` 补 `[extend] useDefault = true` + 自定义规则 + 6 例防回归测试） | `2026-10-11-rulesless-config-disables-all-detection.md` |
