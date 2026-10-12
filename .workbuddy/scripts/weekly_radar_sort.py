@@ -71,6 +71,36 @@ def assign_ring(c: dict) -> tuple[str, str]:
     return "Assess", f"价值={c.get('value')} → 仅纳入观察"
 
 
+def _gate_cell(x: dict) -> str:
+    """雷达表里的「落地闸门」单元格：✅ / ❌<理由码> / 判不了。"""
+    ok = x.get("gate_ok")
+    if ok is None:
+        return "判不了"
+    return "✅ 可落地" if ok else f"❌ {x.get('gate_code') or '?'}"
+
+
+def gate_verdict(c: dict) -> tuple[bool | None, str]:
+    """本候选**能不能进落地通道** —— 直接拿落地端闸门判（无副作用）。
+
+    🔴 2026-10-12（实测）：登记端 `validate_candidate` 的判据比落地端**松**
+      · 登记端：「有 skill **或** 有真实项目锚点」 → 合法
+      · 落地端：`require_host` 要求「**必须**有 skill 且目录存在」 → 弹掉
+    ⇒ 存在「**登记合法、落地必死**」的候选，而这一致性此前**无人展示**（两道闸门各说各话）。
+
+    这里把落地端判定**随雷达一起呈现**（不阻断登记、不改判据）——
+    「这条能不能落地」变成一眼可见的事实，而不是等落地时才被弹。
+
+    ⚠️ 判不了（导入/调用异常）→ 返回 `(None, "?")`，列里显示"判不了"：**不假装通过**。
+    """
+    try:
+        import apply_doc_candidates as adc  # 同目录，延迟导入避免影响本脚本独立性
+
+        ok, _why, code = adc.quality_gate(c, adc.DEFAULT_CFG, adc.DEFAULT_SKILLS_DIR)
+        return ok, code
+    except Exception:  # noqa: BLE001
+        return None, "?"
+
+
 def movement(prev: str | None, cur: str) -> str:
     if prev not in RING_ORDER or prev is None:
         return "new"
@@ -127,6 +157,7 @@ def main() -> int:
         ring, why = assign_ring(c)
         prev = c.get("ring")
         mv = movement(prev, ring)
+        g_ok, g_code = gate_verdict(c)
         rows.append(
             {
                 "id": c.get("id"),
@@ -141,6 +172,9 @@ def main() -> int:
                 "ring_prev": prev,
                 "movement": mv,
                 "why": why,
+                # 落地闸门判定（2026-10-12）：让「登记合法但落地必死」的候选一眼可见
+                "gate_ok": g_ok,
+                "gate_code": g_code,
             }
         )
         if mv in ("promote", "demote", "new"):
@@ -173,15 +207,22 @@ def main() -> int:
         f"- **缺指标**被拦在 Assess：{len(no_metric)} 条"
         + ("（药方：在每日扫描里补 success_metric，否则永远进不了落地通道）" if no_metric else ""),
         f"- 高危/无来源 Caution：{len(caution)} 条（需人工批）",
+        (
+            "- **可落地**："
+            f"{sum(1 for x in rows if x.get('gate_ok') is True)}/{len(rows)} 条"
+            "（按落地端闸门预检；`❌` 的看理由码 —— 常见 `host`=缺承载方、"
+            "`check_cmd_bad`=引用了不存在的路径，**登记合法不等于落地可过**）"
+        ),
         "",
         "## 排序明细",
-        "| 环 | id | 锚点 | 轨道 | 价值/风险 | 指标 | 变动 |",
-        "|---|---|---|---|---|---|---|",
+        "| 环 | id | 锚点 | 轨道 | 价值/风险 | 指标 | 落地闸门 | 变动 |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for x in sorted(rows, key=lambda r: RING_ORDER[r["ring"]]):
         lines.append(
             f"| {x['ring']} | `{x['id']}` | {x['target_project']} | {x['track']} |"
-            f" {x['value']}/{x['risk']} | {(x['metric'] or '—')[:40]} | {x['movement']} |"
+            f" {x['value']}/{x['risk']} | {(x['metric'] or '—')[:40]} |"
+            f" {_gate_cell(x)} | {x['movement']} |"
         )
     lines += [
         "",

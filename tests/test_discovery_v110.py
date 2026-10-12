@@ -624,3 +624,41 @@ def test_check_cmd_other_missing_path_still_bad(tmp_path):
         check_cmd=f"test -f {other}",
     )
     assert adc.check_cmd_bad_paths(c) == [str(other)]
+
+
+# ── 雷达表新增「落地闸门」列（2026-10-12：让"登记合法≠落地可过"一眼可见）──
+
+
+def test_gate_verdict_reports_pass_for_appliable_candidate(skills_dir, monkeypatch):
+    """可落地的候选 → (True, 'pass')。"""
+    monkeypatch.setattr(adc, "DEFAULT_SKILLS_DIR", skills_dir)
+    c = _cand(target_project="meta", success_metric="x", check_cmd=None)
+    ok, code = wrs.gate_verdict(c)
+    assert ok is True and code == "pass"
+
+
+def test_gate_verdict_reports_code_for_blocked_candidate(skills_dir, monkeypatch):
+    """被拦的候选 → 带上**理由码**（雷达里要能看出是哪一类拦的）。"""
+    monkeypatch.setattr(adc, "DEFAULT_SKILLS_DIR", skills_dir)
+    c = _cand(target_project="meta", success_metric="x", check_cmd=None, risk="high")
+    ok, code = wrs.gate_verdict(c)
+    assert ok is False and code == "risk"
+
+
+def test_gate_verdict_returns_none_when_undeterminable(monkeypatch):
+    """闸门自身炸了 → (None, '?') —— **判不了不许假装通过**。"""
+
+    def _boom(*a, **k):
+        raise RuntimeError("闸门不可用")
+
+    monkeypatch.setattr(adc, "quality_gate", _boom)
+    ok, code = wrs.gate_verdict({"id": "x"})
+    assert ok is None and code == "?"
+
+
+def test_gate_cell_renders_three_states():
+    """单元格三态渲染：✅ / ❌<码> / 判不了。"""
+    assert wrs._gate_cell({"gate_ok": True}) == "✅ 可落地"
+    assert wrs._gate_cell({"gate_ok": False, "gate_code": "host"}) == "❌ host"
+    assert wrs._gate_cell({"gate_ok": None}) == "判不了"
+    assert wrs._gate_cell({}) == "判不了"  # 缺字段也不许渲染成通过
