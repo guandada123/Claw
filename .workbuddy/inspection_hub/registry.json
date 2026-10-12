@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T11:58:05+08:00",
+  "updated_at": "2026-10-12T12:01:38+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2923,12 +2923,14 @@
       "owner": "human",
       "title": "Wind 账户积分不足 → 所有 Wind 取数被拦（认证已修好，卡在余额）",
       "criteria": "**事实（2026-10-12 11:56 实测）**：Wind CLI 与 Wind MCP connector **两条路径都返回**『账户积分余额不足，无法完成当前操作…请先充值』→ 认证已正常（不再 401），卡在**账户级余额**。\n**请你选**：① 到 AIFin Market 充值（`market.windalice.com/#/user/credits`）；② 接受降级（Wind 仅用于基本面/板块，禁用后由腾讯/东财/akshare 顶替）；③ 直接停用相关 Wind 任务（减少无效运行）。选 ②/③ 则我把相关自动化改为显式降级并登记。",
-      "status": "open",
-      "verifier": "充值后：`cd ~/.agents/skills/wind-mcp-skill && node scripts/cli.mjs call stock_data get_stock_price_indicators '{\"windcode\":\"600519.SH\"}'` 应 `ok:true`；或 Wind MCP 任一工具（如 get_stock_quote）能返回数据。降级路线则由「无编造数据 + 显式 STALE/告警」验收。",
+      "status": "done",
+      "verifier": "① 今天 14:50 `WIND→QTS基本面桥` 是首个真实降级样本 → 核它是否按新规则（不重试、不写半份、推 warning）；② `Wind 深度研报` 下次周日 23:32 应只推 warning、不推正式周报；③ 若日后充值恢复：任一路径 `ok:true` 即视为恢复，恢复后重新评估是否切 `--push`。",
       "auto_check": "hub_reconcile.py D6（逾期）；依赖 Wind 的任务自身会推 STALE/告警卡片",
       "why": "发现路径：修好认证后我做**功能级**验证（而不是只看配置文件），才暴露出余额问题——若只看 `.env`/config 写对了就收工，会误判为「Wind 已恢复」。\n**影响面（实测枚举）**：17 条 ACTIVE 自动化提及 Wind/鱼盆，其中 15 条有显式降级路径；无降级关键词的两条（`WIND→QTS基本面桥`、`Wind 深度研报`）行为可接受（深度研报 10-11 23:32 已推 warning 卡片、未推正式周报，即『宁可少做事不可做错事』）。\n**核心交易路径不受影响**：实时价按铁律走腾讯 `qt.gtimg.cn`。",
       "if_no_action": "keep_as_is",
-      "if_no_action_note": "不升级：降级路径已在工作（鱼盆 10-12 08:50 推 STALE、深度研报推 warning），**没有编造数据**，风险是「基本面/板块类产出的新鲜度与覆盖度下降」，不涉及股价正确性。"
+      "if_no_action_note": "已按你的决定完成；回滚点 /tmp/prompt-bak-20261012-120050 与整库备份 /tmp/wbdb-bak-20261012-120122。",
+      "resolved_at": "2026-10-12T12:01:38+08:00",
+      "resolution": "**用户决定：接受降级**（2026-10-12 12:00）。落地（最小改动、可回滚）：\n① 给**两条缺显式降级规则**的 Wind 任务补上统一降级条款（WIND→QTS基本面桥 / Wind 深度研报）：Wind 失败（尤其「积分余额不足」/AUTH_ERROR/ROUTE_ERROR）→ **最多再试 1 次即停**、**禁止写陈旧或部分数据（下游会静默消费错数据）**、**必须显式告警 + 标注 `source=degraded(wind_unavailable)`**、不得编造；\n② 顺带修掉 `Wind 深度研报` 里一条**过期 57 天的声明**：原写「观察期 2026-08-09~08-16，结束后由主会话评估是否切 --push」—— 从未拍板（声明腐烂），改为「保持 dry-run，Wind 恢复前不推正式周报」。\n写法：**CAS 只改 `prompt` 一列**（字节取自文件，避免转写误差）；改前备份 2 份（prompt 原文 + 整库），回读确认 model=hy3 / status=ACTIVE / rrule 均未被动过。\n**其余 15 条**已有降级条款（含腾讯/STALE/兜底关键词），按「改动最小」原则**不批量改**；改为观察式跟进：它们下次实际降级时，核对是否覆盖「余额不足」这一情形。"
     }
   ],
   "automation_scope": {
