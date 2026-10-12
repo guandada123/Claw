@@ -37,7 +37,7 @@ def _claw_root() -> Path:
 SKILL_DIR = os.path.expanduser("~/.workbuddy/skills/anysearch")
 SKILL_CLI = os.path.join(SKILL_DIR, "scripts", "anysearch_cli.py")
 PY = os.environ.get("PYTHON") or str(
-    Path.home() / ".workbuddy" / "binaries" / "python", "versions", "3.13.12", "bin", "python3"
+    Path.home() / ".workbuddy" / "binaries" / "python" / "versions" / "3.13.12" / "bin" / "python3"
 )
 
 
