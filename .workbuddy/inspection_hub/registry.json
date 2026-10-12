@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T11:47:06+08:00",
+  "updated_at": "2026-10-12T11:58:05+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2916,6 +2916,19 @@
       "landed_commit": "非代码改动（外置盘归档 + registry 声明更新）",
       "recheck_after_days": 30,
       "resolution": "取选项②（压缩归档）—— 并**先纠正一个前提**：取证发现 **live 副本并不存在**（/Volumes/ZHITAI/WorkBuddy 下没有 wechat-download-api 目录，已 ls 核实）⇒ 这个「快照」其实**是该项目唯一一份源码** ⇒ 选项①（删除）会丢源码，不该选。\n处置：tar.gz 归档到 /Volumes/ZHITAI/WorkBuddy/_archive/（6.0MB），**排除 venv/（69MB，占原体积 79%，可由 requirements 再生）与 .env（旧会话凭据）**；原目录**移入卷级废纸篓**（Finder delete，可恢复）。\n校验：非目录项 **1111 = 1111**（首轮 1111 vs 1108 的差是 3 个软链 —— 源侧只数了 -type f；查清后才算一致）+ gzip 完整性通过 + 抽验归档内不含 .env/venv。\n声明同步（本条 verifier 的要求）：non_project_dirs 里原 STALE-SNAPSHOT 条目已**替换**为 _archive 条目（原目录已不存在，留旧声明就是「指向不存在目录的声明」）；新建的 _archive 也已登记，否则 D8 会把它当新的矩阵盲区。归档旁有 MANIFEST 记录来源/排除项/校验/恢复方式。\n⚠️ 残留（需你定夺）：归档**仍是凭据副本的载体**（.env 已排除，但项目里可能另有残留）；且废纸篓与源同卷 ⇒ **磁盘空间要等清空才真正释放**。若要彻底清（选项①），属不可逆操作，等你一句话。"
+    },
+    {
+      "id": "PA-018",
+      "due": "2026-10-19",
+      "owner": "human",
+      "title": "Wind 账户积分不足 → 所有 Wind 取数被拦（认证已修好，卡在余额）",
+      "criteria": "**事实（2026-10-12 11:56 实测）**：Wind CLI 与 Wind MCP connector **两条路径都返回**『账户积分余额不足，无法完成当前操作…请先充值』→ 认证已正常（不再 401），卡在**账户级余额**。\n**请你选**：① 到 AIFin Market 充值（`market.windalice.com/#/user/credits`）；② 接受降级（Wind 仅用于基本面/板块，禁用后由腾讯/东财/akshare 顶替）；③ 直接停用相关 Wind 任务（减少无效运行）。选 ②/③ 则我把相关自动化改为显式降级并登记。",
+      "status": "open",
+      "verifier": "充值后：`cd ~/.agents/skills/wind-mcp-skill && node scripts/cli.mjs call stock_data get_stock_price_indicators '{\"windcode\":\"600519.SH\"}'` 应 `ok:true`；或 Wind MCP 任一工具（如 get_stock_quote）能返回数据。降级路线则由「无编造数据 + 显式 STALE/告警」验收。",
+      "auto_check": "hub_reconcile.py D6（逾期）；依赖 Wind 的任务自身会推 STALE/告警卡片",
+      "why": "发现路径：修好认证后我做**功能级**验证（而不是只看配置文件），才暴露出余额问题——若只看 `.env`/config 写对了就收工，会误判为「Wind 已恢复」。\n**影响面（实测枚举）**：17 条 ACTIVE 自动化提及 Wind/鱼盆，其中 15 条有显式降级路径；无降级关键词的两条（`WIND→QTS基本面桥`、`Wind 深度研报`）行为可接受（深度研报 10-11 23:32 已推 warning 卡片、未推正式周报，即『宁可少做事不可做错事』）。\n**核心交易路径不受影响**：实时价按铁律走腾讯 `qt.gtimg.cn`。",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "不升级：降级路径已在工作（鱼盆 10-12 08:50 推 STALE、深度研报推 warning），**没有编造数据**，风险是「基本面/板块类产出的新鲜度与覆盖度下降」，不涉及股价正确性。"
     }
   ],
   "automation_scope": {
