@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-12T17:37:39+08:00",
+  "updated_at": "2026-10-12T18:02:52+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2911,7 +2911,7 @@
       "landed_at": "2026-10-11",
       "landed_commit": "93e53bf",
       "recheck_after_days": 7,
-      "resolution": "已落地（Claw 93e53bf）。**同时纠正本条的原始判据描述**：原文写「report_date 是生成日 → 同日多跑会重复计数」—— 读码核实为**不成立**：历史是 history[sector][report_date]=rps，字典键本身就把同日多跑折叠成一条；真问题是**非交易日也跑**（生成日是新的一天、数据仍是上一交易日旧值 → 多出一个休市日键，给 T2 灌水）。已按此实现：\n① sector_strength_layer 新增 data_date（成分股最新 K 线日最大值）；实跑今日 report_date=2026-10-11 / **data_date=2026-10-09**（今天正是休市日，此刻就会多记一天）。\n② check_disposal_triggers 历史改按 data_date 入键，**缺字段回退** report_date（老产物若直接不写会更坏：历史停止增长）。\n③ 🔴 **顺带撞见更严重的问题**：RPS_HISTORY 此前**只读不写**（全脚本仅写 BASELINE_FILE，磁盘上该文件不存在）→ series 每次只有今天一条 → **T2「连续≥3 个不同日期」结构性不可达**，即 T2 是个**死触发器**而一直「看起来在跑」。已补落盘（置于基线逻辑之前，否则首次运行建完基线即 return 会丢第一天）；写失败响亮告警。\n（自审首轮那句「RPS 历史目前仅 1 个 report_date」其实是**没落盘**的症状，被归因成「才过一天」。）\n验证：双向 —— 临时移除落盘段 → 5 例测试失败（含决定性 T2 例）；恢复 → 24 passed。"
+      "resolution": "已落地（Claw 93e53bf）。**同时纠正本条的原始判据描述**：原文写「report_date 是生成日 → 同日多跑会重复计数」—— 读码核实为**不成立**：历史是 history[sector][report_date]=rps，字典键本身就把同日多跑折叠成一条；真问题是**非交易日也跑**（生成日是新的一天、数据仍是上一交易日旧值 → 多出一个休市日键，给 T2 灌水）。已按此实现：\n① sector_strength_layer 新增 data_date（成分股最新 K 线日最大值）；实跑今日 report_date=2026-10-11 / **data_date=2026-10-09**（今天正是休市日，此刻就会多记一天）。\n② check_disposal_triggers 历史改按 data_date 入键，**缺字段回退** report_date（老产物若直接不写会更坏：历史停止增长）。\n③ 🔴 **顺带撞见更严重的问题**：RPS_HISTORY 此前**只读不写**（全脚本仅写 BASELINE_FILE，磁盘上该文件不存在）→ series 每次只有今天一条 → **T2「连续≥3 个不同日期」结构性不可达**，即 T2 是个**死触发器**而一直「看起来在跑」。已补落盘（置于基线逻辑之前，否则首次运行建完基线即 return 会丢第一天）；写失败响亮告警。\n（自审首轮那句「RPS 历史目前仅 1 个 report_date」其实是**没落盘**的症状，被归因成「才过一天」。）\n验证：双向 —— 临时移除落盘段 → 5 例测试失败（含决定性 T2 例）；恢复 → 24 passed。\n\n✅ **2026-10-12 15:45 首次真实执行已核验（4/4 达成）**：① 排程 15:20:25 / 15:45:07 均 success=1；② 🔴 **死触发器复活**：`sector_rps_history.json` 已存在（47B，mtime 15:45），内容 `{\"半导体\": {\"2026-10-12\": 17.6}}`；③ `sector_strength.json` 的 `report_date = data_date = 2026-10-12`（且每个板块都带 data_date）；④ `hub_reconcile` rc=0。核验由一次性自动化执行（已完成并删除）。\n⚠️ **尚需累积**：RPS 历史目前仅 **1 个日期键** → T2「连续 ≥3 个不同日期」今天仍不可能触发（属累积量不足，非修复无效）。已挂 **10-14 16:00 一次性校验**（`3e430276`）确认逐日递增 + T2 形式条件是否满足。"
     },
     {
       "id": "PA-016",
