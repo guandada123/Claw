@@ -25,8 +25,9 @@ import types
 import urllib.request
 from collections import defaultdict
 from datetime import date
+from pathlib import Path
 
-QTS_SERVICES = "/Users/guan/WorkBuddy/QuantTradingSystem/strategy-service"
+QTS_SERVICES = str(Path.home() / "WorkBuddy" / "QuantTradingSystem" / "strategy-service")
 _SERVICES_PKG = os.path.join(QTS_SERVICES, "services")
 
 

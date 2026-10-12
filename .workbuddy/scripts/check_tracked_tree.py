@@ -29,6 +29,7 @@
 from __future__ import annotations
 
 import argparse
+import os  # P1-12：env-first 的工具路径需要
 import shutil
 import subprocess
 import sys
@@ -60,7 +61,16 @@ def pick_python() -> str | None:
 
     candidates = [
         Path(__file__).resolve().parent.parent.parent / ".venv" / "bin" / "python3",
-        Path("/Users/guan/.workbuddy/binaries/python/envs/default/bin/python3"),
+        Path(
+            os.environ.get("PYTHON")
+            or str(
+                Path.home() / ".workbuddy" / "binaries" / "python",
+                "envs",
+                "default",
+                "bin",
+                "python3",
+            )
+        ),
         Path("/usr/bin/python3"),
     ]
     for c in candidates:

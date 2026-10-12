@@ -47,7 +47,7 @@ def _claw_root() -> Path:
     raise RuntimeError("找不到含 .workbuddy 的仓库根")
 
 
-QTS_SERVICES = "/Users/guan/WorkBuddy/QuantTradingSystem/strategy-service"
+QTS_SERVICES = str(Path.home() / "WorkBuddy" / "QuantTradingSystem" / "strategy-service")
 _SERVICES_PKG = os.path.join(QTS_SERVICES, "services")
 
 

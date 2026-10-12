@@ -17,7 +17,9 @@ path = f"{_claw_root()}/output/wx_reports/20260714_morning.md"
 with open(path, encoding="utf-8") as f:
     content = f.read()
 title = "📊微信早报 — 2026-07-14（周二）"
-cli = "/Users/guan/.workbuddy/binaries/node/versions/22.22.2/bin/lark-cli"
+cli = str(
+    Path.home() / ".workbuddy" / "binaries" / "node", "versions", "22.22.2", "bin", "lark-cli"
+)
 
 for identity in ["user", "bot"]:
     args = [

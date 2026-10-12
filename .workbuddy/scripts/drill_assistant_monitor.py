@@ -46,7 +46,9 @@ def _claw_root() -> Path:
 
 
 DEFAULT_CLAW = os.environ.get("CLAW") or str(_claw_root())
-PY = os.environ.get("PYTHON") or "/Users/guan/.workbuddy/binaries/python/envs/default/bin/python"
+PY = os.environ.get("PYTHON") or str(
+    Path.home() / ".workbuddy" / "binaries" / "python", "envs", "default", "bin", "python"
+)
 
 
 # 组件候选目录：主脚本在 scripts/，内部脚本在 .workbuddy/scripts/

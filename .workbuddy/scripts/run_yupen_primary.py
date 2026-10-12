@@ -37,7 +37,10 @@ def _claw_root() -> Path:
 
 
 CLAW = str(_claw_root())
-PY = os.environ.get("PYTHON", "/Users/guan/.workbuddy/binaries/python/envs/default/bin/python")
+PY = os.environ.get(
+    "PYTHON",
+    str(Path.home() / ".workbuddy" / "binaries" / "python", "envs", "default", "bin", "python"),
+)
 GEN = os.path.join(CLAW, "scripts", "build_yupen_from_market.py")
 READ = os.path.join(CLAW, ".workbuddy", "scripts", "read_yupen_data.py")
 TODAY = date.today().isoformat()

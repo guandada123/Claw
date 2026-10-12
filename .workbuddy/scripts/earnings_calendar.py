@@ -114,7 +114,9 @@ def _resolve_npx() -> str:
     on_path = shutil.which("npx")
     if on_path:
         return on_path
-    fallback = "/Users/guan/.workbuddy/binaries/node/versions/22.22.2/bin/npx"
+    fallback = str(
+        Path.home() / ".workbuddy" / "binaries" / "node", "versions", "22.22.2", "bin", "npx"
+    )
     return fallback
 
 

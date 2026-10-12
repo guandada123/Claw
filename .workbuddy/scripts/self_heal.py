@@ -24,8 +24,9 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
-STATE_FILE = "/Users/guan/.workbuddy/cross_project_state.json"
+STATE_FILE = str(Path.home() / ".workbuddy" / "cross_project_state.json")
 COOLDOWN_MIN = 30  # 同目标冷却
 OSC_LIMIT = 2  # 60min 内 >2 次重启 → 震荡防护停手
 OSC_WINDOW_MIN = 60

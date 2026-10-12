@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 # ── 复用 QTS 指标（包路径导入）──
-QTS_SERVICES = "/Users/guan/WorkBuddy/QuantTradingSystem/strategy-service"
+QTS_SERVICES = str(Path.home() / "WorkBuddy" / "QuantTradingSystem" / "strategy-service")
 sys.path.insert(0, QTS_SERVICES)
 from services.indicators import calculate_adx, calculate_rsi  # noqa: E402
 from services.signals import generate_signals  # noqa: E402

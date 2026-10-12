@@ -32,7 +32,7 @@ def _claw_root() -> Path:
 
 
 SRC = _claw_root() / ".workbuddy/data/simulation/portfolio.json"
-DST = Path("/Users/guan/WorkBuddy/QuantTradingSystem/shared/claw_data/portfolio.json")
+DST = Path.home() / "WorkBuddy" / "QuantTradingSystem" / "shared" / "claw_data" / "portfolio.json"
 BACKUP_DIR = Path("/tmp/qts_portfolio_sync_backup")
 KEEP_BACKUPS = 5
 
