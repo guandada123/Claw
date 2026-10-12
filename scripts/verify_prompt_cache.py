@@ -28,9 +28,25 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
+
 # ============================================================
 # 配置
 # ============================================================
+def _claw_root() -> Path:
+    """位置无关地定位仓库根（向上找含 .workbuddy 的目录）。
+
+    2026-10-12 P1-14：原写 `Path(__file__).resolve().parent.parent` ——
+    该式**只在 scripts/ 下成立**；一旦搬到 .workbuddy/scripts/，parent.parent 会指到
+    `.workbuddy/` 而算出 `.workbuddy/.workbuddy/…`（曾由此误建目录、被守卫抓到）。
+    改为向上搜索后，两种位置都指向同一仓库根。
+    """
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根（脚本被放在异常位置？）")
+
+
 DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
 DEFAULT_ROUNDS = 5  # 每组测试的重复次数
 REQUEST_TIMEOUT = 30  # 单次请求超时（秒）
@@ -672,7 +688,7 @@ def save_config(api_key: str = "", base_url: str = ""):
 
 def save_report(report: dict):
     """保存验证报告到 JSON 文件"""
-    data_dir = Path(__file__).parent.parent / ".workbuddy" / "data"
+    data_dir = _claw_root() / ".workbuddy" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     report_path = data_dir / "prompt_cache_report.json"
 

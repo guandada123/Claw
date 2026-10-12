@@ -24,7 +24,23 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+
 # ── 双数据源统一层：anysearch_helper（westock 优先 + AnySearch 降级）──
+def _claw_root() -> Path:
+    """位置无关地定位仓库根（向上找含 .workbuddy 的目录）。
+
+    2026-10-12 P1-14：原写 `Path(__file__).resolve().parent.parent` ——
+    该式**只在 scripts/ 下成立**；一旦搬到 .workbuddy/scripts/，parent.parent 会指到
+    `.workbuddy/` 而算出 `.workbuddy/.workbuddy/…`（曾由此误建目录、被守卫抓到）。
+    改为向上搜索后，两种位置都指向同一仓库根。
+    """
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根（脚本被放在异常位置？）")
+
+
 _HELPER_PATH = Path(__file__).resolve().parent / "anysearch_helper.py"
 sys.path.insert(0, str(_HELPER_PATH.parent))
 
@@ -56,7 +72,7 @@ def _code_with_prefix(raw: str) -> str:
 
 def _load_portfolio() -> list[dict]:
     """从 Claw 项目持仓文件加载股票列表"""
-    portfolio_path = Path(__file__).resolve().parent.parent / ".workbuddy" / "data" / "user" / "portfolio.json"
+    portfolio_path = _claw_root() / ".workbuddy" / "data" / "user" / "portfolio.json"
     try:
         if portfolio_path.exists():
             data = json.loads(portfolio_path.read_text(encoding="utf-8"))

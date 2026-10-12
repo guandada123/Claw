@@ -26,8 +26,25 @@ import os
 import subprocess
 import sys
 import urllib.parse
+from pathlib import Path  # 2026-10-12 P1-14：位置无关化后需要
 
-CLAW = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def _claw_root() -> Path:
+    """位置无关地定位仓库根（向上找含 .workbuddy 的目录）。
+
+    2026-10-12 P1-14：原写 `Path(__file__).resolve().parent.parent` ——
+    该式**只在 scripts/ 下成立**；一旦搬到 .workbuddy/scripts/，parent.parent 会指到
+    `.workbuddy/` 而算出 `.workbuddy/.workbuddy/…`（曾由此误建目录、被守卫抓到）。
+    改为向上搜索后，两种位置都指向同一仓库根。
+    """
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根（脚本被放在异常位置？）")
+
+
+CLAW = str(_claw_root())
 WIND_CLI = os.path.expanduser("~/.agents/skills/wind-mcp-skill/scripts/cli.mjs")
 WIND_CWD = os.path.dirname(os.path.dirname(WIND_CLI))
 

@@ -20,7 +20,23 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+def _claw_root() -> Path:
+    """位置无关地定位仓库根（向上找含 .workbuddy 的目录）。
+
+    2026-10-12 P1-14：原写 `Path(__file__).resolve().parent.parent` ——
+    该式**只在 scripts/ 下成立**；一旦搬到 .workbuddy/scripts/，parent.parent 会指到
+    `.workbuddy/` 而算出 `.workbuddy/.workbuddy/…`（曾由此误建目录、被守卫抓到）。
+    改为向上搜索后，两种位置都指向同一仓库根。
+    """
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根（脚本被放在异常位置？）")
+
+
+_PROJECT_ROOT = _claw_root()
 _OUTPUT = _PROJECT_ROOT / "data" / "qts_daily_signals.json"
 
 # 2026-09-23 双副本去重后 qts_client/is_trading_day 等 helper 单源移至 .workbuddy/scripts/，
