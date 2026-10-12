@@ -335,7 +335,38 @@ def do_apply(plan, repo, auth_dir, backup_dir: Path, py: str, tests_dir: Path) -
 
     # 双闸门
     extra = {auth_dir, stale.parent}
-    fails = gate_import_smoke(mod, {Path(x) for x in plan["fs_caller_dirs"]}, extra, py)
+    # 2026-10-12 修正闸门1 的口径：**只对真代码目录做导入冒烟**。
+    #   事故形态（实测）：`fs_caller_dirs` 里混进了文档/记忆/备份目录
+    #   （`output/`、`.workbuddy/memory/.backups/`、`.workbuddy/memory/automations/`…）——
+    #   它们只是**提到**了文件名，并不是导入现场。从这些目录跑 `import X` 必然 ModuleNotFound，
+    #   于是闸门报"失败"并回滚 → **整批迁移被误拦**（52 项全跳过）。
+    #   判据：目录里得有 .py，且不在文档/记忆/备份/产物目录下。
+    _DOC_LIKE = (
+        "output/",
+        "memory/",
+        ".backups/",
+        "docs/",
+        "automations/",
+        "reports/",
+        ".learnings/",
+    )
+    smoke_dirs = set()
+    _skipped_doc_like = []
+    for x in plan["fs_caller_dirs"]:
+        s = x.replace("\\", "/")
+        if any(k in s + "/" for k in _DOC_LIKE) or not any(Path(x).glob("*.py")):
+            _skipped_doc_like.append(x)
+            continue
+        smoke_dirs.add(Path(x))
+    if _skipped_doc_like:
+        log(f"  ℹ️ 闸门1 跳过 {len(_skipped_doc_like)} 个「仅提及不导入」的目录（文档/记忆/产物）")
+    # 2026-10-12 二次修正：闸门1 只测**两条真实解析路径** —— 旧目录 `scripts/`（走转发薄壳）
+    #   与权威目录 `.workbuddy/scripts/`（走真身）。
+    #   为什么不再对每个调用方目录逐个试：实测 `tests/` 这类目录"把自身插入 sys.path 后 import X"
+    #   **在迁移前也不可能成功**（模块从来不在 tests/ 下）→ 属**假阴性**，会把整批迁移误拦。
+    #   调用方的真实访问路径是 `sys.path.insert(0, <scripts 目录>)` 或 `python scripts/X.py`，
+    #   这两条已分别由 stale.parent 与 auth_dir 覆盖；其余目录在计划阶段已按"是否引用"筛过。
+    fails = gate_import_smoke(mod, set(), extra, py)
     if fails:
         log("  🔴 闸门1(导入冒烟)失败:\n    " + "\n    ".join(fails))
         _rollback(stale, backup)

@@ -1,44 +1,30 @@
-"""log_setup.py — Claw 统一日志工厂"""
-
-import logging
-import logging.handlers
+# AUTO-GENERATED FORWARDER — 单源薄壳 (safe_dedup.py, rule: dual-copy-audit v1.1.0)
+# 真实实现: .workbuddy/scripts/log_setup.py  (运行时向上搜索定位, 位置无关)
+import importlib.util
+import runpy
+import sys
 from pathlib import Path
 
-LOG_DIR = Path.home() / ".claw" / "logs"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+def _find_real():
+    here = Path(__file__).resolve().parent
+    for cand in [here, *here.parents]:
+        for rel in (Path(".workbuddy") / "scripts" / "log_setup.py",
+                    Path("src") / "claw" / "log_setup.py"):
+            p = cand / rel
+            if p.is_file():
+                return p
+    raise RuntimeError("forwarder[log_setup]: 找不到权威副本, 已从 dual-copy-audit v1.1.0 中断链?")
 
 
-def get_logger(name: str) -> logging.Logger:
-    """
-    返回配置好的 logger：
-    - DEBUG+ 写入滚动文件（每 10MB 轮转，保留 5 份）
-    - WARNING+ 同时输出控制台（保留 emoji 友好格式）
-    """
-    logger = logging.getLogger(name)
-    if logger.handlers:  # 防重复初始化
-        return logger
+_real = _find_real()
+_auth_dir = str(_real.parent)
+if _auth_dir not in sys.path:
+    sys.path.insert(0, _auth_dir)   # 让真实模块的同级 import 可解析 (等同 CLI 从权威目录运行)
+_spec = importlib.util.spec_from_file_location("log_setup", str(_real))
+_mod = importlib.util.module_from_spec(_spec)
+sys.modules["log_setup"] = _mod          # 让 `import log_setup` 直接拿到真实模块
+_spec.loader.exec_module(_mod)
 
-    logger.setLevel(logging.DEBUG)
-
-    # 文件 Handler — RotatingFileHandler
-    file_handler = logging.handlers.RotatingFileHandler(
-        LOG_DIR / f"{name}.log",
-        maxBytes=10 * 1024 * 1024,  # 10MB
-        backupCount=5,
-        encoding="utf-8",
-    )
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        )
-    )
-
-    # 控制台 Handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.WARNING)
-    console_handler.setFormatter(logging.Formatter("%(message)s"))
-
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-    return logger
+if __name__ == "__main__":
+    runpy.run_path(str(_real), run_name="__main__")  # 兼容 `python scripts/log_setup.py`

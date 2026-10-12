@@ -161,8 +161,13 @@ def query_reserve(code: str) -> list[dict]:
     # 统一字段名以兼容 build_report
     out = []
     for r in rows:
+        date = r.get("disclosureDate", r.get("date", ""))
+        # 「缺键 ≠ 空集」：无日期/无描述的行不是数据，是解析噪音 →
+        # 一律剔除，禁止把空 disclosureDate 渲染成「财报披露: 」的假行。
+        if not str(date).strip():
+            continue
         out.append({
-            "disclosureDate": r.get("disclosureDate", r.get("date", "")),
+            "disclosureDate": date,
             "disclosureDesc": r.get("disclosureDesc", r.get("desc", "")),
             "source": r.get("source", "unknown"),
         })
@@ -203,6 +208,8 @@ def build_report(stocks: list[dict]) -> str:
             desc = r.get("disclosureDesc", "")
             date = r.get("disclosureDate", "")
             src = r.get("source", "unknown")
+            if not str(date).strip() and not desc:
+                continue  # 双空行不渲染（防解析噪音冒充数据）
             sources_seen.add(src)
             lines.append(f"  📊 财报披露: {date}  [源:{src}]")
             if desc:

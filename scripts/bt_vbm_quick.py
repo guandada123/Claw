@@ -1,64 +1,30 @@
-#!/usr/bin/env python3
-"""Quick VBM backtest - inline"""
-
+# AUTO-GENERATED FORWARDER — 单源薄壳 (safe_dedup.py, rule: dual-copy-audit v1.1.0)
+# 真实实现: .workbuddy/scripts/bt_vbm_quick.py  (运行时向上搜索定位, 位置无关)
+import importlib.util
+import runpy
 import sys
+from pathlib import Path
 
-sys.path.insert(0, "/app")
-from services.backtest_engine_v2 import BacktestConfig, EnhancedBacktestEngine
 
-codes = [
-    "002049.SZ",
-    "600498.SH",
-    "000725.SZ",
-    "600522.SH",
-    "002601.SZ",
-    "600206.SH",
-    "000001.SZ",
-    "000333.SZ",
-    "002415.SZ",
-    "600519.SH",
-    "601318.SH",
-    "000858.SZ",
-    "600036.SH",
-    "600276.SH",
-    "600887.SH",
-    "600570.SH",
-    "600585.SH",
-    "600893.SH",
-    "601899.SH",
-    "002230.SZ",
-    "300750.SZ",
-    "688981.SH",
-]
+def _find_real():
+    here = Path(__file__).resolve().parent
+    for cand in [here, *here.parents]:
+        for rel in (Path(".workbuddy") / "scripts" / "bt_vbm_quick.py",
+                    Path("src") / "claw" / "bt_vbm_quick.py"):
+            p = cand / rel
+            if p.is_file():
+                return p
+    raise RuntimeError("forwarder[bt_vbm_quick]: 找不到权威副本, 已从 dual-copy-audit v1.1.0 中断链?")
 
-results = []
-for code in codes:
-    c = BacktestConfig(
-        ts_codes=[code], strategies=["vbm"], start_date="20250601", end_date="20260617"
-    )
-    r = EnhancedBacktestEngine(c).run()
-    results.append(
-        {
-            "code": code,
-            "total_return": r.total_return,
-            "sharpe": r.sharpe_ratio,
-            "max_dd": r.max_drawdown,
-            "win_rate": r.win_rate,
-            "total_trades": r.total_trades,
-            "profit_factor": r.profit_factor,
-        }
-    )
-    print(
-        f"  {code}: return={r.total_return * 100:+.2f}% sharpe={r.sharpe_ratio:.3f} trades={r.total_trades}",
-        flush=True,
-    )
 
-avg_ret = sum(r["total_return"] for r in results) / len(results) * 100
-avg_sharpe = sum(r["sharpe"] for r in results) / len(results)
-pos = sum(1 for r in results if r["total_return"] > 0)
-print("\n=== VBM Summary ===")
-print(f"Avg Return: {avg_ret:+.2f}%")
-print(f"Avg Sharpe: {avg_sharpe:.3f}")
-print(f"Positive: {pos}/{len(results)} ({pos / len(results) * 100:.0f}%)")
-print(f"Total trades: {sum(r['total_trades'] for r in results)}")
-print(f"Avg trades/stock: {sum(r['total_trades'] for r in results) / len(results):.1f}")
+_real = _find_real()
+_auth_dir = str(_real.parent)
+if _auth_dir not in sys.path:
+    sys.path.insert(0, _auth_dir)   # 让真实模块的同级 import 可解析 (等同 CLI 从权威目录运行)
+_spec = importlib.util.spec_from_file_location("bt_vbm_quick", str(_real))
+_mod = importlib.util.module_from_spec(_spec)
+sys.modules["bt_vbm_quick"] = _mod          # 让 `import bt_vbm_quick` 直接拿到真实模块
+_spec.loader.exec_module(_mod)
+
+if __name__ == "__main__":
+    runpy.run_path(str(_real), run_name="__main__")  # 兼容 `python scripts/bt_vbm_quick.py`
