@@ -3152,6 +3152,17 @@
       "landed_at": "2026-10-12",
       "landed_commit": "桥接仓 13e3d27（RETIRED.md，最后一笔）",
       "resolution": "**全量下线完成**（用户 20:34 指令「MarvisBridge 下线」）：\n· 20:10（前置）：launchd×3（monitor/watcher/`com.workbuddy.poller`）bootout+disable；cron×2 注释（openclaw_watchdog / feishu_qa_bot_watchdog）；**262MB/35.6 万封错误邮件**归档 `_archive/`（cmp 校验）后清空；\n· 20:42（本轮）：cron 第 3 条 `status_aggregator` 注释（原因：webhook 从未配置=从未推送过；职能已由统一巡检中枢接管）；运行态归档 `_archive/MarvisBridge-runtime-20261012.tar.gz`（292 文件核对一致）；\n· **RETIRED.md 下线声明**（`13e3d27`，仓库最后一笔，含已停清单/复活方法）；**GitHub 仓库已 archive**（`gh repo unarchive guandada123/MarvisBridge` 可回滚）；\n· WorkBuddy 两个自动化（消费端 83c93c9c / 核验 c4582a8e）由并行方/用户于 20:34:57/20:35:00 删除（等价且更彻底；**实证平台调度器跳过已删**——同款先例「删除后运行数=0」，残留 next_run 无害）。\n· CI 链：`4a7f97a`（漏 import）4 连红 → `3520dad`+`6ff3444` 修复 → **全绿**；最终 `13e3d27` 后仓库归档。\n**保留**：本地检出（冻结；含 32 项运行态未跟踪残留，RETIRED.md 已标注）+ Marvis 应用本体（用户资产）。\n**遗留（非本项）**：`~/WorkBuddy/marvis_bridge_OLD`（6-19 遗留副本、含凭据提示）——属另一会话已登记的发现，归其评估。"
+    },
+    {
+      "id": "PA-022",
+      "due": "2026-10-20",
+      "owner": "auto",
+      "title": "双数据目录（<Claw>/data/ vs .workbuddy/data/）逐组收敛，消除路径混淆源",
+      "criteria": "按「活跃消费方」逐组迁移，不做大搬家。已完成：信号排名三件套+heartbeat（10-13 ed2de0f，含数据迁移/根路径修复/端到端验证）。全量扫描 7 个同名分叉已清至 3 个（astock_holidays 双副本内容完全一致且单消费方；cost 库死文件已归档）。每组流程：① grep 消费方定 canonical；② 验证目标目录存在性；③ 迁移+改路径同批；④ 端到端验证；⑤ 残档归档（复制/双源比对/删源三步独立命令）。",
+      "status": "pending",
+      "if_no_action": "keep_as_is",
+      "if_no_action_note": "混淆源已大幅减少（残档已归档 + 两版信号溯源提示词已标注正典路径）；剩余分叉低风险，顺延不产生新损害",
+      "note": "背景：10-13 全项目审计的『信号停滞20天』误判即源于双目录残档；同日 15:05 自动化会话亦被误导进入调试模式。learnings: 2026-10-13-canonical-path-before-staleness-verdict / 2026-10-13-write-read-dir-split-brain-silent-degradations"
     }
   ],
   "automation_scope": {
