@@ -2308,6 +2308,51 @@
       "risk": "low",
       "needs_review": true,
       "suggestion": "apply_doc_candidates.py 2026-10-12 的修（check_cmd_bad_paths 里「token 以本候选 doc_target 结尾 → 跳过」）把一个**误报**换成了**漏报**：判别只看**后缀**、不看**目录前缀**，于是 `Claw/.workbuddy/inspection_hub/references/X.md`（目录根本不存在）与 `$HOME/.workbuddy/skills/<skill>/references/X.md`（真实落地根）**都算「以 doc_target 结尾」→ 全被跳过**。后果：本日 3 条候选里 2 条（disc-20261012-01/-03）的 check_cmd **落地后仍恒 FAIL**，而闸门报 `blocked_check_cmd=0` —— 指标永远到不了期却**不再告警**（比 disc-20261011-04 更隐蔽：那时至少会拦）。正确判据：闸门已知 skills_dir 与 c['skill'] → 解析**期望落盘绝对路径** `skills_dir/skill/doc_target`，仅当 token 的**规范化全路径相等**（而非后缀匹配）才跳过；否则仍判 bad。并要求 check_cmd 一律用 `$HOME/.workbuddy/skills/...` 绝对根，禁用 Claw 侧路径。验收：已知正样本（错误根 check_cmd）必须被判 bad=1；真实落地根 check_cmd 判 0 —— 即检测可被已知正样本击破。"
+    },
+    {
+      "id": "disc-20261014-01",
+      "found_at": "2026-10-14",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "unified-inspection-hub",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-13-write-read-dir-split-brain-silent-degradations.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/write_read_path_split_brain.md 新增『写读异径防护（读路径必须 resolve 到与写路径相同的 canonical 路径）』小节，且被 unified-inspection_hub SKILL.md 或对应数据读写脚本引用",
+      "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/write_read_path_split_brain.md && grep -q '写读\\|canonical\\|异径' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/write_read_path_split_brain.md",
+      "suggestion": "Claw 学习（2026-10-13，P1）：一个 parent.parent 缺陷遗留三处『写读异径』静默降级——数据写到 A 路径、却从 B 路径读，排名陈旧三周才被发现。外部 2026 静默失效研究（stridenote / clawdbytes：『HTTP 200 不代表任务真做了』『wrapper 记退出码、监控层高于被监控对象』）交叉验证：路径/状态读写分叉是静默失效高发地带。将『写读异径防护清单』沉淀为 references/write_read_path_split_brain.md（落在 unified-inspection-hub 治理技能下），并提示在相关 loader 加『读路径==写路径 canonical』断言。",
+      "doc_target": "references/write_read_path_split_brain.md"
+    },
+    {
+      "id": "disc-20261014-02",
+      "found_at": "2026-10-14",
+      "status": "pending",
+      "track": "external_trend",
+      "target_project": "meta",
+      "skill": "majiu-management",
+      "url": "https://pipelab.org/learn/skill-supply-chain-security/",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/skill_runtime_egress_guard.md 新增『运行时出口层守卫（egress DLP + 域名黑名单 + 云元数据默认拦截 + Ed25519 哈希链行为回执）』小节，且被 majiu-management SKILL.md 或入库脚本引用",
+      "check_cmd": "test -f /Users/guan/.workbuddy/skills/majiu-management/references/skill_runtime_egress_guard.md && grep -q '出口\\|egress\\|回执\\|DLP' /Users/guan/.workbuddy/skills/majiu-management/references/skill_runtime_egress_guard.md",
+      "suggestion": "外部 supply-chain 研究（pipelab / agentpatterns.ai，2026）：静态扫描会被『结构混淆 + 自解包』绕过（arxiv 2607.02357 Cloak and Detonate），因此需要在扫描层之外补『运行时出口层守卫』——出口 DLP 拦凭据外泄、域名黑名单 + 云元数据(169.254.169.254)默认拦截、Ed25519 哈希链签名行为回执作为审计证据。这是 disc-20261013-03（静态供应链三件套：重扫+钉版+签名）的运行时补偿层，非重复。本地单团队场景可降级为 hash pinning+代码评审，但须把『何时升级到出口层』的决策边界写进规范。",
+      "doc_target": "references/skill_runtime_egress_guard.md"
+    },
+    {
+      "id": "disc-20261014-03",
+      "found_at": "2026-10-14",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "unified-inspection-hub",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-13-canonical-path-before-staleness-verdict.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/canonical_path_staleness.md 新增『判文件陈旧前必须先定 canonical 路径』小节，且被 unified-inspection_hub SKILL.md 或 staleness 判据脚本引用",
+      "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/canonical_path_staleness.md && grep -q 'canonical\\|陈旧\\|路径' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/canonical_path_staleness.md",
+      "suggestion": "Claw 学习（2026-10-13，P1）：『停滞 20 天』是路径混淆造的假警报——判『文件陈旧』前没先 resolve canonical 路径，符号链接/双份布局让判据打到了错误的文件。外部静默失效研究（clawdbytes：『探针跑出的数字不能直接当结论』）佐证：任何『陈旧/健康』判断必须锚定到单一真源路径。将『canonical 路径先于陈旧裁决』沉淀为 references/canonical_path_staleness.md（落在 unified-inspection-hub 治理技能下），并提示 staleness 判据脚本在裁决前先 resolve canonical。",
+      "doc_target": "references/canonical_path_staleness.md"
     }
   ],
   "known_failure_modes": [
@@ -2610,14 +2655,14 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-13T00:40:54+08:00",
+      "ts": "2026-10-14T00:40:51+08:00",
       "mode": "live",
       "selected": [
-        "disc-20261012-01",
-        "disc-20261012-03",
-        "disc-20261013-01"
+        "disc-20261013-03",
+        "disc-20261014-01",
+        "disc-20261014-02"
       ],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261013.md"
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261014.md"
     },
     "calibrate_runs": 18,
     "rollback_point": "f63a18b",
@@ -2672,7 +2717,7 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 17,
+    "live_runs": 18,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7,
     "skill_vcs_sha_latest": "819e62a",

@@ -642,9 +642,50 @@
           "success_metric": "skills 基线 git 仓库经内容级凭据扫描（gitleaks/trufflehog 等效）零命中真实密钥；且入库/更新 SOP 内置『内容扫描』环节（不只靠 .gitignore 文件名匹配）；references/security_skill_authoring.md 新增『文件名忽略 ≠ 内容安全』小节并被 majiu-management SKILL.md 或 skills_vcs.sh 引用"
         }
       ]
+    },
+    "20261014:live": {
+      "date": "2026-10-14",
+      "ts": "2026-10-14T00:40:51+08:00",
+      "mode": "live",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261014.md",
+      "selected": [
+        {
+          "id": "disc-20261013-03",
+          "skill": "majiu-management",
+          "target": "references/skill_supply_chain.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://itecs.ai/insights/ai-agent-tool-poisoning-secure-tool-supply-chain",
+          "target_project": "meta",
+          "track": "external_trend",
+          "success_metric": "references/skill_supply_chain.md 新增『技能供应链安全三件套（每次更新重新扫描 + 不可变版本钉版 append-only + 密码学签名/发布者校验）』小节，且被 majiu-management SKILL.md 或入库脚本引用"
+        },
+        {
+          "id": "disc-20261014-01",
+          "skill": "unified-inspection-hub",
+          "target": "references/write_read_path_split_brain.md",
+          "value": "high",
+          "risk": "low",
+          "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-13-write-read-dir-split-brain-silent-degradations.md",
+          "target_project": "Claw",
+          "track": "project_signal",
+          "success_metric": "references/write_read_path_split_brain.md 新增『写读异径防护（读路径必须 resolve 到与写路径相同的 canonical 路径）』小节，且被 unified-inspection_hub SKILL.md 或对应数据读写脚本引用"
+        },
+        {
+          "id": "disc-20261014-02",
+          "skill": "majiu-management",
+          "target": "references/skill_runtime_egress_guard.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://pipelab.org/learn/skill-supply-chain-security/",
+          "target_project": "meta",
+          "track": "external_trend",
+          "success_metric": "references/skill_runtime_egress_guard.md 新增『运行时出口层守卫（egress DLP + 域名黑名单 + 云元数据默认拦截 + Ed25519 哈希链行为回执）』小节，且被 majiu-management SKILL.md 或入库脚本引用"
+        }
+      ]
     }
   },
-  "updated_at": "2026-10-13T00:40:54+08:00",
+  "updated_at": "2026-10-14T00:40:51+08:00",
   "_notes": [
     "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
   ]
