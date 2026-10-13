@@ -17,7 +17,9 @@ QTS daily_quote(quant-postgres:15432/quant_trading):
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -56,6 +58,21 @@ BLOCKED_PREFIXES = ("688", "689", "8", "4", "920")
 CACHE_DIR = _claw_root() / ".workbuddy" / "data" / "alpha"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+# ── 缓存语义（2026-10-13 修复）────────────────────────────────────
+# 原缺陷：cache_bars/universe 只要文件存在就无条件返回——**无 TTL**。
+# 实测后果：bars_*.csv 停留在 2026-08-13/14，alpha_factors/alpha_eval 两个月的
+# 因子计算与回测评估一直跑在两月前的 OHLCV 上（「缓存永不过期 → 下游静默
+# 用旧数据」模式）。现改为：
+#   · bars/universe 缓存带 TTL，过期先回源 PG 刷新，刷新失败才降级旧数据
+#     **并打 WARNING**（降级可见，不静默）；
+#   · sweep_cache 按保留期清扫超期 bars 与历史 eval 报告（进程内至多一次，
+#     失败不影响主流程）——存量由后续运行自然消化，不做一次性手工删除。
+BARS_CACHE_TTL_HOURS = float(os.environ.get("ALPHA_BARS_TTL_HOURS", "24"))
+UNIVERSE_CACHE_TTL_HOURS = float(os.environ.get("ALPHA_UNIVERSE_TTL_HOURS", "168"))
+BARS_KEEP_DAYS = float(os.environ.get("ALPHA_BARS_KEEP_DAYS", "14"))
+EVAL_KEEP_DAYS = float(os.environ.get("ALPHA_EVAL_KEEP_DAYS", "90"))
+_swept_once = False
+
 
 def _read_sql(conn, sql: str, params: tuple | None = None) -> pd.DataFrame:
     """手动 cursor 读 PG（避免 pandas.read_sql 对 DBAPI2 的兼容警告）"""
@@ -68,12 +85,21 @@ def _read_sql(conn, sql: str, params: tuple | None = None) -> pd.DataFrame:
 
 
 def load_universe(min_days: int = 60) -> list[str]:
-    """合规股票池 + 上市时长过滤。QTS 查询, 缓存 JSON。"""
+    """合规股票池 + 上市时长过滤。QTS 查询, 缓存 JSON（TTL 见 UNIVERSE_CACHE_TTL_HOURS）。"""
     cache = CACHE_DIR / "universe.json"
     if cache.exists():
-        data = json.loads(cache.read_text(encoding="utf-8"))
-        if data.get("min_days") == min_days:
-            return data["codes"]
+        try:
+            age_h = (time.time() - cache.stat().st_mtime) / 3600
+        except OSError:
+            age_h = float("inf")
+        if age_h <= UNIVERSE_CACHE_TTL_HOURS:
+            try:
+                data = json.loads(cache.read_text(encoding="utf-8"))
+                if data.get("min_days") == min_days:
+                    return data["codes"]
+            except (ValueError, KeyError):
+                pass  # 缓存损坏 → 回源重建
+    _sweep_cache_once()
     with qts_client._pg() as conn:
         df = _read_sql(
             conn,
@@ -139,20 +165,98 @@ def load_bars(code: str) -> pd.DataFrame | None:
     return df
 
 
+def _read_bars_csv(csvf: Path) -> pd.DataFrame | None:
+    try:
+        df = pd.read_csv(csvf, parse_dates=["date"], index_col="date")
+        if len(df) > 0:
+            return df
+    except Exception:
+        pass
+    return None
+
+
 def cache_bars(code: str) -> pd.DataFrame | None:
-    """带本地 CSV 缓存(最近N根), 避免重复 PG 查询。"""
+    """带本地 CSV 缓存(最近N根), 避免重复 PG 查询。
+
+    2026-10-13 修复：原实现「文件存在即返回」无 TTL —— 缓存永远新鲜，
+    实测 bars 停更在 08-13/14 两月无人知。现语义：
+      1) 缓存存在且未过 TTL → 直接返回；
+      2) 过期/损坏 → 回源 PG 刷新并覆写；
+      3) PG 刷新失败 → 降级返回旧缓存，但**打 WARNING**（降级可见）。
+    """
     csvf = CACHE_DIR / f"bars_{code}.csv"
     if csvf.exists():
         try:
-            df = pd.read_csv(csvf, parse_dates=["date"], index_col="date")
-            if len(df) > 0:
+            age_h = (time.time() - csvf.stat().st_mtime) / 3600
+        except OSError:
+            age_h = float("inf")
+        if age_h <= BARS_CACHE_TTL_HOURS:
+            df = _read_bars_csv(csvf)
+            if df is not None:
                 return df
-        except Exception:
-            pass
     df = load_bars(code)
     if df is not None and not df.empty:
         df.to_csv(csvf)
-    return df
+        return df
+    # PG 不可用/无数据 → 有旧缓存则降级（显式告警，不静默用旧数据）
+    if csvf.exists():
+        df = _read_bars_csv(csvf)
+        if df is not None:
+            print(
+                f"[alpha_data] WARNING {code}: PG 刷新失败，降级使用 {age_h:.0f}h 前的旧缓存",
+                file=sys.stderr,
+            )
+            return df
+    return None
+
+
+def _sweep_cache_once() -> None:
+    """进程内至多执行一次保留期清扫（失败不影响主流程）。"""
+    global _swept_once
+    if _swept_once:
+        return
+    _swept_once = True
+    try:
+        sweep_cache()
+    except Exception as e:  # noqa: BLE001 — 清扫失败不该让调用方失败
+        print(f"[alpha_data] 缓存清扫跳过: {e}", file=sys.stderr)
+
+
+def sweep_cache(
+    bars_keep_days: float | None = None,
+    eval_keep_days: float | None = None,
+) -> dict[str, int]:
+    """按保留期清扫 alpha 缓存目录（2026-10-13 新增）。
+
+    - bars_*.csv：mtime 超过 bars_keep_days（默认 14 天）→ 删。
+      被 TTL 刷新过的文件 mtime 会更新，故「超期」= 长期未被访问，
+      删除后按需回源重建，不丢活跃数据。
+    - alpha_eval_*.json：超过 eval_keep_days（默认 90 天）→ 删（历史评估报告，
+      保留足够做趋势分析）。
+    其余文件（universe.json / alpha_factors_kept 等）一律不动。
+    返回 {removed_bars, removed_eval, freed_bytes}。
+    """
+    bkd = BARS_KEEP_DAYS if bars_keep_days is None else bars_keep_days
+    ekd = EVAL_KEEP_DAYS if eval_keep_days is None else eval_keep_days
+    now = time.time()
+    removed_bars = removed_eval = freed = 0
+    for p in CACHE_DIR.glob("bars_*.csv"):
+        try:
+            if (now - p.stat().st_mtime) / 86400 > bkd:
+                freed += p.stat().st_size
+                p.unlink()
+                removed_bars += 1
+        except OSError:
+            continue
+    for p in CACHE_DIR.glob("alpha_eval_*.json"):
+        try:
+            if (now - p.stat().st_mtime) / 86400 > ekd:
+                freed += p.stat().st_size
+                p.unlink()
+                removed_eval += 1
+        except OSError:
+            continue
+    return {"removed_bars": removed_bars, "removed_eval": removed_eval, "freed_bytes": freed}
 
 
 if __name__ == "__main__":
@@ -171,3 +275,10 @@ if __name__ == "__main__":
             print(f"{code}: {len(df)} 根 | {df.index[0].date()}~{df.index[-1].date()}")
             print("gap 日:", int(df["gap"].sum()))
             print(df.tail(3)[["close", "volume", "amount", "gap"]].to_string())
+    elif cmd == "sweep":
+        # 手动执行保留期清扫（自动路径：load_universe 每进程至多触发一次）
+        r = sweep_cache()
+        print(
+            f"清扫完成: bars 删 {r['removed_bars']} 个 / eval 删 {r['removed_eval']} 个 "
+            f"/ 释放 {r['freed_bytes'] / 1048576:.1f} MB"
+        )
