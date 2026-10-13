@@ -218,6 +218,10 @@ def test_daily_logs_do_not_change_rc(monkeypatch, memfile, capsys):
     os.utime(restored, (sixty_days_ago, sixty_days_ago))
 
     monkeypatch.setattr(mhc, "TARGETS", [memfile])
+    # 2026-10-14 修复：main() 的日日志扫描自 10b9251 起读模块级 LOG_DIRS（不再从
+    # TARGETS 父目录派生）——本测试须同步 patch，否则扫描指向真实 memory 目录，
+    # temp 场景的异常永不触发（CI 首曝：29e3999）。功能意图不变：main() 扫 LOG_DIRS。
+    monkeypatch.setattr(mhc, "LOG_DIRS", [memfile.parent])
     monkeypatch.setattr(mhc, "load_checker", lambda: _FakeChecker({"rule_off": 1, "rules": 1}))
     monkeypatch.setattr(sys, "argv", ["memory_headroom_check", "--threshold", "500"])
     rc = mhc.main()
