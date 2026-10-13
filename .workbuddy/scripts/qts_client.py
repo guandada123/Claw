@@ -36,16 +36,33 @@ from typing import Any
 
 import psycopg2
 
-# ── .env 加载（与 secrets.py 同模式; 环境变量优先）────────────
+
+# ── .env 加载（环境变量优先）────────────────────────────────
+# 2026-10-13 修复：原单候选 `Path(__file__).resolve().parent.parent / ".env"`
+# 在 .workbuddy/scripts/ 下解析为 `.workbuddy/.env`（不存在）→ OSError 被静默吞掉
+# → _ENV 恒空、全部退默认值；Claw/.env 里的 QTS_PG_* 配置**从未被加载过**
+# （当前 .env 值与默认值恰好相同故行为无感——但改密/换库后会被静默忽略，属时间炸弹）。
+# 现改为向上搜索首个存在的 .env（结果即 Claw/.env；与 macro_data.parents[2]、
+# legacy_secrets._claw_root 两处正确实现对齐）。
+def _find_env_file() -> Path | None:
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        envf = cand / ".env"
+        if envf.is_file():
+            return envf
+    return None
+
+
 _ENV: dict[str, str] = {}
-_env_path = Path(__file__).resolve().parent.parent / ".env"
+_env_path = _find_env_file()
 try:
-    for _line in _env_path.read_text(encoding="utf-8").splitlines():
-        _line = _line.strip()
-        if not _line or _line.startswith("#") or "=" not in _line:
-            continue
-        _k, _, _v = _line.partition("=")
-        _ENV[_k.strip()] = _v.strip().strip('"').strip("'")
+    if _env_path is not None:
+        for _line in _env_path.read_text(encoding="utf-8").splitlines():
+            _line = _line.strip()
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _k, _, _v = _line.partition("=")
+            _ENV[_k.strip()] = _v.strip().strip('"').strip("'")
 except OSError:
     pass
 

@@ -20,13 +20,32 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
+
 # Wind 万得（可选依赖）
+# 2026-10-13 修复：原 `Path(__file__).resolve().parent.parent / "src"` 在
+# .workbuddy/scripts/ 下解析为 `.workbuddy/src`（不存在）→ ImportError 被下方
+# except 静默吞掉 → Wind 实时价**从未真正调用过**（同 run_debate 9-21 事故同族：
+# 脚本从 scripts/ 迁到 .workbuddy/scripts/ 后 parent.parent 语义翻转）。
+# 改为向上回溯含 src/claw 的目录（env CLAW 优先）。
+def _claw_src() -> Path:
+    env_root = os.environ.get("CLAW")
+    if env_root and (Path(env_root) / "src" / "claw").is_dir():
+        return Path(env_root).resolve() / "src"
+    cur = Path(__file__).resolve()
+    while cur != cur.parent:
+        if (cur / "src" / "claw").is_dir():
+            return cur / "src"
+        cur = cur.parent
+    return Path(__file__).resolve().parents[2] / "src"  # 兜底=Claw 根（位置修正版）
+
+
 try:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    sys.path.insert(0, str(_claw_src()))
     from claw.feeds.wind_utils import (
         get_wind_realtime_price,
         plain_code_to_windcode,
