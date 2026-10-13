@@ -117,9 +117,10 @@ def _load_state() -> dict:
             "date": str(d.get("date", "")),
             "count": int(d.get("count", 0)),
             "fail": int(d.get("fail", 0)),
+            "permanent_dead": str(d.get("permanent_dead", "")),
         }
     except (OSError, ValueError, json.JSONDecodeError):
-        return {"date": "", "count": 0, "fail": 0}
+        return {"date": "", "count": 0, "fail": 0, "permanent_dead": ""}
 
 
 def _save_state(state: dict) -> None:
@@ -134,6 +135,28 @@ def _save_state(state: dict) -> None:
 
 
 _failure_warned: set[str] = set()  # 进程内去重：同类失败只 WARNING 一次，避免逐股刷屏
+
+# ── 永久性错误熔断（2026-10-13 加）──────────────────────────────
+# 背景：Wind 账户积分耗尽时，CLI 对**每个** code 都要跑一次 node 子进程
+# （~3s）才返回「账户积分余额不足」——206 个 code 串行 ≈ 11 分钟纯空烧，
+# 且每天如此，直到积分充值。实测 10-13 一次 signal_verify 654.4s 全耗在这。
+# 「积分不足」是**账户级永久错误**：重试不会自愈，反而挤占看门狗时间窗口。
+# 判据（铁律：重试必须带判据）——命中以下模式即当日熔断，后续调用直接返回。
+_PERMANENT_ERROR_PATTERNS = (
+    "积分",
+    "余额不足",
+    "insufficient",
+    "unauthorized",
+    "invalid api key",
+    "authentication fails",
+    "quota exceeded",
+)
+
+
+def is_permanent_wind_failure(message: str) -> bool:
+    """判断 Wind 失败是否账户级永久错误（重试无意义，应熔断）。"""
+    msg = (message or "").lower()
+    return any(p in msg for p in _PERMANENT_ERROR_PATTERNS)
 
 
 def _note_failure(code: str, message: str) -> None:
@@ -151,6 +174,9 @@ def _note_failure(code: str, message: str) -> None:
     with _query_lock:
         st = _load_state()
         st["fail"] = st.get("fail", 0) + 1
+        # 永久性错误（积分耗尽等）→ 当日熔断，后续调用不再打网络（见 call_wind_cli 开头）
+        if is_permanent_wind_failure(message):
+            st["permanent_dead"] = time.strftime("%Y%m%d")
         _save_state(st)
 
 
@@ -233,6 +259,13 @@ def call_wind_cli(
         return _wind_cache[cache_key]
 
     if not _check_query_limit():
+        return None
+    # ── 永久性错误熔断（2026-10-13）：当日已确认账户级失败 → 直接返回，
+    # 不再逐 code 跑 node 子进程空转（实测每次空烧 ~11 分钟）。
+    # 熔断仅当天有效（state.date 变更即自然恢复），充值后次日自动自愈。
+    _st = _load_state()
+    if _st.get("permanent_dead") == today:
+        logger.debug("Wind 当日熔断中（账户级永久错误，如积分耗尽），跳过调用")
         return None
     if not os.path.exists(WIND_CLI_PATH):
         logger.debug("Wind CLI 不可用: 未安装 wind-mcp-skill")
