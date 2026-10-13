@@ -18,7 +18,9 @@
         —— 判不了就说判不了，**不静默放过**。
 
 ━━ 用法 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  python3 audit_locks.py                      # 扫仓库内全部 uv.lock
+  python3 audit_locks.py                      # 扫仓库内全部锁文件
+                                               # （uv.lock + requirements.lock，
+                                               #  2026-10-13 起支持 pip freeze 格式）
   python3 audit_locks.py --json
   python3 audit_locks.py --allowlist <path>
 
@@ -48,16 +50,22 @@ SKIP_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".ruff_cache", ".my
 
 
 def find_locks(root: Path) -> list[Path]:
+    """发现两种锁文件：uv.lock（TOML）与 requirements.lock（pip freeze 文本）。
+
+    2026-10-13 增加 requirements.lock 支持：StockInsight 用 pip freeze 格式
+    （无 uv.lock），其依赖同样需要门禁覆盖。**只收 requirements.lock**
+    （全量锁定），不收 requirements.txt（范围声明无法精确审计）。
+    """
     out = []
-    for p in root.rglob("uv.lock"):
-        if any(part in SKIP_DIRS for part in p.parts):
-            continue
-        out.append(p)
-    return sorted(out)
+    for pattern in ("uv.lock", "requirements.lock"):
+        for p in root.rglob(pattern):
+            if any(part in SKIP_DIRS for part in p.parts):
+                continue
+            out.append(p)
+    return sorted(set(out))
 
 
-def read_lock_packages(lock: Path) -> dict[str, str]:
-    """从 uv.lock 取 {包名: 版本}（跳过本仓库自身的 editable 包）。"""
+def _read_uv_lock(lock: Path) -> dict[str, str]:
     data = tomllib.loads(lock.read_text(encoding="utf-8"))
     pkgs: dict[str, str] = {}
     for item in data.get("package") or []:
@@ -69,6 +77,29 @@ def read_lock_packages(lock: Path) -> dict[str, str]:
             continue
         pkgs[str(name)] = str(ver)
     return pkgs
+
+
+def _read_requirements_lock(lock: Path) -> dict[str, str]:
+    """pip freeze 格式：`name==version` 每行一条，`#` 起头为注释。"""
+    pkgs: dict[str, str] = {}
+    for raw in lock.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "==" not in line:
+            continue
+        name, _, ver = line.partition("==")
+        name, ver = name.strip(), ver.strip()
+        # 去掉 extras 标记（如 `uvicorn[standard]==0.34.0`）
+        name = name.split("[", 1)[0].strip()
+        if name and ver:
+            pkgs[name] = ver
+    return pkgs
+
+
+def read_lock_packages(lock: Path) -> dict[str, str]:
+    """从锁文件取 {包名: 版本}（跳过本仓库自身的 editable 包）。"""
+    if lock.name == "requirements.lock":
+        return _read_requirements_lock(lock)
+    return _read_uv_lock(lock)
 
 
 # ── OSV ───────────────────────────────────────────────────────────
