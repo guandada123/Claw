@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-13T00:45:30+08:00",
+  "updated_at": "2026-10-14T00:45:30+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2283,7 +2283,7 @@
     {
       "id": "disc-20261013-03",
       "found_at": "2026-10-13",
-      "status": "pending",
+      "status": "applied",
       "track": "external_trend",
       "target_project": "meta",
       "skill": "majiu-management",
@@ -2293,7 +2293,18 @@
       "success_metric": "references/skill_supply_chain.md 新增『技能供应链安全三件套（每次更新重新扫描 + 不可变版本钉版 append-only + 密码学签名/发布者校验）』小节，且被 majiu-management SKILL.md 或入库脚本引用",
       "check_cmd": "test -f /Users/guan/.workbuddy/skills/majiu-management/references/skill_supply_chain.md && grep -q '重新扫描\\|不可变\\|签名' /Users/guan/.workbuddy/skills/majiu-management/references/skill_supply_chain.md",
       "suggestion": "外部 supply-chain 研究（itecs.ai / mech.app：Snyk 13% 市场技能含严重漏洞；工具投毒可经描述/schema 绕过）：技能治理不能只靠一次性入库门禁。补 majiu-management 未覆盖的『供应链安全三件套』—— ① 每次更新重新扫描（非一次性门禁）；② 不可变版本钉版（append-only，版本不被覆盖）；③ 密码学签名/发布者校验。沉淀为 references/skill_supply_chain.md（与 skill-registry-security-scan.md / skill-version-pinning.md 同源）。",
-      "doc_target": "references/skill_supply_chain.md"
+      "doc_target": "references/skill_supply_chain.md",
+      "applied_action": "majiu-management/references/skill_supply_chain.md",
+      "resolved_at": "2026-10-14",
+      "resolution": "由「📥 每日·文档类落地」（live 第 6 批）以新建方式纯增量落地（majiu-management/references/ 新增文件，未触碰既有正文）。逆向回滚操作：`git -C ~/.workbuddy/skills revert f877552`（或删除该新建文件 + 撤销 CHANGELOG 对应小节）。",
+      "landed_at": "2026-10-14",
+      "recheck_after_days": 7,
+      "metric_baseline": "FAIL（落地前文件不存在，check_cmd 非零）",
+      "metric_check_after_landing": "PASS（文件存在 + 关键词『重新扫描/不可变/签名』命中）",
+      "metric_caveat": "success_metric 要求『被 majiu-management / unified-inspection-hub SKILL.md 或入库脚本引用』= 核心类动作（改 SKILL.md），本通道按分级授权不得改写核心类 → 该条件不在本通道可证真范围内，只登记不粉饰。",
+      "skill_vcs_pre_sha": "819e62a",
+      "skill_vcs_sha": "f877552",
+      "landed_commit": "ced0979"
     },
     {
       "id": "disc-20261013-04",
@@ -2312,7 +2323,7 @@
     {
       "id": "disc-20261014-01",
       "found_at": "2026-10-14",
-      "status": "pending",
+      "status": "applied",
       "track": "project_signal",
       "target_project": "Claw",
       "skill": "unified-inspection-hub",
@@ -2322,12 +2333,23 @@
       "success_metric": "references/write_read_path_split_brain.md 新增『写读异径防护（读路径必须 resolve 到与写路径相同的 canonical 路径）』小节，且被 unified-inspection_hub SKILL.md 或对应数据读写脚本引用",
       "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/write_read_path_split_brain.md && grep -q '写读\\|canonical\\|异径' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/write_read_path_split_brain.md",
       "suggestion": "Claw 学习（2026-10-13，P1）：一个 parent.parent 缺陷遗留三处『写读异径』静默降级——数据写到 A 路径、却从 B 路径读，排名陈旧三周才被发现。外部 2026 静默失效研究（stridenote / clawdbytes：『HTTP 200 不代表任务真做了』『wrapper 记退出码、监控层高于被监控对象』）交叉验证：路径/状态读写分叉是静默失效高发地带。将『写读异径防护清单』沉淀为 references/write_read_path_split_brain.md（落在 unified-inspection-hub 治理技能下），并提示在相关 loader 加『读路径==写路径 canonical』断言。",
-      "doc_target": "references/write_read_path_split_brain.md"
+      "doc_target": "references/write_read_path_split_brain.md",
+      "applied_action": "unified-inspection-hub/references/write_read_path_split_brain.md",
+      "resolved_at": "2026-10-14",
+      "resolution": "由「📥 每日·文档类落地」（live 第 6 批）以新建方式纯增量落地（unified-inspection-hub/references/ 新增文件，未触碰既有正文）。逆向回滚操作：`git -C ~/.workbuddy/skills revert f877552`（或删除该新建文件 + 撤销 CHANGELOG 对应小节）。",
+      "landed_at": "2026-10-14",
+      "recheck_after_days": 7,
+      "metric_baseline": "FAIL（落地前文件不存在，check_cmd 非零）",
+      "metric_check_after_landing": "FAIL（候选 check_cmd 指向 Claw/.workbuddy/inspection_hub/references/ —— 该目录不存在；以真实落地根替换后等价命令 PASS，内容闸通过。属产出侧 check_cmd 路径写法缺陷 disc-20261011-04/disc-20261013-04，非落地失败）",
+      "metric_caveat": "success_metric 要求『被 majiu-management / unified-inspection-hub SKILL.md 或入库脚本引用』= 核心类动作（改 SKILL.md），本通道按分级授权不得改写核心类 → 该条件不在本通道可证真范围内，只登记不粉饰。",
+      "skill_vcs_pre_sha": "819e62a",
+      "skill_vcs_sha": "f877552",
+      "landed_commit": "ced0979"
     },
     {
       "id": "disc-20261014-02",
       "found_at": "2026-10-14",
-      "status": "pending",
+      "status": "applied",
       "track": "external_trend",
       "target_project": "meta",
       "skill": "majiu-management",
@@ -2337,7 +2359,18 @@
       "success_metric": "references/skill_runtime_egress_guard.md 新增『运行时出口层守卫（egress DLP + 域名黑名单 + 云元数据默认拦截 + Ed25519 哈希链行为回执）』小节，且被 majiu-management SKILL.md 或入库脚本引用",
       "check_cmd": "test -f /Users/guan/.workbuddy/skills/majiu-management/references/skill_runtime_egress_guard.md && grep -q '出口\\|egress\\|回执\\|DLP' /Users/guan/.workbuddy/skills/majiu-management/references/skill_runtime_egress_guard.md",
       "suggestion": "外部 supply-chain 研究（pipelab / agentpatterns.ai，2026）：静态扫描会被『结构混淆 + 自解包』绕过（arxiv 2607.02357 Cloak and Detonate），因此需要在扫描层之外补『运行时出口层守卫』——出口 DLP 拦凭据外泄、域名黑名单 + 云元数据(169.254.169.254)默认拦截、Ed25519 哈希链签名行为回执作为审计证据。这是 disc-20261013-03（静态供应链三件套：重扫+钉版+签名）的运行时补偿层，非重复。本地单团队场景可降级为 hash pinning+代码评审，但须把『何时升级到出口层』的决策边界写进规范。",
-      "doc_target": "references/skill_runtime_egress_guard.md"
+      "doc_target": "references/skill_runtime_egress_guard.md",
+      "applied_action": "majiu-management/references/skill_runtime_egress_guard.md",
+      "resolved_at": "2026-10-14",
+      "resolution": "由「📥 每日·文档类落地」（live 第 6 批）以新建方式纯增量落地（majiu-management/references/ 新增文件，未触碰既有正文）。逆向回滚操作：`git -C ~/.workbuddy/skills revert f877552`（或删除该新建文件 + 撤销 CHANGELOG 对应小节）。",
+      "landed_at": "2026-10-14",
+      "recheck_after_days": 7,
+      "metric_baseline": "FAIL（落地前文件不存在，check_cmd 非零）",
+      "metric_check_after_landing": "PASS（文件存在 + 关键词『出口/egress/回执/DLP』命中）",
+      "metric_caveat": "success_metric 要求『被 majiu-management / unified-inspection-hub SKILL.md 或入库脚本引用』= 核心类动作（改 SKILL.md），本通道按分级授权不得改写核心类 → 该条件不在本通道可证真范围内，只登记不粉饰。",
+      "skill_vcs_pre_sha": "819e62a",
+      "skill_vcs_sha": "f877552",
+      "landed_commit": "ced0979"
     },
     {
       "id": "disc-20261014-03",
@@ -2665,7 +2698,7 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261014.md"
     },
     "calibrate_runs": 18,
-    "rollback_point": "f63a18b",
+    "rollback_point": "ced0979",
     "p0_landed_at": "2026-09-24",
     "parity_verifier": ".workbuddy/scripts/doc_apply_parity.py",
     "parity_ledger": ".workbuddy/inspection_hub/calibration/parity.json",
@@ -2720,19 +2753,19 @@
     "live_runs": 18,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7,
-    "skill_vcs_sha_latest": "819e62a",
-    "skill_vcs_pre_sha": "b332fe1",
+    "skill_vcs_sha_latest": "f877552",
+    "skill_vcs_pre_sha": "819e62a",
     "last_landing": {
-      "date": "2026-10-13",
+      "date": "2026-10-14",
       "count": 3,
       "ids": [
-        "disc-20261012-01",
-        "disc-20261012-03",
-        "disc-20261013-01"
+        "disc-20261013-03",
+        "disc-20261014-01",
+        "disc-20261014-02"
       ],
-      "commit": "f63a18b",
-      "skill_vcs_pre_sha": "b332fe1",
-      "skill_vcs_sha": "819e62a"
+      "commit": "ced0979",
+      "skill_vcs_pre_sha": "819e62a",
+      "skill_vcs_sha": "f877552"
     }
   },
   "_state_sync_notes": [
@@ -2782,7 +2815,9 @@
     "2026-10-11 多自动化并发写仓：**判定不做「仓库级真互斥」，改为结构性拆除唯一的危险写法**。① 普查（77 个 ACTIVE 自动化的 prompt 全文匹配 git 写动词）：真正会写 git 的**只有 1 个** —— `1fd52465` 📥 每日·文档类落地（`git add -A && git commit`）；`automation-1785825576843` 运维巡检周报里出现的 `git commit/push/reset/clean` 全是**禁止性说明**；`$VCS`（skills_vcs.sh）被 2 个自动化调用，但那是技能库的独立 git 仓、`-A` 属**设计意图**（快照全部技能库状态）。② 取证：历史 6 次 `hub(doc-apply)` 提交**均只含预期文件**（registry/calibration/parity），**未发生**扫走无关文件的事故 → 隐患真实存在但未触发（运行时机恰好错开）。③ 为何不做锁：自动化是**自己敲 git 命令**、没有单一收口点可挂锁；且 git 自身 `.git/index.lock` 已把索引操作串行化（并发 `git add/commit` 是**响亮失败**，不是静默损坏）；给 77 个自动化统一加锁属独立工程。④ 实际动作：把 doc-apply 的 `git add -A` 改为 `git add .workbuddy/inspection_hub/`（**结构性消除扫走能力**，非靠纪律），并在 prompt 里写明「看到 inspection_hub 之外的改动 → 那不是本批的，既不提交也不丢弃」。⑤ 可观测性已就位：本轮新增的巡检检查项「仓库状态」（分支不对 / 改动滞留 ≥12h）负责兜住残留。→ 若将来再次出现扫走/并发损坏的**实例**，再据此升级为锁；**不要凭机制危险就上锁**。",
     "2026-10-12 live 第 4 批：闸门 `selected=[]`（**0 条过闸**）→ 按铁律❹ SILENT：零落地 / 零 commit / 零推送。3 条当日候选被拦原因互不相同（**均非「缺指标」**）：① `disc-20261012-01` 承载方缺失（`skill` 为空，闸门 `require_host` 按 `skill` 定位 `$HOME/.workbuddy/skills/<skill>` 目录）；② `disc-20261012-02` `risk=medium` 高于阈（且 `class=core`/`needs_review` 本不走本通道）；③ `disc-20261012-03` `check_cmd` 引用不存在的 Claw 侧路径 `Claw/.workbuddy/inspection_hub/references/skill_output_contract.md` → `blocked_check_cmd=1`。③ 是 `disc-20261011-04` 的**第 2 例**，仍属**产出侧**把 check_cmd 硬编码到 Claw 侧，而实际落地根是 `$HOME/.workbuddy/skills`（Claw 侧只对部分 skill 建 symlink）→ 指标恒 FAIL、永远到不了期，登记待周度审，非本通道职责。★ 正向证据（口径＝`discovery_candidates` 按日字段完整度）：`success_metric`/`check_cmd`/`target_project` 覆盖率 10-09 起由 0 升到今日 **3/3**，`doc_target` 字段自 10-10 出现、今日 3/3 —— **v1.10「没有可判定指标就不落地」的药方已基本落地**，瓶颈已从「缺指标」转移到「check_cmd 路径写法」与「承载方归属」。对拍 `doc_apply_parity` rc=0 / ok=true / violations=[] / gaps=[]；`metric_alert=false` → **未触碰 `last_metric_alert_at`**（节流状态源不动）。零 applied 回写（本日零落地）；`automations[].last_run/next_run` 未写（铁律❽）。",
     "2026-10-13 live 第 5 批（supervised 前 3 批已过 → 无异常静默，本条仅留痕）：落地 3 条文档类候选 disc-20261012-01/unified-inspection-hub/references/counting_trap_guardrails.md、disc-20261012-03/majiu-management/references/skill_output_contract.md、disc-20261013-01/majiu-management/references/security_skill_authoring.md（全部新建=纯增量，self_audit 三条全过）。技能库：落地前 HEAD b332fe1 → 落地后 819e62a（**显式限定路径提交**：技能库工作区含其它自动化 4 改 3 删在飞改动，故未用 `$VCS snapshot`（它会 `add -A` 扫走他人改动），改用 `git -C $SKILLS add <本批 5 路径>` + commit，提交后 `git status` 复核他人改动仍在 → 未扫走，属结构性避让而非事后补救）。Claw 仓提交 f63a18b（仅 registry/parity/apply_dryrun_20261013.md；提交被 pre-commit `end-of-file-fixer` 拦一次 → 复验 JSON 后重提成功）。复检：parity rc=0/ok=true/violations=[]/gaps=[]；hub_reconcile rc=0、D1–D9 全空、clean=true（连续第 9 日全绿）。metric_alert=false（blocked_metric=0）→ 未推、未触碰 last_metric_alert_at。check_cmd 实测：disc-20261013-01 **rc=0 通过**（落地根正确）；disc-20261012-01/-03 **rc=1 恒 FAIL**（check_cmd 仍写 Claw 侧路径）—— 但闸门 `blocked_check_cmd=0`，已单列 finding（见下条）。",
-    "2026-10-13 ★ 新发现并登记 disc-20261013-04（pending + needs_review=true → 转周度审；无 doc_target，本通道设计内排除）：`apply_doc_candidates.py::check_cmd_bad_paths` 的 2026-10-12 修把**误报换成漏报** —— 判别只看**后缀**不看**目录前缀**，故 `Claw/.workbuddy/inspection_hub/references/X.md`（目录不存在）与真实落地根同被跳过，于是 check_cmd 恒 FAIL 而闸门报 `blocked_check_cmd=0` —— **指标永远到不了期却不再告警**，比 disc-20261011-04（那时至少会拦）更隐蔽。本日 3 条候选命中 2 条。药方=按 `skills_dir/<skill>/doc_target` 解析**全路径相等**才跳过；并要求产出侧 check_cmd 一律用 `$HOME/.workbuddy/skills/...` 绝对根。属核心类（脚本）→ 本通道不改写，转周度审。"
+    "2026-10-13 ★ 新发现并登记 disc-20261013-04（pending + needs_review=true → 转周度审；无 doc_target，本通道设计内排除）：`apply_doc_candidates.py::check_cmd_bad_paths` 的 2026-10-12 修把**误报换成漏报** —— 判别只看**后缀**不看**目录前缀**，故 `Claw/.workbuddy/inspection_hub/references/X.md`（目录不存在）与真实落地根同被跳过，于是 check_cmd 恒 FAIL 而闸门报 `blocked_check_cmd=0` —— **指标永远到不了期却不再告警**，比 disc-20261011-04（那时至少会拦）更隐蔽。本日 3 条候选命中 2 条。药方=按 `skills_dir/<skill>/doc_target` 解析**全路径相等**才跳过；并要求产出侧 check_cmd 一律用 `$HOME/.workbuddy/skills/...` 绝对根。属核心类（脚本）→ 本通道不改写，转周度审。",
+    "2026-10-14 文档类落地 live 第 6 批：落地 3 条（disc-20261013-03 / disc-20261014-01 / disc-20261014-02），全部为新建 references/*.md（纯增量）。技能库回滚点 819e62a → f877552；Claw 账本提交 ced0979。对拍写前/写后均 rc=0 / ok=true / violations=[]；hub_reconcile rc=0 全绿，无需回滚。check_cmd 落地后 2/3 PASS；disc-20261014-01 的 check_cmd 仍 FAIL —— 属产出侧路径写法缺陷（同 disc-20261011-04/disc-20261013-04），已登记未修。",
+    "2026-10-14 ⚠️ 指标闸未触发：blocked_metric=1（disc-20261013-04 因无 success_metric 被拦）但 metric_alert=false 且 metric_alert_raw=false —— 未达 metric_alert_min=3 阈值。故本日不推指标闸提示、不触碰 last_metric_alert_at（节流状态源保持 null）。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
