@@ -24,9 +24,27 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+
+def _claw_root() -> Path:
+    """向上定位 Claw 根（含 .workbuddy 的目录）。
+
+    2026-10-13 修复 P1-14 类缺陷：原 `Path(__file__).resolve().parent.parent`
+    在 .workbuddy/scripts/ 下解析为 `.workbuddy/`，导致：
+      ① Wind 导入指向不存在的 `.workbuddy/src` → 静默降级到 no-op 兜底，
+         该脚本从未真正走通过 Wind 实时价路径；
+      ② 输出被静默重定向到 `.workbuddy/data/`，而消费方（merge_signal_ranking /
+         早报链路）按 `data/` 语义使用 → split-brain，实测早报读到陈旧三周的排名。
+    """
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根（脚本被放在异常位置？）")
+
+
 # Wind 万得（可选依赖）
 try:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    sys.path.insert(0, str(_claw_root() / "src"))
     from claw.feeds.wind_utils import get_wind_realtime_price, wind_available
 except ImportError:
 
@@ -37,7 +55,7 @@ except ImportError:
         return None
 
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT = _claw_root()
 _OUTPUT_FILE = _PROJECT_ROOT / "data" / "discovered_accounts.json"
 _FETCH_SCRIPT = (
     Path.home()

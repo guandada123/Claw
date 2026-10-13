@@ -18,7 +18,23 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+def _claw_root() -> Path:
+    """向上定位 Claw 根（含 .workbuddy 的目录）。
+
+    2026-10-13 修复 P1-14 类缺陷：原 `parent.parent` 在 .workbuddy/scripts/ 下
+    解析为 `.workbuddy/`，导致 ① `_VERIFY_REPORT` 指向不存在的
+    `.workbuddy/.workbuddy/data/...`（该输入从未读到过）；② 输出 signal_ranking.json
+    被重定向到 `.workbuddy/data/`，而早报读 `data/` → 早报排名板块陈旧三周。
+    """
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根（脚本被放在异常位置？）")
+
+
+_PROJECT_ROOT = _claw_root()
 _VERIFY_REPORT = _PROJECT_ROOT / ".workbuddy" / "data" / "signal_verify_report.json"
 _DISCOVERED = _PROJECT_ROOT / "data" / "discovered_accounts.json"
 _OUTPUT = _PROJECT_ROOT / "data" / "signal_ranking.json"

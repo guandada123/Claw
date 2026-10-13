@@ -21,7 +21,24 @@ import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+def _claw_root() -> Path:
+    """向上定位 Claw 根（含 .workbuddy 的目录）。
+
+    2026-10-13 修复 P1-14 类缺陷：原 `parent.parent` 在 .workbuddy/scripts/ 下
+    解析为 `.workbuddy/`，导致读取的 subscribe_candidates.json 与写入方
+    （discover_gzh_accounts，同迁移后）的目录语义 split-brain。
+    注意：push_feishu.sh 实际位于 `.workbuddy/scripts/`（scripts/ 下没有），
+    故其引用改为显式 `.workbuddy/scripts/` 拼接。
+    """
+    p = Path(__file__).resolve().parent
+    for cand in (p, *p.parents):
+        if (cand / ".workbuddy").is_dir():
+            return cand
+    raise RuntimeError("找不到含 .workbuddy 的仓库根（脚本被放在异常位置？）")
+
+
+PROJECT_ROOT = _claw_root()
 CANDIDATES_FILE = PROJECT_ROOT / "data" / "subscribe_candidates.json"
 LOCAL_API = "http://localhost:5001"
 
@@ -139,7 +156,7 @@ def build_brief(dry: bool = False) -> dict:
     push = subprocess.run(
         [
             "bash",
-            str(PROJECT_ROOT / "scripts" / "push_feishu.sh"),
+            str(PROJECT_ROOT / ".workbuddy" / "scripts" / "push_feishu.sh"),
             title,
             "\n".join(lines),
         ],
