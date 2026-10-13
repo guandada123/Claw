@@ -217,7 +217,14 @@ def _sweep_cache_once() -> None:
         return
     _swept_once = True
     try:
-        sweep_cache()
+        r = sweep_cache()
+        # 可观测性（学习 2026-10-13-bulk-delete-trips-safe-delete-guard 教训 #2）：
+        # 正常路径也必须输出汇总，否则「删了 0 个」与「被护栏拦下」无法区分。
+        print(
+            f"[alpha_data] 缓存清扫: bars 删 {r['removed_bars']} / 失败 {r['failed']} "
+            f"/ eval 删 {r['removed_eval']} / 释放 {r['freed_bytes'] / 1048576:.1f} MB"
+            + (f" / 超期未清 {r['deferred']} 个（分片限流，下次运行继续）" if r["deferred"] else "")
+        )
     except Exception as e:  # noqa: BLE001 — 清扫失败不该让调用方失败
         print(f"[alpha_data] 缓存清扫跳过: {e}", file=sys.stderr)
 
@@ -225,8 +232,9 @@ def _sweep_cache_once() -> None:
 def sweep_cache(
     bars_keep_days: float | None = None,
     eval_keep_days: float | None = None,
+    batch_size: int = 25,
 ) -> dict[str, int]:
-    """按保留期清扫 alpha 缓存目录（2026-10-13 新增）。
+    """按保留期清扫 alpha 缓存目录（2026-10-13 新增；同日晚按护栏约束改分片）。
 
     - bars_*.csv：mtime 超过 bars_keep_days（默认 14 天）→ 删。
       被 TTL 刷新过的文件 mtime 会更新，故「超期」= 长期未被访问，
@@ -234,29 +242,60 @@ def sweep_cache(
     - alpha_eval_*.json：超过 eval_keep_days（默认 90 天）→ 删（历史评估报告，
       保留足够做趋势分析）。
     其余文件（universe.json / alpha_factors_kept 等）一律不动。
-    返回 {removed_bars, removed_eval, freed_bytes}。
+
+    ⚠️ 分片限流（本仓 safe-delete 护栏：一次超 50 个文件删除会被拦并中断整个
+    进程，见 .learnings/2026-10-13-bulk-delete-trips-safe-delete-guard）：
+    单次调用**总删除量封顶 batch_size（默认 25，护栏阈值的 1/2）**，超出部分
+    计入 deferred 由后续运行分次消化——宁可慢，不可整链中断。
+    返回 {removed_bars, removed_eval, freed_bytes, failed, deferred}。
     """
     bkd = BARS_KEEP_DAYS if bars_keep_days is None else bars_keep_days
     ekd = EVAL_KEEP_DAYS if eval_keep_days is None else eval_keep_days
     now = time.time()
-    removed_bars = removed_eval = freed = 0
+    removed_bars = removed_eval = freed = failed = deferred = 0
+    budget = max(int(batch_size), 0)
+
     for p in CACHE_DIR.glob("bars_*.csv"):
         try:
-            if (now - p.stat().st_mtime) / 86400 > bkd:
-                freed += p.stat().st_size
-                p.unlink()
-                removed_bars += 1
+            if (now - p.stat().st_mtime) / 86400 <= bkd:
+                continue
         except OSError:
             continue
+        if budget <= 0:
+            deferred += 1
+            continue
+        try:
+            size = p.stat().st_size
+            p.unlink()
+            freed += size
+            removed_bars += 1
+            budget -= 1
+        except OSError:
+            failed += 1
     for p in CACHE_DIR.glob("alpha_eval_*.json"):
         try:
-            if (now - p.stat().st_mtime) / 86400 > ekd:
-                freed += p.stat().st_size
-                p.unlink()
-                removed_eval += 1
+            if (now - p.stat().st_mtime) / 86400 <= ekd:
+                continue
         except OSError:
             continue
-    return {"removed_bars": removed_bars, "removed_eval": removed_eval, "freed_bytes": freed}
+        if budget <= 0:
+            deferred += 1
+            continue
+        try:
+            size = p.stat().st_size
+            p.unlink()
+            freed += size
+            removed_eval += 1
+            budget -= 1
+        except OSError:
+            failed += 1
+    return {
+        "removed_bars": removed_bars,
+        "removed_eval": removed_eval,
+        "freed_bytes": freed,
+        "failed": failed,
+        "deferred": deferred,
+    }
 
 
 if __name__ == "__main__":
@@ -277,8 +316,11 @@ if __name__ == "__main__":
             print(df.tail(3)[["close", "volume", "amount", "gap"]].to_string())
     elif cmd == "sweep":
         # 手动执行保留期清扫（自动路径：load_universe 每进程至多触发一次）
-        r = sweep_cache()
+        # 可选参数 = batch_size（默认 25，受 safe-delete 护栏约束）：`alpha_data.py sweep 100`
+        bs = int(sys.argv[2]) if len(sys.argv) > 2 else 25
+        r = sweep_cache(batch_size=bs)
         print(
             f"清扫完成: bars 删 {r['removed_bars']} 个 / eval 删 {r['removed_eval']} 个 "
-            f"/ 释放 {r['freed_bytes'] / 1048576:.1f} MB"
+            f"/ 失败 {r['failed']} / 释放 {r['freed_bytes'] / 1048576:.1f} MB"
+            + (f" / 超期未清 {r['deferred']} 个（下次继续）" if r["deferred"] else "")
         )
