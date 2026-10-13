@@ -3239,10 +3239,12 @@
       "owner": "auto",
       "title": "双数据目录（<Claw>/data/ vs .workbuddy/data/）逐组收敛，消除路径混淆源",
       "criteria": "按「活跃消费方」逐组迁移，不做大搬家。已完成：信号排名三件套+heartbeat（10-13 ed2de0f，含数据迁移/根路径修复/端到端验证）。全量扫描 7 个同名分叉已清至 3 个（astock_holidays 双副本内容完全一致且单消费方；cost 库死文件已归档）。每组流程：① grep 消费方定 canonical；② 验证目标目录存在性；③ 迁移+改路径同批；④ 端到端验证；⑤ 残档归档（复制/双源比对/删源三步独立命令）。",
-      "status": "pending",
+      "status": "done",
       "if_no_action": "keep_as_is",
       "if_no_action_note": "混淆源已大幅减少（残档已归档 + 两版信号溯源提示词已标注正典路径）；剩余分叉低风险，顺延不产生新损害",
-      "note": "背景：10-13 全项目审计的『信号停滞20天』误判即源于双目录残档；同日 15:05 自动化会话亦被误导进入调试模式。learnings: 2026-10-13-canonical-path-before-staleness-verdict / 2026-10-13-write-read-dir-split-brain-silent-degradations"
+      "note": "背景：10-13 全项目审计的『信号停滞20天』误判即源于双目录残档；同日 15:05 自动化会话亦被误导进入调试模式。learnings: 2026-10-13-canonical-path-before-staleness-verdict / 2026-10-13-write-read-dir-split-brain-silent-degradations | 2026-10-14 完成：四批归档（stale-signal-products / stale-migrated-files / dead-cost-dbs / stale-astock-holidays-A / dead-simulation-rump）。",
+      "resolved_at": "2026-10-14T07:45:00+0800",
+      "resolution": "双目录收敛完成（判据=消费方读哪里；策略=逐组收敛不做大搬家，经二次评估确认不搬家正确）。成果：① 同名分叉 7 → 0（达成「两目录顶层零同名文件」不变式）：trio+heartbeat 组 10-13 迁移（ed2de0f）、cost 死库与 simulation 残骸两批归档、astock_holidays 双胞归档 A 侧（内容 md5 三份一致，唯一消费方 is_trading_day 读 .workbuddy 侧）；② 边界规则 + 正典矩阵固化进 AGENTS.md §4「数据目录正典路径」（所有 AI 会话进入即读）；③ 三处真 bug 顺带修复：trio split-brain（早报排名陈旧三周）、qts_client .env（时间炸弹）、refresh_portfolio Wind 导入。残留（非双胞，按 SCHEMA「死引用澄清即可」不追）：astock_holidays_2026.json 零引用、.workbuddy/output 6 月历史文物。防复发：不变式入 AGENTS.md；新同名分叉发现即按「消费方定 canonical → 迁移 → 三步归档」处置。"
     }
   ],
   "automation_scope": {

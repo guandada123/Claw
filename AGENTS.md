@@ -92,6 +92,18 @@ ruff check --config ruff.toml <path>          # line-length=100，E501 忽略
 | **消耗数字该信哪个**（口径台账：token/积分/自记成本谁是真的） | `.workbuddy/docs/consumption-ledger.md` —— 新增任何「花了多少」前先在这里认领源 |
 | 技能怎么发现的 | 直接看技能列表；重复/失效用 `skill-library-audit` |
 
+### 数据目录正典路径（2026-10-14 双目录专项固化 · PA-022）
+
+**判据 = 消费方读哪里**（grep 消费方代码定位；不按 `find` 首个命中——2026-10-13 曾据此误报「产物停滞 20 天」，见 `.learnings/2026-10-13-canonical-path-*`）。两目录**各有正典**，不是一边全错：
+
+| 目录 | 正典示例 | 主要消费方 |
+| --- | --- | --- |
+| **`data/`**（仓库根） | 信号溯源三产物（signal_consensus / source_weights / qts_regime）、signal_ranking 三件套、lhb_signals、heartbeat、qts_daily_signals | wx_assembler（早晚报）、ops_center 新鲜度检查、sync_lhb、merge_signal_ranking |
+| **`.workbuddy/data/`** | 抓取验证链（article_signals / signal_verify_report）、模拟盘全套（simulation/*、user/portfolio.json）、元数据（automation_health / macro_data）、alpha 缓存、astock_holidays | `.workbuddy/scripts` 下的 sim 簇 / 抓取链 / 巡检簇（各有显式路径） |
+
+- **不变式（10-14 起）**：两目录顶层**零同名文件**。发现新同名分叉 → 「消费方定 canonical → 存量迁移 → 三步归档（复制/双源比对/删源须独立命令）」，先例见 `.workbuddy/data/_archive/stale-*-2026101*/`（四批，均含 README + 恢复方式）。
+- **新增数据文件**：按消费方归属——绑 `.workbuddy/scripts` 工具链的落 `.workbuddy/data/`，其余落 `data/`；落地后在本表登记一行。
+
 **开工前先读** `registry.json` 的 `pending_actions` —— 那里是唯一活的待决看板。
 
 ## 5. 工作方式
