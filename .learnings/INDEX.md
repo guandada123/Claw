@@ -3,14 +3,16 @@
 > ⚠️ **本文件由 `learnings_index.py` 自动生成，请勿手改**（改了会在下次生成时被覆盖）。
 > 权威内容是 `.learnings/*.md` 正文；本文件只是**派生视图**。
 > ⚠️ 手工维护的 `LEARNINGS.md` 里的**浓缩条目不在本表内**（它已停更，见其抬头说明）。
-> 生成时间：2026-10-13 17:18　｜　条目数：**111**
+> 生成时间：2026-10-13 21:16　｜　条目数：**113**
 
-- **按类型**：correction×5　blind-spot×3　取证口径×2　false-positive×2　engineering_practice×2　分析口径错误×2　归因错误×2　verification-scope-blindspot×1　engineering_practice / guard-interaction×1　data-integrity / silent-stale-downstream×1　process / data-integrity×1　machine-maintenance / correction×1　incomplete-consumer-sweep×1　工具语义误用×1　self-checker-blind×1　silent-dead-mechanism×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　best_practice×1　knowledge_gap×1　根因定案×1　（另有 75 条未标注该字段）
-- **按等级**：P1×24　P2×8　P0×5　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 71 条未标注该字段）
+- **按类型**：correction×5　blind-spot×3　取证口径×2　false-positive×2　engineering_practice×2　分析口径错误×2　归因错误×2　silent-degradation / path-split-brain×1　verification-scope-blindspot×1　取证口径错误 / canonical-path blindspot×1　engineering_practice / guard-interaction×1　data-integrity / silent-stale-downstream×1　process / data-integrity×1　machine-maintenance / correction×1　incomplete-consumer-sweep×1　工具语义误用×1　self-checker-blind×1　silent-dead-mechanism×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　best_practice×1　knowledge_gap×1　根因定案×1　（另有 75 条未标注该字段）
+- **按等级**：P1×26　P2×8　P0×5　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 71 条未标注该字段）
 
 | 日期 | 标题 | 等级 | 类型 | 状态 | 文件 |
 |---|---|---|---|---|---|
+| 2026-10-13 | ★升级候选 —— 写读异径：`parent.parent` 缺陷留下的三处「静默降级」，直到排名陈旧三周才被看见 | P1（三处功能静默失效：早报排名板块陈旧三周 / 验证报告输入从未读到 / Wind 实时价从未真正调用——全部表现为"正常运行"） | silent-degradation / path-split-brain（写入方与读取方目录口径不一致） | 三脚本已修复（commit `ed2de0f`），数据已迁移，端到端验证通过。 | `2026-10-13-write-read-dir-split-brain-silent-degradations.md` |
 | 2026-10-13 | ★候选铁律 —— 「凭据有效」≠「额度够用」：把耗竭型资源当成常量写进了验收判据 | P1（不造成数据错误，但会让**正确**的修复被误判为回退，进而被回滚或重复排查） | verification-scope-blindspot（验收判据漏掉时变前置条件 / 修复与资源是两个维度） | 无需改代码；待用户充值。本文只修正**归因口径**。 | `2026-10-13-credential-validity-is-not-quota.md` |
+| 2026-10-13 | ★升级候选 —— 「停滞 20 天」是路径混淆造的假警报：判「文件陈旧」必须先定 canonical 路径 | P1（**排查方向被带偏**——审计据此把「产物停更」立为 P0/P1 专项，自动化 LLM 会话据此进入「调试模式」而不执行管线；幸未造成数据损坏） | 取证口径错误 / canonical-path blindspot（多路径并存时按错误路径的 mtime 下结论） | 混淆源（旧路径残档）已归档；两版自动化提示词已加正典路径标注；本仓 `data/` 与 `.workbuddy/data/` 双目录并存问题**待收敛**（建议项）。 | `2026-10-13-canonical-path-before-staleness-verdict.md` |
 | 2026-10-13 | ★升级候选 —— 新加的「缓存清扫」一次删 1861 个文件，撞上 safe-delete 护栏把整条评估链打断 | P1（当日自动化直接失败、无报告产出；护栏本身工作正常，是**新代码没适配护栏**） | engineering_practice / guard-interaction（批量删除撞本仓护栏） | 本次已绕过（存量已由自然运行消化）；**建议改代码**——清扫必须分片。 | `2026-10-13-bulk-delete-trips-safe-delete-guard.md` |
 | 2026-10-13 | ★候选铁律 —— 「连续19天零差异」不是稳定，是缓存冻住了：无 TTL 缓存让下游静默跑了两月旧数据 | P0（**数据正确性**——两个月的因子评估/因子清单建立在两月前的 OHLCV 上，且被误读为"稳定"） | data-integrity / silent-stale-downstream（无 TTL 缓存 → 下游静默产出旧结论） | 代码已由 10-13 的 TTL 补丁修复；**本文补充的是"误读口径"与监控缺口**。 | `2026-10-13-alpha-cache-no-ttl-froze-two-months.md` |
 | 2026-10-12 | ★教训：单位口径差会造出**假警报**，而基于假警报的"修复"比不修更坏 | P2（无实际损失；但**差一步就把完好的数据改坏**） | 取证口径（单位/编码未对齐） | 已识别并挡住，无需修改 | `2026-10-12-unit-mismatch-fake-alarm.md` |
