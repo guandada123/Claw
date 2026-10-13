@@ -35,6 +35,18 @@ CHECKER = Path.home() / ".workbuddy" / "scripts" / "check_memory_visibility.py"
 TARGETS = [
     Path.home() / ".workbuddy" / "MEMORY.md",
     Path.home() / "WorkBuddy" / "Claw" / ".workbuddy" / "memory" / "MEMORY.md",
+    # 🔴 2026-10-14 新增：**实际被注入**的用户级记忆（平台 Layer 2）。旧路径
+    #   `~/.workbuddy/MEMORY.md` 自 10-11 起已冻结、不再被任何注入消费 ——
+    #   只查旧路径会给出「余量 599B 🟢」的**假绿灯**（实测被注入那份余量≈0B）。
+    #   上限取 check_memory_visibility.DEFAULT_LIMITS 里 2026-10-14 实测的 7,913B。
+    Path.home() / ".workbuddy" / "user-24688a34-03ff-4299-8736-08d5a6585c6b-personal" / "MEMORY.md",
+]
+
+# 日日志只存在于真正的 memory 目录。**不要从 TARGETS 父目录派生**：三份 MEMORY.md 的
+# 父目录是 ~/.workbuddy、~/.workbuddy/user-...-personal、Claw/.workbuddy/memory，前两处
+# 永远没有日日志 → 派生会多出两行「日日志 0 个」恒零噪音，很容易被读成「日志丢了」。
+LOG_DIRS = [
+    Path.home() / "WorkBuddy" / "Claw" / ".workbuddy" / "memory",
 ]
 
 DEFAULT_LIMIT = 7353
@@ -217,7 +229,7 @@ def main() -> int:
 
     rows, errors = evaluate(mod, TARGETS, args.threshold)
     low = [r for r in rows if r.get("status") == "low"]
-    daily = check_daily_log_anomalies([t.parent for t in TARGETS])
+    daily = check_daily_log_anomalies(LOG_DIRS)
 
     wired_ok, wired_detail = (True, "未检查（未加 --wired）")
     if args.wired:
