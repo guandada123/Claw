@@ -2386,6 +2386,51 @@
       "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/canonical_path_staleness.md && grep -q 'canonical\\|陈旧\\|路径' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/canonical_path_staleness.md",
       "suggestion": "Claw 学习（2026-10-13，P1）：『停滞 20 天』是路径混淆造的假警报——判『文件陈旧』前没先 resolve canonical 路径，符号链接/双份布局让判据打到了错误的文件。外部静默失效研究（clawdbytes：『探针跑出的数字不能直接当结论』）佐证：任何『陈旧/健康』判断必须锚定到单一真源路径。将『canonical 路径先于陈旧裁决』沉淀为 references/canonical_path_staleness.md（落在 unified-inspection-hub 治理技能下），并提示 staleness 判据脚本在裁决前先 resolve canonical。",
       "doc_target": "references/canonical_path_staleness.md"
+    },
+    {
+      "id": "disc-20261015-01",
+      "found_at": "2026-10-15",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-14-checker-watched-the-wrong-copy.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/memory_two_copy_consistency.md 新增『检查器必须校验被注入副本而非同源副本』小节，且记忆健康检查脚本存在对注入路径的引用（grep -rl 'injected' scripts/*memory*check* 命中），对余量负值（如 -2B）能标红而非报『零增长 🟢』",
+      "check_cmd": "grep -rq 'two.copy\\|injected' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/memory_two_copy_consistency.md 2>/dev/null && echo ok",
+      "doc_target": "references/memory_two_copy_consistency.md",
+      "suggestion": "用户级记忆存在两份副本，巡检检查器一直盯的是未被注入的那份，连报 6 天『零增长 🟢』而实际余量已是 -2B（云记忆缓存超限 606% 真实事故）。补一份记忆双副本一致性防护：检查器改为断言被注入副本的容量，负值即标红，并写入 references。"
+    },
+    {
+      "id": "disc-20261015-02",
+      "found_at": "2026-10-15",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-13-credential-validity-is-not-quota.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/credential_validity_vs_quota.md 新增『分离 auth 成功与 quota 耗尽』小节，且 API 健康检查/路由健康脚本存在对剩余额度字段的判定（grep -rl 'remaining_quota\\|quota' scripts/check_*auth* 命中 429/quota 分支）",
+      "check_cmd": "grep -rq 'validity.*quota\\|quota' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/credential_validity_vs_quota.md 2>/dev/null && echo ok",
+      "doc_target": "references/credential_validity_vs_quota.md",
+      "suggestion": "把耗竭型资源（DeepSeek 余额、Wind 积分）当成常量写进验收判据，导致『凭据有效』被误判为『可用』。外部实证（scixa 错误分类、nhimg 密钥校验）：401/403 与 429/quota 必须分舱，auth 成功 ≠ 服务额度够用。补一份凭据有效性 vs 额度治理文档并落到健康检查脚本。"
+    },
+    {
+      "id": "disc-20261015-03",
+      "found_at": "2026-10-15",
+      "status": "pending",
+      "track": "external_trend",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "url": "https://github.com/ArriveAstral/a-share-skill",
+      "value": "medium-high",
+      "risk": "low",
+      "success_metric": "references/a_stock_data_landscape.md 新增『ArriveAstral/a-share-skill 全栈套件（a-share-data + 模拟舱 + 选股/短线策略 skill）』条目并被 SKILL 索引引用",
+      "check_cmd": "grep -rq 'ArriveAstral' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/a_stock_data_landscape.md 2>/dev/null && echo ok",
+      "doc_target": "references/a_stock_data_landscape.md",
+      "suggestion": "新增 A股量化竞品套件 ArriveAstral/a-share-skill：零配置装、内置多源自动切换，且自带 a-share-paper-trading 模拟舱（限价/市价单、T+1/涨跌停校验、净值快照）与多个选股/短线策略 skill。本地 QTS 模拟盘逻辑可对照其交易规则约束实现；纳入趋势观察库。"
     }
   ],
   "known_failure_modes": [
@@ -2688,14 +2733,13 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-14T00:40:51+08:00",
+      "ts": "2026-10-15T00:40:56+08:00",
       "mode": "live",
       "selected": [
-        "disc-20261013-03",
-        "disc-20261014-01",
-        "disc-20261014-02"
+        "disc-20261014-03",
+        "disc-20261015-03"
       ],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261014.md"
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261015.md"
     },
     "calibrate_runs": 18,
     "rollback_point": "ced0979",
@@ -2750,7 +2794,7 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 18,
+    "live_runs": 19,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7,
     "skill_vcs_sha_latest": "f877552",
