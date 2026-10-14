@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-14T00:45:30+08:00",
+  "updated_at": "2026-10-15T00:45:30+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -2375,7 +2375,7 @@
     {
       "id": "disc-20261014-03",
       "found_at": "2026-10-14",
-      "status": "pending",
+      "status": "applied",
       "track": "project_signal",
       "target_project": "Claw",
       "skill": "unified-inspection-hub",
@@ -2385,7 +2385,18 @@
       "success_metric": "references/canonical_path_staleness.md 新增『判文件陈旧前必须先定 canonical 路径』小节，且被 unified-inspection_hub SKILL.md 或 staleness 判据脚本引用",
       "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/canonical_path_staleness.md && grep -q 'canonical\\|陈旧\\|路径' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/canonical_path_staleness.md",
       "suggestion": "Claw 学习（2026-10-13，P1）：『停滞 20 天』是路径混淆造的假警报——判『文件陈旧』前没先 resolve canonical 路径，符号链接/双份布局让判据打到了错误的文件。外部静默失效研究（clawdbytes：『探针跑出的数字不能直接当结论』）佐证：任何『陈旧/健康』判断必须锚定到单一真源路径。将『canonical 路径先于陈旧裁决』沉淀为 references/canonical_path_staleness.md（落在 unified-inspection-hub 治理技能下），并提示 staleness 判据脚本在裁决前先 resolve canonical。",
-      "doc_target": "references/canonical_path_staleness.md"
+      "doc_target": "references/canonical_path_staleness.md",
+      "applied_action": "unified-inspection-hub/references/canonical_path_staleness.md",
+      "resolved_at": "2026-10-15T00:45:30+08:00",
+      "resolution": "新建 unified-inspection-hub/references/canonical_path_staleness.md（5695B，纯增量新文件；来源本地 .learnings/2026-10-13-canonical-path-before-staleness-verdict.md 实测 3372B）+ CHANGELOG 追加 1 段。技能库 f877552→571e3d6，Claw 提交 e92583f。逆向回滚：`git -C ~/.workbuddy/skills revert 571e3d6`（或删该新文件 + 撤 CHANGELOG 段）+ `cd $CLAW && git revert --no-edit e92583f`。",
+      "landed_at": "2026-10-15",
+      "recheck_after_days": 7,
+      "metric_baseline": "FAIL（落地前目标文件不存在；候选自带 check_cmd 指向不存在的 Claw 侧目录 → rc=1）",
+      "metric_check_after_landing": "FAIL（候选自带 check_cmd 仍指向 /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/ —— 该目录不存在 → rc=1）；以正确落地根 ~/.workbuddy/skills/unified-inspection-hub/references/ 替换后等价命令 rc=0 PASS",
+      "metric_caveat": "success_metric 后半句「被 unified-inspection-hub/SKILL.md 或 staleness 判据脚本引用」属核心类（SKILL.md 主流程 / 脚本），本通道不改写 → 该半句本通道无法单独证真；本批仅完成「文档已落地」一半",
+      "skill_vcs_pre_sha": "f877552",
+      "skill_vcs_sha": "571e3d6",
+      "landed_commit": "e92583f"
     },
     {
       "id": "disc-20261015-01",
@@ -2420,7 +2431,7 @@
     {
       "id": "disc-20261015-03",
       "found_at": "2026-10-15",
-      "status": "pending",
+      "status": "applied",
       "track": "external_trend",
       "target_project": "meta",
       "skill": "a-stock-data",
@@ -2430,7 +2441,18 @@
       "success_metric": "references/a_stock_data_landscape.md 新增『ArriveAstral/a-share-skill 全栈套件（a-share-data + 模拟舱 + 选股/短线策略 skill）』条目并被 SKILL 索引引用",
       "check_cmd": "grep -rq 'ArriveAstral' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/a_stock_data_landscape.md 2>/dev/null && echo ok",
       "doc_target": "references/a_stock_data_landscape.md",
-      "suggestion": "新增 A股量化竞品套件 ArriveAstral/a-share-skill：零配置装、内置多源自动切换，且自带 a-share-paper-trading 模拟舱（限价/市价单、T+1/涨跌停校验、净值快照）与多个选股/短线策略 skill。本地 QTS 模拟盘逻辑可对照其交易规则约束实现；纳入趋势观察库。"
+      "suggestion": "新增 A股量化竞品套件 ArriveAstral/a-share-skill：零配置装、内置多源自动切换，且自带 a-share-paper-trading 模拟舱（限价/市价单、T+1/涨跌停校验、净值快照）与多个选股/短线策略 skill。本地 QTS 模拟盘逻辑可对照其交易规则约束实现；纳入趋势观察库。",
+      "applied_action": "a-stock-data/references/a_stock_data_landscape.md",
+      "resolved_at": "2026-10-15T00:45:30+08:00",
+      "resolution": "新建 a-stock-data/references/a_stock_data_landscape.md（6992B，纯增量新文件；来源 https://github.com/ArriveAstral/a-share-skill 实测 HTTP 200，功能项逐条取自仓库 README）+ CHANGELOG 追加 1 段。技能库 f877552→571e3d6，Claw 提交 e92583f。逆向回滚：`git -C ~/.workbuddy/skills revert 571e3d6`（或删该新文件 + 撤 CHANGELOG 段）+ `cd $CLAW && git revert --no-edit e92583f`。",
+      "landed_at": "2026-10-15",
+      "recheck_after_days": 7,
+      "metric_baseline": "FAIL（落地前目标文件不存在；候选自带 check_cmd 指向不存在的 Claw 侧目录 → rc=2）",
+      "metric_check_after_landing": "FAIL（候选自带 check_cmd 仍指向 /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/ —— 该目录不存在 → rc=2）；以正确落地根 ~/.workbuddy/skills/a-stock-data/references/ 替换后等价命令 rc=0 PASS",
+      "metric_caveat": "success_metric 后半句「被 SKILL 索引引用」需改 SKILL.md（核心类），本通道不改写 → 该半句本通道无法单独证真",
+      "skill_vcs_pre_sha": "f877552",
+      "skill_vcs_sha": "571e3d6",
+      "landed_commit": "e92583f"
     }
   ],
   "known_failure_modes": [
@@ -2742,7 +2764,7 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261015.md"
     },
     "calibrate_runs": 18,
-    "rollback_point": "ced0979",
+    "rollback_point": "e92583f",
     "p0_landed_at": "2026-09-24",
     "parity_verifier": ".workbuddy/scripts/doc_apply_parity.py",
     "parity_ledger": ".workbuddy/inspection_hub/calibration/parity.json",
@@ -2797,19 +2819,18 @@
     "live_runs": 19,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7,
-    "skill_vcs_sha_latest": "f877552",
-    "skill_vcs_pre_sha": "819e62a",
+    "skill_vcs_sha_latest": "571e3d6",
+    "skill_vcs_pre_sha": "f877552",
     "last_landing": {
-      "date": "2026-10-14",
-      "count": 3,
+      "date": "2026-10-15",
+      "count": 2,
       "ids": [
-        "disc-20261013-03",
-        "disc-20261014-01",
-        "disc-20261014-02"
+        "disc-20261014-03",
+        "disc-20261015-03"
       ],
-      "commit": "ced0979",
-      "skill_vcs_pre_sha": "819e62a",
-      "skill_vcs_sha": "f877552"
+      "commit": "e92583f",
+      "skill_vcs_pre_sha": "f877552",
+      "skill_vcs_sha": "571e3d6"
     }
   },
   "_state_sync_notes": [
@@ -2861,7 +2882,8 @@
     "2026-10-13 live 第 5 批（supervised 前 3 批已过 → 无异常静默，本条仅留痕）：落地 3 条文档类候选 disc-20261012-01/unified-inspection-hub/references/counting_trap_guardrails.md、disc-20261012-03/majiu-management/references/skill_output_contract.md、disc-20261013-01/majiu-management/references/security_skill_authoring.md（全部新建=纯增量，self_audit 三条全过）。技能库：落地前 HEAD b332fe1 → 落地后 819e62a（**显式限定路径提交**：技能库工作区含其它自动化 4 改 3 删在飞改动，故未用 `$VCS snapshot`（它会 `add -A` 扫走他人改动），改用 `git -C $SKILLS add <本批 5 路径>` + commit，提交后 `git status` 复核他人改动仍在 → 未扫走，属结构性避让而非事后补救）。Claw 仓提交 f63a18b（仅 registry/parity/apply_dryrun_20261013.md；提交被 pre-commit `end-of-file-fixer` 拦一次 → 复验 JSON 后重提成功）。复检：parity rc=0/ok=true/violations=[]/gaps=[]；hub_reconcile rc=0、D1–D9 全空、clean=true（连续第 9 日全绿）。metric_alert=false（blocked_metric=0）→ 未推、未触碰 last_metric_alert_at。check_cmd 实测：disc-20261013-01 **rc=0 通过**（落地根正确）；disc-20261012-01/-03 **rc=1 恒 FAIL**（check_cmd 仍写 Claw 侧路径）—— 但闸门 `blocked_check_cmd=0`，已单列 finding（见下条）。",
     "2026-10-13 ★ 新发现并登记 disc-20261013-04（pending + needs_review=true → 转周度审；无 doc_target，本通道设计内排除）：`apply_doc_candidates.py::check_cmd_bad_paths` 的 2026-10-12 修把**误报换成漏报** —— 判别只看**后缀**不看**目录前缀**，故 `Claw/.workbuddy/inspection_hub/references/X.md`（目录不存在）与真实落地根同被跳过，于是 check_cmd 恒 FAIL 而闸门报 `blocked_check_cmd=0` —— **指标永远到不了期却不再告警**，比 disc-20261011-04（那时至少会拦）更隐蔽。本日 3 条候选命中 2 条。药方=按 `skills_dir/<skill>/doc_target` 解析**全路径相等**才跳过；并要求产出侧 check_cmd 一律用 `$HOME/.workbuddy/skills/...` 绝对根。属核心类（脚本）→ 本通道不改写，转周度审。",
     "2026-10-14 文档类落地 live 第 6 批：落地 3 条（disc-20261013-03 / disc-20261014-01 / disc-20261014-02），全部为新建 references/*.md（纯增量）。技能库回滚点 819e62a → f877552；Claw 账本提交 ced0979。对拍写前/写后均 rc=0 / ok=true / violations=[]；hub_reconcile rc=0 全绿，无需回滚。check_cmd 落地后 2/3 PASS；disc-20261014-01 的 check_cmd 仍 FAIL —— 属产出侧路径写法缺陷（同 disc-20261011-04/disc-20261013-04），已登记未修。",
-    "2026-10-14 ⚠️ 指标闸未触发：blocked_metric=1（disc-20261013-04 因无 success_metric 被拦）但 metric_alert=false 且 metric_alert_raw=false —— 未达 metric_alert_min=3 阈值。故本日不推指标闸提示、不触碰 last_metric_alert_at（节流状态源保持 null）。"
+    "2026-10-14 ⚠️ 指标闸未触发：blocked_metric=1（disc-20261013-04 因无 success_metric 被拦）但 metric_alert=false 且 metric_alert_raw=false —— 未达 metric_alert_min=3 阈值。故本日不推指标闸提示、不触碰 last_metric_alert_at（节流状态源保持 null）。",
+    "2026-10-15 doc-apply(live): 落地 2 条文档类候选 → unified-inspection-hub/references/canonical_path_staleness.md (disc-20261014-03)、a-stock-data/references/a_stock_data_landscape.md (disc-20261015-03)；技能库 f877552→571e3d6，Claw 提交 e92583f；parity rc=0/ok=true/violations=[]，hub_reconcile rc=0/D1-D9 全空；rollback_point→e92583f。⚠️ 两条候选自带 check_cmd 落地后原样 2/2 FAIL（均硬编码不存在的 Claw 侧路径 Claw/.workbuddy/inspection_hub/references/），以正确落地根替换后 2/2 PASS → 落地成功、内容闸通过，属**产出侧 check_cmd 路径写法缺陷**（disc-20261011-04 / disc-20261013-04 / disc-20261014-01 / disc-20261014-03 / disc-20261015-03 累计 5 例）。闸门本日报 blocked_check_cmd=0（run#19 已登记的「后缀匹配漏报」常驻再现，第 3 次）。⛔ 未写 automations[].last_run/next_run；本轮 metric_alert=false 故未触碰 last_metric_alert_at。"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
