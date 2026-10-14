@@ -91,6 +91,7 @@ ruff check --config ruff.toml <path>          # line-length=100，E501 忽略
 | **Token / 积分花在哪了** | `.workbuddy/reports/token-dashboard.html`（用量看板）+ `credit-vs-token.md`（三源对齐、实测积分/百万 token）；两者每日 06:30 由「📊 Token 用量看板 + 积分对齐（每日刷新）」自动刷新，也可说一句"看看我的 token 用量" |
 | **消耗数字该信哪个**（口径台账：token/积分/自记成本谁是真的） | `.workbuddy/docs/consumption-ledger.md` —— 新增任何「花了多少」前先在这里认领源 |
 | 技能怎么发现的 | 直接看技能列表；重复/失效用 `skill-library-audit` |
+| **什么叫做成**（验收标准：止损违规计数 / 仓位带 / 回撤上限 / 滚动超额 / 净值数据完整性） | `.workbuddy/docs/acceptance-criteria.md`（2026-10-15 定；**1、2 为准入项**——不合格即整月不合格，不看收益） |
 
 ### 数据目录正典路径（2026-10-14 双目录专项固化 · PA-022）
 
