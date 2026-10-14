@@ -1,12 +1,14 @@
 """check_disposal_triggers 测试 — 处置触发器（2026-10-11 方案配套）。
 
-钉住五件事：
+钉住六件事：
   ① T1/T2/T3 三条触发器的判定口径（含边界）；
   ② 「结构变化 → 基线重置、计时归零」（否则减仓后还会被追着报"无动作"）；
   ③ 达成 ≤50% → 明确提示「触发器可退休」（机制要能自己退场，不然会变噪音）；
   ④ **T1 独立于处置目标**：集中度已达标也不能吞掉深度亏损告警；
   ⑤ 日历口径：不可用即自然日降级并**如实标注**；且**用例不得依赖外部日历文件**
      （2026-10-11 事故：该文件当时未入库 → CI 里降级为自然日 → 本文件在 CI 红）。
+  ⑥ **M1 市场级关注点**（2026-10-15 用户指令「关注点调整为 3764 点」）：上证收盘 ≤ 3764 触发；
+     取数失败必须**判不了**（不触发、不谎报距离）——否则会把 T1/T2/T3 一起带崩。
 """
 
 from __future__ import annotations
@@ -321,7 +323,7 @@ def test_rps_history_keys_by_data_date(tmp_path, monkeypatch):
         created_days_ago=1,
         rps=15.0,
         report_date="2026-10-11",  # 生成日（周日）
-        data_date="2026-10-09",    # 数据日（周五收盘）
+        data_date="2026-10-09",  # 数据日（周五收盘）
     )
     _run(monkeypatch)
     assert list(_history(tmp_path)["半导体"]) == ["2026-10-09"], "应按数据日入键，而不是生成日"
@@ -378,8 +380,15 @@ def test_history_persists_across_runs(tmp_path, monkeypatch):
     T2「连续 ≥3 个不同日期」结构性不可达，而脚本一直"看起来在跑"。
     """
     _fixed_calendar(monkeypatch)
-    _seed(tmp_path, monkeypatch, _CONCENTRATED, created_days_ago=1, rps=15.0,
-          report_date="2026-10-08", data_date="2026-10-08")
+    _seed(
+        tmp_path,
+        monkeypatch,
+        _CONCENTRATED,
+        created_days_ago=1,
+        rps=15.0,
+        report_date="2026-10-08",
+        data_date="2026-10-08",
+    )
     _run(monkeypatch)
     assert (tmp_path / "rps_history.json").exists(), "跑完必须落盘"
 
@@ -396,9 +405,66 @@ def test_t2_can_actually_fire_across_three_data_dates(tmp_path, monkeypatch):
             monkeypatch,
             _CONCENTRATED,
             created_days_ago=1,
-            rps=15.0,              # 持续弱：RPS 15 < 20
+            rps=15.0,  # 持续弱：RPS 15 < 20
             report_date=dd,
             data_date=dd,
         )
         rc = _run(monkeypatch)
     assert rc == 1, "三个不同数据日持续弱 → T2 应触发（修前恒为 0）"
+
+
+# ══════════════════════════════════════════════════════
+# M1 市场级关注点（2026-10-15 用户指令：「将关注点调整为 3764 点」）
+# ══════════════════════════════════════════════════════
+
+
+def test_m1_breaks_at_or_below_focus_level():
+    """边界：上证收盘 ≤ 3764 → 触发（**含等于**）；> 3764 → 不触发，且距离为真实差值。"""
+    pf = _portfolio([])
+    assert cdt.evaluate(pf, {}, "半导体", [], sse_close=3763.99)["m1_break"] is True
+    assert cdt.evaluate(pf, {}, "半导体", [], sse_close=3764.0)["m1_break"] is True  # 等于即破
+    m = cdt.evaluate(pf, {}, "半导体", [], sse_close=3767.23)  # 2026-10-14 实测收盘
+    assert m["m1_break"] is False
+    assert m["sse_dist"] == pytest.approx(3.23, abs=0.01)
+
+
+def test_m1_unknown_when_fetch_fails():
+    """取数失败 → **判不了**：不得触发、不得谎报距离（绝不用旧值/臆造值冒充）。"""
+    m = cdt.evaluate(_portfolio([]), {}, "半导体", [], sse_close=None)
+    assert m["m1_break"] is False
+    assert m["sse_close"] is None and m["sse_dist"] is None
+
+
+def test_m1_does_not_depend_on_other_fields():
+    """M1 只吃上证收盘价：持仓／板块／RPS 怎么变都不影响它（防被别的分支短路）。"""
+    pf = _portfolio(
+        [
+            {
+                "code": "002185",
+                "name": "华天",
+                "shares": 500,
+                "avg_cost": 22.829,
+                "current_price": 14.72,
+            }
+        ]
+    )
+    cache = {"002185": "半导体"}
+    for series in ([], [10.0, 12.0, 15.0]):
+        assert cdt.evaluate(pf, cache, "半导体", series, sse_close=3760.0)["m1_break"] is True
+
+
+def test_focus_level_and_code_are_pinned():
+    """把用户指定的关注点钉住（改它必须是有意为之，不能随手漂）。"""
+    assert cdt.SSE_FOCUS_LEVEL == 3764.0
+    assert cdt.SSE_CODE == "sh000001"
+    assert cdt.SSE_KLINE_URL.startswith("https://web.ifzq.gtimg.cn/")  # 行情走腾讯
+
+
+def test_fetch_failure_returns_none_not_raises(monkeypatch):
+    """取数异常必须被吞成 (None, None)，不能把触发器整体炸掉（否则 T1/T2/T3 一起失效）。"""
+
+    def boom(*_a, **_k):
+        raise OSError("network down")
+
+    monkeypatch.setattr("urllib.request.urlopen", boom)
+    assert cdt.fetch_sse_close() == (None, None)
