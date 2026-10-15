@@ -3,13 +3,14 @@
 > ⚠️ **本文件由 `learnings_index.py` 自动生成，请勿手改**（改了会在下次生成时被覆盖）。
 > 权威内容是 `.learnings/*.md` 正文；本文件只是**派生视图**。
 > ⚠️ 手工维护的 `LEARNINGS.md` 里的**浓缩条目不在本表内**（它已停更，见其抬头说明）。
-> 生成时间：2026-10-15 17:14　｜　条目数：**119**
+> 生成时间：2026-10-16 03:40　｜　条目数：**120**
 
-- **按类型**：correction×5　blind-spot×4　取证口径×2　false-positive×2　engineering_practice×2　分析口径错误×2　归因错误×2　forensics-caliber×1　silent-degradation / 计量缺口×1　multi-session-push-interference / contract-change-missed-test-sync×1　silent-degradation / path-split-brain×1　verification-scope-blindspot×1　destructive-op sequencing / verify-vacuous×1　取证口径错误 / canonical-path blindspot×1　engineering_practice / guard-interaction×1　forensics-scope-blindspot×1　data-integrity / silent-stale-downstream×1　process / data-integrity×1　machine-maintenance / correction×1　incomplete-consumer-sweep×1　工具语义误用×1　self-checker-blind×1　silent-dead-mechanism×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　best_practice×1　knowledge_gap×1　根因定案×1　（另有 75 条未标注该字段）
-- **按等级**：P1×30　P2×10　P0×5　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 71 条未标注该字段）
+- **按类型**：correction×5　blind-spot×4　取证口径×2　false-positive×2　engineering_practice×2　分析口径错误×2　归因错误×2　blind-spot / invariant-erased-the-dimension-it-broke　+　destructive-fixer writes parser failure×1　forensics-caliber×1　silent-degradation / 计量缺口×1　multi-session-push-interference / contract-change-missed-test-sync×1　silent-degradation / path-split-brain×1　verification-scope-blindspot×1　destructive-op sequencing / verify-vacuous×1　取证口径错误 / canonical-path blindspot×1　engineering_practice / guard-interaction×1　forensics-scope-blindspot×1　data-integrity / silent-stale-downstream×1　process / data-integrity×1　machine-maintenance / correction×1　incomplete-consumer-sweep×1　工具语义误用×1　self-checker-blind×1　silent-dead-mechanism×1　取证口径错误×1　time-dependent test×1　environment-drift / silent-fallback×1　silent-failure / false-success×1　silent-pass×1　false_positive_generator / counting_trap×1　best_practice×1　knowledge_gap×1　根因定案×1　（另有 75 条未标注该字段）
+- **按等级**：P1×31　P2×10　P0×5　P0 级风险 × 手动取证险些失手×1　🔴 高×1　✅已升级(2026-09-06) ×2×1　（另有 71 条未标注该字段）
 
 | 日期 | 标题 | 等级 | 类型 | 状态 | 文件 |
 |---|---|---|---|---|---|
+| 2026-10-16 | ★升级候选 —— 「不变式」擦掉了被改动的那个维度：一条批量排印改写吃掉 76 个 bullet，而内容不变式全程绿灯 | P1（**盲区 + 破坏性**：一次本应"零语义"的批量改写把全部规则行的 bullet 语法改坏， | blind-spot / invariant-erased-the-dimension-it-broke　+　destructive-fixer writes parser failure | 已修复（从备份逐字节还原后重做），并给写盘型修复器装上合理性闸门 + 证伪实验。 | `2026-10-16-invariant-erased-the-dimension-it-broke.md` |
 | 2026-10-15 | 判据的「口径」也会说谎：把「恰好贴边（余量 0B）」报成「已经溢出 2B」 | P1（**假失败**：检查器连续两轮报告一个不存在的事实，会诱导「去修不存在的溢出」或「学会忽略这条红」） | forensics-caliber（判据的度量口径与它所回答的问题不同口径 · false-positive） | 已修复（口径修正 + 证伪实验），2026-10-15；规则层余量 0B 的**结构性处置**待用户决定 | `2026-10-15-predicate-caliber-renders-touching-as-overflow.md` |
 | 2026-10-15 | ★升级候选 —— 「降级可见」≠「降级被计量」：61/300 只代码静默回退 T-1 旧K线，评估仍报"正常" | P1（**结论可信度**——20% 面板缺当日 K 线，而报告/退出码/达标数全部显示正常；本次 kept 结论未被翻转，但机制可复现） | silent-degradation / 计量缺口（降级有 WARNING 但未进入健康判据） | 本次未改代码；缓存已由复测自然重写（现 293/300 终点为 10-15）。规则缺口待固化。 | `2026-10-15-degraded-fallback-visible-but-unmetered.md` |
 | 2026-10-14 | ★升级候选 —— 「未 push」的兄弟提交会骑乘你的 push 进 CI：契约变更必须同步搜测试依赖点 | P2（CI 红 + 一次跨会话返工；无生产影响——功能改动本身是合理的） | multi-session-push-interference / contract-change-missed-test-sync | 已修复（测试补 patch LOG_DIRS，commit `2d7feaa`）；本仓多会话并行是设计常态，此类连锁属系统性风险点。 | `2026-10-14-unpushed-sibling-rides-your-push.md` |
