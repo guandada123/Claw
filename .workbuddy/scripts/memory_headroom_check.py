@@ -167,6 +167,11 @@ def evaluate(mod, targets: list[Path], threshold: int) -> tuple[list[dict], list
             errors.append(f"{f}: 解析不出 rule_off（结构可能变了），无法判定可见余量")
             continue
         headroom = limit - rule_off
+        # 物理口径（2026-10-17 新增，只作信息、不参与 rc）：
+        #   余量的物理约束不是 500B 这个人为阈值，而是「最长的那一条规则有多长」——
+        #   余量 ≥ 最长规则 ⇒ 任何**单条**新规则都不会把尾部挤出可见区。
+        #   与阈值是两件事，故分别给出，避免用一个判据同时答两件事（Step 0.30）。
+        longest_rule = info.get("longest_rule")
         rows.append(
             {
                 "file": str(f),
@@ -174,6 +179,12 @@ def evaluate(mod, targets: list[Path], threshold: int) -> tuple[list[dict], list
                 "rule_off": rule_off,
                 "headroom": headroom,
                 "rules": info.get("rules"),
+                "longest_rule": longest_rule,
+                "physical_ok": (
+                    None
+                    if not isinstance(longest_rule, int) or longest_rule <= 0
+                    else headroom >= longest_rule
+                ),
                 "status": "ok" if headroom >= threshold else "low",
                 "existing_problems": list(problems),
             }
@@ -257,10 +268,19 @@ def main() -> int:
                 print(f"⚪ {r['file']} → {r['skipped']}")
                 continue
             mark = "🟢" if r["status"] == "ok" else "🔴"
+            phys = r.get("physical_ok")
+            phys_txt = (
+                ""
+                if not isinstance(r.get("longest_rule"), int) or r["longest_rule"] <= 0
+                else (
+                    f" | 最长规则 {r['longest_rule']}B | 物理口径 "
+                    + ("✅ 余量≥最长规则" if phys else "⚠️ 余量<最长规则（再写长规则会溢出）")
+                )
+            )
             print(
                 f"{mark} {r['file']}\n"
                 f"     上限 {r['limit']}B | 规则止 {r['rule_off']}B | "
-                f"**可见余量 {r['headroom']}B** | 规则 {r['rules']} 条"
+                f"**可见余量 {r['headroom']}B** | 规则 {r['rules']} 条" + phys_txt
             )
         for d in daily:
             print(
@@ -293,11 +313,18 @@ def main() -> int:
         for e in errors:
             print(f"🔴 {e}")
         if low:
+            phys_all_ok = all(r.get("physical_ok") is True for r in low)
             print(
                 f"\n🔴 {len(low)} 个文件可见余量 < {args.threshold}B —— "
                 "再加铁律就会把末尾规则挤出可见区（写进去=模型读不到=白写）。"
                 "处置：蒸馏/合并规则，或上调该文件的实测上限口径。"
             )
+            if phys_all_ok:
+                print(
+                    "   ℹ️ 物理口径复核：这些文件的余量 ≥ 各自最长单条规则 → "
+                    "**再加 1 条规则不会溢出**；本条红是**阈值口径**问题"
+                    "（500B vs 技能 Step 0.20 验收线 300B），非物理约束被突破。"
+                )
         if args.wired:
             print(f"{'🟢' if wired_ok else '🔴'} 接线自检: {wired_detail}")
 
