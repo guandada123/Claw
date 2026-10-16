@@ -146,6 +146,27 @@ def match_resonance(pool_name: str, res_map: dict) -> int:
 
 
 # ---------------------------------------------------------------------------
+def _to_ts_code(code):
+    """裸码 → 本池使用的 ts_code。
+
+    StockInsight 等上游产出裸码（600036 / 300750），本脚本的池键与 QTS Postgres
+    daily_quote.ts_code 用的是带后缀格式（600036.SH / 300750.SZ）→ 必须归一化，
+    否则 --codes 会 0 命中（2026-10-16 实测踩到）。
+    """
+    c = (code or "").strip()
+    if "." in c:  # 已是 ts_code
+        return c
+    if not c:
+        return c
+    if c.startswith(("60", "68", "51", "11")):
+        return f"{c}.SH"
+    if c.startswith(("00", "30", "12", "15")):
+        return f"{c}.SZ"
+    if c.startswith(("8", "92")):
+        return f"{c}.BJ"
+    return f"{c}.SZ"  # 兜底：深市
+
+
 def load_pool():
     with open(POOL_PATH, encoding="utf-8") as f:
         return json.load(f)  # ts_code -> {avg_amt, name}
@@ -295,6 +316,16 @@ def main():
     ap = argparse.ArgumentParser(description="本地全市场(含创业板) COMBO 选股扫描")
     ap.add_argument("--limit", type=int, default=None, help="仅扫描前 N 只（按池顺序），默认全池")
     ap.add_argument(
+        "--codes",
+        type=str,
+        default=None,
+        help=(
+            "只扫描指定代码：逗号分隔（如 600036,300750），或 @文件路径 "
+            "（文件内逗号/换行分隔均可）。用于消费 StockInsight 的候选、"
+            "只补算 COMBO/ADX，避免重复全市场扫描。不传则行为与原来一致。"
+        ),
+    )
+    ap.add_argument(
         "--no-gtimg", action="store_true", help="关闭 qt.gtimg.cn 实时行情兜底，仅用历史日线"
     )
     args = ap.parse_args()
@@ -304,6 +335,29 @@ def main():
 
     pool = load_pool()
     codes = list(pool.keys())
+
+    # 指定代码过滤（2026-10-16 新增）：向后兼容，不传 --codes 时与旧行为完全一致
+    if args.codes:
+        raw = args.codes.strip()
+        if raw.startswith("@"):
+            with open(raw[1:], encoding="utf-8") as f:
+                raw = f.read()
+        wanted_raw = {c.strip() for c in raw.replace("\n", ",").split(",") if c.strip()}
+        # 本池键为 ts_code（600036.SH / 300750.SZ），而 StockInsight 等上游产出裸码
+        # （600036 / 300750）→ 归一化后再匹配，否则会 0 命中。
+        wanted = {_to_ts_code(c) for c in wanted_raw}
+        before = len(codes)
+        codes = [c for c in codes if c in wanted]
+        missing = sorted(wanted - set(codes))
+        print(f"[INFO] --codes 指定 {len(wanted)} 只，池内命中 {len(codes)} 只（原池 {before} 只）")
+        if missing:
+            print(
+                f"[WARN] 池中不存在 {len(missing)} 只：{missing[:8]}{' ...' if len(missing) > 8 else ''}"
+            )
+        if not codes:
+            print("[ERROR] --codes 过滤后为空，不产出结果（避免写出误导性的空扫描）")
+            return 2
+
     if limit:
         codes = codes[:limit]
     resonance = load_resonance()  # {股票名: 推荐篇数}，仅共振股
