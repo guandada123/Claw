@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-15T08:00:13+08:00",
+  "updated_at": "2026-10-16T23:03:59",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -137,7 +137,7 @@
       "name": "🛡️ 巡检中枢存活看门狗（每6h）",
       "id": "automation-1786000625371",
       "rrule": "FREQ=HOURLY;INTERVAL=6;BYDAY=MO,TU,WE,TH,FR,SA,SU",
-      "status": "ACTIVE",
+      "status": "PAUSED",
       "note": "2026-09-24 由 hub_reconcile 审计补登记（原清单只覆盖发现-演进回路，缺健康/治理/维护类 → 清单落后于现实）"
     },
     {
@@ -2453,6 +2453,65 @@
       "skill_vcs_pre_sha": "f877552",
       "skill_vcs_sha": "571e3d6",
       "landed_commit": "e92583f"
+    },
+    {
+      "id": "disc-20261016-01",
+      "found_at": "2026-10-16",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-15-predicate-caliber-renders-touching-as-overflow.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/memory_visibility_predicate_caliber.md 新增『判据字节口径单测』小节（含 0B 贴边/正值/负值 三态黄金用例），且该小节被 check_memory_visibility.py 的 SKILL.md 或 README 引用；CI 中 pytest tests/test_check_memory_visibility.py 含 caliber 用例且全绿",
+      "check_cmd": "cd /Users/guan/WorkBuddy/Claw && test -f references/memory_visibility_predicate_caliber.md && grep -q 'caliber\\|口径' references/memory_visibility_predicate_caliber.md && echo ok || echo missing",
+      "suggestion": "将 2026-10-15 学习『判据口径也会说谎：余量 0B 被报成溢出 2B』固化为可复用护栏：为 check_memory_visibility.py 的字节口径判定补黄金单测（0B 贴边/正值/负值三态），把『判据必须可证伪』写进 references/，防止口径漂移再次假红。",
+      "doc_target": "references/memory_visibility_predicate_caliber.md"
+    },
+    {
+      "id": "disc-20261016-02",
+      "found_at": "2026-10-16",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-15-degraded-fallback-visible-but-unmetered.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/degradation_must_be_metered.md 新增『降级须进健康判据』小节，且 alpha_eval.py（或对应评估脚本）的退出码/健康判据包含『回退样本占比』阈值（如 T-1 回退 > 5% 即告警），CI 中对应测试存在且全绿",
+      "check_cmd": "cd /Users/guan/WorkBuddy/Claw && test -f references/degradation_must_be_metered.md && grep -q 'metered\\|计量\\|回退' references/degradation_must_be_metered.md && echo ok || echo missing",
+      "suggestion": "将 2026-10-15 学习『降级可见≠降级被计量：61/300 只静默回退 T-1 旧K线，评估仍报正常』固化为护栏：评估脚本必须把『降级/回退样本占比』纳入健康判据，WARNING 不等于健康。",
+      "doc_target": "references/degradation_must_be_metered.md"
+    },
+    {
+      "id": "disc-20261016-03",
+      "found_at": "2026-10-16",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-13-bulk-delete-trips-safe-delete-guard.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/cache_cleanup_sharded.md 新增『批量清扫必须分片（单批 ≤ 安全护栏阈值，且跨批先验证上一删除批次生效）』小节，且清扫脚本（cache cleanup）实现分片逻辑；CI/单测含『单批超限触发分片』用例且全绿",
+      "check_cmd": "cd /Users/guan/WorkBuddy/Claw && test -f references/cache_cleanup_sharded.md && grep -q '分片\\|shard\\|safe-delete' references/cache_cleanup_sharded.md && echo ok || echo missing",
+      "suggestion": "将 2026-10-13 学习『缓存清扫一次删 1861 文件撞 safe-delete 护栏打断评估链』固化为护栏：批量清扫必须分片到安全护栏阈值以下，且跨批先验证上一批删除已生效再继续，避免整条评估链被 SAFE_DELETE_BULK_CONFIRM 打断。",
+      "doc_target": "references/cache_cleanup_sharded.md"
+    },
+    {
+      "id": "disc-20261016-04",
+      "found_at": "2026-10-16",
+      "status": "pending",
+      "class": "core",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "unified-inspection-hub",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/registry.json",
+      "value": "high",
+      "risk": "low",
+      "needs_review": true,
+      "suggestion": "【产出侧回归·当日新候选 100% 无法落地】2026-10-16 闸门 apply_doc_candidates.py 报 dropped_by_code.host=5，其中当日新产 3 条（disc-20261016-01/02/03）**全部** `skill` 字段为空 → 被 quality_gate.require_host 以「承载方缺失: (空)」拦下（脚本 apply_doc_candidates.py:258 `if g.get('require_host') and (not skill or not (skills_dir/skill).is_dir())`）。分日统计 skill 为空占比：10-14 = 0/3 → 10-15 = 2/3 → 10-16 = **3/3**，且 10-15 的 disc-20261015-01/02 至今日仍 pending 未回填 → **不是偶发遗漏，是产出侧逐日升级的全量回归**。后果：本通道（统一发现回路·落地半程）对当日新候选**100% 失效**，连续多日零落地；且因闸门把 host 排在 doc_target/success_metric 之前，回归会被静默为「无过闸候选」（铁律❹ SILENT），**用户侧看不到通道已停摆**。根因已于 disc-20261012-01 的 skill_filled_note 记明：**登记端 validate_candidate 判据（「有 skill 或 有真实项目锚点」）比落地端 require_host（必须有 skill 且目录存在）更松**，两端口径不一致；10-12 那条靠人工补 skill_filled_note 才落地，**没有修根**，故 10-15 起复发并升级。药方（二选一，建议 a+b 同做）：(a) 把登记端 validate_candidate 与落地端 require_host **统一为同一判据**——若保留「项目锚点」豁免，则落地端 require_host 对 target_project 有值且锚点可解析的候选，应以 target_project 推导承载 skill 而非直接拦；(b) 产出侧（🛡️ 统一发现-每日扫描）**必须**在写入 registry 前填 `skill`，并把「skill 空」列为登记失败（拒收）而非事后补注。验收须可证伪：造一条 skill 为空的候选，登记端必须**拒收或自动补全**，落地端不得静默降级为「普通滤除」；且连续出现 ≥3 条同因 host 拦截时，闸门须置 `host_alert=true`（对齐 v1.10 metric_alert 的防静默设计）——否则「产出侧坏了」永远渲染成「今天没有可落地候选」。⚠️ 同批另证：本日 3 条新候选的 check_cmd 仍硬编码 Claw 侧根（`cd /Users/guan/WorkBuddy/Claw && test -f references/…`），而 `Claw/references` 与 `Claw/.workbuddy/inspection_hub/references` **实测均不存在**（真实落地根为 `$HOME/.workbuddy/skills/<skill>/references`）→ check_cmd 恒 FAIL；因 host 先拦，闸门仍报 `blocked_check_cmd=0`，**disc-20261013-04 登记的「后缀匹配漏报」第 4 次常驻再现**（累计 6 例）。"
     }
   ],
   "known_failure_modes": [
@@ -2755,13 +2814,10 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-15T00:40:56+08:00",
+      "ts": "2026-10-16T00:40:46+08:00",
       "mode": "live",
-      "selected": [
-        "disc-20261014-03",
-        "disc-20261015-03"
-      ],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261015.md"
+      "selected": [],
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261016.md"
     },
     "calibrate_runs": 18,
     "rollback_point": "e92583f",
@@ -2816,7 +2872,7 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 19,
+    "live_runs": 20,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7,
     "skill_vcs_sha_latest": "571e3d6",
@@ -2883,7 +2939,9 @@
     "2026-10-13 ★ 新发现并登记 disc-20261013-04（pending + needs_review=true → 转周度审；无 doc_target，本通道设计内排除）：`apply_doc_candidates.py::check_cmd_bad_paths` 的 2026-10-12 修把**误报换成漏报** —— 判别只看**后缀**不看**目录前缀**，故 `Claw/.workbuddy/inspection_hub/references/X.md`（目录不存在）与真实落地根同被跳过，于是 check_cmd 恒 FAIL 而闸门报 `blocked_check_cmd=0` —— **指标永远到不了期却不再告警**，比 disc-20261011-04（那时至少会拦）更隐蔽。本日 3 条候选命中 2 条。药方=按 `skills_dir/<skill>/doc_target` 解析**全路径相等**才跳过；并要求产出侧 check_cmd 一律用 `$HOME/.workbuddy/skills/...` 绝对根。属核心类（脚本）→ 本通道不改写，转周度审。",
     "2026-10-14 文档类落地 live 第 6 批：落地 3 条（disc-20261013-03 / disc-20261014-01 / disc-20261014-02），全部为新建 references/*.md（纯增量）。技能库回滚点 819e62a → f877552；Claw 账本提交 ced0979。对拍写前/写后均 rc=0 / ok=true / violations=[]；hub_reconcile rc=0 全绿，无需回滚。check_cmd 落地后 2/3 PASS；disc-20261014-01 的 check_cmd 仍 FAIL —— 属产出侧路径写法缺陷（同 disc-20261011-04/disc-20261013-04），已登记未修。",
     "2026-10-14 ⚠️ 指标闸未触发：blocked_metric=1（disc-20261013-04 因无 success_metric 被拦）但 metric_alert=false 且 metric_alert_raw=false —— 未达 metric_alert_min=3 阈值。故本日不推指标闸提示、不触碰 last_metric_alert_at（节流状态源保持 null）。",
-    "2026-10-15 doc-apply(live): 落地 2 条文档类候选 → unified-inspection-hub/references/canonical_path_staleness.md (disc-20261014-03)、a-stock-data/references/a_stock_data_landscape.md (disc-20261015-03)；技能库 f877552→571e3d6，Claw 提交 e92583f；parity rc=0/ok=true/violations=[]，hub_reconcile rc=0/D1-D9 全空；rollback_point→e92583f。⚠️ 两条候选自带 check_cmd 落地后原样 2/2 FAIL（均硬编码不存在的 Claw 侧路径 Claw/.workbuddy/inspection_hub/references/），以正确落地根替换后 2/2 PASS → 落地成功、内容闸通过，属**产出侧 check_cmd 路径写法缺陷**（disc-20261011-04 / disc-20261013-04 / disc-20261014-01 / disc-20261014-03 / disc-20261015-03 累计 5 例）。闸门本日报 blocked_check_cmd=0（run#19 已登记的「后缀匹配漏报」常驻再现，第 3 次）。⛔ 未写 automations[].last_run/next_run；本轮 metric_alert=false 故未触碰 last_metric_alert_at。"
+    "2026-10-15 doc-apply(live): 落地 2 条文档类候选 → unified-inspection-hub/references/canonical_path_staleness.md (disc-20261014-03)、a-stock-data/references/a_stock_data_landscape.md (disc-20261015-03)；技能库 f877552→571e3d6，Claw 提交 e92583f；parity rc=0/ok=true/violations=[]，hub_reconcile rc=0/D1-D9 全空；rollback_point→e92583f。⚠️ 两条候选自带 check_cmd 落地后原样 2/2 FAIL（均硬编码不存在的 Claw 侧路径 Claw/.workbuddy/inspection_hub/references/），以正确落地根替换后 2/2 PASS → 落地成功、内容闸通过，属**产出侧 check_cmd 路径写法缺陷**（disc-20261011-04 / disc-20261013-04 / disc-20261014-01 / disc-20261014-03 / disc-20261015-03 累计 5 例）。闸门本日报 blocked_check_cmd=0（run#19 已登记的「后缀匹配漏报」常驻再现，第 3 次）。⛔ 未写 automations[].last_run/next_run；本轮 metric_alert=false 故未触碰 last_metric_alert_at。",
+    "2026-10-16 doc-apply(live): 闸门 selected=[]（dropped=87：status 78 / host 5 / risk 2 / success_metric 1）→ 零落地、零 commit、零 $VCS 变更。⚠️ 产出侧回归：当日 3 条新候选 disc-20261016-01/02/03 的 `skill` 字段**全为空** → 被 require_host「承载方缺失:(空)」拦下；分日 skill 空占比 10-14 0/3 → 10-15 2/3 → 10-16 3/3，且 10-15 的 2 条仍 pending 未回填 → 本通道对当日新候选 100% 失效（登记端/落地端 require_host 口径不一致，10-12 曾人工补注未修根）。另有 check_cmd 错误根第 6 例（Claw/references 实测不存在），因 host 先拦故 blocked_check_cmd 仍报 0（disc-20261013-04 后缀匹配漏报常驻）。parity rc=0/ok=true/violations=[]/gaps=[]；hub_reconcile rc=10（仅 D1 镜像漂移：automation-1786000625371 巡检中枢存活看门狗 声明 ACTIVE/实测 PAUSED，非本批职责），D2–D9 全空（D5 文档契约未漂移）。已登记 disc-20261016-04 转周度审。⛔ 未写 automations[].last_run/next_run；本轮 metric_alert=false（raw=false/throttled=false/last_at=null，min=3 未达阈）故未触碰 last_metric_alert_at。",
+    "2026-10-16 23:03 hub_reconcile --fix 以 DB 真值收敛镜像 D1 1 处: automation-1786000625371"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -3073,7 +3131,7 @@
       "owner": "auto",
       "title": "用户级 MEMORY.md 规则合并（腾可见余量）—— 已定策，按触发条件执行",
       "criteria": "**触发条件改为机器判据**（原为「11-30 或再触上限」的日期口径 —— 那是拍脑袋日期，真正的物理约束是**可见余量**）：任一 MEMORY.md 的 `memory_headroom_check.py` 余量 < 500B，**或** 新增一条规则会使余量转负 → 触发一次「精简」，而非全量「语义去重」。\n**实测预算（2026-10-12）**：用户级 72 条 / 规则层止 6,754B / 上限 7,353B → **余量仅 599B**（临界区，再添一条规则就会吃掉余量）；项目级 65 条 / 止 15,100B / 上限 16,474B → 余量 1,374B。\n**决定：不做全量语义去重**。依据：① 机械抽查未发现真正重复的规则对（两文件是**分层互补**：用户级=跨项目习惯、项目级=项目上下文），强行合并「活」规则层的风险 > 收益；② 今天已发生一次「我给自己的假发现」（死引用扫描 29 条全假阳性）——同一个坑不踩第二次。",
-      "decision": "2026-10-10 决定 **暂不合并**。代价不对等：本文件证据库与规则层**同序**（证据编号 = 规则层第 N 条），合并任何规则都会连带重编号其后全部证据块，并废掉按 `grep \"── 证据 N ──\"` 检索的肌肉记忆 —— 用永久性可用性损失换一次性 ~200B，不划算。当前余量已从 359B 腾到 631B（措辞收敛，零信息删除），且有守卫兜底，不急。",
+      "decision": "2026-10-10 决定 **暂不合并**。代价不对等：本文件证据库与规则层**同序**（证据编号 = 规则层第 N 条），合并任何规则都会连带重编号其后全部证据块，并废掉按 `grep \"── 证据 N ──\"` 检索的肌肉记忆 —— 用永久性可用性损失换一次性 ~200B，不划算。当前余量已从 359B 腾到 631B（措辞收敛，零信息删除），且有守卫兜底，不急。\n\n**2026-10-16 触发已执行**（automation-1780769419635 记忆维护 03:30）：B＝`~/.workbuddy/user-…-personal/MEMORY.md`（**实际被注入**那份）余量 0B ⇒ 触发条件满足，已按授权口径「不动语义」执行一次排印归一（`，；：（）`→`,;:()` + 相邻空白收敛，代码段跳过）：**余量 0B → 238B**，文件 100,428→100,190B，规则/证据 76/76 守恒，`--fix` 幂等，覆盖率审计 0 未覆盖。**授权手段已用尽**：PA-007 已否决规则合并（连带重编号全部证据块）、措辞压缩有掉子句前科，故 238B 即本法上限，够不到 500B。**新待决（需用户决定）**：守卫阈值 500B 与技能 Step 0.20 验收线 300B 自相矛盾，且 500B 的依据「再加铁律就会挤出可见区」不成立（物理约束＝最长单条规则 264B）。选项：① 阈值改按物理口径（最长规则行长或 300B）② 授权措辞压缩 ③ 授权规则合并并接受证据重编号。",
       "status": "deferred_with_trigger",
       "if_no_action": "keep_as_is",
       "decided_at": "2026-10-10",

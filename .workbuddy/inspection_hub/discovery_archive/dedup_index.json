@@ -556,7 +556,7 @@
     },
     "bce8fcb02ceef796": {
       "id": "disc-20261014-03",
-      "status": "pending",
+      "status": "applied",
       "target_project": "Claw",
       "skill": "unified-inspection-hub",
       "also_seen": []
@@ -577,11 +577,32 @@
     },
     "88af772f55eaa009": {
       "id": "disc-20261015-03",
-      "status": "pending",
+      "status": "applied",
       "target_project": "meta",
       "skill": "a-stock-data",
       "also_seen": []
+    },
+    "91542eeef2179cb6": {
+      "id": "disc-20261016-01",
+      "status": "pending",
+      "target_project": "Claw",
+      "skill": "",
+      "also_seen": []
+    },
+    "7995f18fd305ea53": {
+      "id": "disc-20261016-02",
+      "status": "pending",
+      "target_project": "Claw",
+      "skill": "",
+      "also_seen": []
+    },
+    "795909474644a568": {
+      "id": "disc-20261016-03",
+      "status": "pending",
+      "target_project": "Claw",
+      "skill": "",
+      "also_seen": []
     }
   },
-  "updated_at": "2026-10-15T00:22:59+08:00"
+  "updated_at": "2026-10-16T00:24:29+08:00"
 }
