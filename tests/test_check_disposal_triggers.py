@@ -133,8 +133,15 @@ def _fixed_calendar(monkeypatch, holidays=None, ok=True):
     🔴 2026-10-11 事故：`astock_holidays.json` 当时未入库（被 .gitignore 挡住）→
     CI 里 load_calendar() 失败 → 自然日降级 → 「10 天前」被当成 ≥5 个交易日 →
     T3 误触发、本文件在 CI 红。用例必须与生产同一日历口径，且不依赖外部文件。
+
+    🔴 2026-10-15 二次事故：原只 mock 了 `load_calendar`，但 `main()` 在默认路径会调
+    `fetch_sse_close()` 取**实时**上证收盘 → 市场真实破位（3707.48 ≤ 3764 关注点）
+    时 M1 命中，把本应静默的 T1/T2/T3 路径用例带崩（3 个用例 return 1 而非 0）。
+    集成用例的意图是验证 T1/T2/T3，不该被实时行情污染；M1 已由 `test_m1_*` 直接覆盖。
+    → 一并密封行情源（返回高于关注点的确定性值），使 `main()` 集成路径与实时市场解耦。
     """
     monkeypatch.setattr(cdt, "load_calendar", lambda: (holidays or set(), ok))
+    monkeypatch.setattr(cdt, "fetch_sse_close", lambda: (3800.0, "2026-10-15"))
 
 
 def _seed(
