@@ -1906,6 +1906,42 @@ def _find_stale_dependabot_prs() -> list[dict]:
     return candidates
 
 
+def _pr_ci_state(repo: str, num) -> str:
+    """读取 PR 的 CI 终态（2026-10-16 加）：'success' / 'failing' / 'pending' / 'unknown'。
+
+    为什么必须读：`merge`+`push` 返回 0 只是**动作被受理**，CI 结果才是终态 ——
+    与 2026-10-16 修掉的 self_heal「已下发=已恢复」同族（动作成功 ≠ 效果达成）。
+    取不到证一律返回 'unknown'：**由调用方决定是否降级**，绝不把"取不到证"当成通过。
+    """
+    try:
+        r = run_cmd(
+            ["gh", "pr", "view", str(num), "--repo", repo, "--json", "statusCheckRollup"],
+            timeout=45,
+        )
+        if r.returncode != 0:
+            return "unknown"
+        data = json.loads(r.stdout or "{}")
+        rollup = data.get("statusCheckRollup") or []
+        if not rollup:
+            return "pending"
+        # 🔴 字段契约以**真实 gh 输出为准**（2026-10-16 核对 Claw PR #30）：
+        #   statusCheckRollup[] 的键是 `status`（COMPLETED/IN_PROGRESS）与 `conclusion`
+        #   （SUCCESS/FAILURE/…）；**没有 `state` 键**。此前按 `state` 取值会全部
+        #   取到 None → 误判为 pending（用臆造契约写的用例全过，但契约是错的）。
+        states = [(x or {}).get("status") for x in rollup]
+        cons = [(x or {}).get("conclusion") for x in rollup]
+        if any(
+            c in ("FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STALE")
+            for c in cons
+        ):
+            return "failing"
+        if all(st == "COMPLETED" and c == "SUCCESS" for st, c in zip(states, cons)):
+            return "success"
+        return "pending"
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
 def runbook_dependabot_rebase(dry_run: bool = False) -> list[dict]:
     """Runbook#2: OPEN dependabot PR 基于旧 main 导致 CI 红 → merge origin/main 进分支触发重跑。
     安全可逆：不 merge PR 本身，仅把 main 合进分叉分支让其 CI 重跑；若仍红则升级人工。
@@ -1970,13 +2006,26 @@ def runbook_dependabot_rebase(dry_run: bool = False) -> list[dict]:
                 log_action("dependabot_rebase", f"{repo}#{num}", reason, "failed", str(e)[:150])
             )
             continue
+        # 2026-10-16：动作(merge+push)成功 ≠ 效果(PR CI 绿)。读终态后再定 result。
+        ci = _pr_ci_state(repo, num)
+        if ci == "failing":
+            recs.append(
+                log_action(
+                    "dependabot_rebase",
+                    f"{repo}#{num}",
+                    reason,
+                    "failed(ci)",
+                    "merge+push 已下发，但 PR 检查存在失败项 → 不记为自愈成功",
+                )
+            )
+            continue
         recs.append(
             log_action(
                 "dependabot_rebase",
                 f"{repo}#{num}",
                 reason,
                 "success",
-                f"merge origin/main 进 {branch} 并 push，触发 CI 重跑",
+                f"merge origin/main 进 {branch} 并 push；PR 检查：{ci}",
             )
         )
     return recs

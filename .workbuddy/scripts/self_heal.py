@@ -32,6 +32,8 @@ COOLDOWN_MIN = 30  # 同目标冷却
 OSC_LIMIT = 2  # 60min 内 >2 次重启 → 震荡防护停手
 OSC_WINDOW_MIN = 60
 VERIFY_ATTEMPTS = 3  # 重启后复核次数（2026-10-16 加）
+CHRONIC_WINDOW_H = 24  # 慢性循环判定窗口（小时）
+CHRONIC_LIMIT = 3  # 窗口内「重启后仍 non-running」累计 ≥N 次 → 慢性循环告警
 VERIFY_INTERVAL_SEC = 3.0  # 每次复核间隔秒；单容器最大观察窗 ≈9s
 
 
@@ -93,6 +95,28 @@ def docker_restart(container: str) -> bool:
         return False
 
 
+def docker_restart_count(container: str):
+    """返回 Docker 自维护的 `.RestartCount`（崩溃累计次数），取不到返回 None。
+
+    为什么必须单独看它：RestartCount 是**旁路证据**——它记的是 Docker 重启策略
+    拉起容器的次数，**不依赖我们是否重启过它**。本次事故正是由它（115 次）才确认
+    「故障已持续多日」，而当时巡检报告全是绿的。
+    """
+    try:
+        r = subprocess.run(
+            ["docker", "inspect", "-f", "{{.RestartCount}}", container],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if r.returncode != 0:
+            return None
+        v = (r.stdout or "").strip()
+        return int(v) if v.isdigit() else None
+    except Exception:
+        return None
+
+
 def verify_running(container: str):
     """重启后复核容器是否真的恢复（2026-10-16 加）。
 
@@ -131,6 +155,13 @@ def main() -> int:
     now_dt = now()
     cutoff = now_dt - datetime.timedelta(minutes=OSC_WINDOW_MIN)
     log = [e for e in log if _parse_ts(e.get("ts", "")) > cutoff]
+    # 2026-10-16 加：慢性循环需要 24h 窗口。注意 self_heal_log 会被裁剪到 60min
+    # （用于冷却/振荡），**不能再拿来统计 24h**，否则历史被销毁 → 慢性循环永远统计不到。
+    history = state.get("monitoring", {}).get("self_heal_history", []) or []
+    h_cutoff = now_dt - datetime.timedelta(hours=CHRONIC_WINDOW_H)
+    history = [e for e in history if _parse_ts(e.get("ts", "")) > h_cutoff]
+    prev_counts = state.get("monitoring", {}).get("restart_counts", {}) or {}
+    counts_now: dict[str, int] = {}
 
     restarted, alerts, skipped, checked = [], [], [], []
 
@@ -142,6 +173,34 @@ def main() -> int:
             if c in stateful:
                 skipped.append({"container": c, "reason": "stateful-never-auto-restart"})
                 continue
+            # ── 旁路证据 1：RestartCount 增长 = 它又崩了一次（不依赖我们是否重启过）──
+            rc = docker_restart_count(c)
+            if rc is not None:
+                counts_now[c] = rc
+                prev = prev_counts.get(c)
+                if isinstance(prev, int) and rc > prev:
+                    alerts.append(
+                        {
+                            "container": c,
+                            "issue": "restart-count-increased",
+                            "restart_count": rc,
+                            "prev_restart_count": prev,
+                        }
+                    )
+            # ── 旁路证据 2：慢性循环（24h 内多次重启都没救回来）──
+            #    与既有的 60min 振荡防护互补：振荡防"高频抖动"，本条防"低频长跑"
+            #    （本事故重启间隔约 3h → 60min 窗口永不触发）。
+            chronic = [e for e in history if e.get("container") == c and e.get("ineffective")]
+            if len(chronic) >= CHRONIC_LIMIT:
+                alerts.append(
+                    {
+                        "container": c,
+                        "issue": "chronic-restart-loop",
+                        "count": len(chronic),
+                        "window_h": CHRONIC_WINDOW_H,
+                    }
+                )
+
             info = docker_inspect(c)
             if info is None:
                 alerts.append({"container": c, "issue": "inspect-failed/not-in-docker"})
@@ -191,6 +250,18 @@ def main() -> int:
                         "verify_health": vhealth,
                     }
                 )
+                if ok:
+                    # 24h 慢性循环历史：记录"重启了但没救回来"的次数
+                    history.append(
+                        {
+                            "ts": now_dt.isoformat(),
+                            "container": c,
+                            "action": "restart",
+                            "ok": ok,
+                            "verified": vok,
+                            "ineffective": (not vok),
+                        }
+                    )
                 if ok and vok:
                     restarted.append(c)
                 elif ok:
@@ -217,6 +288,8 @@ def main() -> int:
                 )
 
     state.setdefault("monitoring", {})["self_heal_log"] = log
+    state.setdefault("monitoring", {})["self_heal_history"] = history
+    state.setdefault("monitoring", {})["restart_counts"] = counts_now
     try:
         save_state(state)
     except Exception:
@@ -228,6 +301,7 @@ def main() -> int:
         "restarted": restarted,
         "skipped": skipped,
         "alerts": alerts,
+        "restart_counts": counts_now,
         "ts": now_dt.isoformat(),
     }
     print(json.dumps(report, ensure_ascii=False))
