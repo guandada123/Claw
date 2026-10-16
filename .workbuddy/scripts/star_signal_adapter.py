@@ -11,6 +11,8 @@ star_signal_adapter.py — star_signal.py 与现有项目的适配层
   4. 为 generate_daily_report.py 提供实时量化信号
 """
 
+from __future__ import annotations
+
 import json
 import ssl
 
@@ -33,7 +35,7 @@ from star_signal import (
 )
 
 
-def fetch_kline_df(code: str, market: str = None, days: int = 200) -> pd.DataFrame:
+def fetch_kline_df(code: str, market: str | None = None, days: int = 200) -> pd.DataFrame:
     """
     从腾讯财经API获取K线DataFrame，适配star_signal的输入格式
 

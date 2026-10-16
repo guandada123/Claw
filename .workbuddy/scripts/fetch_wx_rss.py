@@ -119,7 +119,7 @@ def _get_token() -> str | None:
     return None
 
 
-def api_request(endpoint: str, params: dict = None, method: str = "GET") -> dict:
+def api_request(endpoint: str, params: dict | None = None, method: str = "GET") -> dict:
     """调用 we-mp-rss API v1"""
     token = _get_token()
     if not token:
@@ -167,7 +167,7 @@ def check_status() -> dict:
     return {"online": True, "data": result.get("data", result)}
 
 
-def list_articles(mp_id: str = None, limit: int = 20, search: str = None) -> list:
+def list_articles(mp_id: str | None = None, limit: int = 20, search: str | None = None) -> list:
     """获取文章列表"""
     params = {"limit": min(limit, 100)}
     if mp_id:
@@ -183,7 +183,7 @@ def list_articles(mp_id: str = None, limit: int = 20, search: str = None) -> lis
     return data.get("list", [])
 
 
-def sync_recent(output_dir: str, hours: int = 24, mp_ids: list = None) -> list:
+def sync_recent(output_dir: str, hours: int = 24, mp_ids: list | None = None) -> list:
     """同步最近文章到本地 Markdown"""
     if mp_ids is None:
         mp_ids = list(ACCOUNT_IDS.values())

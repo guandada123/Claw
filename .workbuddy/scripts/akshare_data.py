@@ -7,6 +7,8 @@ AkShare 数据增强层 — 提供通达信/腾讯财经之外的补充数据
 安装：pip install akshare
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from datetime import date, timedelta
@@ -22,7 +24,7 @@ CACHE_DIR = Path(__file__).parent.parent / "data" / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def cmd_margin_trading(date_str: str = None):
+def cmd_margin_trading(date_str: str | None = None):
     """
     查询融资融券数据（两融余额，反映市场风险偏好）
     """
@@ -52,7 +54,7 @@ def cmd_margin_trading(date_str: str = None):
     return {"ok": False, "error": "暂无两融数据"}
 
 
-def cmd_north_flow(date_str: str = None):
+def cmd_north_flow(date_str: str | None = None):
     """
     查询北向资金流向
     """

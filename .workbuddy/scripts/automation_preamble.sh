@@ -72,7 +72,7 @@ done_schedule() {
         esac
     done
     if [ "${interval_hours:-0}" -gt 0 ] 2>/dev/null; then
-        cd "$CLAW" && python3 .workbuddy/scripts/schedule_utils.py done --name "$name" --interval-hours "$interval_hours"
+        cd "$CLAW" && python3 .workbuddy/scripts/schedule_utils.py 'done' --name "$name" --interval-hours "$interval_hours"
         cd "$CLAW" && python3 scripts/cost_tracker.py log_estimate "$name" 2>/dev/null
         return 0
     fi
@@ -137,7 +137,7 @@ _STATE_ANCHOR="$HOME/.workbuddy/cross_project_state.json"
 check_backoff() {
     local identity="$1"
     [ -f "$_STATE_ANCHOR" ] || return 0
-    local last_fail now_ts interval_min elapsed
+    local last_fail now_ts elapsed
     last_fail=$("$PYTHON" - "$identity" <<'PYEOF' 2>/dev/null || echo ""
 import json, os, sys, time
 identity = sys.argv[1]

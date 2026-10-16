@@ -35,7 +35,7 @@ for path in [
             for code in d.get('positions', {}):
                 ts_code = f\"{code}.SZ\" if code.startswith('0') or code.startswith('3') else f\"{code}.SH\"
                 codes.add(ts_code)
-        except: pass
+        except Exception: pass
 
 # 读取观察列表
 wl_path = Path('/Users/guan/WorkBuddy/Claw/.workbuddy/data/simulation/watchlist.json')
@@ -45,7 +45,7 @@ if wl_path.exists():
             code = s['code']
             ts_code = f\"{code}.SZ\" if code.startswith('0') or code.startswith('3') else f\"{code}.SH\"
             codes.add(ts_code)
-    except: pass
+    except Exception: pass
 
 # 读取用户实盘持仓
 user_path = Path('/Users/guan/WorkBuddy/Claw/.workbuddy/data/user/portfolio.json')
@@ -54,7 +54,7 @@ if user_path.exists():
         for code in json.loads(user_path.read_text()).get('positions', {}):
             ts_code = f\"{code}.SZ\" if code.startswith('0') or code.startswith('3') else f\"{code}.SH\"
             codes.add(ts_code)
-    except: pass
+    except Exception: pass
 
 print(','.join(sorted(codes)))
 " 2>/dev/null)
@@ -83,13 +83,13 @@ fi
 # 2. 复制 JSON 到本地
 LOCAL_DIR="/Users/guan/WorkBuddy/Claw/output"
 mkdir -p "$LOCAL_DIR"
-docker cp "quant-strategy:$OUTPUT_FILE" "$LOCAL_DIR/$(basename $OUTPUT_FILE)"
+docker cp "quant-strategy:$OUTPUT_FILE" "$LOCAL_DIR/$(basename "$OUTPUT_FILE")"
 docker exec quant-strategy bash -c "ln -sf $OUTPUT_FILE $LATEST_LINK" 2>/dev/null
-echo "✅ 信号已保存: $LOCAL_DIR/$(basename $OUTPUT_FILE)"
+echo "✅ 信号已保存: $LOCAL_DIR/$(basename "$OUTPUT_FILE")"
 
 # 3. (可选) 推送飞书
 if $PUSH; then
-  SIGNAL_JSON="$LOCAL_DIR/$(basename $OUTPUT_FILE)"
+  SIGNAL_JSON="$LOCAL_DIR/$(basename "$OUTPUT_FILE")"
 
   # 解析信号
   BUY_COUNT=$(python3 -c "import json; d=json.load(open('$SIGNAL_JSON')); print(d['summary']['buy_signals'])" 2>/dev/null || echo "0")

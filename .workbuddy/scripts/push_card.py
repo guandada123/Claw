@@ -56,6 +56,8 @@ push_card.py — 飞书 interactive 卡片推送中台
   早期早报卡片失败(230001)即因误用 --card / actions 字段格式错。
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -132,9 +134,9 @@ def build_card(
     title: str,
     level: str,
     sections: list,
-    table: dict = None,
-    buttons: list = None,
-    footer: str = None,
+    table: dict | None = None,
+    buttons: list | None = None,
+    footer: str | None = None,
 ) -> dict:
     """构造飞书 interactive card JSON"""
     template = LEVEL_TEMPLATE.get(level, "blue")

@@ -4,6 +4,8 @@
 从微信公众号文章中提取股票标的，维护观察列表
 """
 
+from __future__ import annotations
+
 import json
 import sys
 from datetime import date, datetime
@@ -120,7 +122,7 @@ def update_status(code: str, status: str):
     return {"ok": False, "error": "未找到该股票"}
 
 
-def get_watchlist(status: str = None):
+def get_watchlist(status: str | None = None):
     """获取观察列表"""
     wl = load_watchlist()
     if status:

@@ -103,10 +103,10 @@ if [ "$APPLY" -ne 1 ]; then
     #    分母会变成 84（含 .workbuddy/automations/*/memory.md 展开出的文件），读起来像"4/84"很突兀。
     echo "⚠️ 清单里有 ${#MISSING[@]} 个路径**已不存在**（本脚本早于仓库改版）："
     printf '     - %s\n' "${MISSING[@]}"
-    echo "   → 所以"没有输出"多半不是"没有改动"，而是"这些路径已经不是产物所在处"。"
+    echo "   → 所以\"没有输出\"多半不是\"没有改动\"，而是\"这些路径已经不是产物所在处\"。"
     echo ""
   fi
-  echo "⚠️ 注意：本脚本按"整目录"add（如 reports/、scripts/），若此刻有其它自动化"
+  echo "⚠️ 注意：本脚本按\"整目录\"add（如 reports/、scripts/），若此刻有其它自动化"
   echo "   正在写这些路径，--apply 会把**别人写了一半的文件**一并提交。"
   echo "   更安全的做法是用统一巡检中枢的 chore(data,hub) 逐路径提交。"
   exit 0

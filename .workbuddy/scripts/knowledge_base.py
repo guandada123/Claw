@@ -22,6 +22,8 @@
   或使用 OpenAI embedding API: pip install chromadb openai
 """
 
+from __future__ import annotations
+
 import hashlib
 import json
 import os
@@ -98,7 +100,7 @@ def get_vector_db():
 # --- 文章索引 ---
 
 
-def index_articles(input_dir: str = None, glob_pattern: str = "*.md"):
+def index_articles(input_dir: str | None = None, glob_pattern: str = "*.md"):
     """索引文章到向量数据库"""
     if input_dir is None:
         input_dir = str(ARCHIVE_DIR)
@@ -229,7 +231,7 @@ def record_signal(
     stock_code: str,
     stock_name: str,
     signal: str,  # bullish / bearish / neutral
-    target_price: float = None,
+    target_price: float | None = None,
     confidence: int = 5,
 ):
     """记录一篇文章的选股信号"""
@@ -365,7 +367,7 @@ def cmd_trace(args):
         )
 
 
-def index_research_report(report_path: str = None):
+def index_research_report(report_path: str | None = None):
     """索引券商研报到知识库
 
     支持从 reports/ (分析报告) 或 data/reports/ (原始内容) 目录索引
