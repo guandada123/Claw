@@ -24,12 +24,15 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 STATE_FILE = str(Path.home() / ".workbuddy" / "cross_project_state.json")
 COOLDOWN_MIN = 30  # 同目标冷却
 OSC_LIMIT = 2  # 60min 内 >2 次重启 → 震荡防护停手
 OSC_WINDOW_MIN = 60
+VERIFY_ATTEMPTS = 3  # 重启后复核次数（2026-10-16 加）
+VERIFY_INTERVAL_SEC = 3.0  # 每次复核间隔秒；单容器最大观察窗 ≈9s
 
 
 def now() -> datetime.datetime:
@@ -90,6 +93,32 @@ def docker_restart(container: str) -> bool:
         return False
 
 
+def verify_running(container: str):
+    """重启后复核容器是否真的恢复（2026-10-16 加）。
+
+    返回 (ok, status, health)。ok=True 仅当复核期内容器回到 running。
+    为什么必须复核：`docker restart` 返回 0 只代表「重启动作被受理」，
+    崩溃循环容器（如运行期依赖缺失 → 起来即退）会立刻再次退出。原实现据此
+    计入 restarted，被上游当作 healed/success → 「已下发」被误报为「已恢复」
+    （假成功）。实例：QTS quant-execution 因 PyJWT 缺失崩溃循环，
+    2026-10-16 当日被"成功自愈"5 次（02:17/05:21/11:34/14:40/17:44）而服务实际
+    全程不可用；振荡防护窗口 60min 而重启间隔约 3h → 也永不触发。
+    判定口径：status == "running" 即视为恢复（healthcheck 的 starting 属重启后
+    正常态；长期 unhealthy 由既有的 unhealthy-but-running 分支负责告警）。
+    """
+    status, health = None, None
+    for _ in range(VERIFY_ATTEMPTS):
+        time.sleep(VERIFY_INTERVAL_SEC)
+        info = docker_inspect(container)
+        if info is None:
+            status, health = None, None
+            continue
+        status, health = info
+        if status == "running":
+            return True, status, health
+    return False, status, health
+
+
 def main() -> int:
     try:
         state = load_state()
@@ -143,6 +172,12 @@ def main() -> int:
                     continue
             if status != "running":
                 ok = docker_restart(c)
+                # 2026-10-16：重启后必须复核（见 verify_running 文档）。
+                #   仅当复核确认 running 才计入 restarted；否则升级为 alert，
+                #   让「重启已下发」与「服务已恢复」在报告里分开。
+                vok, vstatus, vhealth = (False, None, None)
+                if ok:
+                    vok, vstatus, vhealth = verify_running(c)
                 log.append(
                     {
                         "ts": now_dt.isoformat(),
@@ -151,10 +186,23 @@ def main() -> int:
                         "ok": ok,
                         "status": status,
                         "health": health,
+                        "verified": vok,
+                        "verify_status": vstatus,
+                        "verify_health": vhealth,
                     }
                 )
-                if ok:
+                if ok and vok:
                     restarted.append(c)
+                elif ok:
+                    alerts.append(
+                        {
+                            "container": c,
+                            "issue": "restart-ineffective-still-down",
+                            "status": vstatus,
+                            "health": vhealth,
+                            "pre_status": status,
+                        }
+                    )
                 else:
                     alerts.append({"container": c, "issue": "restart-failed", "status": status})
             else:
