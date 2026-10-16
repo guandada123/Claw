@@ -2,6 +2,13 @@ target-version = "py39"
 line-length = 100
 
 [lint]
+# 2026-10-17 加固（详见 StockInsight 代码审查修复报告_20261017.md 同族条目）：
+#   RUF006  dangling-asyncio-task  —— create_task 无强引用会被 GC
+#   RUF013  implicit-optional      —— 显式 Optional；本仓 target=py39，
+#                                     修复器会按 target 生成 Optional[...] 而非 `X | None`，
+#                                     与「凡用 X | None 必带 from __future__ import annotations」约定不冲突
+extend-select = ["RUF006", "RUF013"]
+
 select = [
     # Error detection
     "E",       # pycodestyle errors
