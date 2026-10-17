@@ -192,13 +192,19 @@ def is_alert_duplicated(check_name: str, reason_key: str) -> bool:
 
 
 def log_action(action: str, target: str, reason: str, result: str, detail: str = "") -> dict:
+    # ⚠️ 2026-10-16 修复：强制字符串化 target/reason/detail。
+    #   根因：Docker 自愈的 alert 是 dict（如 {'container':..., 'issue':...}），
+    #   被 `log_action("detect", name, a, "alert")` 直接当作 reason 存入 →
+    #   append_heal_log 对 dict 做 `[:80]` 切片触发 KeyError，整轮崩溃，
+    #   且崩溃发生在飞书推送之前 → 告警卡永不发出。
+    #   此处兜底保证契约（reason: str），彻底隔离"告警内容是 dict/其他类型"这类调用方。
     rec = {
         "ts": datetime.datetime.now().isoformat(timespec="seconds"),
         "action": action,
-        "target": target,
-        "reason": reason,
+        "target": str(target),
+        "reason": str(reason),
         "result": result,  # success / skipped / failed
-        "detail": detail,
+        "detail": str(detail),
     }
     _run_log.append(rec)
     return rec
@@ -227,12 +233,14 @@ def append_heal_log(rec: dict) -> None:
     #   仍能归并（与告警去重键同思路），但比去重键更宽松，避免过度合并不同结论。
     if rec.get("action") == "detect":
         now = datetime.datetime.now()
-        tk = (rec.get("target", ""), (rec.get("reason") or "")[:80])
+        # ⚠️ 2026-10-16 防御：reason 可能为 dict（见 log_action 修复说明），
+        #   直接 `[:80]` 切片会 KeyError。统一先 str() 再切片。
+        tk = (str(rec.get("target", "")), str(rec.get("reason") or "")[:80])
         for i in range(len(data) - 1, -1, -1):
             old = data[i]
             if old.get("action") != "detect":
                 continue
-            if (old.get("target", ""), (old.get("reason") or "")[:80]) != tk:
+            if (str(old.get("target", "")), str(old.get("reason") or "")[:80]) != tk:
                 continue
             try:
                 age_h = (now - datetime.datetime.fromisoformat(old["ts"])).total_seconds() / 3600
@@ -562,14 +570,34 @@ def check_docker_self_heal() -> dict:
             }
         out = r.stdout.strip()
         try:
-            data = json.loads(out[out.rfind("{") :])
+            # ⚠️ 2026-10-15 run#218 修复：原 out[out.rfind("{"):] 取最后一个 '{'，
+            #   当 JSON 内含嵌套对象（如 skipped:[{...}]）时会抓到嵌套 '{' 而非根对象开头
+            #   → json.loads 失败 → Docker 检查整项被跳过、丢失容器健康可见性。
+            #   改为「首个 '{' 到最后一个 '}'」提取根 JSON；整串先试一次以防前缀干净。
+            data = json.loads(out)
         except Exception:
-            return _skip(f"docker_self_heal 输出无法解析为 JSON（raw 尾部: {out[-300:]!r}）")
+            s, e = out.find("{"), out.rfind("}")
+            if s == -1 or e == -1 or e < s:
+                return _skip(f"docker_self_heal 输出无法解析为 JSON（raw 尾部: {out[-300:]!r}）")
+            try:
+                data = json.loads(out[s : e + 1])
+            except Exception:
+                return _skip(f"docker_self_heal 输出无法解析为 JSON（raw 尾部: {out[-300:]!r}）")
         restarted = data.get("restarted") or []
         alerts = data.get("alerts") or []
         # restarted 是 Runbook#3 已完成的自愈（容器重启），作为 healed 上报
+        # ⚠️ 2026-10-15 run#218 修复：原记录缺 reason/detail 键，
+        #   报告生成阶段 h['reason']/h['detail'] 强访问 → KeyError → 整轮崩溃、飞书卡永不推送。
+        #   此处补齐契约键，与 mk_heal_record 同构。
         healed = [
-            {"action": "container_restart", "target": c, "result": "success"} for c in restarted
+            {
+                "action": "container_restart",
+                "target": c,
+                "reason": "容器非running自动重启（Runbook#3）",
+                "result": "success",
+                "detail": "",
+            }
+            for c in restarted
         ]
         # 存活摘要：从 self_heal 的 checked/skipped/alerts 汇总（含 QTS/pmf 容器）
         checked = data.get("checked") or []
@@ -1356,6 +1384,93 @@ def _rss_upstream_facts() -> tuple[str, str]:
     else:
         ts = "(无运行记录)"
     return sched, ts
+
+
+def check_pmf_slow_query_sink(
+    now: datetime.datetime | None = None,
+    runner=None,
+    window_hours: int = 24,
+) -> dict:
+    """PMF 慢查询落库哨兵（2026-10-17 新增）。
+
+    背景（根因反转，2026-10-17 取证）：slow_queries 表自 07-08 起"停更"，此前被误判为
+    采集链路停摆；实际是 **slow_queries_captured_at_time_index 索引损坏（zero page）**
+    导致所有 INSERT 失败 —— laravel.log 内 `慢查询持久化失败` ERROR 共 360 条，
+    表的最后一行停在损坏发生日 07-08。10-16 REINDEX 后写入链路恢复
+    （探针 INSERT→readback→DELETE 验证，残留 0）。
+
+    因此该日志错误成为**索引再次损坏的天然哨兵**：慢查询本身持续发生（PMF 常规流量下
+    每天都有 ≥500ms 记录），一旦落库失败重新出现，几乎必然意味着索引再次损坏 ——
+    比 zero page 报错浮出 docker logs 更早、更准。
+
+    判据：laravel.log 尾部（tail -c 2MB）中、window_hours 内的 `慢查询持久化失败` 条数。
+    runner 可注入（单测用假 runner 击破绿灯）。
+    """
+    now = now or datetime.datetime.now()
+    if runner is None:
+
+        def runner():
+            return run_cmd(
+                [
+                    "docker",
+                    "exec",
+                    "project-monitor-fusion-app-1",
+                    "tail",
+                    "-c",
+                    "2000000",
+                    "storage/logs/laravel.log",
+                ],
+                timeout=30,
+            )
+
+    try:
+        r = runner()
+    except Exception as e:  # 取不到证 ≠ 通过
+        return {"ok": None, "alerts": [], "note": f"读 PMF 日志失败：{e}"}
+    if getattr(r, "returncode", 1) != 0:
+        return {
+            "ok": None,
+            "alerts": [],
+            "note": f"docker exec 非零（{getattr(r, 'returncode', '?')}），取不到证",
+        }
+    out = r.stdout or ""
+    if not out.strip():
+        return {"ok": None, "alerts": [], "note": "日志尾为空，无法区分「无错误」与「读不到日志」"}
+
+    marker = "慢查询持久化失败"
+    ts_re = re.compile(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]")
+    total = 0
+    recent: list[datetime.datetime] = []
+    cutoff = now - datetime.timedelta(hours=window_hours)
+    for line in out.splitlines():
+        if marker not in line:
+            continue
+        total += 1
+        m = ts_re.search(line)
+        if not m:
+            continue
+        try:
+            ts = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+        if ts >= cutoff:
+            recent.append(ts)
+
+    if recent:
+        latest = max(recent).strftime("%m-%d %H:%M")
+        return {
+            "ok": False,
+            "alerts": [
+                f"近 {window_hours}h 内慢查询落库失败 {len(recent)} 次（最近 {latest}）"
+                "—— 索引损坏哨兵触发：slow_queries 的 INSERT 正在失败，"
+                "先 amcheck，再考虑 REINDEX（10-16 同款事故）"
+            ],
+            "note": f"日志尾部历史失败共 {total} 条",
+        }
+    note = f"窗口 {window_hours}h 内 0 次落库失败"
+    if total:
+        note += f"（日志尾部历史失败 {total} 条，均在窗口外）"
+    return {"ok": True, "alerts": [], "note": note}
 
 
 def check_wechat_channel() -> dict:
@@ -3475,6 +3590,7 @@ def main() -> int:
         "工程质量": check_code_quality(),
         "选股去重": check_duplicate_picks(),
         "数据新鲜度": check_data_freshness(),
+        "PMF慢查询落库": check_pmf_slow_query_sink(),
         "微信公众号通道": check_wechat_channel(),
         "积分预算": check_cost_anomaly(),
         "Dependabot": check_dependabot_backlog(),
@@ -3614,8 +3730,11 @@ def main() -> int:
     if healed:
         lines.append(f"### ✅ 已自动修复（{len(healed)} 项）")
         for h in healed:
-            lines.append(f"• **{h['action']}** → {h['target']}：{h['reason']}")
-            lines.append(f"  结果：{h['result']} | {h['detail']}")
+            # 防御：契约键缺失时降级为空串，避免单条记录缺字段导致整轮崩溃（run#218 实证）
+            lines.append(
+                f"• **{h.get('action', '?')}** → {h.get('target', '?')}：{h.get('reason', '')}"
+            )
+            lines.append(f"  结果：{h.get('result', '?')} | {h.get('detail', '')}")
         lines.append("")
     # 容器存活摘要（含 QTS/pmf/StockInsight 等被巡检容器健康度）
     cont = checks.get("Docker自愈", {}).get("containers") or {}
