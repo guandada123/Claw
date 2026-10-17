@@ -1514,6 +1514,95 @@ def _query_paused_guard_automations(
         return None
 
 
+# 静默破坏写法：破坏性命令 + 吞错(2>/dev/null) + 非临时路径
+SILENT_DESTRUCT_RE = re.compile(
+    r"(rm\s+-[rf]|find\s+[^\n]*?-delete|DROP\s+TABLE|TRUNCATE|shutil\.rmtree)"
+)
+BENIGN_TEMP_RE = re.compile(r"(/tmp/|/var/folders/|mktemp|\$\{?TMPDIR|\.lock\b)")
+AUDIT_MARKER_RE = re.compile(r"(-print|tee\s|dry-run|预演|留痕|--apply)")
+
+
+def _query_all_prompts() -> list[tuple[str, str, str]] | None:
+    """只读取 (id, name, prompt) 三元组。读不到返回 None（= 无法判定，skip）。"""
+    db = Path.home() / ".workbuddy" / "workbuddy.db"
+    if not db.exists():
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        try:
+            rows = conn.execute(
+                "SELECT id, name, prompt FROM automations WHERE deleted_at IS NULL"
+            ).fetchall()
+            return [(r[0], r[1] or r[0], r[2] or "") for r in rows]
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _scan_silent_destructive(prompts=None) -> list[dict] | None:
+    """扫描「静默破坏」写法：破坏性命令 + 吞掉 stderr + 非临时路径 + 无留痕/预演。
+
+    prompts 可注入（单测用已知正样本击破绿灯）；为 None 时读库，读不到返回 None。
+    """
+    if prompts is None:
+        prompts = _query_all_prompts()
+        if prompts is None:
+            return None
+    hits: list[dict] = []
+    for aid, name, prompt in prompts:
+        for line in (prompt or "").splitlines():
+            stripped = line.strip()
+            # 只检**会被真正执行的命令行**（Bash: 前缀）。说明性文字（⚠️ 为什么改 / 注释里
+            # 引用的旧写法原文）不参与判定 —— 否则会把"记载旧坏写法"误判成"正在用坏写法"。
+            if not stripped.lower().startswith("bash:"):
+                continue
+            if not SILENT_DESTRUCT_RE.search(line):
+                continue
+            if "2>/dev/null" not in line:
+                continue
+            if BENIGN_TEMP_RE.search(line):
+                continue  # 删 /tmp 临时文件与锁文件属良性
+            if AUDIT_MARKER_RE.search(line):
+                continue  # 已带 -print/tee/dry-run 等留痕或预演手段
+            hits.append({"id": aid, "name": name, "line": line.strip()[:180]})
+    return hits
+
+
+def check_silent_destructive_prompts() -> dict:
+    """自动化 prompt 里的静默破坏写法（2026-10-18 新增）。
+
+    背景：`🧹【系统维护】记忆+上下文维护` 的 2a 步原写作
+    `find $CLAW/.workbuddy/memory/ -name "*.md" -size 0 -delete 2>/dev/null` ——
+    递归删除记忆目录下的文件，却：① 不留任何删除清单；② `2>/dev/null` 吞掉全部错误，
+    当 $CLAW 为空时整条命令静默失败，输出与「本来就没有空文件」**完全一致**；
+    ③ 无预演。已硬化为「先列后删 + 逐条 -print 留痕 + 空变量显式报错」。
+
+    判据：prompt 单行同时满足「破坏性命令 + 吞 stderr + 非临时路径 + 无留痕/预演」。
+    ⚠️ 读不到库一律返回 ok=None（skip），绝不把「读不到」渲染成「没有静默破坏」。
+    """
+    hits = _scan_silent_destructive()
+    if hits is None:
+        return {
+            "ok": None,
+            "alerts": [],
+            "note": "读 workbuddy.db 失败，无法判定是否存在静默破坏写法（不误报绿）",
+        }
+    if not hits:
+        return {"ok": True, "alerts": [], "note": "未发现静默破坏写法"}
+
+    listed = "；".join(f"{h['name'][:20]}→{h['line'][:70]}" for h in hits[:3])
+    more = f"（另有 {len(hits) - 3} 条）" if len(hits) > 3 else ""
+    return {
+        "ok": False,
+        "alerts": [
+            f"{len(hits)} 处「破坏性命令 + 吞错 + 无留痕」的静默删除写法：{listed}{more}"
+            "。要求：先列后删、逐条 -print/tee 留痕、删临时文件以外禁止 2>/dev/null 吞错"
+        ],
+        "note": "命中排除项：/tmp、mktemp、.lock、-print/tee/dry-run 均不计",
+    }
+
+
 def check_paused_guard_automations() -> dict:
     """看守类自动化被暂停 = 静默监控盲区（2026-10-17 新增）。
 
@@ -3669,6 +3758,7 @@ def main() -> int:
         "数据新鲜度": check_data_freshness(),
         "PMF慢查询落库": check_pmf_slow_query_sink(),
         "看守盲区": check_paused_guard_automations(),
+        "静默破坏写法": check_silent_destructive_prompts(),
         "微信公众号通道": check_wechat_channel(),
         "积分预算": check_cost_anomaly(),
         "Dependabot": check_dependabot_backlog(),
