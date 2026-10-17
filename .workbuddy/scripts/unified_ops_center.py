@@ -1473,6 +1473,83 @@ def check_pmf_slow_query_sink(
     return {"ok": True, "alerts": [], "note": note}
 
 
+# 「看守类」自动化关键词：命中即视为监控/告警/巡检职责，被暂停意味着监控盲区
+GUARD_NAME_KEYWORDS = (
+    "看门狗",
+    "巡检",
+    "告警",
+    "监护",
+    "存活",
+    "哨兵",
+    "watchdog",
+    "guard",
+)
+
+
+def _query_paused_guard_automations(
+    keywords: tuple[str, ...] = GUARD_NAME_KEYWORDS,
+) -> list[dict] | None:
+    """只读查询 workbuddy.db 中「名称含看守类关键词 且 status=PAUSED」的自动化。
+
+    查不到/异常返回 None（= 无法判定，按 skip 处理，绝不误报绿）。
+    """
+    db = Path.home() / ".workbuddy" / "workbuddy.db"
+    if not db.exists():
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        try:
+            conn.row_factory = sqlite3.Row
+            where = " OR ".join(["name LIKE ?"] * len(keywords))
+            sql = (
+                "SELECT id, name, rrule FROM automations "
+                f"WHERE deleted_at IS NULL AND status = 'PAUSED' AND ({where}) "  # noqa: S608  # nosec B608
+                "ORDER BY name"
+            )
+            rows = conn.execute(sql, [f"%{k}%" for k in keywords]).fetchall()
+            return [dict(x) for x in rows]
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def check_paused_guard_automations() -> dict:
+    """看守类自动化被暂停 = 静默监控盲区（2026-10-17 新增）。
+
+    背景（2026-10-17 实测）：`🛡️ 巡检中枢存活看门狗（每6h）` 于 10-15 23:30 被置为
+    PAUSED，且**无任何失败记录**（近 10 次运行 result_success 全为 1）、无文档说明暂停原因。
+    它是唯一能发现「统一巡检中枢自己失联」的告警源 —— 被暂停期间，中枢即使彻底停摆也
+    不会有人知道。这类盲区的特点正是**不产生任何噪声**：停了没人报，只有主动去查才发现。
+
+    判据：workbuddy.db 中 status='PAUSED' 且名称含看守类关键词的自动化条目数。
+    ⚠️ 刻意不依赖 deleted_at 之外的启发式；查不到库一律返回 ok=None（skip），
+    绝不能把「读不到」渲染成「没有盲区」。
+    """
+    rows = _query_paused_guard_automations()
+    if rows is None:
+        return {
+            "ok": None,
+            "alerts": [],
+            "note": "读 workbuddy.db 失败，无法判定是否存在看守盲区（不误报绿）",
+        }
+
+    if not rows:
+        return {"ok": True, "alerts": [], "note": "无被暂停的看守类自动化"}
+
+    listed = "；".join(f"{r['name']}({r['id'][:12]}…)" for r in rows[:5])
+    more = f"（另有 {len(rows) - 5} 条）" if len(rows) > 5 else ""
+    return {
+        "ok": False,
+        "alerts": [
+            f"{len(rows)} 个看守/告警类自动化处于 PAUSED —— 属于无声监控盲区："
+            f"{listed}{more}。请确认是否为有意暂停；无意的应立即恢复，"
+            f"或在 .learnings 记录暂停理由以免重复排查"
+        ],
+        "note": "看守类关键词命中：" + "/".join(GUARD_NAME_KEYWORDS),
+    }
+
+
 def check_wechat_channel() -> dict:
     """微信公众号数据链路检查（2026-08-07 新增，盲点#3）。
 
@@ -3591,6 +3668,7 @@ def main() -> int:
         "选股去重": check_duplicate_picks(),
         "数据新鲜度": check_data_freshness(),
         "PMF慢查询落库": check_pmf_slow_query_sink(),
+        "看守盲区": check_paused_guard_automations(),
         "微信公众号通道": check_wechat_channel(),
         "积分预算": check_cost_anomaly(),
         "Dependabot": check_dependabot_backlog(),
