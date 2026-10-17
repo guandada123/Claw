@@ -2,7 +2,7 @@
   "hub": "unified-inspection-hub",
   "version": "1.10.2",
   "created_at": "2026-09-21",
-  "updated_at": "2026-10-16T23:03:59",
+  "updated_at": "2026-10-17T00:42:30+08:00",
   "state_anchor": "cross_project_state.json: monitoring.global.inspection_hub",
   "forbidden_zones": [
     "automations/",
@@ -320,9 +320,9 @@
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": "2026-10-09",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": null,
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:19+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": "Assess",
       "ring_prev": "Assess",
       "needs_review": false,
@@ -574,12 +574,13 @@
       "landed_at": "2026-10-09",
       "impact": null,
       "impact_checked_at": null,
-      "impact_note": null,
+      "impact_note": "待裁决（无 check_cmd）：须按 success_metric 用库外证据判定",
       "ring": null,
       "ring_prev": null,
       "resolved_at": "2026-10-09",
       "applied_action": "落地剧本 Step 4 改为 mode 感知：仅 mode=live 回写候选 status=applied；calibrate 期只写 _state_sync_notes（v1.10.2，每日落地 prompt v1.7）",
-      "resolution": "契约守卫落地：calibrate 期零落地 ⇒ 零 applied 回写，避免把未落地候选标记为已应用而被质量闸滤除（静默销毁待落地成果）"
+      "resolution": "契约守卫落地：calibrate 期零落地 ⇒ 零 applied 回写，避免把未落地候选标记为已应用而被质量闸滤除（静默销毁待落地成果）",
+      "recheck_due_since": "2026-10-17"
     },
     {
       "id": "disc-20260925-05",
@@ -601,12 +602,13 @@
       "landed_at": "2026-10-09",
       "impact": null,
       "impact_checked_at": null,
-      "impact_note": null,
+      "impact_note": "待裁决（无 check_cmd）：须按 success_metric 用库外证据判定",
       "ring": "Caution",
       "ring_prev": null,
       "resolved_at": "2026-10-09",
       "applied_action": "pre-task.sh validate_automation_id 现同时接受 automation-* 与 UUID 形态（v1.10.1, commit 29768c2）；自检新增 UUID 回归用例",
-      "resolution": "L3 护栏对中枢 UUID 型自动化 id 的「误报稀释」已消除：自检 ✔旧式前缀 ✔UUID ✘裸数字"
+      "resolution": "L3 护栏对中枢 UUID 型自动化 id 的「误报稀释」已消除：自检 ✔旧式前缀 ✔UUID ✘裸数字",
+      "recheck_due_since": "2026-10-17"
     },
     {
       "id": "disc-20260926-01",
@@ -1377,9 +1379,9 @@
       "metric_baseline": "FAIL（落地前文件不存在，check_cmd 非零）",
       "recheck_after_days": 7,
       "landed_at": "2026-10-10",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": null,
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:19+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": "Trial",
       "ring_prev": "Trial",
       "metric_target_file": "~/.workbuddy/skills/a-stock-data/references/realtime-l2-tick.md",
@@ -1514,9 +1516,9 @@
       "metric_baseline": "FAIL（落地前文件不存在，check_cmd 非零）",
       "recheck_after_days": 7,
       "landed_at": "2026-10-10",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": null,
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:19+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": "Trial",
       "ring_prev": "Trial",
       "metric_target_file": "~/.workbuddy/skills/a-stock-data/references/a-share-sentiment-moneyflow.md",
@@ -1545,9 +1547,9 @@
       "metric_baseline": "FAIL（落地前文件不存在，check_cmd 非零）",
       "recheck_after_days": 7,
       "landed_at": "2026-10-10",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": null,
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:19+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": "Trial",
       "ring_prev": "Trial",
       "metric_target_file": "~/.workbuddy/skills/majiu-management/references/skill-routing-dispatch.md",
@@ -1701,9 +1703,9 @@
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": "2026-10-10",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": null,
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:19+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": "Trial",
       "ring_prev": "Trial",
       "metric_target_file": "~/.workbuddy/skills/a-stock-data/references/risk-control-architecture.md",
@@ -1755,9 +1757,9 @@
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": "2026-10-10",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": null,
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:19+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": "Trial",
       "ring_prev": "Trial",
       "metric_target_file": "~/.workbuddy/skills/majiu-management/references/skill-idle-archival.md",
@@ -1809,9 +1811,9 @@
       "metric_baseline": null,
       "recheck_after_days": 7,
       "landed_at": "2026-10-09",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": null,
+      "impact": "none",
+      "impact_checked_at": "2026-10-17T23:30:19+08:00",
+      "impact_note": "check_cmd rc=1",
       "ring": null,
       "ring_prev": null,
       "resolved_at": "2026-10-09",
@@ -1835,9 +1837,9 @@
       "metric_baseline": "修复前：QTS 20/20 信号来自 site-packages；修复后：QTS 1 条真实 TODO，排除 9167 个第三方文件",
       "recheck_after_days": 7,
       "landed_at": "2026-10-09",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": null,
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:20+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": null,
       "ring_prev": "Adopt",
       "resolved_at": "2026-10-09",
@@ -1864,9 +1866,9 @@
       "metric_baseline": "修复前：该函数唯一出口是 `return []`，恒空且无告警",
       "recheck_after_days": 7,
       "landed_at": "2026-10-09",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": "已即时人工验证（268 点、相关性可算）；正式回查按 landed_at+7 天由 impact_recheck 自动执行",
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:20+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": "Adopt",
       "ring_prev": null,
       "suggestion_hint": "核心类（改 Claw 项目脚本）→ 走周度人工审：生成 diff 提案待授权，不进每日文档通道",
@@ -1893,9 +1895,9 @@
       "metric_baseline": "修复前：东财 ut token 失效 → 返回 0 条 → 相关性检查恒 insufficient_data",
       "recheck_after_days": 7,
       "landed_at": "2026-10-09",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": null,
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:20+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": null,
       "ring_prev": null,
       "needs_review": false,
@@ -1921,9 +1923,9 @@
       "metric_baseline": "修复前：a5dfedb 树内含 .neodata_token；对象库含 blob df43070",
       "recheck_after_days": 7,
       "landed_at": "2026-10-09",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": "已即时机器验证（对象库扫描为空 + 旧 blob 不可达 + 盘上文件仍在）；正式回查按 landed_at+7 天",
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:20+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": null,
       "ring_prev": null,
       "needs_review": false,
@@ -2028,9 +2030,9 @@
       "metric_baseline": "修复前：无任何脚本检查对象库中的凭据路径；检查只到索引层",
       "recheck_after_days": 7,
       "landed_at": "2026-10-09",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": "已即时验证：技能库 0 发现 rc=0；含凭据的临时仓库 rc=1 且同时报出 L1/L2",
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:20+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": null,
       "ring_prev": null,
       "needs_review": false,
@@ -2056,9 +2058,9 @@
       "metric_baseline": "修复前：可见余量无任何机器判定；余量 359B 无人知；check_memory_visibility 零调度",
       "recheck_after_days": 7,
       "landed_at": "2026-10-10",
-      "impact": null,
-      "impact_checked_at": null,
-      "impact_note": "已即时验证：实际输出 用户级 359B（rc=1 告警）/ 项目级 2010B（rc=0）；阈值可调节",
+      "impact": "achieved",
+      "impact_checked_at": "2026-10-17T23:30:20+08:00",
+      "impact_note": "check_cmd rc=0",
       "ring": null,
       "ring_prev": null,
       "needs_review": false,
@@ -2199,7 +2201,7 @@
     {
       "id": "disc-20261012-02",
       "found_at": "2026-10-12",
-      "status": "pending",
+      "status": "proposed",
       "track": "external_trend",
       "target_project": "QTS",
       "skill": "",
@@ -2211,7 +2213,10 @@
       "success_metric": "QTS 回测数据加载层新增『复权因子校验 + 退市股完整性校验』断言，且对应测试由红转绿（tests/ 下新增 test_data_quality.py 通过）",
       "check_cmd": "cd /Users/guan/WorkBuddy/QuantTradingSystem && python3 -m pytest tests/test_data_quality.py -q 2>/dev/null | tail -1 | grep -q 'passed'",
       "suggestion": "外部选型指南（mzlw.cn）指出：回测失真常因复权因子出错或数据源缺退市股，『差的不是策略是数据』。QTS 回测数据层应新增复权标识一致性 + 标的范围含退市股的完整性断言，避免回测乐观偏差。属核心代码改动，走周度人工审（生成 diff 提案待授权）。",
-      "doc_target": "references/backtest_data_quality.md"
+      "doc_target": "references/backtest_data_quality.md",
+      "ring_prev": null,
+      "ring": "Caution",
+      "proposal": "[Caution·diff提案] QTS 回测数据加载层新增『复权因子校验+退市股完整性校验』断言；详见 proposals/disc-20261012-02_backtest_data_quality.md；回滚点 QTS HEAD 72004ae；needs_review 保持 true 待授权"
     },
     {
       "id": "disc-20261012-03",
@@ -2266,7 +2271,7 @@
     {
       "id": "disc-20261013-02",
       "found_at": "2026-10-13",
-      "status": "pending",
+      "status": "proposed",
       "track": "external_trend",
       "target_project": "QTS",
       "skill": "",
@@ -2278,7 +2283,10 @@
       "success_metric": "QTS 数据/回测层新增护栏（区别于 disc-20261012-02 的复权/退市股）：① 识别停牌·涨跌停状态（数据含 halt/limit 标记，信号计算与持仓在涨跌停/停牌期不生成伪成交）；② 以交易所官方交易日历为唯一真值源，volume==0 且非停牌的日期视为非有效交易日剔除。全样本回测不再因日历错位产生收益曲线跳变；tests/ 新增断言由红转绿",
       "check_cmd": "cd /Users/guan/WorkBuddy/QuantTradingSystem && python3 -m pytest tests/test_data_calendar_halt_guard.py -q 2>/dev/null | tail -1 | grep -q 'passed'",
       "suggestion": "外部回测数据质量研究（CSDN/iisidc）指出：涨跌停/停牌状态缺失会产生幽灵订单，交易日历错位（接口返回 volume==0 的空行被当有效交易日）会制造收益曲线跳变。QTS 数据/回测层应补『停牌·涨跌停状态识别 + 交易日历权威源校验(volume==0 视为非交易日)』护栏，作为 disc-20261012-02 的兄弟项（后者覆盖复权/退市股）。属核心代码改动，走周度人工审（生成 diff 提案待授权）。",
-      "doc_target": "references/backtest_calendar_halt_guard.md"
+      "doc_target": "references/backtest_calendar_halt_guard.md",
+      "ring_prev": null,
+      "ring": "Caution",
+      "proposal": "[Caution·diff提案] QTS 数据/回测层新增『停牌·涨跌停识别+交易日历真值源(volume==0非停牌剔除非有效交易日)』护栏；详见 proposals/disc-20261013-02_backtest_calendar_halt_guard.md；回滚点 QTS HEAD 72004ae；needs_review 保持 true 待授权"
     },
     {
       "id": "disc-20261013-03",
@@ -2309,7 +2317,7 @@
     {
       "id": "disc-20261013-04",
       "found_at": "2026-10-13",
-      "status": "pending",
+      "status": "proposed",
       "class": "core",
       "track": "project_signal",
       "target_project": "Claw",
@@ -2318,7 +2326,10 @@
       "value": "high",
       "risk": "low",
       "needs_review": true,
-      "suggestion": "apply_doc_candidates.py 2026-10-12 的修（check_cmd_bad_paths 里「token 以本候选 doc_target 结尾 → 跳过」）把一个**误报**换成了**漏报**：判别只看**后缀**、不看**目录前缀**，于是 `Claw/.workbuddy/inspection_hub/references/X.md`（目录根本不存在）与 `$HOME/.workbuddy/skills/<skill>/references/X.md`（真实落地根）**都算「以 doc_target 结尾」→ 全被跳过**。后果：本日 3 条候选里 2 条（disc-20261012-01/-03）的 check_cmd **落地后仍恒 FAIL**，而闸门报 `blocked_check_cmd=0` —— 指标永远到不了期却**不再告警**（比 disc-20261011-04 更隐蔽：那时至少会拦）。正确判据：闸门已知 skills_dir 与 c['skill'] → 解析**期望落盘绝对路径** `skills_dir/skill/doc_target`，仅当 token 的**规范化全路径相等**（而非后缀匹配）才跳过；否则仍判 bad。并要求 check_cmd 一律用 `$HOME/.workbuddy/skills/...` 绝对根，禁用 Claw 侧路径。验收：已知正样本（错误根 check_cmd）必须被判 bad=1；真实落地根 check_cmd 判 0 —— 即检测可被已知正样本击破。"
+      "suggestion": "apply_doc_candidates.py 2026-10-12 的修（check_cmd_bad_paths 里「token 以本候选 doc_target 结尾 → 跳过」）把一个**误报**换成了**漏报**：判别只看**后缀**、不看**目录前缀**，于是 `Claw/.workbuddy/inspection_hub/references/X.md`（目录根本不存在）与 `$HOME/.workbuddy/skills/<skill>/references/X.md`（真实落地根）**都算「以 doc_target 结尾」→ 全被跳过**。后果：本日 3 条候选里 2 条（disc-20261012-01/-03）的 check_cmd **落地后仍恒 FAIL**，而闸门报 `blocked_check_cmd=0` —— 指标永远到不了期却**不再告警**（比 disc-20261011-04 更隐蔽：那时至少会拦）。正确判据：闸门已知 skills_dir 与 c['skill'] → 解析**期望落盘绝对路径** `skills_dir/skill/doc_target`，仅当 token 的**规范化全路径相等**（而非后缀匹配）才跳过；否则仍判 bad。并要求 check_cmd 一律用 `$HOME/.workbuddy/skills/...` 绝对根，禁用 Claw 侧路径。验收：已知正样本（错误根 check_cmd）必须被判 bad=1；真实落地根 check_cmd 判 0 —— 即检测可被已知正样本击破。",
+      "ring_prev": null,
+      "ring": "Assess",
+      "success_metric": "apply_doc_candidates.py 的 check_cmd_bad_paths 判别改为『目录前缀+文件名』全路径匹配（非仅后缀 .endswith）；对 disc-20261012-01/-03 的 check_cmd 复跑能正确识别『落地后仍未通过』（blocked_check_cmd>0）不再静默归零；回归测试覆盖『doc_target 目录不存在不应被跳过』"
     },
     {
       "id": "disc-20261014-01",
@@ -2411,7 +2422,9 @@
       "success_metric": "references/memory_two_copy_consistency.md 新增『检查器必须校验被注入副本而非同源副本』小节，且记忆健康检查脚本存在对注入路径的引用（grep -rl 'injected' scripts/*memory*check* 命中），对余量负值（如 -2B）能标红而非报『零增长 🟢』",
       "check_cmd": "grep -rq 'two.copy\\|injected' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/memory_two_copy_consistency.md 2>/dev/null && echo ok",
       "doc_target": "references/memory_two_copy_consistency.md",
-      "suggestion": "用户级记忆存在两份副本，巡检检查器一直盯的是未被注入的那份，连报 6 天『零增长 🟢』而实际余量已是 -2B（云记忆缓存超限 606% 真实事故）。补一份记忆双副本一致性防护：检查器改为断言被注入副本的容量，负值即标红，并写入 references。"
+      "suggestion": "用户级记忆存在两份副本，巡检检查器一直盯的是未被注入的那份，连报 6 天『零增长 🟢』而实际余量已是 -2B（云记忆缓存超限 606% 真实事故）。补一份记忆双副本一致性防护：检查器改为断言被注入副本的容量，负值即标红，并写入 references。",
+      "ring_prev": null,
+      "ring": "Adopt"
     },
     {
       "id": "disc-20261015-02",
@@ -2426,7 +2439,9 @@
       "success_metric": "references/credential_validity_vs_quota.md 新增『分离 auth 成功与 quota 耗尽』小节，且 API 健康检查/路由健康脚本存在对剩余额度字段的判定（grep -rl 'remaining_quota\\|quota' scripts/check_*auth* 命中 429/quota 分支）",
       "check_cmd": "grep -rq 'validity.*quota\\|quota' /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/credential_validity_vs_quota.md 2>/dev/null && echo ok",
       "doc_target": "references/credential_validity_vs_quota.md",
-      "suggestion": "把耗竭型资源（DeepSeek 余额、Wind 积分）当成常量写进验收判据，导致『凭据有效』被误判为『可用』。外部实证（scixa 错误分类、nhimg 密钥校验）：401/403 与 429/quota 必须分舱，auth 成功 ≠ 服务额度够用。补一份凭据有效性 vs 额度治理文档并落到健康检查脚本。"
+      "suggestion": "把耗竭型资源（DeepSeek 余额、Wind 积分）当成常量写进验收判据，导致『凭据有效』被误判为『可用』。外部实证（scixa 错误分类、nhimg 密钥校验）：401/403 与 429/quota 必须分舱，auth 成功 ≠ 服务额度够用。补一份凭据有效性 vs 额度治理文档并落到健康检查脚本。",
+      "ring_prev": null,
+      "ring": "Adopt"
     },
     {
       "id": "disc-20261015-03",
@@ -2467,7 +2482,9 @@
       "success_metric": "references/memory_visibility_predicate_caliber.md 新增『判据字节口径单测』小节（含 0B 贴边/正值/负值 三态黄金用例），且该小节被 check_memory_visibility.py 的 SKILL.md 或 README 引用；CI 中 pytest tests/test_check_memory_visibility.py 含 caliber 用例且全绿",
       "check_cmd": "cd /Users/guan/WorkBuddy/Claw && test -f references/memory_visibility_predicate_caliber.md && grep -q 'caliber\\|口径' references/memory_visibility_predicate_caliber.md && echo ok || echo missing",
       "suggestion": "将 2026-10-15 学习『判据口径也会说谎：余量 0B 被报成溢出 2B』固化为可复用护栏：为 check_memory_visibility.py 的字节口径判定补黄金单测（0B 贴边/正值/负值三态），把『判据必须可证伪』写进 references/，防止口径漂移再次假红。",
-      "doc_target": "references/memory_visibility_predicate_caliber.md"
+      "doc_target": "references/memory_visibility_predicate_caliber.md",
+      "ring_prev": null,
+      "ring": "Adopt"
     },
     {
       "id": "disc-20261016-02",
@@ -2482,7 +2499,9 @@
       "success_metric": "references/degradation_must_be_metered.md 新增『降级须进健康判据』小节，且 alpha_eval.py（或对应评估脚本）的退出码/健康判据包含『回退样本占比』阈值（如 T-1 回退 > 5% 即告警），CI 中对应测试存在且全绿",
       "check_cmd": "cd /Users/guan/WorkBuddy/Claw && test -f references/degradation_must_be_metered.md && grep -q 'metered\\|计量\\|回退' references/degradation_must_be_metered.md && echo ok || echo missing",
       "suggestion": "将 2026-10-15 学习『降级可见≠降级被计量：61/300 只静默回退 T-1 旧K线，评估仍报正常』固化为护栏：评估脚本必须把『降级/回退样本占比』纳入健康判据，WARNING 不等于健康。",
-      "doc_target": "references/degradation_must_be_metered.md"
+      "doc_target": "references/degradation_must_be_metered.md",
+      "ring_prev": null,
+      "ring": "Adopt"
     },
     {
       "id": "disc-20261016-03",
@@ -2497,12 +2516,14 @@
       "success_metric": "references/cache_cleanup_sharded.md 新增『批量清扫必须分片（单批 ≤ 安全护栏阈值，且跨批先验证上一删除批次生效）』小节，且清扫脚本（cache cleanup）实现分片逻辑；CI/单测含『单批超限触发分片』用例且全绿",
       "check_cmd": "cd /Users/guan/WorkBuddy/Claw && test -f references/cache_cleanup_sharded.md && grep -q '分片\\|shard\\|safe-delete' references/cache_cleanup_sharded.md && echo ok || echo missing",
       "suggestion": "将 2026-10-13 学习『缓存清扫一次删 1861 文件撞 safe-delete 护栏打断评估链』固化为护栏：批量清扫必须分片到安全护栏阈值以下，且跨批先验证上一批删除已生效再继续，避免整条评估链被 SAFE_DELETE_BULK_CONFIRM 打断。",
-      "doc_target": "references/cache_cleanup_sharded.md"
+      "doc_target": "references/cache_cleanup_sharded.md",
+      "ring_prev": null,
+      "ring": "Adopt"
     },
     {
       "id": "disc-20261016-04",
       "found_at": "2026-10-16",
-      "status": "pending",
+      "status": "proposed",
       "class": "core",
       "track": "project_signal",
       "target_project": "Claw",
@@ -2511,7 +2532,71 @@
       "value": "high",
       "risk": "low",
       "needs_review": true,
-      "suggestion": "【产出侧回归·当日新候选 100% 无法落地】2026-10-16 闸门 apply_doc_candidates.py 报 dropped_by_code.host=5，其中当日新产 3 条（disc-20261016-01/02/03）**全部** `skill` 字段为空 → 被 quality_gate.require_host 以「承载方缺失: (空)」拦下（脚本 apply_doc_candidates.py:258 `if g.get('require_host') and (not skill or not (skills_dir/skill).is_dir())`）。分日统计 skill 为空占比：10-14 = 0/3 → 10-15 = 2/3 → 10-16 = **3/3**，且 10-15 的 disc-20261015-01/02 至今日仍 pending 未回填 → **不是偶发遗漏，是产出侧逐日升级的全量回归**。后果：本通道（统一发现回路·落地半程）对当日新候选**100% 失效**，连续多日零落地；且因闸门把 host 排在 doc_target/success_metric 之前，回归会被静默为「无过闸候选」（铁律❹ SILENT），**用户侧看不到通道已停摆**。根因已于 disc-20261012-01 的 skill_filled_note 记明：**登记端 validate_candidate 判据（「有 skill 或 有真实项目锚点」）比落地端 require_host（必须有 skill 且目录存在）更松**，两端口径不一致；10-12 那条靠人工补 skill_filled_note 才落地，**没有修根**，故 10-15 起复发并升级。药方（二选一，建议 a+b 同做）：(a) 把登记端 validate_candidate 与落地端 require_host **统一为同一判据**——若保留「项目锚点」豁免，则落地端 require_host 对 target_project 有值且锚点可解析的候选，应以 target_project 推导承载 skill 而非直接拦；(b) 产出侧（🛡️ 统一发现-每日扫描）**必须**在写入 registry 前填 `skill`，并把「skill 空」列为登记失败（拒收）而非事后补注。验收须可证伪：造一条 skill 为空的候选，登记端必须**拒收或自动补全**，落地端不得静默降级为「普通滤除」；且连续出现 ≥3 条同因 host 拦截时，闸门须置 `host_alert=true`（对齐 v1.10 metric_alert 的防静默设计）——否则「产出侧坏了」永远渲染成「今天没有可落地候选」。⚠️ 同批另证：本日 3 条新候选的 check_cmd 仍硬编码 Claw 侧根（`cd /Users/guan/WorkBuddy/Claw && test -f references/…`），而 `Claw/references` 与 `Claw/.workbuddy/inspection_hub/references` **实测均不存在**（真实落地根为 `$HOME/.workbuddy/skills/<skill>/references`）→ check_cmd 恒 FAIL；因 host 先拦，闸门仍报 `blocked_check_cmd=0`，**disc-20261013-04 登记的「后缀匹配漏报」第 4 次常驻再现**（累计 6 例）。"
+      "suggestion": "【产出侧回归·当日新候选 100% 无法落地】2026-10-16 闸门 apply_doc_candidates.py 报 dropped_by_code.host=5，其中当日新产 3 条（disc-20261016-01/02/03）**全部** `skill` 字段为空 → 被 quality_gate.require_host 以「承载方缺失: (空)」拦下（脚本 apply_doc_candidates.py:258 `if g.get('require_host') and (not skill or not (skills_dir/skill).is_dir())`）。分日统计 skill 为空占比：10-14 = 0/3 → 10-15 = 2/3 → 10-16 = **3/3**，且 10-15 的 disc-20261015-01/02 至今日仍 pending 未回填 → **不是偶发遗漏，是产出侧逐日升级的全量回归**。后果：本通道（统一发现回路·落地半程）对当日新候选**100% 失效**，连续多日零落地；且因闸门把 host 排在 doc_target/success_metric 之前，回归会被静默为「无过闸候选」（铁律❹ SILENT），**用户侧看不到通道已停摆**。根因已于 disc-20261012-01 的 skill_filled_note 记明：**登记端 validate_candidate 判据（「有 skill 或 有真实项目锚点」）比落地端 require_host（必须有 skill 且目录存在）更松**，两端口径不一致；10-12 那条靠人工补 skill_filled_note 才落地，**没有修根**，故 10-15 起复发并升级。药方（二选一，建议 a+b 同做）：(a) 把登记端 validate_candidate 与落地端 require_host **统一为同一判据**——若保留「项目锚点」豁免，则落地端 require_host 对 target_project 有值且锚点可解析的候选，应以 target_project 推导承载 skill 而非直接拦；(b) 产出侧（🛡️ 统一发现-每日扫描）**必须**在写入 registry 前填 `skill`，并把「skill 空」列为登记失败（拒收）而非事后补注。验收须可证伪：造一条 skill 为空的候选，登记端必须**拒收或自动补全**，落地端不得静默降级为「普通滤除」；且连续出现 ≥3 条同因 host 拦截时，闸门须置 `host_alert=true`（对齐 v1.10 metric_alert 的防静默设计）——否则「产出侧坏了」永远渲染成「今天没有可落地候选」。⚠️ 同批另证：本日 3 条新候选的 check_cmd 仍硬编码 Claw 侧根（`cd /Users/guan/WorkBuddy/Claw && test -f references/…`），而 `Claw/references` 与 `Claw/.workbuddy/inspection_hub/references` **实测均不存在**（真实落地根为 `$HOME/.workbuddy/skills/<skill>/references`）→ check_cmd 恒 FAIL；因 host 先拦，闸门仍报 `blocked_check_cmd=0`，**disc-20261013-04 登记的「后缀匹配漏报」第 4 次常驻再现**（累计 6 例）。",
+      "occurrences": 3,
+      "occurrence_days": [
+        "2026-10-15",
+        "2026-10-16",
+        "2026-10-17"
+      ],
+      "first_seen": "2026-10-15",
+      "last_seen": "2026-10-17",
+      "blocked_by_host_latest": 8,
+      "escalation_note": "2026-10-17 复核（第 3 个连续日，逐日升级）：闸门 dropped_by_code.host 由 10-15=2 → 10-16=5 → **10-17=8**；被拦清单 = disc-20261015-01/02（至今未回填）+ disc-20261016-01/02/03（至今未回填）+ disc-20261017-01/02/03（当日新产 3/3 全空）。skill 字段为空占比：10-14=0/3 → 10-15=2/3 → 10-16=3/3 → 10-17=3/3。本通道对当日新候选连续 3 日 100% 失效、连续 3 日零落地，且全部渲染为 SILENT。★ 加重证据：今日 3 条候选 target_project 均为 Claw（url 指向 Claw/.learnings/2026-10-13..2026-10-16 的本地学习文件），即**项目锚点是完整可解析的**，skill 却为空 —— 与登记端 validate_candidate「有 skill **或** 有真实项目锚点」的宽松判据一致，反证根因是两端口径不一致（落地端 require_host 硬要 skill 且目录存在），而非候选本身无承载方。按 run#22 约定：**若 10-18 第 4 个连续日再现 host 拦截，则本条应从 pending 升级为周度审 P0**（并在本通道推一次卡）。药方与验收标准见本条目 suggestion；本条属核心类（脚本/登记端逻辑）→ 本通道不改写。",
+      "ring_prev": null,
+      "ring": "Assess",
+      "success_metric": "每日文档落地通道在登记候选时回填 skill 字段（由 target_project+doc_target 推断承载 skill，或 require_host 改软校验：host 缺失仅告警不阻断）；重跑 apply_doc_candidates.py 闸门后 dropped_by_code.host 由 8 降至 0，且 disc-20261015-01..disc-20261017-03 的 skill 字段非空、可进落地通道"
+    },
+    {
+      "id": "disc-20261017-01",
+      "found_at": "2026-10-17",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-13-background-task-blindspot-in-forensics.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "Claw 取证/健康检查脚本新增「未执行」判决分支：下结论前先查后台任务事件（automation_runs 事件对 / 后台任务输出）且先读项目日日志；护栏落进 references/execution_verdict_needs_task_events.md 并被相关脚本或 SKILL.md 引用。",
+      "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/execution_verdict_needs_task_events.md && grep -rl 'execution_verdict_needs_task_events' /Users/guan/WorkBuddy/Claw/.workbuddy/scripts /Users/guan/WorkBuddy/Claw/.workbuddy/skills 2>/dev/null | head -1",
+      "suggestion": "将 2026-10-13 学习「「未执行」的判决必须查后台任务事件；且先读项目自己的日日志」固化为护栏：取证判据不再仅依赖进程退出码，补「后台任务事件 + 项目日日志」双源核对，防止把「后台任务实际跑过但主进程未触达」误判为未执行。",
+      "doc_target": "references/execution_verdict_needs_task_events.md",
+      "ring_prev": null,
+      "ring": "Adopt"
+    },
+    {
+      "id": "disc-20261017-02",
+      "found_at": "2026-10-17",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-16-invariant-erased-the-dimension-it-broke.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "Claw 批量改写/对账类脚本新增「被改动维度」断言（除内容不变式外，显式校验结构层元素计数/标签数未变），防止不变式绿灯掩盖结构损失；落进 references/invariant_must_track_changed_dimension.md 并被引用。",
+      "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/invariant_must_track_changed_dimension.md && grep -rl 'invariant_must_track_changed_dimension' /Users/guan/WorkBuddy/Claw/.workbuddy/scripts /Users/guan/WorkBuddy/Claw/.workbuddy/skills 2>/dev/null | head -1",
+      "suggestion": "将 2026-10-16 学习「「不变式」擦掉了被改动的维度：一条批量排印改写吃掉 76 个 bullet，而内容不变式全程绿灯」固化为护栏：检测/对账脚本除「内容未变」不变式外，必须显式断言被改动的那个维度（结构元素计数/标签数）未被静默吞掉。",
+      "doc_target": "references/invariant_must_track_changed_dimension.md",
+      "ring_prev": null,
+      "ring": "Adopt"
+    },
+    {
+      "id": "disc-20261017-03",
+      "found_at": "2026-10-17",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-16-two-writers-generated-day-vs-data-day.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "Claw 盘中数据消费方不再仅 gate report_date==today，新增「数据日(data_date) 须等于交易所交易日历当日」断言，拦截第二个写入方/生成日≠数据日造成的隔夜 K 线误用；落进 references/report_date_vs_data_day_gate.md 并被引用。",
+      "check_cmd": "test -f /Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/report_date_vs_data_day_gate.md && grep -rl 'report_date_vs_data_day' /Users/guan/WorkBuddy/Claw/.workbuddy/scripts /Users/guan/WorkBuddy/Claw/.workbuddy/skills 2>/dev/null | head -1",
+      "suggestion": "将 2026-10-16 学习「盘中第二个写入方 + 生成日≠数据日：只 gate report_date==today 的消费方会把昨日 K 线当今日用」固化为护栏：数据消费方除 report_date==today 外，必须校验 data_date 等于交易日历当日，防止第二写入方/生成日错位导致隔夜数据被当实时用。",
+      "doc_target": "references/report_date_vs_data_day_gate.md",
+      "ring_prev": null,
+      "ring": "Adopt"
     }
   ],
   "known_failure_modes": [
@@ -2814,10 +2899,10 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-16T00:40:46+08:00",
+      "ts": "2026-10-17T00:40:48+08:00",
       "mode": "live",
       "selected": [],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261016.md"
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261017.md"
     },
     "calibrate_runs": 18,
     "rollback_point": "e92583f",
@@ -2872,7 +2957,7 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 20,
+    "live_runs": 21,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7,
     "skill_vcs_sha_latest": "571e3d6",
@@ -2941,7 +3026,10 @@
     "2026-10-14 ⚠️ 指标闸未触发：blocked_metric=1（disc-20261013-04 因无 success_metric 被拦）但 metric_alert=false 且 metric_alert_raw=false —— 未达 metric_alert_min=3 阈值。故本日不推指标闸提示、不触碰 last_metric_alert_at（节流状态源保持 null）。",
     "2026-10-15 doc-apply(live): 落地 2 条文档类候选 → unified-inspection-hub/references/canonical_path_staleness.md (disc-20261014-03)、a-stock-data/references/a_stock_data_landscape.md (disc-20261015-03)；技能库 f877552→571e3d6，Claw 提交 e92583f；parity rc=0/ok=true/violations=[]，hub_reconcile rc=0/D1-D9 全空；rollback_point→e92583f。⚠️ 两条候选自带 check_cmd 落地后原样 2/2 FAIL（均硬编码不存在的 Claw 侧路径 Claw/.workbuddy/inspection_hub/references/），以正确落地根替换后 2/2 PASS → 落地成功、内容闸通过，属**产出侧 check_cmd 路径写法缺陷**（disc-20261011-04 / disc-20261013-04 / disc-20261014-01 / disc-20261014-03 / disc-20261015-03 累计 5 例）。闸门本日报 blocked_check_cmd=0（run#19 已登记的「后缀匹配漏报」常驻再现，第 3 次）。⛔ 未写 automations[].last_run/next_run；本轮 metric_alert=false 故未触碰 last_metric_alert_at。",
     "2026-10-16 doc-apply(live): 闸门 selected=[]（dropped=87：status 78 / host 5 / risk 2 / success_metric 1）→ 零落地、零 commit、零 $VCS 变更。⚠️ 产出侧回归：当日 3 条新候选 disc-20261016-01/02/03 的 `skill` 字段**全为空** → 被 require_host「承载方缺失:(空)」拦下；分日 skill 空占比 10-14 0/3 → 10-15 2/3 → 10-16 3/3，且 10-15 的 2 条仍 pending 未回填 → 本通道对当日新候选 100% 失效（登记端/落地端 require_host 口径不一致，10-12 曾人工补注未修根）。另有 check_cmd 错误根第 6 例（Claw/references 实测不存在），因 host 先拦故 blocked_check_cmd 仍报 0（disc-20261013-04 后缀匹配漏报常驻）。parity rc=0/ok=true/violations=[]/gaps=[]；hub_reconcile rc=10（仅 D1 镜像漂移：automation-1786000625371 巡检中枢存活看门狗 声明 ACTIVE/实测 PAUSED，非本批职责），D2–D9 全空（D5 文档契约未漂移）。已登记 disc-20261016-04 转周度审。⛔ 未写 automations[].last_run/next_run；本轮 metric_alert=false（raw=false/throttled=false/last_at=null，min=3 未达阈）故未触碰 last_metric_alert_at。",
-    "2026-10-16 23:03 hub_reconcile --fix 以 DB 真值收敛镜像 D1 1 处: automation-1786000625371"
+    "2026-10-16 23:03 hub_reconcile --fix 以 DB 真值收敛镜像 D1 1 处: automation-1786000625371",
+    "2026-10-17 doc-apply(live): 闸门 selected=[]（dropped=94：status 78 / **host 8** / risk 2 / success_metric 1 / doc_target 1）→ 零落地、零 commit、零 $VCS 变更（铁律❹ SILENT）。⚠️ **产出侧回归连续第 3 日并升级**：当日 3 条新候选 disc-20261017-01/02/03 的 `skill` 字段**全为空** → 被 require_host「承载方缺失:(空)」拦；dropped_by_code.host 逐日 10-15=2 → 10-16=5 → **10-17=8**（8 条 = 10-15×2 + 10-16×3 + 10-17×3，前 5 条至今未回填）。本通道对当日新候选连续 3 日 100% 失效。已把取证补进 disc-20261016-04（occurrences=3 / first_seen=10-15 / blocked_by_host_latest=8），约定 10-18 若再现即升 P0。另：今日 3 条候选 check_cmd 均硬编码 `/Users/guan/WorkBuddy/Claw/.workbuddy/inspection_hub/references/` 与 `Claw/references`——**两处实测均不存在**（真实落地根 = `$HOME/.workbuddy/skills/unified-inspection-hub/references/`，已存在 5 文件）→ check_cmd 恒 FAIL，为**第 7 例**；闸门仍报 blocked_check_cmd=0（已复核 `check_cmd_bad_paths` 源码：`own_variants` 仅做 `expanded.endswith(own)` **后缀匹配**，错误根与正确根都被判『以 doc_target 结尾』→ 全跳过）→ disc-20261013-04 登记的「后缀匹配漏报」第 4 次常驻再现。⛔ 未写 automations[].last_run/next_run；本轮 metric_alert=false（raw=false/throttled=false/last_at=null，blocked_metric=1 < min=3）故未触碰 last_metric_alert_at。",
+    "2026-10-17T23:26:39+08:00 周度统一排序（2026-W42）：待排序 12｜四环 {'Adopt': 8, 'Trial': 0, 'Assess': 2, 'Caution': 2}｜升降环 12",
+    "2026-10-17T23:30:20+08:00 收益回查：到期 15 条；机器判定 13、待裁决 2；记分板 by_impact={'achieved': 12, 'none': 1}"
   ],
   "schedule_policy": {
     "free_window": "23:00 → 次日 08:00（Hy4 preview 夜间闲时免费额度；其余时段正常扣积分）",
@@ -3671,19 +3759,26 @@
     }
   },
   "evolution_radar": {
-    "updated_at": "2026-10-10T23:25:21+08:00",
+    "updated_at": "2026-10-17T23:26:39+08:00",
     "rings": {
       "Adopt": [
-        "disc-20261010-01"
+        "disc-20261015-01",
+        "disc-20261015-02",
+        "disc-20261016-01",
+        "disc-20261016-02",
+        "disc-20261016-03",
+        "disc-20261017-01",
+        "disc-20261017-02",
+        "disc-20261017-03"
       ],
-      "Trial": [
-        "disc-20261008-03",
-        "disc-20261009-02"
+      "Trial": [],
+      "Assess": [
+        "disc-20261013-04",
+        "disc-20261016-04"
       ],
-      "Assess": [],
       "Caution": [
-        "disc-20261010-02",
-        "disc-20261010-03"
+        "disc-20261012-02",
+        "disc-20261013-02"
       ]
     },
     "history": [
@@ -3956,42 +4051,138 @@
           "real_project_share": 0.6
         },
         "no_metric_in_assess": 0
+      },
+      {
+        "week": "2026-W42",
+        "ts": "2026-10-17T23:26:39+08:00",
+        "pool": 12,
+        "counts": {
+          "Adopt": 8,
+          "Trial": 0,
+          "Assess": 2,
+          "Caution": 2
+        },
+        "movements": [
+          {
+            "id": "disc-20261012-02",
+            "from": null,
+            "to": "Caution",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261013-02",
+            "from": null,
+            "to": "Caution",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261013-04",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261015-01",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261015-02",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261016-01",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261016-02",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261016-03",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261016-04",
+            "from": null,
+            "to": "Assess",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261017-01",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261017-02",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          },
+          {
+            "id": "disc-20261017-03",
+            "from": null,
+            "to": "Adopt",
+            "movement": "new"
+          }
+        ],
+        "real_project_share": {
+          "total": 12,
+          "real_project": 12,
+          "meta": 0,
+          "none": 0,
+          "real_project_share": 1.0
+        },
+        "no_metric_in_assess": 2
       }
     ],
     "note": "周度排序状态：发现节奏 ≠ 采纳节奏。Adopt/Trial/Assess/Caution 四环 + 升降环记录；落地仍逐条增量（禁批量落地）。"
   },
   "value_scoreboard": {
-    "updated_at": "2026-10-10T23:31:41+08:00",
-    "by_impact": {},
+    "updated_at": "2026-10-17T23:30:20+08:00",
+    "by_impact": {
+      "achieved": 12,
+      "none": 1
+    },
     "by_project": {
       "meta": {
-        "achieved": 0,
+        "achieved": 9,
         "partial": 0,
-        "none": 0,
+        "none": 1,
         "unmeasured": 36,
-        "pending": 24
+        "pending": 20
       },
       "Claw": {
-        "achieved": 0,
+        "achieved": 3,
         "partial": 0,
         "none": 0,
         "unmeasured": 0,
-        "pending": 4
+        "pending": 16
       },
       "QTS": {
         "achieved": 0,
         "partial": 0,
         "none": 0,
         "unmeasured": 0,
-        "pending": 2
+        "pending": 5
       }
     },
     "real_project_share": {
-      "total": 66,
-      "real_project": 6,
-      "meta": 60,
+      "total": 90,
+      "real_project": 24,
+      "meta": 66,
       "none": 0,
-      "real_project_share": 0.0909
+      "real_project_share": 0.2667
     },
     "legacy_unmeasured": 36,
     "note": "收益记分板：只统计可回查的结论（achieved/partial/none）。『优化』= 指标相对基线提升，不是『看起来更好了』。"

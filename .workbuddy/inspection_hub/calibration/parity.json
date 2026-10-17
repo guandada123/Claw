@@ -720,9 +720,16 @@
       "mode": "live",
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261016.md",
       "selected": []
+    },
+    "20261017:live": {
+      "date": "2026-10-17",
+      "ts": "2026-10-17T00:40:48+08:00",
+      "mode": "live",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261017.md",
+      "selected": []
     }
   },
-  "updated_at": "2026-10-16T00:40:46+08:00",
+  "updated_at": "2026-10-17T00:40:48+08:00",
   "_notes": [
     "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
   ]

@@ -500,7 +500,7 @@
     },
     "2c2855f6d82c8e9a": {
       "id": "disc-20261012-02",
-      "status": "pending",
+      "status": "proposed",
       "target_project": "QTS",
       "skill": "",
       "also_seen": []
@@ -521,7 +521,7 @@
     },
     "9b7267ac98168709": {
       "id": "disc-20261013-02",
-      "status": "pending",
+      "status": "proposed",
       "target_project": "QTS",
       "skill": "",
       "also_seen": []
@@ -535,7 +535,7 @@
     },
     "9b2f71143943cfe3": {
       "id": "disc-20261013-04",
-      "status": "pending",
+      "status": "proposed",
       "target_project": "Claw",
       "skill": "unified-inspection-hub",
       "also_seen": []
@@ -602,7 +602,35 @@
       "target_project": "Claw",
       "skill": "",
       "also_seen": []
+    },
+    "02318310614bd4d4": {
+      "id": "disc-20261016-04",
+      "status": "proposed",
+      "target_project": "Claw",
+      "skill": "unified-inspection-hub",
+      "also_seen": []
+    },
+    "660426c4aca88d9a": {
+      "id": "disc-20261017-01",
+      "status": "pending",
+      "target_project": "Claw",
+      "skill": "",
+      "also_seen": []
+    },
+    "ae133e6bf4cfdc26": {
+      "id": "disc-20261017-02",
+      "status": "pending",
+      "target_project": "Claw",
+      "skill": "",
+      "also_seen": []
+    },
+    "511322a2ddc4b0f4": {
+      "id": "disc-20261017-03",
+      "status": "pending",
+      "target_project": "Claw",
+      "skill": "",
+      "also_seen": []
     }
   },
-  "updated_at": "2026-10-16T00:24:29+08:00"
+  "updated_at": "2026-10-17T23:34:26+08:00"
 }
