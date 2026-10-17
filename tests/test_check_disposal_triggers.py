@@ -142,12 +142,14 @@ def _fixed_calendar(monkeypatch, holidays=None, ok=True):
     """
     monkeypatch.setattr(cdt, "load_calendar", lambda: (holidays or set(), ok))
     monkeypatch.setattr(cdt, "fetch_sse_close", lambda: (3800.0, "2026-10-15"))
-    # 🔴 2026-10-17 三次事故：休市闸门（main 内 `import is_trading_day` →
-    # today_is_trading()）未密封 —— 本地有 astock_holidays.json（CI 没有），
-    # 于是出现"CI 绿 / 本地周末红"的环境分裂：闸门把 main 直接拦成 return 0，
-    # 12 个集成用例全挂（baseline 不写、告警 0）。CI 一直绿只是因为
-    # CI 跑在「日历缺失 → None → 判不了不停工」的降级分支上。
-    # → 一并密封闸门为交易日，使集成路径与"今天是星期几"解耦。
+    # 🔴 2026-10-17：休市闸门（main 内 `import is_trading_day` →
+    # today_is_trading()）未密封，且闸门用**本地时区的"今天"** ——
+    # CI 时钟是 UTC、本地是 +8，两边的"今天"可能差一天：
+    # UTC 周五跑 → 闸门放行（绿）；UTC 周六跑 → 判休市 → main return 0
+    # → 12 个集成用例全挂（baseline 不写、告警全 0）。实测 d9f9845 失败于
+    # UTC 周六 01:25Z，同日 ca3b54d（本修复）01:42Z 同为 UTC 周六即转绿。
+    # 注：日历文件本身 10-11 已入库（7570d29），与 10-11 那次"文件缺失降级"是两回事。
+    # → 密封闸门为交易日，使集成路径与"今天是星期几/在哪个时区"解耦。
     monkeypatch.setattr("is_trading_day.today_is_trading", lambda: True)
 
 
