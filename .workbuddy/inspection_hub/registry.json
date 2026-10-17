@@ -2597,6 +2597,66 @@
       "doc_target": "references/report_date_vs_data_day_gate.md",
       "ring_prev": null,
       "ring": "Adopt"
+    },
+    {
+      "id": "disc-20261018-01",
+      "found_at": "2026-10-18",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-12-fallback-source-must-verify-attribution.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/fallback_empty_vs_full_market.md 新增『兜底源返空与返全市场必须可区分』小节（含：返回空 vs 返回全市场同形时按 ticker 归属校验，单 ETF 名下出现非本公司财报披露即判异常），且该小节被数据消费脚本或 SKILL.md 引用；CI 含『同形空/全市场区分』用例且全绿",
+      "check_cmd": "grep -rl 'fallback_empty\\|empty_vs_full\\|verify_attribution' /Users/guan/WorkBuddy/Claw/references/ 2>/dev/null",
+      "suggestion": "Claw 数据聚合层在兜底源返回「空」与返回「全市场」时外观一致，曾导致一只 ETF 名下凭空多出 9 行别家公司财报披露。须在兜底消费侧加归属校验：空结果保持空、全市场结果按 ticker 过滤，二者不可混用。落地 references/fallback_empty_vs_full_market.md 并被引用。",
+      "doc_target": "references/fallback_empty_vs_full_market.md"
+    },
+    {
+      "id": "disc-20261018-02",
+      "found_at": "2026-10-18",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-12-preflight-stale-guard-for-backlog-consumer.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/backlog_consumer_stale_guard.md 新增『恢复积压消费通道前先补陈旧输入防护』小节（含：首跑前对输入时间戳/数据日做 staleness gate，陈旧输入拒绝而非静默消费），且被相关消费脚本或 SKILL.md 引用；CI 含『陈旧输入被拦截』用例且全绿",
+      "check_cmd": "grep -rl 'stale_guard\\|staleness_gate\\|backlog_consumer' /Users/guan/WorkBuddy/Claw/references/ 2>/dev/null",
+      "suggestion": "恢复「积压消费通道」时，若先让其首跑，会把陈旧的输入当作新鲜数据处理。须在通道恢复前先补「陈旧输入防护」（staleness gate），拒绝而非静默消费。落地 references/backlog_consumer_stale_guard.md 并被引用。",
+      "doc_target": "references/backlog_consumer_stale_guard.md"
+    },
+    {
+      "id": "disc-20261018-03",
+      "found_at": "2026-10-18",
+      "status": "pending",
+      "track": "project_signal",
+      "target_project": "Claw",
+      "skill": "",
+      "url": "file:///Users/guan/WorkBuddy/Claw/.learnings/2026-10-12-decommission-hard-actions.md",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/decommission_resident_mechanism.md 新增『常驻机制退役三硬动作』小节（cron 留因注释 / launchd 双动作检查 / mail spool 出口清理），且被运维脚本或 SKILL.md 引用；外部 five-layer 治理「退役层」(zone.ci) 佐证",
+      "check_cmd": "grep -rl 'decommission\\|resident_mechanism\\|cron_cause_comment' /Users/guan/WorkBuddy/Claw/references/ 2>/dev/null",
+      "suggestion": "退役/停用「常驻机制」易留孤儿（cron 留因注释缺失、launchd 双动作、mail spool 出口未清）。须固化三条硬动作到 decommission 流程。落地 references/decommission_resident_mechanism.md 并被引用。外部 zone.ci 五层治理「退役层」佐证该维度。",
+      "doc_target": "references/decommission_resident_mechanism.md"
+    },
+    {
+      "id": "disc-20261018-04",
+      "found_at": "2026-10-18",
+      "status": "pending",
+      "track": "external_trend",
+      "target_project": "meta",
+      "skill": "a-stock-data",
+      "url": "https://github.com/ruanyf/weekly/issues/12158",
+      "value": "high",
+      "risk": "low",
+      "success_metric": "references/a_stock_data_landscape.md 新增『本地自托管数据湖(CNEquity)』小节（含：退市股保留在历史股票池、财报按 as_of 只返已披露数据、原始价与复权因子分离），且被 SKILL.md 引用",
+      "check_cmd": "grep -rl 'CNEquity\\|survivorship\\|as_of' /Users/guan/WorkBuddy/Claw/references/a_stock_data_landscape.md 2>/dev/null",
+      "suggestion": "CNEquity 是开源自托管 A股数据湖（55 数据集 + MCP + 网页控制台），把幸存者偏差（退市股保留）与未来函数（as_of 财报）做进数据层，可作为 QTS 回测数据质量的外部参照；补本地 a-stock-data 生态版图。",
+      "doc_target": "references/a_stock_data_landscape.md"
     }
   ],
   "known_failure_modes": [
@@ -2899,10 +2959,12 @@
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261008.md"
     },
     "last_live": {
-      "ts": "2026-10-17T00:40:48+08:00",
+      "ts": "2026-10-18T00:40:49+08:00",
       "mode": "live",
-      "selected": [],
-      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261017.md"
+      "selected": [
+        "disc-20261018-04"
+      ],
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261018.md"
     },
     "calibrate_runs": 18,
     "rollback_point": "e92583f",
@@ -2957,7 +3019,7 @@
         "2": "输入不可读/不可信 → 不得切换（**绝不等于「没有越界」**）"
       }
     },
-    "live_runs": 21,
+    "live_runs": 22,
     "blocked_metric_alert_min": 3,
     "metric_alert_min_interval_days": 7,
     "skill_vcs_sha_latest": "571e3d6",

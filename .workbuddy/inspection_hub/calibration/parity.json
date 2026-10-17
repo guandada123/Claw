@@ -727,9 +727,28 @@
       "mode": "live",
       "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261017.md",
       "selected": []
+    },
+    "20261018:live": {
+      "date": "2026-10-18",
+      "ts": "2026-10-18T00:40:49+08:00",
+      "mode": "live",
+      "report": ".workbuddy/inspection_hub/calibration/apply_dryrun_20261018.md",
+      "selected": [
+        {
+          "id": "disc-20261018-04",
+          "skill": "a-stock-data",
+          "target": "references/a_stock_data_landscape.md",
+          "value": "high",
+          "risk": "low",
+          "url": "https://github.com/ruanyf/weekly/issues/12158",
+          "target_project": "meta",
+          "track": "external_trend",
+          "success_metric": "references/a_stock_data_landscape.md 新增『本地自托管数据湖(CNEquity)』小节（含：退市股保留在历史股票池、财报按 as_of 只返已披露数据、原始价与复权因子分离），且被 SKILL.md 引用"
+        }
+      ]
     }
   },
-  "updated_at": "2026-10-17T00:40:48+08:00",
+  "updated_at": "2026-10-18T00:40:49+08:00",
   "_notes": [
     "2026-09-24 二次审计：删除一条由 `apply_doc_candidates.py --mode live` 试跑写入的伪造 live 记录（观测行为污染权威证据链）；已在脚本层禁止 --mode 回写/记账。"
   ]
